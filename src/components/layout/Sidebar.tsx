@@ -48,6 +48,7 @@ export default function Sidebar() {
       items: [
         { label: "Geral", href: "/planejamento/geral" },
         { label: "Contratos", href: "/planejamento/contratos" },
+        { label: "Contratos v2", href: "/planejamento/centro-custos" },
         { label: "Minhas Demandas", href: "/planejamento/minhas-demandas" },
       ],
     },
@@ -58,6 +59,7 @@ export default function Sidebar() {
       items: [
         { label: "Geral", href: "/logistica/geral" },
         { label: "Minhas Demandas", href: "/logistica/minhas-demandas" },
+        { label: "Pendências", href: "/pendencias" },
       ],
     },
     {

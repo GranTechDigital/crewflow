@@ -34,12 +34,6 @@ function formatarDataBR(data: string) {
   return new Date(data).toLocaleDateString('pt-BR');
 }
 
-// Tipo para ordenação
-type SortConfig = {
-  key: keyof Pessoa | null;
-  direction: 'asc' | 'desc';
-};
-
 export default function Home() {
   const [dados, setDados] = useState<Pessoa[]>([]);
   const [loading, setLoading] = useState(false);
@@ -60,7 +54,6 @@ export default function Home() {
   const [showDetails, setShowDetails] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editedPessoa, setEditedPessoa] = useState<Pessoa | null>(null);
-  const [sortConfig, setSortConfig] = useState<SortConfig>({ key: null, direction: 'asc' });
 
   useEffect(() => {
     fetchDados();
@@ -136,25 +129,8 @@ export default function Home() {
   };
 
   // Função para filtrar dados
-  // Função para ordenar os dados
-  const handleSort = (key: keyof Pessoa) => {
-    let direction: 'asc' | 'desc' = 'asc';
-    
-    if (sortConfig.key === key && sortConfig.direction === 'asc') {
-      direction = 'desc';
-    } else if (sortConfig.key === key && sortConfig.direction === 'desc') {
-      // Se clicar na mesma coluna pela terceira vez, remove a ordenação
-      return setSortConfig({ key: null, direction: 'asc' });
-    }
-    
-    setSortConfig({ key, direction });
-    setCurrentPage(1); // Volta para a primeira página ao ordenar
-  };
-
-  // Função para filtrar dados
   const getFilteredData = () => {
-    // Primeiro filtra os dados
-    const filteredData = dados.filter(pessoa => {
+    return dados.filter(pessoa => {
       // Busca global
       const searchLower = searchTerm.toLowerCase();
       const matchesSearch = !searchTerm || 
@@ -163,57 +139,13 @@ export default function Home() {
         );
 
       // Filtros específicos
-      const matchesStatus = !filters.status || 
-        (pessoa.status && pessoa.status.toLowerCase() === filters.status.toLowerCase());
+      const matchesStatus = !filters.status || pessoa.status === filters.status;
       const matchesDepartamento = !filters.departamento || pessoa.departamento === filters.departamento;
       const matchesCentroCusto = !filters.centroCusto || pessoa.centroCusto === filters.centroCusto;
       const matchesFuncao = !filters.funcao || pessoa.funcao === filters.funcao;
 
       return matchesSearch && matchesStatus && matchesDepartamento && matchesCentroCusto && matchesFuncao;
     });
-    
-    // Depois ordena os dados filtrados se houver uma configuração de ordenação
-    if (sortConfig.key) {
-      return [...filteredData].sort((a, b) => {
-        const aValue = a[sortConfig.key as keyof Pessoa];
-        const bValue = b[sortConfig.key as keyof Pessoa];
-        
-        // Tratamento para valores nulos
-        if (aValue === null && bValue === null) return 0;
-        if (aValue === null) return sortConfig.direction === 'asc' ? 1 : -1;
-        if (bValue === null) return sortConfig.direction === 'asc' ? -1 : 1;
-        
-        // Comparação de strings (case insensitive)
-        if (typeof aValue === 'string' && typeof bValue === 'string') {
-          return sortConfig.direction === 'asc' 
-            ? aValue.localeCompare(bValue, 'pt-BR', { sensitivity: 'base' })
-            : bValue.localeCompare(aValue, 'pt-BR', { sensitivity: 'base' });
-        }
-        
-        // Comparação de números
-        if (typeof aValue === 'number' && typeof bValue === 'number') {
-          return sortConfig.direction === 'asc' ? aValue - bValue : bValue - aValue;
-        }
-        
-        // Comparação de datas
-        if (typeof aValue === 'string' && typeof bValue === 'string') {
-          // Verifica se as strings são datas válidas
-          const dateA = new Date(aValue);
-          const dateB = new Date(bValue);
-          if (!isNaN(dateA.getTime()) && !isNaN(dateB.getTime())) {
-            return sortConfig.direction === 'asc' 
-              ? dateA.getTime() - dateB.getTime() 
-              : dateB.getTime() - dateA.getTime();
-          }
-        }
-        
-        // Comparação padrão para outros tipos
-        const comparison = aValue > bValue ? 1 : -1;
-        return sortConfig.direction === 'asc' ? comparison : -comparison;
-      });
-    }
-    
-    return filteredData;
   };
 
   const handleRowClick = (pessoa: Pessoa) => {
@@ -245,7 +177,7 @@ export default function Home() {
 
   return (
     <div className="p-1 max-w-full">
-      {/* Barra de ações */}
+      {/* Barra de ações
       <div className="mb-3 flex flex-wrap items-center justify-between bg-white p-2 rounded-lg border border-gray-100 shadow-sm">
         <div className="flex gap-2">
           <button
@@ -322,7 +254,7 @@ export default function Home() {
         </select>
       </div>
         </div>
-      </div>
+      </div> */}
 
       {/* Filtros */}
       {showFilters && (
@@ -348,11 +280,8 @@ export default function Home() {
                 className="w-full bg-white border border-gray-200 rounded-md px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all duration-200"
               >
                 <option value="">Todos</option>
-                {Array.from(new Set(dados.map(p => p.status).filter(Boolean))).map((status) => (
-                  <option key={status || ''} value={status || ''}>
-                    {status}
-                  </option>
-                ))}
+                <option value="Ativo">Ativo</option>
+                <option value="Inativo">Inativo</option>
               </select>
             </div>
             <div>
@@ -422,107 +351,23 @@ export default function Home() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead>
               <tr className="bg-gray-50">
-                <th 
-                  scope="col" 
-                  className="px-0.5 py-0.5 text-left text-[10px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 group"
-                  onClick={() => handleSort('matricula')}
-                >
-                  <div className="flex items-center">
-                    Matrícula
-                    {sortConfig.key === 'matricula' && (
-                      <span className="ml-1">
-                        {sortConfig.direction === 'asc' ? '↑' : '↓'}
-                      </span>
-                    )}
-                    {sortConfig.key !== 'matricula' && (
-                      <span className="ml-1 opacity-0 group-hover:opacity-30">↕</span>
-                    )}
-                  </div>
+                <th scope="col" className="px-0.5 py-0.5 text-left text-[10px] font-medium text-gray-500 uppercase tracking-wider">
+                  Matrícula
                 </th>
-                <th 
-                  scope="col" 
-                  className="px-0.5 py-0.5 text-left text-[10px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 group"
-                  onClick={() => handleSort('nome')}
-                >
-                  <div className="flex items-center">
-                    Nome
-                    {sortConfig.key === 'nome' && (
-                      <span className="ml-1">
-                        {sortConfig.direction === 'asc' ? '↑' : '↓'}
-                      </span>
-                    )}
-                    {sortConfig.key !== 'nome' && (
-                      <span className="ml-1 opacity-0 group-hover:opacity-30">↕</span>
-                    )}
-                  </div>
+                <th scope="col" className="px-0.5 py-0.5 text-left text-[10px] font-medium text-gray-500 uppercase tracking-wider">
+                  Nome
                 </th>
-                <th 
-                  scope="col" 
-                  className="px-0.5 py-0.5 text-left text-[10px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 group"
-                  onClick={() => handleSort('funcao')}
-                >
-                  <div className="flex items-center">
-                    Função
-                    {sortConfig.key === 'funcao' && (
-                      <span className="ml-1">
-                        {sortConfig.direction === 'asc' ? '↑' : '↓'}
-                      </span>
-                    )}
-                    {sortConfig.key !== 'funcao' && (
-                      <span className="ml-1 opacity-0 group-hover:opacity-30">↕</span>
-                    )}
-                  </div>
+                <th scope="col" className="px-0.5 py-0.5 text-left text-[10px] font-medium text-gray-500 uppercase tracking-wider">
+                  Função
                 </th>
-                <th 
-                  scope="col" 
-                  className="px-0.5 py-0.5 text-left text-[10px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 group"
-                  onClick={() => handleSort('departamento')}
-                >
-                  <div className="flex items-center">
-                    Departamento
-                    {sortConfig.key === 'departamento' && (
-                      <span className="ml-1">
-                        {sortConfig.direction === 'asc' ? '↑' : '↓'}
-                      </span>
-                    )}
-                    {sortConfig.key !== 'departamento' && (
-                      <span className="ml-1 opacity-0 group-hover:opacity-30">↕</span>
-                    )}
-                  </div>
+                <th scope="col" className="px-0.5 py-0.5 text-left text-[10px] font-medium text-gray-500 uppercase tracking-wider">
+                  Departamento
                 </th>
-                <th 
-                  scope="col" 
-                  className="px-0.5 py-0.5 text-left text-[10px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 group"
-                  onClick={() => handleSort('centroCusto')}
-                >
-                  <div className="flex items-center">
-                    Centro de Custo
-                    {sortConfig.key === 'centroCusto' && (
-                      <span className="ml-1">
-                        {sortConfig.direction === 'asc' ? '↑' : '↓'}
-                      </span>
-                    )}
-                    {sortConfig.key !== 'centroCusto' && (
-                      <span className="ml-1 opacity-0 group-hover:opacity-30">↕</span>
-                    )}
-                  </div>
+                <th scope="col" className="px-0.5 py-0.5 text-left text-[10px] font-medium text-gray-500 uppercase tracking-wider">
+                  Centro de Custo
                 </th>
-                <th 
-                  scope="col" 
-                  className="px-0.5 py-0.5 text-left text-[10px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 group"
-                  onClick={() => handleSort('status')}
-                >
-                  <div className="flex items-center">
-                    Status
-                    {sortConfig.key === 'status' && (
-                      <span className="ml-1">
-                        {sortConfig.direction === 'asc' ? '↑' : '↓'}
-                      </span>
-                    )}
-                    {sortConfig.key !== 'status' && (
-                      <span className="ml-1 opacity-0 group-hover:opacity-30">↕</span>
-                    )}
-                  </div>
+                <th scope="col" className="px-0.5 py-0.5 text-left text-[10px] font-medium text-gray-500 uppercase tracking-wider">
+                  Status
                 </th>
             </tr>
           </thead>
