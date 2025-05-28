@@ -1,0 +1,41 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Contrato {
+  id            Int      @id @default(autoincrement())
+  numero        String
+  nome          String
+  cliente       String
+  dataInicio    DateTime
+  dataFim       DateTime
+  centroDeCusto String   // Nova coluna adicionada
+  status        String   // Nova coluna adicionada
+  createdAt     DateTime @default(now())
+}
+
+model Funcionario {
+  id            Int       @id @default(autoincrement())
+  matricula     String    @unique
+  cpf           String?
+  nome          String
+  funcao        String?
+  rg            String?
+  orgaoEmissor  String?
+  uf            String?
+  dataNascimento DateTime?
+  email         String?
+  telefone      String?
+  centroCusto   String?
+  departamento  String?
+  status        String?
+  criadoEm      DateTime  @default(now())
+  atualizadoEm  DateTime  @updatedAt
+  excluidoEm    DateTime?
+}
+

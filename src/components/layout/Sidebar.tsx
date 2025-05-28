@@ -47,6 +47,7 @@ export default function Sidebar() {
       icon: LayoutDashboard,
       items: [
         { label: "Geral", href: "/planejamento/geral" },
+        { label: "Contratos", href: "/planejamento/contratos" },
         { label: "Minhas Demandas", href: "/planejamento/minhas-demandas" },
       ],
     },
