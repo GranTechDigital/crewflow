@@ -92,11 +92,12 @@ export default function Sidebar() {
   return (
     <div
       className={`
-        bg-gray-800 text-white h-screen
+        bg-gray-800 text-white h-full
         transition-all duration-300 ease-in-out
         ${collapsed ? "w-16" : "w-64"}
         rounded-r-2xl
         overflow-hidden
+        flex flex-col
       `}
     >
       {/* Header com imagem e botão de colapsar */}
