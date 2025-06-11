@@ -37,5 +37,35 @@ model Funcionario {
   criadoEm      DateTime  @default(now())
   atualizadoEm  DateTime  @updatedAt
   excluidoEm    DateTime?
+  pendencias    Pendencia[]
+}
+
+model Pendencia {
+  id              Int       @id @default(autoincrement())
+  funcionarioId   Int
+  funcionario     Funcionario @relation(fields: [funcionarioId], references: [id])
+  tipo            String
+  descricao       String?
+  equipe          String
+  status          String    @default("Pendente")
+  prioridade      String    @default("Média")
+  dataCriacao     DateTime  @default(now())
+  dataAtualizacao DateTime  @updatedAt
+  dataLimite      DateTime?
+  dataConclusao   DateTime?
+  criadoPor       String
+  atualizadoPor   String
+  observacoes     ObservacaoPendencia[]
+}
+
+model ObservacaoPendencia {
+  id            Int       @id @default(autoincrement())
+  pendenciaId   Int
+  pendencia     Pendencia @relation(fields: [pendenciaId], references: [id], onDelete: Cascade)
+  texto         String
+  dataCriacao   DateTime  @default(now())
+  dataModificacao DateTime @updatedAt
+  criadoPor     String
+  modificadoPor String
 }
 
