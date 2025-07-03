@@ -42,24 +42,48 @@ export default function Sidebar() {
 
   const sections = [
     {
+      key: "funcionariop",
+      label: "Configuração",
+      icon: Boxes,
+      items: [
+        { label: "Sincronizar Lista de Funcionários", href: "/funcionarios" },
+        { label: "Criar Contratos", href: "/planejamento/contratos" },
+      ],
+    },
+    {
       key: "planejamento",
       label: "Planejamento",
       icon: LayoutDashboard,
       items: [
-        { label: "Geral", href: "/planejamento/geral" },
-        { label: "Contratos", href: "/planejamento/contratos" },
-        { label: "Contratos v2", href: "/planejamento/centro-custos" },
-        { label: "Minhas Demandas", href: "/planejamento/minhas-demandas" },
+        { label: "Dashboard", href: "/prestserv/dashboard" },
+        { label: "Minhas Solicitações de Remanejamento", href: "/prestserv/remanejamentos/tabela" },
+        { label: "Solicitar Remanejamento/Alocação de Funcionários entre Contratos", href: "/prestserv/remanejamentos/novo" },
+        { label: "Visualizar Funcionários por Contrato (Cadastro Prestserv)", href: "/prestserv/funcionarios-por-contrato" },
+        { label: "Visualizar Funcionários por Centro de Custo (Folha)", href: "/planejamento/funcionarios" },
       ],
     },
+    // {
+    //   key: "prestserv",
+    //   label: "prestserv",
+    //   icon: Boxes,
+    //   items: [
+    //     { label: "Dashboard", href: "/prestserv/dashboard" },
+    //     { label: "Remanejamentos", href: "/prestserv/remanejamentos" },
+    //     { label: "Funcionários", href: "/prestserv/funcionarios" },
+    //     { label: "Funcionários por Contrato", href: "/prestserv/funcionarios-por-contrato" },
+    //     { label: "Tarefas", href: "/tarefas" },
+    //   ],
+    // },
     {
-      key: "logistica",
-      label: "Logística",
+      key: "cadastro-prestserv",
+      label: "Cadastro Prestserv",
       icon: Boxes,
       items: [
-        { label: "Geral", href: "/logistica/geral" },
-        { label: "Minhas Demandas", href: "/logistica/minhas-demandas" },
-        { label: "Pendências", href: "/pendencias" },
+        { label: "Dashboard", href: "/prestserv/dashboard" },
+        { label: "Solicitações de Remanejamento", href: "/prestserv/remanejamentos/tabela" },
+        { label: "Funcionários em Processo de Remanejamento/Alocação", href: "/prestserv/funcionarios" },
+        { label: "Visualizar Funcionários por Centro de Custo (Folha)", href: "/prestserv/funcionarios-por-contrato" },
+        { label: "Criar Tarefas para os Setores", href: "/prestserv/tarefas" },
       ],
     },
     {
@@ -67,8 +91,9 @@ export default function Sidebar() {
       label: "Medicina",
       icon: Stethoscope,
       items: [
-        { label: "Geral", href: "/medicina/geral" },
-        { label: "Segurança", href: "/medicina/seguranca" },
+        // { label: "Geral", href: "/medicina/geral" },
+        // { label: "Segurança", href: "/medicina/seguranca" },
+        { label: "Minhas Tarefas", href: "/tarefas/medicina" },
       ],
     },
     {
@@ -76,8 +101,8 @@ export default function Sidebar() {
       label: "RH",
       icon: Users,
       items: [
-        { label: "Geral", href: "/rh/geral" },
-        { label: "Minhas Demandas", href: "/rh/minhas-demandas" },
+        //{ label: "Geral", href: "/rh/geral" },
+        { label: "Minhas Tarefas", href: "/tarefas/rh" },
       ],
     },
     {
@@ -85,8 +110,9 @@ export default function Sidebar() {
       label: "Treinamento",
       icon: GraduationCap,
       items: [
-        { label: "Geral", href: "/treinamento/geral" },
-        { label: "Minhas Demandas", href: "/treinamento/minhas-demandas" },
+        //{ label: "Geral", href: "/treinamento/geral" },
+        //{ label: "Minhas Demandas", href: "/treinamento/minhas-demandas" },
+         { label: "Minhas Tarefas", href: "/tarefas/treinamento" },
       ],
     },
   ];
@@ -120,7 +146,7 @@ export default function Sidebar() {
       </div>
 
       {/* Navegação */}
-      <nav className="flex flex-col px-2 py-2 space-y-1 text-sm">
+      <nav className="flex flex-col px-2 py-2 space-y-1 text-sm overflow-y-auto flex-1">
         {/* Página Inicial */}
         <Link
           href="/"
@@ -154,7 +180,7 @@ export default function Sidebar() {
             <div
               className={`transition-all duration-300 ease-in-out overflow-hidden ${
                 activeSection === section.key && !collapsed
-                  ? "max-h-40 opacity-100"
+                  ? "max-h-96 opacity-100"
                   : "max-h-0 opacity-0"
               }`}
             >
@@ -163,7 +189,7 @@ export default function Sidebar() {
                   <Link
                     key={item.href}
                     href={item.href}
-                    className="hover:bg-gray-700 px-3 py-1 rounded transition-colors"
+                    className="hover:bg-gray-700 px-3 py-1 rounded transition-colors text-xs leading-relaxed"
                   >
                     {item.label}
                   </Link>
