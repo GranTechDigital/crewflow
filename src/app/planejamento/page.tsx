@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { getStatusColor } from '../../utils/statusColors';
+import { getStatusBorder } from '../../utils/statusBorders';
 
 type Pessoa = {
   id: number;
@@ -34,6 +36,12 @@ function formatarDataBR(data: string) {
   return new Date(data).toLocaleDateString('pt-BR');
 }
 
+// Tipo para ordenação
+type SortConfig = {
+  key: keyof Pessoa | null;
+  direction: 'asc' | 'desc';
+};
+
 export default function Home() {
   const [dados, setDados] = useState<Pessoa[]>([]);
   const [loading, setLoading] = useState(false);
@@ -46,14 +54,16 @@ export default function Home() {
     centroCusto: '',
     funcao: '',
   });
-  const [showFilters, setShowFilters] = useState(false);
+  const [showFilters, setShowFilters] = useState(true);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [syncLoading, setSyncLoading] = useState(false);
+  const [showLegend, setShowLegend] = useState(false);
   const [selectedPessoa, setSelectedPessoa] = useState<Pessoa | null>(null);
   const [showDetails, setShowDetails] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editedPessoa, setEditedPessoa] = useState<Pessoa | null>(null);
+  const [sortConfig, setSortConfig] = useState<SortConfig>({ key: null, direction: 'asc' });
 
   useEffect(() => {
     fetchDados();
@@ -129,8 +139,25 @@ export default function Home() {
   };
 
   // Função para filtrar dados
+  // Função para ordenar os dados
+  const handleSort = (key: keyof Pessoa) => {
+    let direction: 'asc' | 'desc' = 'asc';
+    
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    } else if (sortConfig.key === key && sortConfig.direction === 'desc') {
+      // Se clicar na mesma coluna pela terceira vez, remove a ordenação
+      return setSortConfig({ key: null, direction: 'asc' });
+    }
+    
+    setSortConfig({ key, direction });
+    setCurrentPage(1); // Volta para a primeira página ao ordenar
+  };
+
+  // Função para filtrar dados
   const getFilteredData = () => {
-    return dados.filter(pessoa => {
+    // Primeiro filtra os dados
+    const filteredData = dados.filter(pessoa => {
       // Busca global
       const searchLower = searchTerm.toLowerCase();
       const matchesSearch = !searchTerm || 
@@ -139,13 +166,57 @@ export default function Home() {
         );
 
       // Filtros específicos
-      const matchesStatus = !filters.status || pessoa.status === filters.status;
+      const matchesStatus = !filters.status || 
+        (pessoa.status && pessoa.status.toLowerCase() === filters.status.toLowerCase());
       const matchesDepartamento = !filters.departamento || pessoa.departamento === filters.departamento;
       const matchesCentroCusto = !filters.centroCusto || pessoa.centroCusto === filters.centroCusto;
       const matchesFuncao = !filters.funcao || pessoa.funcao === filters.funcao;
 
       return matchesSearch && matchesStatus && matchesDepartamento && matchesCentroCusto && matchesFuncao;
     });
+    
+    // Depois ordena os dados filtrados se houver uma configuração de ordenação
+    if (sortConfig.key) {
+      return [...filteredData].sort((a, b) => {
+        const aValue = a[sortConfig.key as keyof Pessoa];
+        const bValue = b[sortConfig.key as keyof Pessoa];
+        
+        // Tratamento para valores nulos
+        if (aValue === null && bValue === null) return 0;
+        if (aValue === null) return sortConfig.direction === 'asc' ? 1 : -1;
+        if (bValue === null) return sortConfig.direction === 'asc' ? -1 : 1;
+        
+        // Comparação de strings (case insensitive)
+        if (typeof aValue === 'string' && typeof bValue === 'string') {
+          return sortConfig.direction === 'asc' 
+            ? aValue.localeCompare(bValue, 'pt-BR', { sensitivity: 'base' })
+            : bValue.localeCompare(aValue, 'pt-BR', { sensitivity: 'base' });
+        }
+        
+        // Comparação de números
+        if (typeof aValue === 'number' && typeof bValue === 'number') {
+          return sortConfig.direction === 'asc' ? aValue - bValue : bValue - aValue;
+        }
+        
+        // Comparação de datas
+        if (typeof aValue === 'string' && typeof bValue === 'string') {
+          // Verifica se as strings são datas válidas
+          const dateA = new Date(aValue);
+          const dateB = new Date(bValue);
+          if (!isNaN(dateA.getTime()) && !isNaN(dateB.getTime())) {
+            return sortConfig.direction === 'asc' 
+              ? dateA.getTime() - dateB.getTime() 
+              : dateB.getTime() - dateA.getTime();
+          }
+        }
+        
+        // Comparação padrão para outros tipos
+        const comparison = aValue > bValue ? 1 : -1;
+        return sortConfig.direction === 'asc' ? comparison : -comparison;
+      });
+    }
+    
+    return filteredData;
   };
 
   const handleRowClick = (pessoa: Pessoa) => {
@@ -177,8 +248,8 @@ export default function Home() {
 
   return (
     <div className="p-1 max-w-full">
-      {/* Barra de ações
-      <div className="mb-3 flex flex-wrap items-center justify-between bg-white p-2 rounded-lg border border-gray-100 shadow-sm">
+      {/* Barra de ações */}
+      <div className="mb-2 flex flex-wrap items-center justify-between bg-white p-2 rounded-lg border border-gray-100 shadow-sm">
         <div className="flex gap-2">
           <button
             onClick={handleImport}
@@ -210,21 +281,27 @@ export default function Home() {
             </svg>
             {syncLoading ? 'Sincronizando...' : 'Sincronizar'}
           </button>
+          <button
+            onClick={() => setShowLegend(!showLegend)}
+            className="inline-flex items-center px-3 py-1.5 bg-white text-gray-700 rounded-md border border-gray-200 hover:bg-gray-50 transition-all duration-200 text-sm font-medium"
+          >
+            <svg className="w-4 h-4 mr-1.5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Legenda
+          </button>
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="relative">
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Buscar..."
-              className="pl-8 pr-3 py-1.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all duration-200 w-56 text-sm"
-            />
-            <svg className="w-4 h-4 text-gray-400 absolute left-2.5 top-1/2 transform -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          <button
+            onClick={clearFilters}
+            className="inline-flex items-center px-3 py-1.5 bg-white text-gray-700 rounded-md border border-gray-200 hover:bg-gray-50 transition-all duration-200 text-sm font-medium"
+          >
+            <svg className="w-4 h-4 mr-1.5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
-          </div>
+            Limpar Filtros
+          </button>
 
           <button
             onClick={() => setShowFilters(!showFilters)}
@@ -254,34 +331,40 @@ export default function Home() {
         </select>
       </div>
         </div>
-      </div> */}
+      </div>
 
       {/* Filtros */}
       {showFilters && (
-        <div className="mb-3 p-3 bg-white rounded-lg border border-gray-100 shadow-sm">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-medium text-gray-700">Filtros</h3>
-            <button
-              onClick={clearFilters}
-              className="inline-flex items-center px-2 py-1 text-xs text-gray-500 hover:text-gray-700 transition-colors duration-200"
-            >
-              <svg className="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-              Limpar Filtros
-            </button>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <div className="mb-2 p-2 bg-white rounded-lg border border-gray-100 shadow-sm">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Status</label>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Buscar</label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Buscar..."
+                  className="w-full pl-8 pr-3 py-1.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all duration-200 text-sm"
+                />
+                <svg className="w-4 h-4 text-gray-400 absolute left-2.5 top-1/2 transform -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Status Folha</label>
               <select
                 value={filters.status}
                 onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
                 className="w-full bg-white border border-gray-200 rounded-md px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all duration-200"
               >
                 <option value="">Todos</option>
-                <option value="Ativo">Ativo</option>
-                <option value="Inativo">Inativo</option>
+                {Array.from(new Set(dados.map(p => p.status).filter(Boolean))).map((status) => (
+                  <option key={status || ''} value={status || ''}>
+                    {status}
+                  </option>
+                ))}
               </select>
             </div>
             <div>
@@ -300,7 +383,7 @@ export default function Home() {
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Departamento</label>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Centro de Custo</label>
               <select
                 value={filters.departamento}
                 onChange={(e) => setFilters(prev => ({ ...prev, departamento: e.target.value }))}
@@ -315,7 +398,7 @@ export default function Home() {
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Centro de Custo</label>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Nº Centro de Custo</label>
               <select
                 value={filters.centroCusto}
                 onChange={(e) => setFilters(prev => ({ ...prev, centroCusto: e.target.value }))}
@@ -332,6 +415,44 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      {/* Legenda de Status */}
+      {showLegend && (
+        <div className="my-3 p-1 bg-white rounded-lg border border-gray-100 shadow-sm">
+          <h3 className="text-sm font-medium text-gray-700 mb-2">Legenda de Status Folha</h3>
+          <div className="flex flex-wrap gap-4 text-xs">
+            <div className="flex items-center gap-1.5">
+              <span className="inline-block w-3 h-3 rounded-full bg-emerald-100 border border-emerald-200"></span>
+              <span className="text-gray-600">Ativo</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="inline-block w-3 h-3 rounded-full bg-red-100 border border-red-200"></span>
+              <span className="text-gray-600">Inativo</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="inline-block w-3 h-3 rounded-full bg-amber-100 border border-amber-200"></span>
+              <span className="text-gray-600">Afastado</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="inline-block w-3 h-3 rounded-full bg-blue-100 border border-blue-200"></span>
+              <span className="text-gray-600">Férias</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="inline-block w-3 h-3 rounded-full bg-slate-100 border border-slate-200"></span>
+              <span className="text-gray-600">Demitido</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="inline-block w-3 h-3 rounded-full bg-purple-100 border border-purple-200"></span>
+              <span className="text-gray-600">Admissão Próx. Mês</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="inline-block w-3 h-3 rounded-full bg-gray-100 border border-gray-200"></span>
+              <span className="text-gray-600">Outros</span>
+            </div>
+          </div>
+        </div>
+      )}
+
 
       {/* Mensagens de sincronização */}
       {syncMsg && (
@@ -351,23 +472,107 @@ export default function Home() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead>
               <tr className="bg-gray-50">
-                <th scope="col" className="px-0.5 py-0.5 text-left text-[10px] font-medium text-gray-500 uppercase tracking-wider">
-                  Matrícula
+                <th 
+                  scope="col" 
+                  className="px-0.5 py-0.5 text-left text-[10px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 group"
+                  onClick={() => handleSort('matricula')}
+                >
+                  <div className="flex items-center">
+                    Matrícula
+                    {sortConfig.key === 'matricula' && (
+                      <span className="ml-1">
+                        {sortConfig.direction === 'asc' ? '↑' : '↓'}
+                      </span>
+                    )}
+                    {sortConfig.key !== 'matricula' && (
+                      <span className="ml-1 opacity-0 group-hover:opacity-30">↕</span>
+                    )}
+                  </div>
                 </th>
-                <th scope="col" className="px-0.5 py-0.5 text-left text-[10px] font-medium text-gray-500 uppercase tracking-wider">
-                  Nome
+                <th 
+                  scope="col" 
+                  className="px-0.5 py-0.5 text-left text-[10px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 group"
+                  onClick={() => handleSort('nome')}
+                >
+                  <div className="flex items-center">
+                    Nome
+                    {sortConfig.key === 'nome' && (
+                      <span className="ml-1">
+                        {sortConfig.direction === 'asc' ? '↑' : '↓'}
+                      </span>
+                    )}
+                    {sortConfig.key !== 'nome' && (
+                      <span className="ml-1 opacity-0 group-hover:opacity-30">↕</span>
+                    )}
+                  </div>
                 </th>
-                <th scope="col" className="px-0.5 py-0.5 text-left text-[10px] font-medium text-gray-500 uppercase tracking-wider">
-                  Função
+                <th 
+                  scope="col" 
+                  className="px-0.5 py-0.5 text-left text-[10px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 group"
+                  onClick={() => handleSort('funcao')}
+                >
+                  <div className="flex items-center">
+                    Função
+                    {sortConfig.key === 'funcao' && (
+                      <span className="ml-1">
+                        {sortConfig.direction === 'asc' ? '↑' : '↓'}
+                      </span>
+                    )}
+                    {sortConfig.key !== 'funcao' && (
+                      <span className="ml-1 opacity-0 group-hover:opacity-30">↕</span>
+                    )}
+                  </div>
                 </th>
-                <th scope="col" className="px-0.5 py-0.5 text-left text-[10px] font-medium text-gray-500 uppercase tracking-wider">
-                  Departamento
+                <th 
+                  scope="col" 
+                  className="px-0.5 py-0.5 text-left text-[10px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 group"
+                  onClick={() => handleSort('departamento')}
+                >
+                  <div className="flex items-center">
+                    Centro de Custo
+                    {sortConfig.key === 'departamento' && (
+                      <span className="ml-1">
+                        {sortConfig.direction === 'asc' ? '↑' : '↓'}
+                      </span>
+                    )}
+                    {sortConfig.key !== 'departamento' && (
+                      <span className="ml-1 opacity-0 group-hover:opacity-30">↕</span>
+                    )}
+                  </div>
                 </th>
-                <th scope="col" className="px-0.5 py-0.5 text-left text-[10px] font-medium text-gray-500 uppercase tracking-wider">
-                  Centro de Custo
+                <th 
+                  scope="col" 
+                  className="px-0.5 py-0.5 text-left text-[10px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 group"
+                  onClick={() => handleSort('centroCusto')}
+                >
+                  <div className="flex items-center">
+                    Nº Centro de Custo
+                    {sortConfig.key === 'centroCusto' && (
+                      <span className="ml-1">
+                        {sortConfig.direction === 'asc' ? '↑' : '↓'}
+                      </span>
+                    )}
+                    {sortConfig.key !== 'centroCusto' && (
+                      <span className="ml-1 opacity-0 group-hover:opacity-30">↕</span>
+                    )}
+                  </div>
                 </th>
-                <th scope="col" className="px-0.5 py-0.5 text-left text-[10px] font-medium text-gray-500 uppercase tracking-wider">
-                  Status
+                <th 
+                  scope="col" 
+                  className="px-0.5 py-0.5 text-left text-[10px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 group"
+                  onClick={() => handleSort('status')}
+                >
+                  <div className="flex items-center">
+                    Status Folha
+                    {sortConfig.key === 'status' && (
+                      <span className="ml-1">
+                        {sortConfig.direction === 'asc' ? '↑' : '↓'}
+                      </span>
+                    )}
+                    {sortConfig.key !== 'status' && (
+                      <span className="ml-1 opacity-0 group-hover:opacity-30">↕</span>
+                    )}
+                  </div>
                 </th>
             </tr>
           </thead>
@@ -375,36 +580,16 @@ export default function Home() {
               {dadosPagina.map((pessoa) => (
                 <tr
                   key={pessoa.matricula}
-                  className={`hover:bg-gray-50 cursor-pointer transition-colors duration-150 ${
-                    pessoa.status?.toLowerCase() === 'ativo' 
-                      ? 'border-l-4 border-l-emerald-500' 
-                      : pessoa.status?.toLowerCase() === 'inativo'
-                      ? 'border-l-4 border-l-red-500'
-                      : pessoa.status?.toLowerCase() === 'afastado'
-                      ? 'border-l-4 border-l-amber-500'
-                      : pessoa.status?.toLowerCase() === 'férias'
-                      ? 'border-l-4 border-l-blue-500'
-                      : 'border-l-4 border-l-gray-500'
-                  }`}
+                  className={`hover:bg-gray-50 cursor-pointer transition-colors duration-150 ${getStatusBorder(pessoa.status)}`}
                   onClick={() => handleRowClick(pessoa)}
                 >
-                  <td className="px-2 py-1.5 whitespace-nowrap text-sm text-gray-900">{pessoa.matricula}</td>
-                  <td className="px-2 py-1.5 whitespace-nowrap text-sm text-gray-900">{pessoa.nome}</td>
-                  <td className="px-2 py-1.5 whitespace-nowrap text-sm text-gray-900">{pessoa.funcao}</td>
-                  <td className="px-2 py-1.5 whitespace-nowrap text-sm text-gray-900">{pessoa.departamento}</td>
-                  <td className="px-2 py-1.5 whitespace-nowrap text-sm text-gray-900">{pessoa.centroCusto}</td>
-                  <td className="px-2 py-1.5 whitespace-nowrap text-sm">
-                    <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[11px] font-medium ${
-                      pessoa.status?.toLowerCase() === 'ativo' 
-                        ? 'bg-emerald-100 text-emerald-800' 
-                        : pessoa.status?.toLowerCase() === 'inativo'
-                        ? 'bg-red-100 text-red-800'
-                        : pessoa.status?.toLowerCase() === 'afastado'
-                        ? 'bg-amber-100 text-amber-800'
-                        : pessoa.status?.toLowerCase() === 'férias'
-                        ? 'bg-blue-100 text-blue-800'
-                        : 'bg-gray-100 text-gray-800'
-                    }`}>
+                  <td className="px-2 py-1.5 whitespace-nowrap text-xs text-gray-900">{pessoa.matricula}</td>
+                  <td className="px-2 py-1.5 whitespace-nowrap text-xs text-gray-900">{pessoa.nome}</td>
+                  <td className="px-2 py-1.5 whitespace-nowrap text-xs text-gray-900">{pessoa.funcao}</td>
+                  <td className="px-2 py-1.5 whitespace-nowrap text-xs text-gray-900">{pessoa.departamento}</td>
+                  <td className="px-2 py-1.5 whitespace-nowrap text-xs text-gray-900">{pessoa.centroCusto}</td>
+                  <td className="px-2 py-1.5 whitespace-nowrap text-xs">
+                    <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[11px] font-medium ${getStatusColor(pessoa.status, 'default')}`}>
                       {pessoa.status}
                     </span>
                 </td>
@@ -416,7 +601,7 @@ export default function Home() {
       </div>
 
       {/* Paginação */}
-      <div className="mt-4 flex items-center justify-between">
+      <div className="mt-2 mb-2 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <span className="text-sm text-gray-600">
             {filteredData.length} registro{filteredData.length !== 1 ? 's' : ''} encontrado{filteredData.length !== 1 ? 's' : ''}
@@ -443,6 +628,7 @@ export default function Home() {
         </div>
       </div>
 
+      
       {/* Modal de Detalhes */}
       {showDetails && selectedPessoa && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
@@ -451,17 +637,7 @@ export default function Home() {
             <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between bg-gray-50">
               <div className="flex items-center gap-2">
                 <h2 className="text-base font-semibold text-gray-800">Detalhes do Funcionário</h2>
-                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                  selectedPessoa.status?.toLowerCase() === 'ativo' 
-                    ? 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20'
-                    : selectedPessoa.status?.toLowerCase() === 'inativo'
-                    ? 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-600/20'
-                    : selectedPessoa.status?.toLowerCase() === 'afastado'
-                    ? 'bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-600/20'
-                    : selectedPessoa.status?.toLowerCase() === 'férias'
-                    ? 'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20'
-                    : 'bg-gray-50 text-gray-700 ring-1 ring-inset ring-gray-600/20'
-                }`}>
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(selectedPessoa.status, 'modal')}`}>
                   {selectedPessoa.status}
                 </span>
               </div>
