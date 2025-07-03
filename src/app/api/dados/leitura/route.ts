@@ -1,58 +1,49 @@
-// src/app/api/dados/leitura/route.ts
-
 import { NextResponse } from 'next/server';
 
-function parseDate(dateStr: string | null): string | null {
-  if (!dateStr) return null;
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return null;
-  return d.toISOString().split('T')[0];
+function parseDate(dateString: string): Date | null {
+  if (!dateString) return null;
+  
+  const [day, month, year] = dateString.split('/');
+  if (!day || !month || !year) return null;
+  
+  return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
 }
 
 export async function GET() {
-  const url = "https://granihcservices145382.rm.cloudtotvs.com.br:8051/api/framework/v1/consultaSQLServer/RealizaConsulta/GS.INT.0005/1/P";
-  const headers = {
-    Authorization: 'Basic SW50ZWdyYS5BZG1pc3NhbzpHckBuIWhjMjAyMg==',
-    Accept: 'application/json',
-  };
-
   try {
-    const response = await fetch(url, { headers });
+    console.log('Buscando dados da API externa...');
+    
+    // Buscar dados da API externa
+    const response = await fetch('http://192.168.1.100:8080/api/funcionarios');
+    
     if (!response.ok) {
-      console.error('Erro na resposta externa:', response.status, response.statusText);
-      return NextResponse.json({ error: 'Erro ao buscar dados externos.' }, { status: response.status });
+      throw new Error(`Erro na API externa: ${response.status}`);
     }
-
-    const json = await response.json();
-
-    console.log('Resposta da API externa:', json);
-
-    // Verifique aqui o caminho correto dos dados dentro do json
-    // Por exemplo, se os dados estiverem em json.data ou json.resultados
-    // Ajuste conforme a estrutura real
-
-    const dadosBrutos = json?.data || json?.resultados || json; // ajuste conforme resposta real
-
-    // Exemplo mapeamento, ajuste os campos conforme sua resposta
-    const dados = (Array.isArray(dadosBrutos) ? dadosBrutos : []).map((item: any) => ({
-      matricula: item.MATRICULA,
-      cpf: item.CPF,
-      nome: item.NOME,
-      funcao: item.FUNCAO,
-      rg: item.RG,
-      orgaoEmissor: item['ORGÃO_EMISSOR'],
-      uf: item.UF,
-      dataNascimento: item.DATA_NASCIMENTO ? parseDate(item.DATA_NASCIMENTO) : null,
-      email: item.EMAIL,
-      telefone: item.TELEFONE,
-      centroCusto: item.CENTRO_CUSTO,
-      departamento: item.DEPARTAMENTO,
-      status: item.STATUS,
+    
+    const data = await response.json();
+    console.log(`Dados recebidos da API: ${data.length} registros`);
+    
+    // Mapear os dados para o formato esperado
+    const funcionariosData = data.map((item: any) => ({
+      matricula: item.matricula,
+      cpf: item.cpf,
+      nome: item.nome,
+      funcao: item.funcao,
+      centroCusto: item.centroCusto,
+      email: item.email || null,
+      telefone: item.telefone || null,
+      dataAdmissao: parseDate(item.dataAdmissao),
+      dataDemissao: parseDate(item.dataDemissao),
+      status: item.status
     }));
-
-    return NextResponse.json(dados);
+    
+    return NextResponse.json(funcionariosData);
+    
   } catch (error) {
-    console.error('Erro na chamada externa:', error);
-    return NextResponse.json({ error: 'Erro ao buscar dados.' }, { status: 500 });
+    console.error('Erro ao buscar dados da API externa:', error);
+    return NextResponse.json(
+      { error: 'Erro ao buscar dados da API externa.' },
+      { status: 500 }
+    );
   }
 }

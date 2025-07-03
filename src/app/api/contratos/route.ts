@@ -24,7 +24,6 @@ export async function POST(req: Request) {
       cliente,
       dataInicio,
       dataFim,
-      centroDeCusto,
       status,
     } = body
 
@@ -35,7 +34,6 @@ export async function POST(req: Request) {
       !cliente ||
       !dataInicio ||
       !dataFim ||
-      !centroDeCusto ||
       !status
     ) {
       return NextResponse.json(
@@ -51,7 +49,6 @@ export async function POST(req: Request) {
         cliente,
         dataInicio: new Date(`${dataInicio}T00:00:00Z`),
         dataFim: new Date(`${dataFim}T00:00:00Z`),
-        centroDeCusto,
         status,
       },
     })

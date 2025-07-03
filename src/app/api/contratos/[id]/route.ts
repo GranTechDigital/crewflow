@@ -13,8 +13,7 @@ export async function PUT(
       return NextResponse.json({ error: 'ID inválido' }, { status: 400 })
 
     const body = await req.json()
-    const { numero, nome, cliente, dataInicio, dataFim, centroDeCusto, status } =
-      body
+    const { numero, nome, cliente, dataInicio, dataFim, status } = body
 
     if (
       !numero ||
@@ -22,7 +21,6 @@ export async function PUT(
       !cliente ||
       !dataInicio ||
       !dataFim ||
-      !centroDeCusto ||
       !status
     ) {
       return NextResponse.json(
@@ -39,7 +37,6 @@ export async function PUT(
         cliente,
         dataInicio: new Date(`${dataInicio}T00:00:00Z`),
         dataFim: new Date(`${dataFim}T00:00:00Z`),
-        centroDeCusto,
         status,
       },
     })

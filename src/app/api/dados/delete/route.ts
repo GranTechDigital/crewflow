@@ -1,15 +1,18 @@
-import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
 
 export async function DELETE() {
   try {
-    await prisma.funcionario.deleteMany()
-    return NextResponse.json({ message: 'Todos os dados foram excluídos.' })
+    const result = await prisma.funcionario.deleteMany({});
+    return NextResponse.json({ 
+      message: 'Todos os funcionários foram deletados com sucesso!', 
+      count: result.count 
+    });
   } catch (error) {
-    console.error('Erro ao deletar dados:', error)
+    console.error('Erro ao deletar funcionários:', error);
     return NextResponse.json(
-      { error: 'Erro interno ao excluir dados.' },
+      { error: 'Erro ao deletar funcionários.' },
       { status: 500 }
-    )
+    );
   }
 }
