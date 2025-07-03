@@ -8,64 +8,167 @@ datasource db {
 }
 
 model Contrato {
-  id            Int      @id @default(autoincrement())
-  numero        String
-  nome          String
-  cliente       String
-  dataInicio    DateTime
-  dataFim       DateTime
-  centroDeCusto String   // Nova coluna adicionada
-  status        String   // Nova coluna adicionada
-  createdAt     DateTime @default(now())
+  id                    Int                        @id @default(autoincrement())
+  numero                String
+  nome                  String
+  cliente               String
+  dataInicio            DateTime
+  dataFim               DateTime
+  status                String
+  createdAt             DateTime                   @default(now())
+  centrosCusto          ContratosCentrosCusto[]
+  funcionarios          Funcionario[]
+  remanejamentosDestino SolicitacaoRemanejamento[] @relation("ContratoDestino")
+  remanejamentosOrigem  SolicitacaoRemanejamento[] @relation("ContratoOrigem")
+}
+
+model CentroCusto {
+  id                Int                     @id @default(autoincrement())
+  num_centro_custo  String                  @unique
+  nome_centro_custo String
+  status            String
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  contratos         ContratosCentrosCusto[]
+}
+
+model ContratosCentrosCusto {
+  id            Int         @id @default(autoincrement())
+  contratoId    Int
+  centroCustoId Int
+  createdAt     DateTime    @default(now())
+  centroCusto   CentroCusto @relation(fields: [centroCustoId], references: [id], onDelete: Cascade)
+  contrato      Contrato    @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+
+  @@unique([contratoId, centroCustoId])
 }
 
 model Funcionario {
-  id            Int       @id @default(autoincrement())
-  matricula     String    @unique
-  cpf           String?
-  nome          String
-  funcao        String?
-  rg            String?
-  orgaoEmissor  String?
-  uf            String?
-  dataNascimento DateTime?
-  email         String?
-  telefone      String?
-  centroCusto   String?
-  departamento  String?
-  status        String?
-  criadoEm      DateTime  @default(now())
-  atualizadoEm  DateTime  @updatedAt
-  excluidoEm    DateTime?
-  pendencias    Pendencia[]
+  id                        Int                        @id @default(autoincrement())
+  matricula                 String                     @unique
+  cpf                       String?
+  nome                      String
+  funcao                    String?
+  rg                        String?
+  orgaoEmissor              String?
+  uf                        String?
+  dataNascimento            DateTime?
+  email                     String?
+  telefone                  String?
+  centroCusto               String?
+  departamento              String?
+  status                    String?
+  contratoId                Int?
+  criadoEm                  DateTime                   @default(now())
+  atualizadoEm              DateTime                   @updatedAt
+  excluidoEm                DateTime?
+  contrato                  Contrato?                  @relation(fields: [contratoId], references: [id])
+  remanejamentosFuncionario RemanejamentoFuncionario[]
 }
 
-model Pendencia {
-  id              Int       @id @default(autoincrement())
-  funcionarioId   Int
-  funcionario     Funcionario @relation(fields: [funcionarioId], references: [id])
-  tipo            String
-  descricao       String?
-  equipe          String
-  status          String    @default("Pendente")
-  prioridade      String    @default("Média")
-  dataCriacao     DateTime  @default(now())
-  dataAtualizacao DateTime  @updatedAt
-  dataLimite      DateTime?
-  dataConclusao   DateTime?
+
+
+model SolicitacaoRemanejamento {
+  id                Int                        @id @default(autoincrement())
+  contratoOrigemId  Int?
+  contratoDestinoId Int?
+  justificativa     String?
+  status            String                     @default("Pendente")
+  prioridade        String                     @default("Normal")
+  solicitadoPor     String
+  analisadoPor      String?
+  dataSolicitacao   DateTime                   @default(now())
+  dataAnalise       DateTime?
+  dataAprovacao     DateTime?
+  dataConclusao     DateTime?
+  observacoes       String?
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+  funcionarios      RemanejamentoFuncionario[]
+  contratoDestino   Contrato?                  @relation("ContratoDestino", fields: [contratoDestinoId], references: [id])
+  contratoOrigem    Contrato?                  @relation("ContratoOrigem", fields: [contratoOrigemId], references: [id])
+  historico         HistoricoRemanejamento[]
+
+  @@index([status])
+  @@index([dataSolicitacao])
+}
+
+model RemanejamentoFuncionario {
+  id                   String                   @id @default(cuid())
+  solicitacaoId        Int
+  funcionarioId        Int
+  statusTarefas        String                   @default("PENDENTE")
+  statusPrestserv      String                   @default("PENDENTE")
+  dataRascunhoCriado   DateTime?
+  dataSubmetido        DateTime?
+  dataResposta         DateTime?
+  observacoesPrestserv String?
+  createdAt            DateTime                 @default(now())
+  updatedAt            DateTime                 @updatedAt
+  funcionario          Funcionario              @relation(fields: [funcionarioId], references: [id])
+  solicitacao          SolicitacaoRemanejamento @relation(fields: [solicitacaoId], references: [id], onDelete: Cascade)
+  tarefas              TarefaRemanejamento[]
+  historico            HistoricoRemanejamento[]
+
+  @@unique([solicitacaoId, funcionarioId])
+  @@index([statusTarefas])
+  @@index([statusPrestserv])
+}
+
+model TarefaRemanejamento {
+  id                         String                           @id @default(cuid())
+  remanejamentoFuncionarioId String
+  tipo                       String
+  descricao                  String?
+  responsavel                String
+  status                     String                           @default("PENDENTE")
+  prioridade                 String                           @default("Normal")
+  dataCriacao                DateTime                         @default(now())
+  dataLimite                 DateTime?
+  dataConclusao              DateTime?
+  observacoes                String?
+  observacoesTarefa          ObservacaoTarefaRemanejamento[]
+  historico                  HistoricoRemanejamento[]
+
+  remanejamentoFuncionario   RemanejamentoFuncionario         @relation(fields: [remanejamentoFuncionarioId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([responsavel])
+}
+
+model ObservacaoTarefaRemanejamento {
+  id              Int                 @id @default(autoincrement())
+  tarefaId        String
+  texto           String
+  dataCriacao     DateTime            @default(now())
+  dataModificacao DateTime            @updatedAt
   criadoPor       String
-  atualizadoPor   String
-  observacoes     ObservacaoPendencia[]
+  modificadoPor   String
+  tarefa          TarefaRemanejamento @relation(fields: [tarefaId], references: [id], onDelete: Cascade)
 }
 
-model ObservacaoPendencia {
-  id            Int       @id @default(autoincrement())
-  pendenciaId   Int
-  pendencia     Pendencia @relation(fields: [pendenciaId], references: [id], onDelete: Cascade)
-  texto         String
-  dataCriacao   DateTime  @default(now())
-  dataModificacao DateTime @updatedAt
-  criadoPor     String
-  modificadoPor String
+model HistoricoRemanejamento {
+  id                         Int                      @id @default(autoincrement())
+  remanejamentoFuncionarioId String?
+  solicitacaoId              Int?
+  tarefaId                   String?                  // ID da tarefa específica
+  tipoAcao                   String                   // CRIACAO, ATUALIZACAO_STATUS, ATUALIZACAO_CAMPO, EXCLUSAO
+  entidade                   String                   // SOLICITACAO, FUNCIONARIO, TAREFA
+  campoAlterado              String?                  // Nome do campo alterado (se aplicável)
+  valorAnterior              String?                  // Valor anterior do campo
+  valorNovo                  String?                  // Novo valor do campo
+  descricaoAcao              String                   // Descrição da ação realizada
+  usuarioResponsavel         String                   // Usuário que realizou a ação
+  dataAcao                   DateTime                 @default(now())
+  observacoes                String?                  // Observações adicionais
+  
+  remanejamentoFuncionario   RemanejamentoFuncionario? @relation(fields: [remanejamentoFuncionarioId], references: [id], onDelete: Cascade)
+  solicitacao                SolicitacaoRemanejamento? @relation(fields: [solicitacaoId], references: [id], onDelete: Cascade)
+  tarefa                     TarefaRemanejamento?     @relation(fields: [tarefaId], references: [id], onDelete: Cascade)
+  
+  @@index([dataAcao])
+  @@index([tipoAcao])
+  @@index([entidade])
+  @@index([usuarioResponsavel])
+  @@index([tarefaId])
 }
-
