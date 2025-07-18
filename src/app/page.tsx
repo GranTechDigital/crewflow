@@ -111,22 +111,10 @@ const setores: SetorCard[] = [
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="py-6">
-            <h1 className="text-3xl font-bold text-gray-900">Gran System</h1>
-            {/* <p className="mt-2 text-gray-600">
-              Sistema de gestão integrada para recursos humanos e operações
-            </p> */}
-          </div>
-        </div>
-      </div>
-
+    <div className="min-h-full bg-gray-50">
       {/* Cards dos Setores */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {setores.map((setor) => {
             const IconComponent = setor.icon;
             return (
@@ -135,36 +123,36 @@ export default function HomePage() {
                 className={`bg-white rounded-lg shadow-sm border-2 ${setor.borderColor} transition-all duration-200 hover:shadow-md`}
               >
                 {/* Header do Card */}
-                <div className={`${setor.bgColor} px-6 py-4 rounded-t-lg border-b border-gray-200`}>
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-lg bg-white shadow-sm`}>
-                      <IconComponent size={24} className={setor.color} />
+                <div className={`${setor.bgColor} px-4 py-3 rounded-t-lg border-b border-gray-200`}>
+                  <div className="flex items-center gap-2.5">
+                    <div className={`p-1.5 rounded-lg bg-white shadow-sm`}>
+                      <IconComponent size={20} className={setor.color} />
                     </div>
                     <div>
-                      <h3 className={`text-lg font-semibold ${setor.color}`}>
+                      <h3 className={`text-base font-semibold ${setor.color}`}>
                         {setor.title}
                       </h3>
                     </div>
                   </div>
-                  <p className="mt-2 text-sm text-gray-600">
+                  <p className="mt-1.5 text-xs text-gray-600">
                     {setor.description}
                   </p>
                 </div>
 
                 {/* Links do Card */}
-                <div className="px-6 py-4">
-                  <div className="space-y-2">
+                <div className="px-4 py-3">
+                  <div className="space-y-1">
                     {setor.links.map((link, index) => (
                       <Link
                         key={index}
                         href={link.href}
-                        className="flex items-center justify-between p-3 rounded-md hover:bg-gray-50 transition-colors group"
+                        className="flex items-center justify-between p-2 rounded-md hover:bg-gray-50 transition-colors group"
                       >
-                        <span className="text-sm text-gray-700 group-hover:text-gray-900">
+                        <span className="text-xs text-gray-700 group-hover:text-gray-900">
                           {link.label}
                         </span>
                         <ArrowRight 
-                          size={16} 
+                          size={14} 
                           className="text-gray-400 group-hover:text-gray-600 transition-colors" 
                         />
                       </Link>
@@ -174,15 +162,6 @@ export default function HomePage() {
               </div>
             );
           })}
-        </div>
-      </div>
-
-      {/* Footer */}
-      <div className="bg-white border-t border-gray-200 mt-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="text-center text-sm text-gray-500">
-            <p>© 2024 Gran System. Sistema de gestão integrada.</p>
-          </div>
         </div>
       </div>
     </div>

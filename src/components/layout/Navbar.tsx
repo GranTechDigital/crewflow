@@ -1,49 +1,83 @@
 "use client";
 
-import { Settings } from "lucide-react";
+import { LogOut, User } from "lucide-react";
 import { Menu } from "@headlessui/react";
 import Link from "next/link";
+import { useAuth } from "@/app/hooks/useAuth";
 
 export default function Navbar() {
-  return (
-    <div className="absolute top-4 right-4 z-20">
-      <Menu as="div" className="relative inline-block text-left">
-        <Menu.Button
-          aria-label="Abrir menu de configurações"
-          className="p-2 bg-gray-800 border border-black rounded-full hover:bg-gray-700 transition"
-        >
-          <Settings size={20} className="text-white" />
-        </Menu.Button>
+  const { usuario, logout } = useAuth();
 
-        <Menu.Items className="absolute right-0 mt-2 w-40 origin-top-right rounded-md bg-white border border-black shadow-md z-50">
-          <div className="px-1 py-1">
-            <Menu.Item>
-              {({ active }) => (
-                <Link
-                  href="/perfil"
-                  className={`${
-                    active ? "bg-gray-100" : ""
-                  } group flex w-full items-center rounded-md px-3 py-2 text-sm text-gray-800`}
-                >
-                  Perfil
-                </Link>
-              )}
-            </Menu.Item>
-            <Menu.Item>
-              {({ active }) => (
-                <button
-                  onClick={() => alert("Logoff")} // Substitua pela lógica real
-                  className={`${
-                    active ? "bg-gray-100" : ""
-                  } group flex w-full items-center rounded-md px-3 py-2 text-sm text-gray-800`}
-                >
-                  Logoff
-                </button>
-              )}
-            </Menu.Item>
+  const handleLogout = async () => {
+    await logout();
+  };
+
+  return (
+    <nav className="bg-gradient-to-r from-gray-800 to-gray-700 border-b border-gray-600 h-12 px-4 flex items-center justify-between shadow-lg z-30">
+      {/* Logo/Título */}
+      <div className="flex items-center">
+        <img
+          src="/graservices-360x63-1.png"
+          alt="Gran System"
+          className="h-6 object-contain mr-3"
+        />
+        {/* <h1 className="text-lg font-bold text-white">Gran System</h1> */}
+      </div>
+
+      {/* Informações do usuário */}
+      {usuario && (
+        <div className="flex items-center gap-3">
+          {/* Dados do usuário */}
+          <div className="text-right">
+            <div className="text-sm font-medium text-white">
+              {usuario.nome}
+            </div>
+            <div className="text-xs text-gray-300">
+              {usuario.equipe} • {usuario.matricula}
+            </div>
           </div>
-        </Menu.Items>
-      </Menu>
-    </div>
+
+          {/* Menu dropdown */}
+          <Menu as="div" className="relative">
+            <Menu.Button
+              aria-label="Menu do usuário"
+              className="flex items-center justify-center w-8 h-8 bg-gray-600 hover:bg-gray-500 rounded-full transition-colors border-2 border-gray-500"
+            >
+              <User size={16} className="text-white" />
+            </Menu.Button>
+
+            <Menu.Items className="absolute right-0 mt-2 w-44 origin-top-right rounded-lg bg-white border border-gray-200 shadow-xl py-1 z-50">
+              <Menu.Item>
+                {({ active }) => (
+                  <Link
+                    href="/perfil"
+                    className={`${
+                      active ? "bg-gray-50" : ""
+                    } flex items-center px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors`}
+                  >
+                    <User size={14} className="mr-2 text-gray-400" />
+                    Meu Perfil
+                  </Link>
+                )}
+              </Menu.Item>
+              <div className="border-t border-gray-100 my-0.5"></div>
+              <Menu.Item>
+                {({ active }) => (
+                  <button
+                    onClick={handleLogout}
+                    className={`${
+                      active ? "bg-red-50 text-red-700" : "text-gray-700"
+                    } flex items-center w-full px-3 py-1.5 text-sm hover:bg-red-50 hover:text-red-700 transition-colors`}
+                  >
+                    <LogOut size={14} className="mr-2" />
+                    Sair
+                  </button>
+                )}
+              </Menu.Item>
+            </Menu.Items>
+          </Menu>
+        </div>
+      )}
+    </nav>
   );
 }

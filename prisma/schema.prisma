@@ -64,6 +64,7 @@ model Funcionario {
   excluidoEm                DateTime?
   contrato                  Contrato?                  @relation(fields: [contratoId], references: [id])
   remanejamentosFuncionario RemanejamentoFuncionario[]
+  usuario                   Usuario?
 }
 
 
@@ -171,4 +172,32 @@ model HistoricoRemanejamento {
   @@index([entidade])
   @@index([usuarioResponsavel])
   @@index([tarefaId])
+}
+
+model Equipe {
+  id        Int       @id @default(autoincrement())
+  nome      String    @unique // RH, Treinamento, Medicina, Logistica, Planejamento
+  descricao String?
+  ativo     Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  usuarios  Usuario[]
+}
+
+model Usuario {
+  id            Int         @id @default(autoincrement())
+  funcionarioId Int         @unique
+  senha         String      // Hash da senha
+  equipeId      Int
+  ativo         Boolean     @default(true)
+  ultimoLogin   DateTime?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  
+  funcionario   Funcionario @relation(fields: [funcionarioId], references: [id], onDelete: Cascade)
+  equipe        Equipe      @relation(fields: [equipeId], references: [id])
+  
+  @@index([funcionarioId])
+  @@index([equipeId])
+  @@index([ativo])
 }
