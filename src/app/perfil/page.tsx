@@ -90,70 +90,26 @@ export default function PerfilPage() {
                   </label>
                   <input
                     type="text"
-                    value={usuario.funcionario.nome}
+                    value={usuario.nome}
                     disabled
                     className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500"
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Matrícula
-                  </label>
-                  <input
-                    type="text"
-                    value={usuario.funcionario.matricula}
-                    disabled
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    E-mail
-                  </label>
-                  <input
-                    type="email"
-                    value={usuario.funcionario.email}
-                    disabled
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    CPF
-                  </label>
-                  <input
-                    type="text"
-                    value={usuario.funcionario.cpf}
-                    disabled
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Equipe
-                  </label>
-                  <input
-                    type="text"
-                    value={usuario.equipe.nome}
-                    disabled
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Último Login
-                  </label>
-                  <input
-                    type="text"
-                    value={usuario.ultimoLogin ? new Date(usuario.ultimoLogin).toLocaleString('pt-BR') : 'Nunca'}
-                    disabled
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500"
-                  />
+                <div className="mt-6">
+                  <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                    Minhas Permissões
+                  </h2>
+                  <div className="space-y-2">
+                    {usuario.permissoes?.map((permissao, index) => (
+                      <span
+                        key={index}
+                        className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full mr-2 mb-2"
+                      >
+                        {permissao}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
