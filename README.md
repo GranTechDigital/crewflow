@@ -1,37 +1,81 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Gran System - Sistema de Gestão Integrada
 
-## Getting Started
+Sistema de gestão desenvolvido em Next.js para controle de funcionários, remanejamentos, tarefas e administração.
 
-First, run the development server:
+## 🚀 Tecnologias Utilizadas
 
+- **Next.js 14** - Framework React
+- **TypeScript** - Linguagem de programação
+- **Prisma** - ORM para banco de dados
+- **SQLite** - Banco de dados
+- **Tailwind CSS** - Framework CSS
+- **JWT** - Autenticação
+- **Lucide React** - Ícones
+
+## 📋 Pré-requisitos
+
+- Node.js 18+ instalado
+- npm, yarn, pnpm ou bun
+- Git
+
+## 🔧 Instalação e Configuração
+
+### 1. Clone o repositório
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone <url-do-repositorio>
+cd projetogran
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. Instale as dependências
+```bash
+npm install
+# ou
+yarn install
+# ou
+pnpm install
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 3. Configure as variáveis de ambiente
+Crie um arquivo `.env` na raiz do projeto:
+```env
+# Banco de dados
+DATABASE_URL="file:./dev.db"
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+# JWT Secret (altere para um valor seguro em produção)
+JWT_SECRET="seu-jwt-secret-aqui"
 
-## Learn More
+# URL da aplicação
+NEXTAUTH_URL="http://localhost:3000"
+```
 
-To learn more about Next.js, take a look at the following resources:
+### 4. Configure o banco de dados
+```bash
+# Gerar o cliente Prisma
+npx prisma generate
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+# Executar as migrações
+npx prisma migrate dev
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+# Popular o banco com dados iniciais
+npm run seed
+```
 
-## Deploy on Vercel
+### 5. Inicie o servidor de desenvolvimento
+```bash
+npm run dev
+# ou
+yarn dev
+# ou
+pnpm dev
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Acesse [http://localhost:3000](http://localhost:3000) no seu navegador.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-# projetogran
+## 🔐 Credenciais de Acesso
+
+### Usuário Administrador
+- **Matrícula:** `ADMIN001`
+- **Senha:** `admin123`
+- **Permissões:** Acesso total ao sistema
+
+## 📁 Estrutura do Projeto
