@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { SolicitacaoRemanejamento, StatusRemanejamento, StatusTarefas, StatusPrestserv } from '@/types/remanejamento-funcionario';
 import Link from 'next/link';
 import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
+import { useToast } from '@/components/Toast';
 
 interface FiltrosRemanejamento {
   status?: StatusRemanejamento;
@@ -17,6 +18,7 @@ export default function TabelaRemanejamentos() {
   const [error, setError] = useState<string | null>(null);
   const [filtros, setFiltros] = useState<FiltrosRemanejamento>({});
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
+  const { showToast } = useToast();
 
   useEffect(() => {
     fetchRemanejamentos();
@@ -30,6 +32,9 @@ export default function TabelaRemanejamentos() {
       if (filtros.status) params.append('status', filtros.status);
       if (filtros.statusTarefas) params.append('statusTarefas', filtros.statusTarefas);
       if (filtros.statusPrestserv) params.append('statusPrestserv', filtros.statusPrestserv);
+      
+      // Definir filtrarProcesso como false para obter todos os remanejamentos
+      params.append('filtrarProcesso', 'false');
       
       const response = await fetch(`/api/logistica/remanejamentos?${params.toString()}`);
       
@@ -57,20 +62,18 @@ export default function TabelaRemanejamentos() {
   };
 
   const getStatusColor = (status: string) => {
-    const colors: { [key: string]: string } = {
-      'Pendente': 'bg-yellow-100 text-yellow-800',
-      'Em_Analise': 'bg-blue-100 text-blue-800',
-      'Aprovado': 'bg-green-100 text-green-800',
-      'Rejeitado': 'bg-red-100 text-red-800',
-      'Concluido': 'bg-gray-100 text-gray-800',
-      'PENDENTE': 'bg-yellow-100 text-yellow-800',
-      'CONCLUIDO': 'bg-green-100 text-green-800',
-      'CRIADO': 'bg-blue-100 text-blue-800',
-      'SUBMETIDO': 'bg-purple-100 text-purple-800',
-      'APROVADO': 'bg-green-100 text-green-800',
-      'REJEITADO': 'bg-red-100 text-red-800'
-    };
-    return colors[status] || 'bg-gray-100 text-gray-800';
+    const statusColors: { [key: string]: string } = {
+    'APROVAR SOLICITAÇÃO': 'bg-yellow-100 text-yellow-800',
+    'ATENDER TAREFAS': 'bg-blue-100 text-blue-800',
+    'CRIAR TAREFAS': 'bg-blue-100 text-blue-800',
+    'SOLICITAÇÃO CONCLUÍDA': 'bg-green-100 text-green-800',
+    'SOLICITAÇÃO REJEITADA': 'bg-red-100 text-red-800',
+    'CANCELADO': 'bg-red-100 text-red-800',
+    'EM VALIDAÇÃO': 'bg-blue-100 text-blue-800',
+    'VALIDADO': 'bg-green-100 text-green-800',
+    'INVALIDADO': 'bg-red-100 text-red-800'
+  };
+    return statusColors[status] || 'bg-gray-100 text-gray-800';
   };
 
   const formatDate = (dateString: string) => {
@@ -82,9 +85,30 @@ export default function TabelaRemanejamentos() {
   };
 
   const getFuncionariosResumo = (funcionarios: any[]) => {
-    const pendentes = funcionarios.filter(f => f.statusTarefas === 'PENDENTE').length;
-    const concluidos = funcionarios.filter(f => f.statusTarefas === 'CONCLUIDO').length;
+    const pendentes = funcionarios.filter(f => f.statusTarefas === 'ATENDER TAREFAS').length;
+    const concluidos = funcionarios.filter(f => f.statusTarefas === 'SOLICITAÇÃO CONCLUÍDA').length;
     return { pendentes, concluidos, total: funcionarios.length };
+  };
+
+  const gerarTarefasPadrao = async (funcionarioId: string, nome: string) => {
+    try {
+      const setores = ['RH', 'MEDICINA', 'TREINAMENTO'];
+      const response = await fetch('/api/tarefas/padrao', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ funcionarioId, setores, criadoPor: 'Sistema' })
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        showToast(errorData.error || 'Erro ao criar tarefas padrão', 'error');
+        return;
+      }
+      const result = await response.json();
+      showToast(result.message || 'Tarefas padrão criadas com sucesso!', 'success');
+      fetchRemanejamentos();
+    } catch (error) {
+      showToast('Erro ao criar tarefas padrão', 'error');
+    }
   };
 
   if (loading) {
@@ -130,7 +154,7 @@ export default function TabelaRemanejamentos() {
                 href="/prestserv/remanejamentos/novo"
                 className="px-3 py-1.5 text-sm bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
               >
-                ➕ Novo Remanejamento
+                ➕ Nova Solicitação
               </Link>
               <Link
                 href="/prestserv/remanejamentos"
@@ -168,11 +192,11 @@ export default function TabelaRemanejamentos() {
                 className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
               >
                 <option value="">Todos</option>
-                <option value="Pendente">Pendente</option>
-                <option value="Em_Analise">Em Análise</option>
-                <option value="Aprovado">Aprovado</option>
-                <option value="Rejeitado">Rejeitado</option>
-                <option value="Concluido">Concluído</option>
+                <option value="APROVAR SOLICITAÇÃO">Aprovar Solicitação</option>
+                <option value="ATENDER TAREFAS">Atender Tarefas</option>
+                <option value="CRIAR TAREFAS">Criar Tarefas</option>
+                <option value="SOLICITAÇÃO CONCLUÍDA">Solicitação Concluída</option>
+                <option value="SOLICITAÇÃO REJEITADA">Solicitação Rejeitada</option>
               </select>
             </div>
 
@@ -186,8 +210,8 @@ export default function TabelaRemanejamentos() {
                 className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
               >
                 <option value="">Todos</option>
-                <option value="PENDENTE">Pendente</option>
-                <option value="CONCLUIDO">Concluído</option>
+                <option value="ATENDER TAREFAS">Atender Tarefas</option>
+                <option value="SOLICITAÇÃO CONCLUÍDA">Solicitação Concluída</option>
               </select>
             </div>
 
@@ -201,11 +225,11 @@ export default function TabelaRemanejamentos() {
                 className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
               >
                 <option value="">Todos</option>
-                <option value="PENDENTE">Pendente</option>
-                <option value="CRIADO">Criado</option>
-                <option value="SUBMETIDO">Submetido</option>
-                <option value="APROVADO">Aprovado</option>
-                <option value="REJEITADO">Rejeitado</option>
+                <option value="APROVAR SOLICITAÇÃO">Aprovar Solicitação</option>
+                <option value="ATENDER TAREFAS">Atender Tarefas</option>
+                <option value="CRIAR TAREFAS">Criar Tarefas</option>
+                <option value="SOLICITAÇÃO CONCLUÍDA">Solicitação Concluída</option>
+                <option value="SOLICITAÇÃO REJEITADA">Solicitação Rejeitada</option>
               </select>
             </div>
           </div>
@@ -241,6 +265,9 @@ export default function TabelaRemanejamentos() {
                   <tr>
                     <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Solicitação
+                    </th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Tipo
                     </th>
                     <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Contratos
@@ -290,10 +317,25 @@ export default function TabelaRemanejamentos() {
                               </div>
                             </div>
                           </td>
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            <span className={`inline-flex px-1.5 py-0.5 text-xs font-semibold rounded ${
+                              remanejamento.tipo === 'DESLIGAMENTO' ? 'bg-red-100 text-red-800' :
+                              remanejamento.tipo === 'ALOCACAO' ? 'bg-blue-100 text-blue-800' :
+                              'bg-green-100 text-green-800'
+                            }`}>
+                              {remanejamento.tipo || 'REMANEJAMENTO'}
+                            </span>
+                          </td>
                           <td className="px-3 py-2">
                             <div className="text-xs text-gray-900">
-                              <div className="font-medium">{remanejamento.contratoOrigem?.nome}</div>
-                              <div className="text-gray-500">→ {remanejamento.contratoDestino?.nome}</div>
+                              {remanejamento.tipo === 'DESLIGAMENTO' ? (
+                                <div className="font-medium">{remanejamento.contratoOrigem?.nome}</div>
+                              ) : (
+                                <>
+                                  <div className="font-medium">{remanejamento.contratoOrigem?.nome}</div>
+                                  <div className="text-gray-500">→ {remanejamento.contratoDestino?.nome}</div>
+                                </>
+                              )}
                             </div>
                           </td>
                           <td className="px-3 py-2 whitespace-nowrap">
@@ -344,7 +386,7 @@ export default function TabelaRemanejamentos() {
                         {/* Linha Expandida com Funcionários */}
                         {isExpanded && (
                           <tr className="bg-blue-50">
-                            <td colSpan={6} className="px-0 py-0">
+                            <td colSpan={7} className="px-0 py-0">
                               <div className="ml-3 mr-1 py-3 border-l-2 border-blue-300 bg-white">
                                 <div className="pl-2 space-y-2">
                                   <div className="flex items-center space-x-1 mb-2">
@@ -414,36 +456,43 @@ export default function TabelaRemanejamentos() {
                                              </td>
                                              <td className="px-2 py-2 whitespace-nowrap min-w-[100px]">
                                                <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
-                                                 funcionarioRem.statusTarefas === 'CONCLUIDO' 
+                                                 funcionarioRem.statusTarefas === 'SOLICITAÇÃO CONCLUÍDA' 
                                                    ? 'bg-green-100 text-green-800' 
                                                    : 'bg-yellow-100 text-yellow-800'
                                                }`}>
-                                                 {funcionarioRem.statusTarefas === 'CONCLUIDO' ? '✅' : '⏳'} {funcionarioRem.statusTarefas}
+                                                 {funcionarioRem.statusTarefas === 'SOLICITAÇÃO CONCLUÍDA' ? '✅' : '⏳'} {funcionarioRem.statusTarefas}
                                                </span>
                                              </td>
                                              <td className="px-2 py-2 whitespace-nowrap min-w-[100px]">
                                                <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
-                                                 funcionarioRem.statusPrestserv === 'APROVADO' 
+                                                 funcionarioRem.statusPrestserv === 'SOLICITAÇÃO CONCLUÍDA' 
                                                    ? 'bg-green-100 text-green-800'
-                                                   : funcionarioRem.statusPrestserv === 'REJEITADO'
+                                                   : funcionarioRem.statusPrestserv === 'SOLICITAÇÃO REJEITADA'
                                                    ? 'bg-red-100 text-red-800'
-                                                   : funcionarioRem.statusPrestserv === 'SUBMETIDO'
+                                                   : funcionarioRem.statusPrestserv === 'ATENDER TAREFAS'
                                                    ? 'bg-purple-100 text-purple-800'
                                                    : 'bg-gray-100 text-gray-800'
                                                }`}>
-                                                 {funcionarioRem.statusPrestserv === 'APROVADO' ? '✅' : 
-                                                  funcionarioRem.statusPrestserv === 'REJEITADO' ? '❌' :
-                                                  funcionarioRem.statusPrestserv === 'SUBMETIDO' ? '📤' : '📝'} 
+                                                 {funcionarioRem.statusPrestserv === 'SOLICITAÇÃO CONCLUÍDA' ? '✅' : 
+                                                  funcionarioRem.statusPrestserv === 'SOLICITAÇÃO REJEITADA' ? '❌' :
+                                                  funcionarioRem.statusPrestserv === 'ATENDER TAREFAS' ? '📤' : '📝'} 
                                                  {funcionarioRem.statusPrestserv}
                                                </span>
                                              </td>
                                              <td className="px-2 py-2 whitespace-nowrap text-xs font-medium min-w-[80px]">
                                                <Link
                                                  href={`/prestserv/funcionario/${funcionarioRem.id}`}
-                                                 className="inline-flex items-center px-2 py-1 text-xs font-medium rounded text-white bg-blue-500 hover:bg-blue-600"
+                                                 className="inline-flex items-center px-2 py-1 text-xs font-medium rounded text-white bg-blue-500 hover:bg-blue-600 mr-2"
                                                >
                                                  Ver
                                                </Link>
+                                               <button
+                                                 onClick={() => gerarTarefasPadrao(funcionarioRem.id, funcionarioRem.funcionario.nome)}
+                                                 className="inline-flex items-center px-2 py-1 text-xs font-medium rounded text-white bg-green-500 hover:bg-green-600 ml-1"
+                                                 title="Gerar tarefas padrão RH, Medicina e Treinamento"
+                                               >
+                                                 Gerar Tarefas Padrão
+                                               </button>
                                              </td>
                                           </tr>
                                         ))}
@@ -501,13 +550,13 @@ export default function TabelaRemanejamentos() {
                 </div>
                 <div className="text-center">
                   <div className="text-lg font-bold text-green-600">
-                    {remanejamentos.reduce((acc, r) => acc + r.funcionarios.filter(f => f.statusTarefas === 'CONCLUIDO' && f.statusPrestserv === 'APROVADO').length, 0)}
+                    {remanejamentos.reduce((acc, r) => acc + r.funcionarios.filter(f => f.statusTarefas === 'SOLICITAÇÃO CONCLUÍDA' && f.statusPrestserv === 'SOLICITAÇÃO CONCLUÍDA').length, 0)}
                   </div>
                   <div className="text-xs text-green-500">Concluídos</div>
                 </div>
                 <div className="text-center">
                   <div className="text-lg font-bold text-orange-600">
-                    {remanejamentos.reduce((acc, r) => acc + r.funcionarios.filter(f => f.statusTarefas !== 'CONCLUIDO' || f.statusPrestserv !== 'APROVADO').length, 0)}
+                    {remanejamentos.reduce((acc, r) => acc + r.funcionarios.filter(f => f.statusTarefas !== 'SOLICITAÇÃO CONCLUÍDA' || f.statusPrestserv !== 'SOLICITAÇÃO CONCLUÍDA').length, 0)}
                   </div>
                   <div className="text-xs text-orange-500">Pendentes</div>
                 </div>

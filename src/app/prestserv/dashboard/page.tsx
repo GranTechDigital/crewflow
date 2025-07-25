@@ -228,7 +228,7 @@ export default function DashboardPrestserv() {
         </div>
 
         {/* Seções Principais */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 flex-1 min-h-0 overflow-y-auto">
           {/* Funcionários que Precisam de Atenção */}
           <div className="bg-white rounded-lg shadow">
             <div className="p-6 border-b border-gray-200">

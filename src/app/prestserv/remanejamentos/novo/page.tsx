@@ -19,7 +19,9 @@ import {
   ChevronUpIcon,
   ArrowLongRightIcon,
   ArrowLeftIcon,
-  XMarkIcon
+  XMarkIcon,
+  CalendarIcon,
+  ClockIcon
 } from '@heroicons/react/24/outline';
 import { useToast } from '@/components/Toast';
 
@@ -28,7 +30,6 @@ interface Contrato {
   numero: string;
   nome: string;
   cliente: string;
-  centroDeCusto: string;
 }
 
 interface Funcionario {
@@ -51,12 +52,10 @@ interface FuncionarioSelecionado {
   selecionado: boolean;
 }
 
-
-
 interface ResumoRemanejamento {
   totalSelecionados: number;
   porFuncao: Record<string, number>;
-  funcionarios: Funcionario[];
+  funcionarios: FuncionarioSelecionado[];
   origem: {
     contrato?: string;
   };
@@ -73,226 +72,214 @@ export default function NovoRemanejamentoLogisticaPage() {
   const [contratos, setContratos] = useState<Contrato[]>([]);
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
   const [funcionariosNovos, setFuncionariosNovos] = useState<Funcionario[]>([]);
-  const [funcionariosEmProcessoAtivo, setFuncionariosEmProcessoAtivo] = useState<Set<number>>(new Set());
-  const [funcionariosComHistorico, setFuncionariosComHistorico] = useState<Set<number>>(new Set());
+  
   const [loading, setLoading] = useState(true);
   
   // Estados principais
-  const [tipoRemanejamento, setTipoRemanejamento] = useState<'entre_contratos' | 'funcionarios_novos'>('entre_contratos');
+  const [tipoRemanejamento, setTipoRemanejamento] = useState<'funcionarios_novos' | 'entre_contratos' | 'desligamento' | ''>('');
   const [funcionariosSelecionados, setFuncionariosSelecionados] = useState<FuncionarioSelecionado[]>([]);
   const [contratoOrigem, setContratoOrigem] = useState<Contrato | null>(null);
   const [contratoDestino, setContratoDestino] = useState<Contrato | null>(null);
   const [justificativa, setJustificativa] = useState('');
-  const [prioridade, setPrioridade] = useState<'baixa' | 'media' | 'alta' | 'urgente'>('media');
+  const [prioridade, setPrioridade] = useState<'BAIXA' | 'MEDIA' | 'ALTA'>('MEDIA');
   const [submitting, setSubmitting] = useState(false);
+  
+  // Estados de exibição
+  const [etapaAtual, setEtapaAtual] = useState<'tipo' | 'contrato' | 'selecao' | 'confirmacao'>('tipo');
   const [mostrarFuncionarios, setMostrarFuncionarios] = useState(false);
   
   // Estados de filtros
+  const [filtroNome, setFiltroNome] = useState('');
   const [filtroFuncao, setFiltroFuncao] = useState('');
   const [filtroCentroCusto, setFiltroCentroCusto] = useState('');
   const [filtroStatus, setFiltroStatus] = useState('');
-  const [buscaNome, setBuscaNome] = useState('');
-  const [etapaAtual, setEtapaAtual] = useState<'tipo' | 'selecao' | 'confirmacao'>('tipo');
+  
+  // Funções para manipular seleção de funcionários
 
-  // Carregar dados iniciais
+  
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchContratos = async () => {
       try {
         setLoading(true);
-        const [funcionariosRes, contratosRes, remanejamentosAtivosRes, remanejamentosHistoricoRes] = await Promise.all([
-          fetch('/api/funcionarios'),
-          fetch('/api/contratos'),
-          fetch('/api/logistica/remanejamentos?status=PENDENTE,APROVADO,EM_ANDAMENTO'),
-          fetch('/api/logistica/remanejamentos')
-        ]);
-
-        if (funcionariosRes.ok) {
-          const funcionariosData = await funcionariosRes.json();
-          
-          // Separar funcionários com e sem contrato
-          const funcionariosComContrato = funcionariosData.filter((f: Funcionario) => f.contratoId);
-          const funcionariosSemContrato = funcionariosData.filter((f: Funcionario) => !f.contratoId);
-          
-          setFuncionarios(funcionariosComContrato);
-          setFuncionariosNovos(funcionariosSemContrato);
-        }
-
+        const contratosRes = await fetch('/api/logistica/contratos');
+        
         if (contratosRes.ok) {
           const contratosData = await contratosRes.json();
           setContratos(contratosData);
         }
-
-        // Processar todos os remanejamentos para encontrar o status mais recente de cada funcionário
-        if (remanejamentosHistoricoRes.ok) {
-          const todosRemanejamentos = await remanejamentosHistoricoRes.json();
-          
-          // Mapear o processo mais recente de cada funcionário
-          const funcionarioProcessoMaisRecente = new Map<number, any>();
-          const funcionariosComQualquerHistorico = new Set<number>();
-          
-          // Ordenar remanejamentos por data (mais recente primeiro)
-          const remanejamentosOrdenados = todosRemanejamentos.sort((a: any, b: any) => 
-            new Date(b.dataSolicitacao).getTime() - new Date(a.dataSolicitacao).getTime()
-          );
-          
-          remanejamentosOrdenados.forEach((rem: any) => {
-            if (rem.funcionarios && Array.isArray(rem.funcionarios)) {
-              rem.funcionarios.forEach((remFunc: any) => {
-                if (remFunc.funcionarioId) {
-                  const funcionarioId = remFunc.funcionarioId;
-                  
-                  // Adicionar ao histórico geral
-                  funcionariosComQualquerHistorico.add(funcionarioId);
-                  
-                  // Se ainda não temos o processo mais recente deste funcionário, armazenar
-                  if (!funcionarioProcessoMaisRecente.has(funcionarioId)) {
-                    // Verificar o status específico do funcionário, não da solicitação geral
-                    const statusFuncionario = remFunc.statusTarefas || remFunc.statusPrestserv || 'PENDENTE';
-                    const isAtivo = ['PENDENTE', 'EM_ANDAMENTO', 'APROVADO'].includes(statusFuncionario) || 
-                                   ['PENDENTE', 'APROVADO', 'EM_ANDAMENTO'].includes(rem.status);
-                    
-                    funcionarioProcessoMaisRecente.set(funcionarioId, {
-                      status: rem.status,
-                      statusFuncionario: statusFuncionario,
-                      isAtivo: isAtivo,
-                      dataSolicitacao: rem.dataSolicitacao,
-                      solicitacaoId: rem.id
-                    });
-                  }
-                }
-              });
-            }
-          });
-          
-          // Identificar funcionários com processo ativo (mais recente em andamento)
-          const funcionariosComProcessoAtivo = new Set<number>();
-          funcionarioProcessoMaisRecente.forEach((processo, funcionarioId) => {
-            if (processo.isAtivo) {
-              funcionariosComProcessoAtivo.add(funcionarioId);
-            }
-          });
-           setFuncionariosEmProcessoAtivo(funcionariosComProcessoAtivo);
-           setFuncionariosComHistorico(funcionariosComQualquerHistorico);
-        }
-        
-        // Processar remanejamentos ativos separadamente (mantido para compatibilidade)
-        if (remanejamentosAtivosRes.ok) {
-          // Esta chamada agora é redundante, mas mantida para não quebrar outras partes
-          // A lógica principal agora está no processamento acima
-        }
       } catch (error) {
-        console.error('Erro ao carregar dados:', error);
+        console.error('Erro ao carregar contratos:', error);
+        showToast('Erro ao carregar contratos', 'error');
       } finally {
         setLoading(false);
       }
     };
-
-    fetchData();
-  }, []);
-
-  // Contratos únicos
-  const contratosUnicos = useMemo(() => {
-    const contratoMap = contratos.reduce((acc, contrato) => {
-      if (!acc[contrato.id]) {
-        acc[contrato.id] = contrato;
-      }
-      return acc;
-    }, {} as Record<string, Contrato>);
-    return Object.values(contratoMap);
-  }, [contratos]);
-
-  // Funcionários disponíveis baseado no tipo de remanejamento
-  const funcionariosDisponiveis = useMemo(() => {
-    const listaFuncionarios = tipoRemanejamento === 'entre_contratos' ? funcionarios : funcionariosNovos;
     
-    return listaFuncionarios
-      .filter(f => {
-        const funcionarioId = parseInt(f.id);
+    fetchContratos();
+  }, [showToast]);
+  
+  const carregarFuncionarios = async () => {
+    try {
+      setLoading(true);
+      
+      // Limpar estados anteriores para evitar conflitos
+      setFuncionarios([]);
+      setFuncionariosNovos([]);
+      setFuncionariosSelecionados([]);
+      
+      // Limpar filtros para evitar que funcionários sejam escondidos
+      setFiltroNome('');
+      setFiltroFuncao('');
+      setFiltroCentroCusto('');
+      setFiltroStatus('');
+      
+      // Para alocação, limpar contrato origem pois não é necessário
+      if (tipoRemanejamento === 'funcionarios_novos') {
+        setContratoOrigem(null);
+      }
+      
+      if (tipoRemanejamento === 'funcionarios_novos') {
+        const funcionariosNovosRes = await fetch('/api/logistica/funcionarios?tipo=alocacao');
         
-        // Para remanejamento entre contratos, filtrar por contrato de origem
-        if (tipoRemanejamento === 'entre_contratos' && contratoOrigem && f.contratoId !== contratoOrigem.id) return false;
-        
-        // Lógica específica por tipo de remanejamento
-        if (tipoRemanejamento === 'funcionarios_novos') {
-          // Funcionários novos: nunca tiveram contrato E nunca foram remanejados
-          if (funcionariosComHistorico.has(funcionarioId)) return false;
-        } else if (tipoRemanejamento === 'entre_contratos') {
-          // Entre contratos: podem ser remanejados, mas não podem estar em processo ativo
-          if (funcionariosEmProcessoAtivo.has(funcionarioId)) return false;
+        if (funcionariosNovosRes.ok) {
+          const funcionariosNovosData = await funcionariosNovosRes.json();
+          setFuncionariosNovos(funcionariosNovosData);
         }
+      } else if (tipoRemanejamento === 'entre_contratos') {
+        const funcionariosRes = await fetch('/api/logistica/funcionarios?tipo=realocacao');
         
-        // Filtros comuns
-        if (filtroFuncao && f.funcao !== filtroFuncao) return false;
-        if (filtroCentroCusto && f.centroCusto !== filtroCentroCusto) return false;
-        if (filtroStatus && f.status !== filtroStatus) return false;
-        if (buscaNome && !f.nome.toLowerCase().includes(buscaNome.toLowerCase())) return false;
-        if (funcionariosSelecionados.some(fs => fs.id === funcionarioId)) return false;
+        if (funcionariosRes.ok) {
+          const funcionariosData = await funcionariosRes.json();
+          setFuncionarios(funcionariosData);
+        }
+      } else if (tipoRemanejamento === 'desligamento') {
+        const funcionariosRes = await fetch('/api/logistica/funcionarios?tipo=desligamento');
         
+        if (funcionariosRes.ok) {
+          const funcionariosData = await funcionariosRes.json();
+          setFuncionarios(funcionariosData);
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao carregar funcionários:', error);
+      showToast('Erro ao carregar funcionários', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const contratosUnicos = useMemo(() => {
+    const uniqueContratos = new Map();
+    contratos.forEach(contrato => {
+      uniqueContratos.set(contrato.id, contrato);
+    });
+    return Array.from(uniqueContratos.values());
+  }, [contratos]);
+  
+  const funcionariosDisponiveis = useMemo(() => {
+    let funcionariosParaFiltrar: Funcionario[] = [];
+    
+    if (tipoRemanejamento === 'funcionarios_novos') {
+      funcionariosParaFiltrar = funcionariosNovos;
+    } else {
+      funcionariosParaFiltrar = funcionarios.filter(f => {
+        // Para remanejamento entre contratos, só filtrar por contrato se contratoOrigem estiver definido
+        if (tipoRemanejamento === 'entre_contratos') {
+          if (contratoOrigem) {
+            return f.contratoId === contratoOrigem.id;
+          }
+          // Se contratoOrigem não estiver definido, mostrar todos os funcionários
+          return true;
+        }
         return true;
+      });
+    }
+    
+    return funcionariosParaFiltrar
+      .filter(funcionario => {
+        const nomeMatch = funcionario.nome.toLowerCase().includes(filtroNome.toLowerCase());
+        const funcaoMatch = !filtroFuncao || funcionario.funcao === filtroFuncao;
+        const centroCustoMatch = !filtroCentroCusto || funcionario.centroCusto === filtroCentroCusto;
+        const statusMatch = !filtroStatus || funcionario.status === filtroStatus;
+        const naoSelecionado = !funcionariosSelecionados.some(sel => sel.id === parseInt(funcionario.id));
+        
+        return nomeMatch && funcaoMatch && centroCustoMatch && statusMatch && naoSelecionado;
       })
-      .map(f => ({
-        id: parseInt(f.id),
-        nome: f.nome,
-        matricula: f.id,
-        funcao: f.funcao || null,
-        centroCusto: f.centroCusto || null,
-        status: f.status || null,
+      .map(funcionario => ({
+        id: parseInt(funcionario.id),
+        nome: funcionario.nome,
+        matricula: funcionario.id,
+        funcao: funcionario.funcao || null,
+        centroCusto: funcionario.centroCusto || null,
+        status: funcionario.status || null,
         selecionado: false
       }));
-  }, [funcionarios, funcionariosNovos, tipoRemanejamento, contratoOrigem, filtroFuncao, filtroCentroCusto, filtroStatus, buscaNome, funcionariosSelecionados, funcionariosEmProcessoAtivo, funcionariosComHistorico]);
-
-  // Listas disponíveis para filtros
+  }, [funcionarios, funcionariosNovos, tipoRemanejamento, contratoOrigem, filtroNome, filtroFuncao, filtroCentroCusto, filtroStatus, funcionariosSelecionados]);
+  
   const funcoesDisponiveis = useMemo(() => {
-    const listaFuncionarios = tipoRemanejamento === 'entre_contratos' ? funcionarios : funcionariosNovos;
-    const funcionariosFiltrados = (tipoRemanejamento === 'entre_contratos' && contratoOrigem)
-      ? listaFuncionarios.filter(f => f.contratoId === contratoOrigem.id)
-      : listaFuncionarios;
-    return [...new Set(funcionariosFiltrados.map(f => f.funcao).filter(Boolean))];
-  }, [funcionarios, funcionariosNovos, tipoRemanejamento, contratoOrigem]);
-
+    const funcoes = new Set<string>();
+    funcionariosDisponiveis.forEach(f => f.funcao && funcoes.add(f.funcao));
+    return Array.from(funcoes).sort();
+  }, [funcionariosDisponiveis]);
+  
   const centrosCustoDisponiveis = useMemo(() => {
-    const listaFuncionarios = tipoRemanejamento === 'entre_contratos' ? funcionarios : funcionariosNovos;
-    const funcionariosFiltrados = (tipoRemanejamento === 'entre_contratos' && contratoOrigem)
-      ? listaFuncionarios.filter(f => f.contratoId === contratoOrigem.id)
-      : listaFuncionarios;
-    return [...new Set(funcionariosFiltrados.map(f => f.centroCusto).filter(Boolean))];
-  }, [funcionarios, funcionariosNovos, tipoRemanejamento, contratoOrigem]);
-
+    const centros = new Set<string>();
+    funcionariosDisponiveis.forEach(f => f.centroCusto && centros.add(f.centroCusto));
+    return Array.from(centros).sort();
+  }, [funcionariosDisponiveis]);
+  
   const statusDisponiveis = useMemo(() => {
-    const listaFuncionarios = tipoRemanejamento === 'entre_contratos' ? funcionarios : funcionariosNovos;
-    const funcionariosFiltrados = (tipoRemanejamento === 'entre_contratos' && contratoOrigem)
-      ? listaFuncionarios.filter(f => f.contratoId === contratoOrigem.id)
-      : listaFuncionarios;
-    return [...new Set(funcionariosFiltrados.map(f => f.status).filter(Boolean))];
-  }, [funcionarios, funcionariosNovos, tipoRemanejamento, contratoOrigem]);
+    const status = new Set<string>();
+    funcionariosDisponiveis.forEach(f => f.status && status.add(f.status));
+    return Array.from(status).sort();
+  }, [funcionariosDisponiveis]);
+  
+  // Estado para controlar o loading ao selecionar funcionário
+  const [loadingSelecao, setLoadingSelecao] = useState<number | null>(null);
 
-
-
-  // Funções de manipulação
-  const adicionarFuncionario = (funcionario: FuncionarioSelecionado) => {
-    setFuncionariosSelecionados(prev => [...prev, { ...funcionario, selecionado: true }]);
+  const adicionarFuncionario = async (funcionario: FuncionarioSelecionado) => {
+    // Ativa o loading para este funcionário específico
+    setLoadingSelecao(funcionario.id);
+    
+    try {
+      // Simula um pequeno delay para dar feedback visual ao usuário
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      setFuncionariosSelecionados(prev => [...prev, funcionario]);
+      
+      // Para remanejamentos entre contratos ou desligamentos, definir automaticamente o contrato de origem
+      if ((tipoRemanejamento === 'entre_contratos' || tipoRemanejamento === 'desligamento') && !contratoOrigem) {
+        // Buscar o funcionário original para obter o contratoId
+        const funcionarioOriginal = funcionarios.find(f => f.id === funcionario.id.toString());
+        if (funcionarioOriginal && funcionarioOriginal.contratoId) {
+          const contratoDoFuncionario = contratos.find(c => c.id === funcionarioOriginal.contratoId);
+          if (contratoDoFuncionario) {
+            setContratoOrigem(contratoDoFuncionario);
+          }
+        }
+      }
+    } finally {
+      // Desativa o loading
+      setLoadingSelecao(null);
+    }
   };
-
+  
   const removerFuncionario = (funcionarioId: number) => {
     setFuncionariosSelecionados(prev => prev.filter(f => f.id !== funcionarioId));
   };
-
+  
   const adicionarTodosDaFuncao = (funcao: string) => {
     const funcionariosDaFuncao = funcionariosDisponiveis.filter(f => f.funcao === funcao);
-    setFuncionariosSelecionados(prev => [
-      ...prev,
-      ...funcionariosDaFuncao.map(f => ({ ...f, selecionado: true }))
-    ]);
+    setFuncionariosSelecionados(prev => [...prev, ...funcionariosDaFuncao]);
   };
-
-  // Resumo para confirmação
+  
   const getResumo = (): ResumoRemanejamento => {
-    const porFuncao = funcionariosSelecionados.reduce((acc, f) => {
-      const funcao = f.funcao || 'Sem função';
+    const porFuncao = funcionariosSelecionados.reduce((acc, funcionario) => {
+      const funcao = funcionario.funcao || 'Sem função';
       acc[funcao] = (acc[funcao] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
-
+    
     return {
       totalSelecionados: funcionariosSelecionados.length,
       porFuncao,
@@ -305,138 +292,219 @@ export default function NovoRemanejamentoLogisticaPage() {
       }
     };
   };
-
-  // Submissão - usando a nova API da logística
+  
   const handleSubmit = async () => {
-    if (funcionariosSelecionados.length === 0) {
-      showToast('Selecione pelo menos um funcionário', 'warning');
+    // Definir um timeout de segurança para garantir o redirecionamento
+    const redirectTimeout = setTimeout(() => {
+      if (submitting) {
+        console.log('Redirecionamento forçado após timeout');
+        window.location.href = '/prestserv/funcionarios';
+      }
+    }, 3000); // 3 segundos de timeout
+    // Validações básicas
+    if (funcionariosSelecionados.length === 0 || !justificativa.trim()) {
+      showToast('Preencha todos os campos obrigatórios', 'error');
       return;
     }
-
-    if (!contratoDestino) {
-      showToast('Selecione o contrato de destino', 'warning');
+    
+    // Para desligamento, não precisa de contrato de destino
+    if (tipoRemanejamento !== 'desligamento' && !contratoDestino) {
+      showToast('Selecione o contrato de destino', 'error');
       return;
     }
-
+    
+    // // Para remanejamentos entre contratos, contrato de origem é obrigatório
+    // if (tipoRemanejamento === 'entre_contratos' && !contratoOrigem) {
+    //   showToast('Para remanejamentos entre contratos, selecione o contrato de origem', 'error');
+    //   return;
+    // }
+    
     setSubmitting(true);
+    
     try {
-      const remanejamento: NovasolicitacaoRemanejamento = {
+      const payload: any = {
+        tipo: tipoRemanejamento === 'funcionarios_novos' ? 'ALOCACAO' : 
+              tipoRemanejamento === 'entre_contratos' ? 'REMANEJAMENTO' : 'DESLIGAMENTO',
+        contratoOrigemId: contratoOrigem?.id,
         funcionarioIds: funcionariosSelecionados.map(f => f.id),
-        contratoOrigemId: tipoRemanejamento === 'entre_contratos' ? contratoOrigem?.id : undefined,
-        contratoDestinoId: contratoDestino.id,
         justificativa,
         prioridade,
-        solicitadoPor: 'Logística' // Identificar que veio da logística
+        solicitadoPor: 'Usuário Prestserv'
       };
-
+      
+      // Só incluir contratoDestinoId se não for desligamento
+      if (tipoRemanejamento !== 'desligamento') {
+        payload.contratoDestinoId = contratoDestino.id;
+      }
+      
       const response = await fetch('/api/logistica/remanejamentos', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(remanejamento),
+        body: JSON.stringify(payload),
       });
-
+      
       if (response.ok) {
-        showToast('Solicitação de remanejamento criada com sucesso!', 'success');
-        // Aguarda um pouco para garantir que o toast seja exibido antes do redirecionamento
+        showToast('Solicitação de remanejamento enviada com sucesso!', 'success');
+        // Forçar o redirecionamento após um pequeno delay para garantir que o toast seja exibido
         setTimeout(() => {
-          setSubmitting(false);
-          router.push('/prestserv/remanejamentos/tabela');
-        }, 1500);
+          // Usar window.location.href para garantir redirecionamento em todos os navegadores
+          window.location.href = '/prestserv/funcionarios';
+        }, 500);
       } else {
-        const errorData = await response.json();
-        setSubmitting(false);
-        throw new Error(errorData.error || 'Erro ao criar solicitação');
+        const error = await response.json();
+        showToast(error.message || 'Erro ao enviar solicitação', 'error');
       }
     } catch (error) {
-      console.error('Erro ao criar remanejamento:', error);
-      showToast('Erro ao criar solicitação de remanejamento', 'error');
-      setSubmitting(false);
+      console.error('Erro ao enviar solicitação:', error);
+      showToast('Erro ao enviar solicitação', 'error');
+      // Limpar o timeout de redirecionamento
+      clearTimeout(redirectTimeout);
+      // Garantir que o estado de submitting seja atualizado mesmo em caso de erro
+      setTimeout(() => {
+        setSubmitting(false);
+      }, 100);
+      return; // Impedir a execução do código abaixo em caso de erro
     }
+    
+    // Limpar o timeout de redirecionamento se tudo correr bem
+    clearTimeout(redirectTimeout);
+    // Garantir que o estado de submitting seja atualizado após o processamento
+    setSubmitting(false);
   };
-
+  
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Carregando dados...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Carregando...</p>
         </div>
       </div>
     );
   }
-
+  
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6">
-          <div className="flex items-center justify-between h-12">
-            <div className="flex items-center gap-2">
+    <div className="min-h-screen bg-gray-50 ">
+      <div className="bg-linear-to-r from-gray-800 to-slate-600 shadow-lg rounded-t-2xl border-slate-500 border-2">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex items-center gap-4">
               <button
-                onClick={() => router.back()}
-                className="text-gray-400 hover:text-gray-600 transition-colors"
+                onClick={() => window.history.back()}
+                className="p-2 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg transition-all duration-200"
               >
-                <ArrowLeftIcon className="h-4 w-4" />
+                <ArrowLeftIcon className="h-5 w-5" />
               </button>
-              <div className="flex items-center gap-2">
-                <UserGroupIcon className="h-5 w-5 text-blue-600" />
+              <div className="flex items-center gap-3">
+                <UserGroupIcon className="h-8 w-8 text-white" />
                 <div>
-                  <h1 className="text-base font-bold text-gray-900">
-                    Novo Remanejamento - Logística
+                  <h1 className="text-xl sm:text-2xl font-bold text-white">
+                    Novo Remanejamento
                   </h1>
-                  <p className="text-xs text-gray-500">
-                    {etapaAtual === 'tipo' ? 'Escolher tipo de remanejamento' : 
-                     etapaAtual === 'selecao' ? 'Selecionar funcionários' : 'Confirmar solicitação'}
+                  <p className="text-sm text-slate-300 mt-1">
+                    {etapaAtual === "tipo"
+                      ? "Escolher tipo de remanejamento"
+                      : etapaAtual === "contrato"
+                      ? "Selecionar contrato"
+                      : etapaAtual === "selecao"
+                      ? "Selecionar funcionários"
+                      : "Confirmar solicitação"}
                   </p>
                 </div>
               </div>
             </div>
-            
-            {/* Indicador de etapas */}
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2">
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium ${
-                  etapaAtual === 'tipo' ? 'bg-blue-600 text-white' : 
-                  etapaAtual === 'selecao' || etapaAtual === 'confirmacao' ? 'bg-green-600 text-white' : 'bg-gray-300 text-gray-500'
-                }`}>
+
+            <div className="flex items-center gap-1 sm:gap-2 bg-white/10 backdrop-blur-sm rounded-lg p-3">
+              <div className="flex items-center gap-1">
+                <div
+                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold transition-all duration-200 ${
+                    etapaAtual === "tipo"
+                      ? "bg-white text-slate-800 shadow-lg"
+                      : ["contrato", "selecao", "confirmacao"].includes(
+                          etapaAtual
+                        )
+                      ? "bg-slate-600 text-white shadow-lg"
+                      : "bg-white/20 text-slate-300"
+                  }`}
+                >
                   1
                 </div>
-                <span className={`text-xs font-medium ${
-                  etapaAtual === 'tipo' ? 'text-blue-600' : 'text-gray-500'
-                }`}>
+                <span
+                  className={`text-xs font-medium hidden lg:block ${
+                    etapaAtual === "tipo" ? "text-white" : "text-slate-300"
+                  }`}
+                >
                   Tipo
                 </span>
               </div>
-              
-              <ArrowRightIcon className="h-3 w-3 text-gray-400" />
-              
-              <div className="flex items-center gap-2">
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium ${
-                  etapaAtual === 'selecao' ? 'bg-blue-600 text-white' : 
-                  etapaAtual === 'confirmacao' ? 'bg-green-600 text-white' : 'bg-gray-300 text-gray-500'
-                }`}>
+
+              <ArrowRightIcon className="h-3 w-3 text-slate-400" />
+
+              <div className="flex items-center gap-1">
+                <div
+                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold transition-all duration-200 ${
+                    etapaAtual === "contrato"
+                      ? "bg-white text-slate-800 shadow-lg"
+                      : ["selecao", "confirmacao"].includes(etapaAtual)
+                      ? "bg-slate-600 text-white shadow-lg"
+                      : "bg-white/20 text-slate-300"
+                  }`}
+                >
                   2
                 </div>
-                <span className={`text-xs font-medium ${
-                  etapaAtual === 'selecao' ? 'text-blue-600' : 'text-gray-500'
-                }`}>
+                <span
+                  className={`text-xs font-medium hidden lg:block ${
+                    etapaAtual === "contrato" ? "text-white" : "text-slate-300"
+                  }`}
+                >
+                  Contrato
+                </span>
+              </div>
+
+              <ArrowRightIcon className="h-3 w-3 text-slate-400" />
+
+              <div className="flex items-center gap-1">
+                <div
+                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold transition-all duration-200 ${
+                    etapaAtual === "selecao"
+                      ? "bg-white text-slate-800 shadow-lg"
+                      : etapaAtual === "confirmacao"
+                      ? "bg-slate-600 text-white shadow-lg"
+                      : "bg-white/20 text-slate-300"
+                  }`}
+                >
+                  3
+                </div>
+                <span
+                  className={`text-xs font-medium hidden lg:block ${
+                    etapaAtual === "selecao" ? "text-white" : "text-slate-300"
+                  }`}
+                >
                   Seleção
                 </span>
               </div>
-              
-              <ArrowRightIcon className="h-3 w-3 text-gray-400" />
-              
-              <div className="flex items-center gap-2">
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium ${
-                  etapaAtual === 'confirmacao' ? 'bg-blue-600 text-white' : 'bg-gray-300 text-gray-500'
-                }`}>
-                  3
+
+              <ArrowRightIcon className="h-3 w-3 text-slate-400" />
+
+              <div className="flex items-center gap-1">
+                <div
+                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold transition-all duration-200 ${
+                    etapaAtual === "confirmacao"
+                      ? "bg-white text-slate-800 shadow-lg"
+                      : "bg-white/20 text-slate-300"
+                  }`}
+                >
+                  4
                 </div>
-                <span className={`text-xs font-medium ${
-                  etapaAtual === 'confirmacao' ? 'text-blue-600' : 'text-gray-500'
-                }`}>
+                <span
+                  className={`text-xs font-medium hidden lg:block ${
+                    etapaAtual === "confirmacao"
+                      ? "text-white"
+                      : "text-slate-300"
+                  }`}
+                >
                   Confirmação
                 </span>
               </div>
@@ -445,535 +513,719 @@ export default function NovoRemanejamentoLogisticaPage() {
         </div>
       </div>
 
-      {/* Conteúdo principal */}
-      <div className="max-w-7xl mx-auto px-2 sm:px-3 lg:px-4 py-2">
-        {etapaAtual === 'tipo' ? (
-          <div className="max-w-2xl mx-auto">
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-              <div className="text-center mb-4">
-                <UserGroupIcon className="h-10 w-10 text-blue-600 mx-auto mb-3" />
-                <h2 className="text-xl font-bold text-gray-900 mb-1">Tipo de Remanejamento</h2>
-                <p className="text-sm text-gray-600">Escolha o tipo de remanejamento que deseja realizar</p>
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col">
+        {etapaAtual === "tipo" ? (
+          <div className="max-w-4xl mx-auto flex-1">
+            <div className="overflow-hidden h-full flex flex-col">
+              <div className="bg-gradient-to-r from-slate-50 to-gray-50 px-6 py-4 text-center border-b border-gray-100">
+                <div className="inline-flex items-center justify-center w-12 h-12 bg-slate-100 rounded-full mb-3">
+                  <UserGroupIcon className="h-6 w-6 text-slate-700" />
+                </div>
+                <h2 className="text-xl font-bold text-gray-900 mb-2">
+                  Tipo de Solicitação
+                </h2>
               </div>
-              
-              <div className="space-y-3">
-                <div 
-                  className={`border-2 rounded-lg p-3 cursor-pointer transition-all ${
-                    tipoRemanejamento === 'entre_contratos' 
-                      ? 'border-blue-500 bg-blue-50' 
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                  onClick={() => setTipoRemanejamento('entre_contratos')}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                      tipoRemanejamento === 'entre_contratos' 
-                        ? 'border-blue-500 bg-blue-500' 
-                        : 'border-gray-300'
-                    }`}>
-                      {tipoRemanejamento === 'entre_contratos' && (
-                        <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
-                      )}
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="text-sm font-semibold text-gray-900 mb-1">
-                        Remanejamento entre Contratos
+
+              <div className="p-6 flex-1 flex flex-col">
+                <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-3 h-full">
+                  <div
+                    className={`group relative border-2 rounded-xl p-4 cursor-pointer transition-all duration-300 hover:shadow-lg flex flex-col h-full ${
+                      tipoRemanejamento === "funcionarios_novos"
+                        ? "border-slate-400 bg-slate-50 shadow-lg transform scale-105"
+                        : "border-gray-200 hover:border-slate-300 hover:bg-slate-50/50"
+                    }`}
+                    onClick={() => setTipoRemanejamento("funcionarios_novos")}
+                  >
+                    <div className="flex flex-col items-center text-center flex-1">
+                      <div
+                        className={`w-10 h-10 rounded-full border-2 flex items-center justify-center mb-3 transition-all duration-300 ${
+                          tipoRemanejamento === "funcionarios_novos"
+                            ? "border-slat-500 bg-slate-600 shadow-lg"
+                            : "border-gray-300 group-hover:border-slate-400 group-hover:bg-slate-100"
+                        }`}
+                      >
+                        {tipoRemanejamento === "funcionarios_novos" ? (
+                          <CheckIcon className="w-5 h-5 text-white" />
+                        ) : (
+                          <UserPlusIcon className="w-5 h-5 text-gray-400 group-hover:text-slate-600" />
+                        )}
+                      </div>
+                      <h3 className="text-base font-semibold text-gray-900 mb-2">
+                        Alocação
                       </h3>
-                      <p className="text-gray-600 mb-1 text-xs">
-                        Mover funcionários que já estão alocados em um contrato para outro contrato.
+                      <p className="text-gray-600 mb-3 text-sm leading-relaxed flex-1">
+                        Alocar funcionários novos em contratos (sem contrato de
+                        origem)
                       </p>
-                      <div className="text-xs text-gray-500">
-                        <span className="font-medium">Ideal para:</span> Redistribuição de equipes, otimização de recursos
+                      <div className="text-xs text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+                        Novos funcionários
+                      </div>
+                    </div>
+                  </div>
+                  <div
+                    className={`group relative border-2 rounded-xl p-4 cursor-pointer transition-all duration-300 hover:shadow-lg flex flex-col h-full ${
+                      tipoRemanejamento === "entre_contratos"
+                        ? "border-slate-400 bg-slate-50 shadow-lg transform scale-105"
+                        : "border-gray-200 hover:border-slate-300 hover:bg-slate-50/50"
+                    }`}
+                    onClick={() => setTipoRemanejamento("entre_contratos")}
+                  >
+                    <div className="flex flex-col items-center text-center flex-1">
+                      <div
+                        className={`w-10 h-10 rounded-full border-2 flex items-center justify-center mb-3 transition-all duration-300 ${
+                          tipoRemanejamento === "entre_contratos"
+                            ? "border-slate-500 bg-slate-600 shadow-lg"
+                            : "border-gray-300 group-hover:border-slate-400 group-hover:bg-slate-100"
+                        }`}
+                      >
+                        {tipoRemanejamento === "entre_contratos" ? (
+                          <CheckIcon className="w-5 h-5 text-white" />
+                        ) : (
+                          <ArrowLongRightIcon className="w-5 h-5 text-gray-400 group-hover:text-slate-600" />
+                        )}
+                      </div>
+                      <h3 className="text-base font-semibold text-gray-900 mb-2">
+                        Remanejamento
+                      </h3>
+                      <p className="text-gray-600 mb-3 text-sm leading-relaxed flex-1">
+                        Mover funcionários entre contratos (contrato de origem
+                        obrigatório)
+                      </p>
+                      <div className="text-xs text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+                        Redistribuição de equipes
+                      </div>
+                    </div>
+                  </div>
+
+                  <div
+                    className={`group relative border-2 rounded-xl p-4 cursor-pointer transition-all duration-300 hover:shadow-lg flex flex-col h-full ${
+                      tipoRemanejamento === "desligamento"
+                        ? "border-slate-400 bg-slate-50 shadow-lg transform scale-105"
+                        : "border-gray-200 hover:border-slate-300 hover:bg-slate-50/50"
+                    }`}
+                    onClick={() => setTipoRemanejamento("desligamento")}
+                  >
+                    <div className="flex flex-col items-center text-center flex-1">
+                      <div
+                        className={`w-10 h-10 rounded-full border-2 flex items-center justify-center mb-3 transition-all duration-300 ${
+                          tipoRemanejamento === "desligamento"
+                            ? "border-slate-500 bg-slate-600 shadow-lg"
+                            : "border-gray-300 group-hover:border-slate-400 group-hover:bg-slate-100"
+                        }`}
+                      >
+                        {tipoRemanejamento === "desligamento" ? (
+                          <CheckIcon className="w-5 h-5 text-white" />
+                        ) : (
+                          <XMarkIcon className="w-5 h-5 text-gray-400 group-hover:text-slate-600" />
+                        )}
+                      </div>
+                      <h3 className="text-base font-semibold text-gray-900 mb-2">
+                        Desligamento
+                      </h3>
+                      <p className="text-gray-600 mb-3 text-sm leading-relaxed flex-1">
+                        Solicitar desligamento de funcionários
+                      </p>
+                      <div className="text-xs text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+                        Encerramento de vínculo
                       </div>
                     </div>
                   </div>
                 </div>
-                
-                <div 
-                  className={`border-2 rounded-lg p-3 cursor-pointer transition-all ${
-                    tipoRemanejamento === 'funcionarios_novos' 
-                      ? 'border-blue-500 bg-blue-50' 
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                  onClick={() => setTipoRemanejamento('funcionarios_novos')}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                      tipoRemanejamento === 'funcionarios_novos' 
-                        ? 'border-blue-500 bg-blue-500' 
-                        : 'border-gray-300'
-                    }`}>
-                      {tipoRemanejamento === 'funcionarios_novos' && (
-                        <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
-                      )}
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="text-sm font-semibold text-gray-900 mb-1">
-                        Alocação de Funcionários Novos
-                      </h3>
-                      <p className="text-gray-600 mb-1 text-xs">
-                        Alocar funcionários que ainda não estão vinculados a nenhum contrato.
-                      </p>
-                      <div className="text-xs text-gray-500">
-                        <span className="font-medium">Ideal para:</span> Novos funcionários, funcionários em processo de admissão
-                      </div>
-                    </div>
-                  </div>
+
+                <div className="mt-6 text-center">
+                  <button
+                    onClick={() => {
+                      if (!tipoRemanejamento) {
+                        showToast("Selecione um tipo de solicitação", "error");
+                        return;
+                      }
+                      // Para desligamento, pular direto para seleção de funcionários
+                      if (tipoRemanejamento === "desligamento") {
+                        carregarFuncionarios();
+                        setEtapaAtual("selecao");
+                      } else {
+                        setEtapaAtual("contrato");
+                      }
+                    }}
+                    disabled={!tipoRemanejamento}
+                    className={`w-full sm:w-auto px-8 py-3 bg-slate-700 text-white rounded-xl hover:bg-slate-800 transition-all duration-200 flex items-center justify-center gap-2 text-sm font-medium shadow-lg hover:shadow-xl transform hover:scale-105 mx-auto ${
+                      !tipoRemanejamento ? "opacity-50 cursor-not-allowed" : ""
+                    }`}
+                  >
+                    Continuar
+                    <ArrowRightIcon className="h-4 w-4" />
+                  </button>
                 </div>
-              </div>
-              
-              <div className="mt-6 flex justify-end">
-                <button
-                  onClick={() => setEtapaAtual('selecao')}
-                  disabled={!tipoRemanejamento}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors text-sm"
-                >
-                  Continuar
-                </button>
               </div>
             </div>
           </div>
-        ) : etapaAtual === 'selecao' ? (
-          <div className="space-y-3">
-            {/* Seção de Origem - apenas para remanejamento entre contratos */}
-            {tipoRemanejamento === 'entre_contratos' && (
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-2">
-                <div className="flex items-center gap-2 mb-2">
-                  <BuildingOfficeIcon className="h-4 w-4 text-blue-600" />
-                  <label className="text-xs font-medium text-gray-900">
-                    Contrato de Origem *
-                  </label>
-                </div>
-                
-                <select
-                  value={contratoOrigem?.id || ''}
-                  onChange={(e) => {
-                    const contrato = contratosUnicos.find(c => c.id === parseInt(e.target.value));
-                    setContratoOrigem(contrato || null);
-                  }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                >
-                  <option value="">Selecione um contrato</option>
-                  {contratosUnicos.map(contrato => (
-                    <option key={contrato.id} value={contrato.id}>
-                      {contrato.nome} - {contrato.cliente}
-                    </option>
-                  ))}
-                </select>
+        ) : etapaAtual === "contrato" ? (
+          <div className="max-w-4xl mx-auto flex-1">
+            <div className="overflow-hidden h-full flex flex-col">
+              <div className="bg-gradient-to-r from-slate-50 to-gray-50 px-6 py-4 text-center border-b border-gray-100">
+                <h2 className="text-xl font-bold text-gray-900 mb-2">
+                  {tipoRemanejamento === "funcionarios_novos"
+                    ? "Escolha o contrato para onde os funcionários serão alocados"
+                    : tipoRemanejamento === "entre_contratos"
+                    ? "Escolha o contrato de destino para o remanejamento"
+                    : "Escolha o contrato de onde os funcionários serão desligados"}
+                </h2>
               </div>
-            )}
-            
-            {/* Seção de Destino Unificada */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-2">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <ArrowLongRightIcon className="h-4 w-4 text-green-600" />
-                  <label className="text-xs font-medium text-gray-900">
-                    Contrato de Destino *
-                  </label>
+
+              <div className="p-6 flex-1 flex flex-col">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 flex-1">
+                  {contratos.map((contrato) => (
+                    <div
+                      key={contrato.id}
+                      onClick={() => {
+                        if (tipoRemanejamento === "desligamento") {
+                          setContratoOrigem(contrato);
+                        } else {
+                          setContratoDestino(contrato);
+                        }
+                      }}
+                      className={`relative p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 hover:shadow-lg ${
+                        (
+                          tipoRemanejamento === "desligamento"
+                            ? contratoOrigem?.id === contrato.id
+                            : contratoDestino?.id === contrato.id
+                        )
+                          ? "border-slate-400 bg-slate-50 shadow-lg"
+                          : "border-gray-200 hover:border-slate-300 bg-white"
+                      }`}
+                    >
+                      {(tipoRemanejamento === "desligamento"
+                        ? contratoOrigem?.id === contrato.id
+                        : contratoDestino?.id === contrato.id) && (
+                        <div className="absolute -top-2 -right-2 w-6 h-6 bg-slate-600 rounded-full flex items-center justify-center">
+                          <CheckIcon className="h-4 w-4 text-white" />
+                        </div>
+                      )}
+
+                      <div className="text-center">
+                        <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                          <BuildingOfficeIcon className="h-5 w-5 text-slate-700" />
+                        </div>
+                        <h3 className="font-semibold text-gray-900 mb-2 text-sm">
+                          {contrato.nome}
+                        </h3>
+                        <p className="text-xs text-gray-600 mb-1">
+                          {contrato.cliente}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          Nº {contrato.numero}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                {tipoRemanejamento === 'funcionarios_novos' && (
-                  <div className="flex items-center gap-2 bg-blue-50 px-2 py-1 rounded-md">
-                    <UserPlusIcon className="h-3 w-3 text-blue-600" />
-                    <span className="text-xs font-medium text-blue-900">Funcionários Novos</span>
+
+                {contratos.length === 0 && (
+                  <div className="text-center py-12">
+                    <BuildingOfficeIcon className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                      Nenhum contrato encontrado
+                    </h3>
+                    <p className="text-gray-600">
+                      Não há contratos disponíveis no momento.
+                    </p>
                   </div>
                 )}
-              </div>
-              
-              <select
-                value={contratoDestino?.id || ''}
-                onChange={(e) => {
-                  const contrato = contratosUnicos.find(c => c.id === parseInt(e.target.value));
-                  setContratoDestino(contrato || null);
-                }}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-              >
-                <option value="">Selecione um contrato</option>
-                {contratosUnicos.map(contrato => (
-                  <option key={contrato.id} value={contrato.id}>
-                    {contrato.nome} - {contrato.cliente}
-                  </option>
-                ))}
-              </select>
-            </div>
 
-            {/* Filtros e Seleção de Funcionários */}
-            {(tipoRemanejamento === 'entre_contratos' ? contratoOrigem : tipoRemanejamento === 'funcionarios_novos') && (
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-2">
-                <div className="flex items-center gap-2 mb-2">
-                  <UserIcon className="h-4 w-4 text-blue-600" />
-                  <h2 className="text-xs font-semibold text-gray-900">Seleção de Funcionários</h2>
-                  {funcionariosSelecionados.length > 0 && (
-                    <div className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-medium">
-                      {funcionariosSelecionados.length} selecionado(s)
+                <div className="mt-6 flex flex-col sm:flex-row justify-between gap-4">
+                  <button
+                    onClick={() => setEtapaAtual("tipo")}
+                    className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-3 text-gray-600 hover:text-gray-800 transition-colors border border-gray-300 rounded-xl hover:bg-gray-50"
+                  >
+                    <ArrowLeftIcon className="h-4 w-4" />
+                    Voltar
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      carregarFuncionarios();
+                      setEtapaAtual("selecao");
+                    }}
+                    disabled={
+                      tipoRemanejamento === "desligamento"
+                        ? !contratoOrigem
+                        : !contratoDestino
+                    }
+                    className="w-full sm:w-auto flex items-center justify-center gap-2 bg-slate-700 text-white px-6 py-3 rounded-xl hover:bg-slate-800 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Continuar
+                    <ArrowRightIcon className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : etapaAtual === "selecao" ? (
+          <div className="max-w-8xl mx-auto flex-1">
+            <div className="overflow-hidden h-full flex flex-col">
+              <div className="bg-gradient-to-r from-slate-50 to-gray-50 px-6 py-4 text-center border-b border-gray-100">
+                <h2 className="text-lg font-bold text-gray-900 mb-2">
+                  {tipoRemanejamento === "funcionarios_novos"
+                    ? "Selecione os funcionários novos para alocar"
+                    : tipoRemanejamento === "entre_contratos"
+                    ? "Selecione os funcionários para remanejamento"
+                    : "Selecione os funcionários para desligamento"}
+                </h2>
+              </div>
+
+              <div className="p-6 flex-1 flex flex-col">
+                {/* Exibição do contrato de origem (apenas para visualização) */}
+                {(tipoRemanejamento === "entre_contratos" ||
+                  tipoRemanejamento === "desligamento") &&
+                  contratoOrigem && (
+                    <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+                      <h3 className="text-sm font-semibold text-blue-900 mb-2 flex items-center gap-2">
+                        <BuildingOfficeIcon className="h-4 w-4" />
+                        Contrato de Origem
+                      </h3>
+                      <div className="bg-white border border-blue-200 rounded-lg p-3">
+                        <h4 className="font-medium text-blue-800">
+                          {contratoOrigem.nome}
+                        </h4>
+                        <p className="text-sm text-blue-600">
+                          Cliente: {contratoOrigem.cliente || "N/A"}
+                        </p>
+                      </div>
                     </div>
                   )}
-                </div>
-                
+
                 {/* Filtros */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2 mb-3">
-                  <div className="relative">
-                    <MagnifyingGlassIcon className="h-3 w-3 text-gray-400 absolute left-2 top-1/2 transform -translate-y-1/2" />
-                    <input
-                      type="text"
-                      placeholder="Buscar por nome..."
-                      value={buscaNome}
-                      onChange={(e) => setBuscaNome(e.target.value)}
-                      className="w-full pl-7 pr-2 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs"
-                    />
-                  </div>
-                  
-                  <select
-                    value={filtroFuncao}
-                    onChange={(e) => setFiltroFuncao(e.target.value)}
-                    className="w-full px-2 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs"
-                  >
-                    <option value="">Todas as funções</option>
-                    {funcoesDisponiveis.map(funcao => (
-                      <option key={funcao} value={funcao}>
-                        {funcao}
-                      </option>
-                    ))}
-                  </select>
-
-                  <select
-                    value={filtroCentroCusto}
-                    onChange={(e) => setFiltroCentroCusto(e.target.value)}
-                    className="w-full px-2 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs"
-                  >
-                    <option value="">Todos os centros</option>
-                    {centrosCustoDisponiveis.map(centro => (
-                      <option key={centro} value={centro}>
-                        {centro}
-                      </option>
-                    ))}
-                  </select>
-
-                  <select
-                    value={filtroStatus}
-                    onChange={(e) => setFiltroStatus(e.target.value)}
-                    className="w-full px-2 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs"
-                  >
-                    <option value="">Todos os status</option>
-                    {statusDisponiveis.map(status => (
-                      <option key={status} value={status}>
-                        {status}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                
-                {/* Layout lado a lado */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  {/* Funcionários Disponíveis */}
-                  <div>
-                    <h3 className="text-sm font-medium text-gray-900 mb-3">Funcionários Disponíveis</h3>
-                    <div className="space-y-2 max-h-60 overflow-y-auto border border-gray-200 rounded-lg p-2">
-                      {funcionariosDisponiveis.length === 0 ? (
-                        <div className="text-center py-4 text-gray-500">
-                          <UserIcon className="h-8 w-8 mx-auto mb-2 text-gray-300" />
-                          <p className="text-xs">Nenhum funcionário encontrado</p>
-                        </div>
-                      ) : (
-                        funcionariosDisponiveis.map(funcionario => (
-                          <div
-                            key={funcionario.id}
-                            className="flex items-center justify-between p-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-                          >
-                            <div className="flex items-center gap-2 flex-1">
-                              <div className="w-5 h-5 bg-blue-100 rounded-full flex items-center justify-center">
-                                <UserIcon className="h-3 w-3 text-blue-600" />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <h4 className="font-medium text-gray-900 text-xs truncate">{funcionario.nome}</h4>
-                                <div className="text-xs text-gray-500 space-y-0.5">
-                                  <div>Mat: {funcionario.matricula}</div>
-                                  <div className="flex flex-wrap gap-1">
-                                    {funcionario.funcao && <span className="bg-gray-100 px-1 rounded text-xs">{funcionario.funcao}</span>}
-                                    {funcionario.centroCusto && <span className="bg-blue-100 px-1 rounded text-xs">{funcionario.centroCusto}</span>}
-                                    {funcionario.status && <span className="bg-green-100 px-1 rounded text-xs">{funcionario.status}</span>}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                            
-                            <button
-                              onClick={() => adicionarFuncionario(funcionario)}
-                              className="px-2 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-xs ml-2"
-                            >
-                              <CheckIcon className="h-3 w-3" />
-                            </button>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                  
-                  {/* Funcionários Selecionados */}
-                  <div>
-                    <h3 className="text-sm font-medium text-gray-900 mb-3">Funcionários Selecionados</h3>
-                    <div className="space-y-2 max-h-60 overflow-y-auto border border-gray-200 rounded-lg p-2">
-                      {funcionariosSelecionados.length === 0 ? (
-                        <div className="text-center py-4 text-gray-500">
-                          <UserGroupIcon className="h-8 w-8 mx-auto mb-2 text-gray-300" />
-                          <p className="text-xs">Nenhum funcionário selecionado</p>
-                        </div>
-                      ) : (
-                        funcionariosSelecionados.map(funcionario => (
-                          <div
-                            key={funcionario.id}
-                            className="flex items-center justify-between p-2 border border-green-200 bg-green-50 rounded-lg"
-                          >
-                            <div className="flex items-center gap-2 flex-1">
-                              <div className="w-5 h-5 bg-green-100 rounded-full flex items-center justify-center">
-                                <UserIcon className="h-3 w-3 text-green-600" />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <h4 className="font-medium text-gray-900 text-xs truncate">{funcionario.nome}</h4>
-                                <div className="text-xs text-gray-500 space-y-0.5">
-                                  <div>Mat: {funcionario.matricula}</div>
-                                  <div className="flex flex-wrap gap-1">
-                                    {funcionario.funcao && <span className="bg-gray-100 px-1 rounded text-xs">{funcionario.funcao}</span>}
-                                    {funcionario.centroCusto && <span className="bg-blue-100 px-1 rounded text-xs">{funcionario.centroCusto}</span>}
-                                    {funcionario.status && <span className="bg-green-100 px-1 rounded text-xs">{funcionario.status}</span>}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                            
-                            <button
-                              onClick={() => removerFuncionario(funcionario.id)}
-                              className="px-2 py-1 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors text-xs ml-2"
-                            >
-                              <XMarkIcon className="h-3 w-3" />
-                            </button>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-
-          </div>
-        ) : (
-          /* Etapa de Confirmação */
-          <div className="space-y-3">
-            {/* Resumo da Solicitação */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3">
-              <div className="flex items-center gap-2 mb-3">
-                <DocumentTextIcon className="h-4 w-4 text-blue-600" />
-                <h2 className="text-sm font-semibold text-gray-900">Resumo da Solicitação</h2>
-              </div>
-              
-              {(() => {
-                const resumo = getResumo();
-                return (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Origem */}
-                    <div className="space-y-3">
-                      <h3 className="font-medium text-gray-900 flex items-center gap-2 text-sm">
-                        <BuildingOfficeIcon className="h-4 w-4 text-blue-600" />
-                        Origem
-                      </h3>
-                      <div className="bg-gray-50 p-3 rounded-lg space-y-2">
-                        <p className="text-sm"><span className="font-medium">Contrato:</span> {resumo.origem.contrato || 'Não especificado'}</p>
-                      </div>
-                    </div>
-                    
-                    {/* Destino */}
-                    <div className="space-y-3">
-                      <h3 className="font-medium text-gray-900 flex items-center gap-2 text-sm">
-                        <ArrowLongRightIcon className="h-4 w-4 text-green-600" />
-                        Destino
-                      </h3>
-                      <div className="bg-gray-50 p-3 rounded-lg space-y-2">
-                        <p className="text-sm"><span className="font-medium">Contrato:</span> {resumo.destino.contrato}</p>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })()}
-              
-              {/* Funcionários por função */}
-              <div className="mt-6">
-                <h3 className="font-medium text-gray-900 mb-3 flex items-center gap-2 text-sm">
-                  <UserGroupIcon className="h-4 w-4 text-blue-600" />
-                  Funcionários por Função ({getResumo().totalSelecionados} total)
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {Object.entries(getResumo().porFuncao).map(([funcao, quantidade]) => (
-                    <div key={funcao} className="bg-blue-50 p-3 rounded-lg">
-                      <p className="font-medium text-blue-900 text-sm">{funcao}</p>
-                      <p className="text-xl font-bold text-blue-600">{quantidade}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              
-              {/* Lista detalhada dos funcionários - Toggle */}
-              <div className="mt-6">
-                <button
-                  onClick={() => setMostrarFuncionarios(!mostrarFuncionarios)}
-                  className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors border border-gray-200"
+                <div
+                  className="m
+                b-6 grid grid-cols-1 md:grid-cols-4 gap-4"
                 >
-                  <div className="flex items-center gap-2">
-                    <UsersIcon className="h-4 w-4 text-green-600" />
-                    <h3 className="font-medium text-gray-900 text-sm">
-                      Funcionários Selecionados ({getResumo().totalSelecionados})
-                    </h3>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Buscar por nome
+                    </label>
+                    <div className="relative">
+                      <MagnifyingGlassIcon className="h-5 w-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
+                      <input
+                        type="text"
+                        value={filtroNome}
+                        onChange={(e) => setFiltroNome(e.target.value)}
+                        placeholder="Digite o nome..."
+                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent"
+                      />
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500">
-                      {mostrarFuncionarios ? 'Ocultar' : 'Ver detalhes'}
-                    </span>
-                    {mostrarFuncionarios ? (
-                      <ChevronUpIcon className="h-4 w-4 text-gray-500" />
-                    ) : (
-                      <ChevronDownIcon className="h-4 w-4 text-gray-500" />
-                    )}
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Função
+                    </label>
+                    <select
+                      value={filtroFuncao}
+                      onChange={(e) => setFiltroFuncao(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent"
+                    >
+                      <option value="">Todas as funções</option>
+                      {funcoesDisponiveis.map((funcao) => (
+                        <option key={funcao} value={funcao}>
+                          {funcao}
+                        </option>
+                      ))}
+                    </select>
                   </div>
-                </button>
-                
-                {mostrarFuncionarios && (
-                  <div className="mt-3 bg-gray-50 rounded-lg p-4 max-h-60 overflow-y-auto border border-gray-200">
-                    <div className="space-y-2">
-                      {getResumo().funcionarios.map((funcionario) => (
-                        <div key={funcionario.id} className="flex items-center justify-between bg-white p-3 rounded-md border border-gray-200">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                              <UserIcon className="h-4 w-4 text-blue-600" />
-                            </div>
-                            <div>
-                              <h4 className="font-medium text-gray-900 text-sm">{funcionario.nome}</h4>
-                              <div className="text-xs text-gray-500">
-                                <span>Mat: {funcionario.matricula}</span>
-                                {funcionario.funcao && <span> • {funcionario.funcao}</span>}
-                                {funcionario.centroCusto && <span> • {funcionario.centroCusto}</span>}
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Centro de Custo
+                    </label>
+                    <select
+                      value={filtroCentroCusto}
+                      onChange={(e) => setFiltroCentroCusto(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent"
+                    >
+                      <option value="">Todos os centros</option>
+                      {centrosCustoDisponiveis.map((centro) => (
+                        <option key={centro} value={centro}>
+                          {centro}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Status
+                    </label>
+                    <select
+                      value={filtroStatus}
+                      onChange={(e) => setFiltroStatus(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent"
+                    >
+                      <option value="">Todos os status</option>
+                      {statusDisponiveis.map((status) => (
+                        <option key={status} value={status}>
+                          {status}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Duas listas lado a lado */}
+                <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Lista de Funcionários Disponíveis */}
+                  <div className="border border-blue-200 rounded-lg bg-white">
+                    <div className="p-4 border-b border-blue-200 bg-blue-50">
+                      <h4 className="text-sm font-medium text-blue-900">
+                        Funcionários Disponíveis
+                      </h4>
+                      <p className="text-xs text-blue-700 mt-1">
+                        {funcionariosDisponiveis.length} funcionário
+                        {funcionariosDisponiveis.length !== 1 ? "s" : ""}{" "}
+                        encontrado
+                        {funcionariosDisponiveis.length !== 1 ? "s" : ""}
+                      </p>
+                    </div>
+                    <div className="max-h-96 overflow-y-auto divide-y divide-gray-200">
+                      {funcionariosDisponiveis.length === 0 ? (
+                        <div className="p-4 text-center text-gray-500 text-sm">
+                          Nenhum funcionário disponível com os filtros
+                          selecionados
+                        </div>
+                      ) : (
+                        funcionariosDisponiveis.map((funcionario) => (
+                          <div
+                            key={funcionario.id}
+                            className="p-3 hover:bg-gray-50 cursor-pointer transition-colors relative"
+                            onClick={() => adicionarFuncionario(funcionario)}
+                          >
+                            {loadingSelecao === funcionario.id && (
+                              <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10">
+                                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
                               </div>
+                            )}
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                  <UserIcon className="h-4 w-4 text-gray-400" />
+                                  <span className="font-medium text-gray-900 text-sm">
+                                    {funcionario.nome}
+                                  </span>
+                                </div>
+                                <div className="mt-1 text-xs text-gray-500 space-y-1">
+                                  <div className="flex items-center gap-4">
+                                    <span>Mat: {funcionario.matricula}</span>
+                                    {funcionario.funcao && (
+                                      <span>Função: {funcionario.funcao}</span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-4">
+                                    {funcionario.centroCusto && (
+                                      <span>CC: {funcionario.centroCusto}</span>
+                                    )}
+                                    {funcionario.status && (
+                                      <span>Status: {funcionario.status}</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                              <button className="ml-2 p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded">
+                                <ArrowRightIcon className="h-4 w-4" />
+                              </button>
                             </div>
                           </div>
-                          <div className="text-right">
-                            <div className="text-xs text-gray-500">
-                              {funcionario.dataAdmissao && (
-                                <span>Admissão: {new Date(funcionario.dataAdmissao).toLocaleDateString('pt-BR')}</span>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Lista de Funcionários Selecionados */}
+                  <div className="border border-green-200 rounded-lg bg-white">
+                    <div className="p-4 border-b border-green-200 bg-green-50">
+                      <h4 className="text-sm font-medium text-green-900">
+                        Funcionários Selecionados
+                      </h4>
+                      <p className="text-xs text-green-700 mt-1">
+                        {funcionariosSelecionados.length} funcionário
+                        {funcionariosSelecionados.length !== 1 ? "s" : ""}{" "}
+                        selecionado
+                        {funcionariosSelecionados.length !== 1 ? "s" : ""}
+                      </p>
+                    </div>
+                    <div className="max-h-96 overflow-y-auto divide-y divide-gray-200">
+                      {funcionariosSelecionados.length === 0 ? (
+                        <div className="p-4 text-center text-gray-500 text-sm">
+                          Nenhum funcionário selecionado
+                        </div>
+                      ) : (
+                        funcionariosSelecionados.map((funcionario) => (
+                          <div
+                            key={funcionario.id}
+                            className="p-3 hover:bg-gray-50 cursor-pointer transition-colors"
+                            onClick={() => removerFuncionario(funcionario.id)}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                  <UserIcon className="h-4 w-4 text-gray-400" />
+                                  <span className="font-medium text-gray-900 text-sm">
+                                    {funcionario.nome}
+                                  </span>
+                                </div>
+                                <div className="mt-1 text-xs text-gray-500 space-y-1">
+                                  <div className="flex items-center gap-4">
+                                    <span>Mat: {funcionario.matricula}</span>
+                                    {funcionario.funcao && (
+                                      <span>Função: {funcionario.funcao}</span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-4">
+                                    {funcionario.centroCusto && (
+                                      <span>CC: {funcionario.centroCusto}</span>
+                                    )}
+                                    {funcionario.status && (
+                                      <span>Status: {funcionario.status}</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                              <button className="ml-2 p-1 text-red-600 hover:text-red-800 hover:bg-red-100 rounded">
+                                <ArrowLeftIcon className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Botões de navegação */}
+                <div className="mt-6 flex flex-col sm:flex-row gap-3 sm:justify-between">
+                  <button
+                    onClick={() => {
+                      // Para desligamento, voltar direto para tipo
+                      if (tipoRemanejamento === "desligamento") {
+                        setEtapaAtual("tipo");
+                      } else {
+                        setEtapaAtual("contrato");
+                      }
+                    }}
+                    className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-3 text-gray-600 hover:text-gray-800 transition-colors border border-gray-300 rounded-xl hover:bg-gray-50"
+                  >
+                    <ArrowLeftIcon className="h-4 w-4" />
+                    Voltar
+                  </button>
+
+                  <button
+                    onClick={() => setEtapaAtual("confirmacao")}
+                    disabled={funcionariosSelecionados.length === 0}
+                    className="w-full sm:w-auto flex items-center justify-center gap-2 bg-slate-700 text-white px-6 py-3 rounded-xl hover:bg-slate-800 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Continuar
+                    <ArrowRightIcon className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : etapaAtual === "confirmacao" ? (
+          <div className="max-w-4xl mx-auto flex-1">
+            <div className="overflow-hidden h-full flex flex-col">
+              <div className="bg-gradient-to-r from-slate-50 to-gray-50 px-6 py-4 text-center border-b border-gray-100">
+                <div className="inline-flex items-center justify-center w-12 h-12 bg-slate-100 rounded-full mb-3">
+                  <CheckCircleIcon className="h-6 w-6 text-slate-700" />
+                </div>
+                <h2 className="text-xl font-bold text-gray-900 mb-2">
+                  Confirmar Solicitação
+                </h2>
+                <p className="text-gray-600 leading-relaxed text-sm">
+                  Revise os dados da solicitação antes de enviar
+                </p>
+              </div>
+
+              <div className="p-6 flex-1 flex flex-col">
+                {/* Resumo da solicitação */}
+                <div className="space-y-6">
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <div className="space-y-3">
+                      <div className="text-sm">
+                        <span className="text-gray-600">Tipo:</span>
+                        <span className="ml-2 font-medium">
+                          {tipoRemanejamento === "funcionarios_novos"
+                            ? "Alocação de Funcionários Novos"
+                            : tipoRemanejamento === "entre_contratos"
+                            ? "Remanejamento entre Contratos"
+                            : "Desligamento de Funcionários"}
+                        </span>
+                      </div>
+
+                      {/* Movimento De -> Para */}
+                      {(contratoOrigem || contratoDestino) && (
+                        <div className="bg-white rounded-lg p-3 border border-gray-200">
+                          <div className="flex items-center justify-center gap-3">
+                            {contratoOrigem ? (
+                              <div className="text-center flex-1">
+                                <div className="text-xs text-gray-500 mb-1">
+                                  De
+                                </div>
+                                <div className="font-medium text-blue-700 text-sm">
+                                  {contratoOrigem.nome}
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  {contratoOrigem.cliente}
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="text-center flex-1">
+                                <div className="text-xs text-gray-500 mb-1">
+                                  De
+                                </div>
+                                <div className="font-medium text-gray-500 text-sm">
+                                  Funcionários Novos
+                                </div>
+                              </div>
+                            )}
+
+                            <div className="flex-shrink-0">
+                              <ArrowRightIcon className="h-5 w-5 text-gray-400" />
+                            </div>
+
+                            {contratoDestino ? (
+                              <div className="text-center flex-1">
+                                <div className="text-xs text-gray-500 mb-1">
+                                  Para
+                                </div>
+                                <div className="font-medium text-green-700 text-sm">
+                                  {contratoDestino.nome}
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  {contratoDestino.cliente}
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="text-center flex-1">
+                                <div className="text-xs text-gray-500 mb-1">
+                                  Para
+                                </div>
+                                <div className="font-medium text-red-700 text-sm">
+                                  Desligamento
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* <div className="text-sm">
+                        <span className="text-gray-600">Funcionários Selecionados:</span>
+                        <span className="ml-2 font-medium">{funcionariosSelecionados.length}</span>
+                      </div> */}
+                    </div>
+                  </div>
+
+                  {/* Lista de funcionários selecionados */}
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-900 mb-3">
+                      Funcionários Selecionados:{" "}
+                      {funcionariosSelecionados.length}
+                    </h3>
+                    <div className="border border-gray-200 rounded-lg max-h-60 overflow-y-auto">
+                      <div className="divide-y divide-gray-200">
+                        {funcionariosSelecionados.map((funcionario) => (
+                          <div key={funcionario.id} className="p-3">
+                            <div className="flex items-center gap-2">
+                              <UserIcon className="h-4 w-4 text-gray-400" />
+                              <span className="font-medium text-gray-900 text-sm">
+                                {funcionario.nome}
+                              </span>
+                            </div>
+                            <div className="mt-1 text-xs text-gray-500 flex gap-4">
+                              <span>Mat: {funcionario.matricula}</span>
+                              {funcionario.funcao && (
+                                <span>Função: {funcionario.funcao}</span>
+                              )}
+                              {funcionario.centroCusto && (
+                                <span>CC: {funcionario.centroCusto}</span>
                               )}
                             </div>
                           </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
                   </div>
-                )}
-              </div>
-            </div>
-            
-            {/* Detalhes da Solicitação */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-              <h2 className="text-base font-semibold text-gray-900 mb-4">Detalhes da Solicitação</h2>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Justificativa *
-                  </label>
-                  <textarea
-                    value={justificativa}
-                    onChange={(e) => setJustificativa(e.target.value)}
-                    rows={4}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Descreva o motivo do remanejamento..."
-                  />
+
+                  {/* Justificativa */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Justificativa *
+                    </label>
+                    <textarea
+                      value={justificativa}
+                      onChange={(e) => setJustificativa(e.target.value)}
+                      placeholder="Descreva o motivo da solicitação..."
+                      rows={4}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent"
+                      required
+                    />
+                  </div>
+
+                  {/* Prioridade */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Prioridade
+                    </label>
+                    <select
+                      value={prioridade}
+                      onChange={(e) =>
+                        setPrioridade(
+                          e.target.value as "BAIXA" | "MEDIA" | "ALTA"
+                        )
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent"
+                    >
+                      <option value="BAIXA">Baixa</option>
+                      <option value="MEDIA">Média</option>
+                      <option value="ALTA">Alta</option>
+                    </select>
+                  </div>
                 </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Prioridade
-                  </label>
-                  <select
-                    value={prioridade}
-                    onChange={(e) => setPrioridade(e.target.value as any)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+
+                {/* Botões de navegação */}
+                <div className="mt-6 flex flex-col sm:flex-row gap-3 sm:justify-between">
+                  <button
+                    onClick={() => setEtapaAtual("selecao")}
+                    className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-3 text-gray-600 hover:text-gray-800 transition-colors border border-gray-300 rounded-xl hover:bg-gray-50"
                   >
-                    <option value="baixa">Baixa</option>
-                    <option value="media">Média</option>
-                    <option value="alta">Alta</option>
-                    <option value="urgente">Urgente</option>
-                  </select>
+                    <ArrowLeftIcon className="h-4 w-4" />
+                    Voltar
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      if (!submitting && justificativa.trim()) {
+                        handleSubmit();
+                      }
+                    }}
+                    disabled={submitting || !justificativa.trim()}
+                    className="w-full sm:w-auto flex items-center justify-center gap-2 bg-green-600 text-white px-6 py-3 rounded-xl hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {submitting ? (
+                      <>
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                        Enviando...
+                      </>
+                    ) : (
+                      <>
+                        Enviar Solicitação
+                        <CheckIcon className="h-4 w-4" />
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
             </div>
           </div>
-        )}
-      </div>
-
-      {/* Footer com ações */}
-      <div className="bg-white border-t border-gray-200 px-4 py-3 sm:px-6">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => router.back()}
-              className="px-3 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors text-sm"
-            >
-              Cancelar
-            </button>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {etapaAtual === 'selecao' && (
-              <button
-                onClick={() => setEtapaAtual('tipo')}
-                className="px-3 py-2 text-blue-700 bg-blue-100 border border-blue-300 rounded-md hover:bg-blue-200 transition-colors text-sm"
-              >
-                Voltar
-              </button>
-            )}
-            
-            {etapaAtual === 'confirmacao' && (
-              <button
-                onClick={() => setEtapaAtual('selecao')}
-                className="px-3 py-2 text-blue-700 bg-blue-100 border border-blue-300 rounded-md hover:bg-blue-200 transition-colors text-sm"
-              >
-                Voltar
-              </button>
-            )}
-            
-            {etapaAtual === 'selecao' ? (
-              <button
-                onClick={() => setEtapaAtual('confirmacao')}
-                disabled={
-                  funcionariosSelecionados.length === 0 || 
-                  !contratoDestino || 
-                  (tipoRemanejamento === 'entre_contratos' && !contratoOrigem)
-                }
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2 text-sm"
-              >
-                Continuar
-                <ArrowRightIcon className="h-4 w-4" />
-              </button>
-            ) : (
-              <button
-                onClick={handleSubmit}
-                disabled={submitting || !justificativa.trim()}
-                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2 text-sm"
-              >
-                {submitting ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    Enviando...
-                  </>
-                ) : (
-                  <>
-                    <CheckIcon className="h-4 w-4" />
-                    Enviar Solicitação
-                  </>
-                )}
-              </button>
-            )}
-          </div>
-        </div>
+        ) : null}
       </div>
     </div>
   );

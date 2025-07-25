@@ -480,6 +480,7 @@ function FuncionarioModernoContent() {
                     dataRascunhoCriado={funcionario.dataRascunhoCriado}
                     dataSubmetido={funcionario.dataSubmetido}
                     dataResposta={funcionario.dataResposta}
+                    dataCriadoEm={funcionario.createdAt}
                   />
                 </div>
 

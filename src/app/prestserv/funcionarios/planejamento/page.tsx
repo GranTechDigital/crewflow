@@ -23,7 +23,6 @@ import {
   ChevronRightIcon as ChevronRightIcon2,
   UsersIcon,
   DocumentTextIcon,
-  ClipboardDocumentListIcon,
 } from "@heroicons/react/24/outline";
 import {
   Chart as ChartJS,
@@ -54,8 +53,6 @@ ChartJS.register(
 );
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { ROUTE_PROTECTION } from "@/lib/permissions";
-import ListaTarefasModal from "@/components/ListaTarefasModal";
-import CheckIcon from "@heroicons/react/24/solid/CheckIcon";
 
 interface ProgressoPorSetor {
   setor: string;
@@ -88,12 +85,12 @@ interface FuncionarioTableData {
 
 export default function FuncionariosPage() {
   return (
-    <ProtectedRoute
-      requiredEquipe={ROUTE_PROTECTION.PRESTSERV.requiredEquipe}
-      requiredPermissions={ROUTE_PROTECTION.PRESTSERV.requiredPermissions}
-    >
+    // <ProtectedRoute
+    //   requiredEquipe={ROUTE_PROTECTION.PRESTSERV.requiredEquipe}
+    //   requiredPermissions={ROUTE_PROTECTION.PRESTSERV.requiredPermissions}
+    // >
       <FuncionariosPageContent />
-    </ProtectedRoute>
+    // </ProtectedRoute>
   );
 }
 
@@ -146,11 +143,6 @@ function FuncionariosPageContent() {
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showTarefasModal, setShowTarefasModal] = useState(false);
-  const [showListaTarefasModal, setShowListaTarefasModal] = useState(false);
-  const [showSispatModal, setShowSispatModal] = useState(false);
-  const [sispatValue, setSispatValue] = useState("");
-  const [funcionarioParaSispat, setFuncionarioParaSispat] =
-    useState<FuncionarioTableData | null>(null);
   const [selectedFuncionario, setSelectedFuncionario] =
     useState<FuncionarioTableData | null>(null);
   const [selectedSetores, setSelectedSetores] = useState<string[]>([
@@ -168,19 +160,6 @@ function FuncionariosPageContent() {
   const [dashboardError, setDashboardError] = useState<string | null>(null);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [isInitialized, setIsInitialized] = useState(false);
-
-  // Estados para aprovação em lote
-  const [funcionariosSelecionados, setFuncionariosSelecionados] = useState<
-    Set<string>
-  >(new Set());
-  const [showAprovacaoLoteModal, setShowAprovacaoLoteModal] = useState(false);
-  const [processandoAprovacaoLote, setProcessandoAprovacaoLote] =
-    useState(false);
-
-  // Estados para paginação da tabela de solicitações
-  const [paginaAtualSolicitacoes, setPaginaAtualSolicitacoes] = useState(1);
-  const [itensPorPaginaSolicitacoes] = useState(10);
-  const [totalSolicitacoes, setTotalSolicitacoes] = useState(0);
 
   // Função para carregar dados do dashboard com filtros aplicados
   const fetchDashboardData = async () => {
@@ -299,7 +278,7 @@ function FuncionariosPageContent() {
         setFiltroNumeroSolicitacao(filters.filtroNumeroSolicitacao || []);
         setFiltroResponsavel(filters.filtroResponsavel || []);
         setFiltroPendenciasPorSetor(filters.filtroPendenciasPorSetor || []);
-        setActiveTab(filters.activeTab || "nominal");
+        setActiveTab(filters.activeTab || "solicitacao");
         setPaginaAtual(filters.paginaAtual || 1);
         setItensPorPagina(filters.itensPorPagina || 10);
         setOrdenacao(
@@ -313,20 +292,6 @@ function FuncionariosPageContent() {
     setIsInitialized(true);
     fetchFuncionarios();
   }, []);
-
-  // Recarregar dados quando a página atual mudar (apenas para aba solicitacao)
-  useEffect(() => {
-    if (isInitialized && activeTab === "solicitacao") {
-      fetchFuncionarios();
-    }
-  }, [paginaAtualSolicitacoes, activeTab]);
-
-  // Recarregar dados quando mudar de aba
-  useEffect(() => {
-    if (isInitialized) {
-      fetchFuncionarios();
-    }
-  }, [activeTab]);
 
   // Fechar dropdowns quando clicar fora
   useEffect(() => {
@@ -420,101 +385,6 @@ function FuncionariosPageContent() {
     return () => clearInterval(interval);
   }, []);
 
-  // Função para processar validação com SISPAT
-  const processarValidacaoComSispat = async (sispat: string) => {
-    if (!funcionarioParaSispat) return;
-
-    try {
-      setUpdatingStatus(funcionarioParaSispat.id);
-
-      // Preparar dados para atualização incluindo SISPAT
-      const updateData: any = {
-        statusPrestserv: "VALIDADO",
-        sispat: sispat,
-        statusTarefas: "CONCLUIDO",
-      };
-
-      if (funcionarioParaSispat.tipoSolicitacao === "DESLIGAMENTO") {
-        updateData.statusFuncionario = "INATIVO";
-        updateData.contratoId = null; // Remover vínculo com contrato ao desligar
-      } else {
-        updateData.statusFuncionario = "ATIVO";
-      }
-      updateData.emMigracao = false;
-
-      const response = await fetch(
-        `/api/logistica/funcionario/${funcionarioParaSispat.id}`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(updateData),
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Erro ao atualizar status");
-      }
-
-      // Atualizar estado local
-      setFuncionarios((prev) =>
-        prev.map((func) =>
-          func.id === funcionarioParaSispat.id
-            ? {
-                ...func,
-                statusPrestserv: "VALIDADO",
-                statusTarefas: "CONCLUIDO",
-                statusFuncionario:
-                  funcionarioParaSispat.tipoSolicitacao === "DESLIGAMENTO"
-                    ? "INATIVO"
-                    : "ATIVO",
-                emMigracao: false,
-              }
-            : func
-        )
-      );
-
-      const statusMessage =
-        funcionarioParaSispat.tipoSolicitacao === "DESLIGAMENTO"
-          ? "Prestserv foi validado! Funcionário desligado (status: Inativo). Migração finalizada. ✅"
-          : "Prestserv foi validado! Status do funcionário alterado para 'Ativo'. Migração finalizada. ✅";
-
-      showToast(`${funcionarioParaSispat.nome}: ${statusMessage}`, "success");
-
-      // Verificar se a solicitação deve ser atualizada
-      try {
-        await fetch(
-          `/api/prestserv/verificar-solicitacao/${funcionarioParaSispat.solicitacaoId}`,
-          {
-            method: "POST",
-          }
-        );
-        console.log(
-          `Verificação de status da solicitação ${funcionarioParaSispat.solicitacaoId} iniciada`
-        );
-      } catch (error) {
-        console.error("Erro ao verificar status da solicitação:", error);
-      }
-
-      // Fechar modal e limpar estados
-      setShowSispatModal(false);
-      setSispatValue("");
-      setFuncionarioParaSispat(null);
-    } catch (error) {
-      console.error("Erro ao validar com SISPAT:", error);
-      showToast(
-        `Erro ao validar funcionário: ${
-          error instanceof Error ? error.message : "Erro desconhecido"
-        }`,
-        "error"
-      );
-    } finally {
-      setUpdatingStatus(null);
-    }
-  };
-
   // Funções existentes
   const updatePrestservStatus = async (
     funcionarioId: string,
@@ -539,17 +409,18 @@ function FuncionariosPageContent() {
       if (novoStatus === "INVALIDADO") {
         updateData.statusTarefas = "CRIAR TAREFAS";
         // Não alterar emMigracao nem statusFuncionario quando invalidado - o setor deve corrigir e o ciclo se repete
-        
-        // Salvar o funcionário selecionado para mostrar o modal de tarefas após a atualização
-        setSelectedFuncionario(funcionario);
       }
 
-      // Se status for VALIDADO, abrir modal para informar SISPAT
+      // Se status for VALIDADO, verificar tipo de solicitação
       if (novoStatus === "VALIDADO") {
-        setFuncionarioParaSispat(funcionario);
-        setShowSispatModal(true);
-        setUpdatingStatus(null);
-        return; // Interrompe a execução aqui para aguardar o SISPAT
+        updateData.statusTarefas = "CONCLUIDO";
+        if (funcionario.tipoSolicitacao === "DESLIGAMENTO") {
+          updateData.statusFuncionario = "INATIVO";
+          updateData.contratoId = null; // Remover vínculo com contrato ao desligar
+        } else {
+          updateData.statusFuncionario = "ATIVO";
+        }
+        updateData.emMigracao = false;
       }
 
       // Se status for CANCELADO, definir status geral como CANCELADO, responsável como N/A e emMigracao como false
@@ -601,16 +472,6 @@ function FuncionariosPageContent() {
             : func
         )
       );
-      
-      // Se o status for INVALIDADO, mostrar o modal de LISTA de tarefas para reprovar tarefas
-      if (novoStatus === "INVALIDADO") {
-        // Encontrar o funcionário pelo ID para definir como selecionado
-        const funcionario = funcionarios.find(f => f.id === funcionarioId);
-        if (funcionario) {
-          setSelectedFuncionario(funcionario);
-          setShowListaTarefasModal(true); // Mostrar o modal de lista de tarefas em vez do modal de tarefas padrão
-        }
-      }
 
       const statusMessages = {
         PENDENTE: "Status alterado para Pendente",
@@ -799,61 +660,9 @@ function FuncionariosPageContent() {
       setLoading(true);
       setError(null);
 
-      // Construir URL baseado na aba ativa
-      const params = new URLSearchParams();
-
-      if (activeTab === "solicitacao") {
-        // Para aba solicitação: usar paginação sem filtrar processo
-        params.append("filtrarProcesso", "false");
-        params.append("page", paginaAtualSolicitacoes.toString());
-        params.append("limit", itensPorPaginaSolicitacoes.toString());
-
-        // Adicionar filtros para a API
-        if (filtroNome) {
-          params.append("nome", filtroNome);
-        }
-
-        if (filtroContratoOrigem.length > 0) {
-          filtroContratoOrigem.forEach((contrato) => {
-            params.append("contratoOrigem", contrato);
-          });
-        }
-
-        if (filtroContratoDestino.length > 0) {
-          filtroContratoDestino.forEach((contrato) => {
-            params.append("contratoDestino", contrato);
-          });
-        }
-
-        if (filtroStatusGeral.length > 0) {
-          filtroStatusGeral.forEach((status) => {
-            params.append("statusTarefas", status);
-          });
-        }
-
-        if (filtroTipoSolicitacao.length > 0) {
-          filtroTipoSolicitacao.forEach((tipo) => {
-            params.append("tipoSolicitacao", tipo);
-          });
-        }
-
-        if (filtroNumeroSolicitacao.length > 0) {
-          filtroNumeroSolicitacao.forEach((numero) => {
-            params.append("solicitacaoId", numero);
-          });
-        }
-
-        if (filtroResponsavel.length > 0) {
-          filtroResponsavel.forEach((responsavel) => {
-            params.append("responsavel", responsavel);
-          });
-        }
-      } else {
-        // Para outras abas: não filtrar processo, sem paginação
-        params.append("filtrarProcesso", "false");
-      }
-
-      const response = await fetch(`/api/logistica/remanejamentos?${params}`);
+      const response = await fetch(
+        "/api/logistica/remanejamentos?filtrarProcesso=false"
+      );
 
       if (!response.ok) {
         throw new Error("Erro ao carregar remanejamentos");
@@ -863,19 +672,6 @@ function FuncionariosPageContent() {
 
       console.log("Dados da API:", data);
 
-      // Verificar se a resposta tem paginação (apenas para aba solicitação)
-      let solicitacoes, totalSolicitacoesAPI;
-
-      if (activeTab === "solicitacao" && data.solicitacoes) {
-        // Resposta com paginação
-        solicitacoes = data.solicitacoes;
-        totalSolicitacoesAPI = data.totalSolicitacoes;
-      } else {
-        // Resposta sem paginação (array direto)
-        solicitacoes = Array.isArray(data) ? data : [];
-        totalSolicitacoesAPI = solicitacoes.length;
-      }
-
       // Transformar os dados da API para o formato esperado pela interface
 
       // Atualizar o dashboard se estiver na aba dashboard
@@ -883,8 +679,8 @@ function FuncionariosPageContent() {
         fetchDashboardData();
       }
 
-      const funcionariosTransformados: FuncionarioTableData[] =
-        solicitacoes.flatMap((solicitacao: any) =>
+      const funcionariosTransformados: FuncionarioTableData[] = data.flatMap(
+        (solicitacao: any) =>
           solicitacao.funcionarios.map((rf: any) => ({
             id: rf.id,
             remanejamentoId: rf.id,
@@ -952,17 +748,9 @@ function FuncionariosPageContent() {
                   : 0,
             })),
           }))
-        );
+      );
 
       setFuncionarios(funcionariosTransformados);
-
-      // Atualizar total de solicitações apenas se mudou
-      if (totalSolicitacoesAPI !== totalSolicitacoes) {
-        setTotalSolicitacoes(totalSolicitacoesAPI);
-      }
-      console.log("Total:", totalSolicitacoesAPI);
-
-      console.log("Resultado data:", funcionariosTransformados);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro desconhecido");
     } finally {
@@ -1507,11 +1295,6 @@ function FuncionariosPageContent() {
     if (!selectedFuncionario) return;
 
     try {
-      // Definir o status adequado com base no tipo de solicitação
-      const novoStatus = selectedFuncionario.tipoSolicitacao === "DESLIGAMENTO" 
-        ? "SUBMETER RASCUNHO" 
-        : "CRIAR TAREFAS";
-
       const response = await fetch(
         `/api/logistica/funcionario/${selectedFuncionario.id}`,
         {
@@ -1519,7 +1302,7 @@ function FuncionariosPageContent() {
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ statusTarefas: novoStatus }),
+          body: JSON.stringify({ statusTarefas: "CRIAR TAREFAS" }),
         }
       );
 
@@ -1532,7 +1315,7 @@ function FuncionariosPageContent() {
       setFuncionarios((prev) =>
         prev.map((func) =>
           func.id === selectedFuncionario.id
-            ? { ...func, statusTarefas: novoStatus }
+            ? { ...func, statusTarefas: "CRIAR TAREFAS" }
             : func
         )
       );
@@ -1547,18 +1330,8 @@ function FuncionariosPageContent() {
         fetchDashboardData();
       }
 
-      // Gerar tarefas automaticamente para os três setores apenas se não for desligamento
-      if (selectedFuncionario.tipoSolicitacao !== "DESLIGAMENTO") {
-        await gerarTarefasPadrao();
-      } else {
-        showToast(
-          `Não foram geradas tarefas para ${selectedFuncionario.nome} por ser um desligamento`,
-          "info"
-        );
-        // Fechar modais
-        setShowConfirmModal(false);
-        setSelectedFuncionario(null);
-      }
+      // Perguntar se quer gerar tarefas
+      setShowTarefasModal(true);
     } catch (error) {
       showToast(
         error instanceof Error ? error.message : "Erro ao aprovar solicitação",
@@ -1582,12 +1355,10 @@ function FuncionariosPageContent() {
   };
 
   const gerarTarefasPadrao = async () => {
-    if (!selectedFuncionario) {
+    if (!selectedFuncionario || selectedSetores.length === 0) {
+      showToast("Selecione pelo menos um setor", "warning");
       return;
     }
-
-    // Sempre usar os três setores, independentemente do que está selecionado
-    const setoresParaGerar = ["RH", "MEDICINA", "TREINAMENTO"];
 
     setGeneratingTarefas(true);
     try {
@@ -1596,7 +1367,7 @@ function FuncionariosPageContent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           funcionarioId: selectedFuncionario.id,
-          setores: setoresParaGerar,
+          setores: selectedSetores,
           criadoPor: "Sistema",
         }),
       });
@@ -1651,174 +1422,6 @@ function FuncionariosPageContent() {
       newExpanded.add(solicitacaoId);
     }
     setExpandedRows(newExpanded);
-  };
-
-  // Funções para seleção múltipla
-  const toggleFuncionarioSelecionado = (funcionarioId: string) => {
-    const newSelecionados = new Set(funcionariosSelecionados);
-    if (newSelecionados.has(funcionarioId)) {
-      newSelecionados.delete(funcionarioId);
-    } else {
-      newSelecionados.add(funcionarioId);
-    }
-    setFuncionariosSelecionados(newSelecionados);
-  };
-
-  const selecionarTodosFuncionariosSolicitacao = (solicitacao: any) => {
-    const funcionariosAprovacao = solicitacao.funcionarios.filter(
-      (f: FuncionarioTableData) => f.statusTarefas === "APROVAR SOLICITAÇÃO"
-    );
-    const newSelecionados = new Set(funcionariosSelecionados);
-
-    const todosJaSelecionados = funcionariosAprovacao.every(
-      (f: FuncionarioTableData) => newSelecionados.has(f.id)
-    );
-
-    if (todosJaSelecionados) {
-      // Desmarcar todos
-      funcionariosAprovacao.forEach((f: FuncionarioTableData) => {
-        newSelecionados.delete(f.id);
-      });
-    } else {
-      // Marcar todos
-      funcionariosAprovacao.forEach((f: FuncionarioTableData) => {
-        newSelecionados.add(f.id);
-      });
-    }
-
-    setFuncionariosSelecionados(newSelecionados);
-  };
-
-  const limparSelecao = () => {
-    setFuncionariosSelecionados(new Set());
-  };
-
-  const abrirModalAprovacaoLote = () => {
-    if (funcionariosSelecionados.size === 0) {
-      showToast("Selecione pelo menos um funcionário para aprovar", "error");
-      return;
-    }
-    setShowAprovacaoLoteModal(true);
-  };
-
-  const processarAprovacaoLote = async () => {
-    if (funcionariosSelecionados.size === 0) return;
-
-    setProcessandoAprovacaoLote(true);
-    const funcionariosParaAprovar = funcionarios.filter((f) =>
-      funcionariosSelecionados.has(f.id)
-    );
-
-    let sucessos = 0;
-    let erros = 0;
-    let sucessosTarefas = 0;
-    let errosTarefas = 0;
-    const setoresParaGerar = ["RH", "MEDICINA", "TREINAMENTO"];
-
-    try {
-      for (const funcionario of funcionariosParaAprovar) {
-        try {
-          // Definir o status adequado com base no tipo de solicitação
-          const novoStatus = funcionario.tipoSolicitacao === "DESLIGAMENTO" 
-            ? "SUBMETER RASCUNHO" 
-            : "CRIAR TAREFAS";
-
-          // Aprovar funcionário
-          const response = await fetch(
-            `/api/logistica/funcionario/${funcionario.id}`,
-            {
-              method: "PATCH",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({ statusTarefas: novoStatus }),
-            }
-          );
-
-          if (!response.ok) {
-            throw new Error(`Erro ao aprovar ${funcionario.nome}`);
-          }
-
-          sucessos++;
-
-          // Gerar tarefas automaticamente para os três setores apenas se não for desligamento
-          if (funcionario.tipoSolicitacao !== "DESLIGAMENTO") {
-            try {
-              const tarefasResponse = await fetch("/api/tarefas/padrao", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  funcionarioId: funcionario.id,
-                  setores: setoresParaGerar,
-                  criadoPor: "Sistema",
-                }),
-              });
-
-              if (tarefasResponse.ok) {
-                sucessosTarefas++;
-              } else {
-                errosTarefas++;
-                console.error(`Erro ao gerar tarefas para ${funcionario.nome}`);
-              }
-            } catch (tarefaError) {
-              errosTarefas++;
-              console.error(`Erro ao gerar tarefas para ${funcionario.nome}:`, tarefaError);
-            }
-          } else {
-            console.log(`Não foram geradas tarefas para ${funcionario.nome} por ser um desligamento`);
-          }
-        } catch (error) {
-          console.error(`Erro ao aprovar ${funcionario.nome}:`, error);
-          erros++;
-        }
-      }
-
-      // Atualizar o estado local
-      setFuncionarios((prev) =>
-        prev.map((func) =>
-          funcionariosSelecionados.has(func.id)
-            ? { ...func, statusTarefas: "CRIAR TAREFAS" }
-            : func
-        )
-      );
-
-      // Mostrar resultado
-      if (sucessos > 0) {
-        showToast(
-          `${sucessos} funcionário(s) aprovado(s) com sucesso!`,
-          "success"
-        );
-      }
-      if (sucessosTarefas > 0) {
-        showToast(
-          `Tarefas geradas com sucesso para ${sucessosTarefas} funcionário(s)!`,
-          "success"
-        );
-      }
-      if (erros > 0) {
-        showToast(`${erros} funcionário(s) falharam na aprovação`, "error");
-      }
-      if (errosTarefas > 0) {
-        showToast(`Falha ao gerar tarefas para ${errosTarefas} funcionário(s)`, "error");
-      }
-
-      // Atualizar dashboard se necessário
-      if (activeTab === "dashboard") {
-        fetchDashboardData();
-      }
-
-      // Limpar seleção e fechar modal
-      setFuncionariosSelecionados(new Set());
-      setShowAprovacaoLoteModal(false);
-    } catch (error) {
-      showToast("Erro geral na aprovação em lote", "error");
-    } finally {
-      setProcessandoAprovacaoLote(false);
-    }
-  };
-
-  const getFuncionariosSelecionadosData = () => {
-    return funcionarios.filter((f) => funcionariosSelecionados.has(f.id));
   };
 
   const getFuncionariosResumo = (funcionarios: FuncionarioTableData[]) => {
@@ -2017,18 +1620,7 @@ function FuncionariosPageContent() {
     {} as Record<string, any>
   );
 
-  const todasSolicitacoes = Object.values(funcionariosAgrupados);
-
-  // Para a aba de solicitação, usamos a paginação da API
-  // Não precisamos fatiar os dados aqui, pois já vêm paginados da API
-  const solicitacoesFiltradas =
-    activeTab === "solicitacao"
-      ? todasSolicitacoes
-      : todasSolicitacoes.slice(
-          (paginaAtualSolicitacoes - 1) * itensPorPaginaSolicitacoes,
-          (paginaAtualSolicitacoes - 1) * itensPorPaginaSolicitacoes +
-            itensPorPaginaSolicitacoes
-        );
+  const solicitacoesFiltradas = Object.values(funcionariosAgrupados);
 
   if (loading) {
     return (
@@ -2102,7 +1694,7 @@ function FuncionariosPageContent() {
       {/* Abas de Visualização */}
       <div className="bg-linear-to-r from-gray-800 to-slate-600 rounded-lg p-6">
         <nav className="flex space-x-8">
-          <button
+          {/* <button
             onClick={() => setActiveTab("nominal")}
             className={`text-white py-2 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${
               activeTab === "nominal"
@@ -2112,7 +1704,7 @@ function FuncionariosPageContent() {
           >
             <UsersIcon className="h-4 w-4" />
             <span>Visão por Funcionário</span>
-          </button>
+          </button> */}
           <button
             onClick={() => setActiveTab("solicitacao")}
             className={`text-white py-2 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${
@@ -2124,7 +1716,7 @@ function FuncionariosPageContent() {
             <DocumentTextIcon className="h-4 w-4" />
             <span>Visão por Solicitação</span>
           </button>
-          <button
+          {/* <button
             onClick={() => setActiveTab("dashboard")}
             className={`text-white py-2 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${
               activeTab === "dashboard"
@@ -2146,7 +1738,7 @@ function FuncionariosPageContent() {
               />
             </svg>
             <span>Dashboard</span>
-          </button>
+          </button> */}
         </nav>
       </div>
 
@@ -3817,23 +3409,6 @@ function FuncionariosPageContent() {
                               Detalhes
                             </button>
                           )}
-                        {/* Botão para listar tarefas - ocultar para APROVAR SOLICITAÇÃO, REJEITADO, CANCELADO */}
-                        {funcionario.statusTarefas !== "APROVAR SOLICITAÇÃO" &&
-                          funcionario.statusTarefas !== "REJEITADO" &&
-                          funcionario.statusTarefas !== "SOLICITAÇÃO REJEITADA" &&
-                          funcionario.statusTarefas !== "CANCELADO" && (
-                          <button
-                            onClick={() => {
-                              setSelectedFuncionario(funcionario);
-                              setShowListaTarefasModal(true);
-                            }}
-                            className="inline-flex items-center px-2 py-1 text-xs font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 rounded hover:bg-indigo-100 transition-colors focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                            title="Listar tarefas do funcionário"
-                          >
-                            <ClipboardDocumentListIcon className="w-3 h-3 mr-1" />
-                            Tarefas
-                          </button>
-                        )}
                       </div>
                     </td>
                   </tr>
@@ -3986,42 +3561,13 @@ function FuncionariosPageContent() {
               Tabela agrupada por solicitação de remanejamento
             </p>
 
-            {/* Botão de Aprovação em Lote */}
-            {funcionariosSelecionados.size > 0 && (
-              <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <UsersIcon className="h-5 w-5 text-blue-600" />
-                    <span className="text-sm font-medium text-blue-900">
-                      {funcionariosSelecionados.size} funcionário(s)
-                      selecionado(s)
-                    </span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <button
-                      onClick={limparSelecao}
-                      className="px-3 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors"
-                    >
-                      Limpar Seleção
-                    </button>
-                    <button
-                      onClick={abrirModalAprovacaoLote}
-                      className="px-4 py-1.5 text-xs font-medium text-white bg-green-600 border border-green-600 rounded hover:bg-green-700 transition-colors"
-                    >
-                      Aprovar Selecionados
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
             {/* Tabela de Solicitações */}
             <div className="mt-6 overflow-x-auto">
               <table className="w-full divide-y divide-gray-300 rounded-lg shadow-md overflow-hidden">
                 <thead className="bg-white-100 border-b border-slate-800">
                   <tr>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-800 uppercase tracking-wider">
-                      Solicitação
+                      Solicitação 2
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-800 uppercase tracking-wider">
                       Contratos
@@ -4145,46 +3691,6 @@ function FuncionariosPageContent() {
                             </td>
                             <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
                               <div className="flex items-center space-x-2">
-                                {/* Botão para selecionar todos os funcionários da solicitação que podem ser aprovados */}
-                                {solicitacao.funcionarios.some(
-                                  (f: FuncionarioTableData) =>
-                                    f.statusTarefas === "APROVAR SOLICITAÇÃO"
-                                ) && (
-                                  <button
-                                    onClick={() =>
-                                      selecionarTodosFuncionariosSolicitacao(
-                                        solicitacao
-                                      )
-                                    }
-                                    className={`inline-flex items-center px-2 py-1.5 text-xs font-medium border rounded-md transition-colors ${
-                                      solicitacao.funcionarios
-                                        .filter(
-                                          (f: FuncionarioTableData) =>
-                                            f.statusTarefas ===
-                                            "APROVAR SOLICITAÇÃO"
-                                        )
-                                        .every((f: FuncionarioTableData) =>
-                                          funcionariosSelecionados.has(f.id)
-                                        )
-                                        ? "text-blue-700 bg-blue-50 border-blue-300 hover:bg-blue-100"
-                                        : "text-gray-600 bg-white border-gray-300 hover:bg-gray-50"
-                                    }`}
-                                  >
-                                    <UsersIcon className="w-3 h-3 mr-1" />
-                                    {solicitacao.funcionarios
-                                      .filter(
-                                        (f: FuncionarioTableData) =>
-                                          f.statusTarefas ===
-                                          "APROVAR SOLICITAÇÃO"
-                                      )
-                                      .every((f: FuncionarioTableData) =>
-                                        funcionariosSelecionados.has(f.id)
-                                      )
-                                      ? "Desmarcar Todos"
-                                      : "Selecionar Todos"}
-                                  </button>
-                                )}
-
                                 <button
                                   onClick={() =>
                                     toggleRow(solicitacao.solicitacaoId)
@@ -4192,7 +3698,7 @@ function FuncionariosPageContent() {
                                   className="inline-flex items-center px-2 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-300 rounded-md hover:bg-gray-50 hover:text-gray-800 transition-colors"
                                 >
                                   <EyeIcon className="w-3 h-3 mr-1" />
-                                  Ver Funcionários
+                                  Detalhes
                                 </button>
                               </div>
                             </td>
@@ -4210,30 +3716,12 @@ function FuncionariosPageContent() {
                                   className="bg-gray-50"
                                 >
                                   <td className="px-4 py-3 pl-8 text-xs text-gray-600">
-                                    <div className="flex items-center space-x-3">
-                                      {/* Checkbox para seleção individual */}
-                                      {funcionario.statusTarefas ===
-                                        "APROVAR SOLICITAÇÃO" && (
-                                        <input
-                                          type="checkbox"
-                                          checked={funcionariosSelecionados.has(
-                                            funcionario.id
-                                          )}
-                                          onChange={() =>
-                                            toggleFuncionarioSelecionado(
-                                              funcionario.id
-                                            )
-                                          }
-                                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                                        />
-                                      )}
-                                      <div className="space-y-1">
-                                        <div className="font-medium">
-                                          {funcionario.nome}
-                                        </div>
-                                        <div className="font-mono text-xs text-gray-500">
-                                          ID: {funcionario.remanejamentoId}
-                                        </div>
+                                    <div className="space-y-1">
+                                      <div className="font-medium">
+                                        {funcionario.nome}
+                                      </div>
+                                      <div className="font-mono text-xs text-gray-500">
+                                        ID: {funcionario.remanejamentoId}
                                       </div>
                                     </div>
                                   </td>
@@ -4274,7 +3762,7 @@ function FuncionariosPageContent() {
                                           className="inline-flex items-center px-2 py-1 text-xs font-medium text-gray-600 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors"
                                         >
                                           <PlusIcon className="w-3 h-3 mr-1" />
-                                          Aprovar Individual
+                                          Aprovar/Rejeitar
                                         </button>
                                       ) : funcionario.statusTarefas ===
                                           "APROVADO" ||
@@ -4296,7 +3784,7 @@ function FuncionariosPageContent() {
                                       ) : (
                                         <span className="text-xs text-gray-400">
                                           {funcionario.statusTarefas ===
-                                          "REJEITADO"
+                                          "SUBMETER RASCUNHO"
                                             ? "✅ Aprovado"
                                             : "❌ Rejeitado"}
                                         </span>
@@ -4313,119 +3801,6 @@ function FuncionariosPageContent() {
                 </tbody>
               </table>
             </div>
-
-            {/* Controles de Paginação */}
-            {totalSolicitacoes > 0 && (
-              <div className="flex items-center justify-between px-6 py-3 bg-white border-t border-gray-200">
-                <div className="flex items-center text-sm text-gray-700">
-                  <span>
-                    Mostrando{" "}
-                    <span className="font-medium">
-                      {Math.min(
-                        (paginaAtualSolicitacoes - 1) *
-                          itensPorPaginaSolicitacoes +
-                          1,
-                        totalSolicitacoes
-                      )}
-                    </span>{" "}
-                    até{" "}
-                    <span className="font-medium">
-                      {Math.min(
-                        paginaAtualSolicitacoes * itensPorPaginaSolicitacoes,
-                        totalSolicitacoes
-                      )}
-                    </span>{" "}
-                    de <span className="font-medium">{totalSolicitacoes}</span>{" "}
-                    solicitações
-                  </span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <button
-                    onClick={() =>
-                      setPaginaAtualSolicitacoes((prev) =>
-                        Math.max(prev - 1, 1)
-                      )
-                    }
-                    disabled={paginaAtualSolicitacoes === 1}
-                    className="relative inline-flex items-center px-2 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-l-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <ChevronLeftIcon className="w-5 h-5" />
-                  </button>
-
-                  <div className="flex items-center space-x-1">
-                    {Array.from(
-                      {
-                        length: Math.ceil(
-                          totalSolicitacoes / itensPorPaginaSolicitacoes
-                        ),
-                      },
-                      (_, i) => i + 1
-                    ).map((numeroPagina) => {
-                      const totalPaginas = Math.ceil(
-                        totalSolicitacoes / itensPorPaginaSolicitacoes
-                      );
-
-                      // Mostrar apenas algumas páginas ao redor da página atual
-                      if (
-                        numeroPagina === 1 ||
-                        numeroPagina === totalPaginas ||
-                        (numeroPagina >= paginaAtualSolicitacoes - 1 &&
-                          numeroPagina <= paginaAtualSolicitacoes + 1)
-                      ) {
-                        return (
-                          <button
-                            key={numeroPagina}
-                            onClick={() =>
-                              setPaginaAtualSolicitacoes(numeroPagina)
-                            }
-                            className={`relative inline-flex items-center px-4 py-2 text-sm font-medium border ${
-                              numeroPagina === paginaAtualSolicitacoes
-                                ? "bg-blue-50 border-blue-500 text-blue-600"
-                                : "bg-white border-gray-300 text-gray-500 hover:bg-gray-50"
-                            }`}
-                          >
-                            {numeroPagina}
-                          </button>
-                        );
-                      } else if (
-                        numeroPagina === paginaAtualSolicitacoes - 2 ||
-                        numeroPagina === paginaAtualSolicitacoes + 2
-                      ) {
-                        return (
-                          <span
-                            key={numeroPagina}
-                            className="relative inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700"
-                          >
-                            ...
-                          </span>
-                        );
-                      }
-                      return null;
-                    })}
-                  </div>
-
-                  <button
-                    onClick={() =>
-                      setPaginaAtualSolicitacoes((prev) =>
-                        Math.min(
-                          prev + 1,
-                          Math.ceil(
-                            totalSolicitacoes / itensPorPaginaSolicitacoes
-                          )
-                        )
-                      )
-                    }
-                    disabled={
-                      paginaAtualSolicitacoes >=
-                      Math.ceil(totalSolicitacoes / itensPorPaginaSolicitacoes)
-                    }
-                    className="relative inline-flex items-center px-2 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-r-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <ChevronRightIcon className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       )}
@@ -4472,7 +3847,7 @@ function FuncionariosPageContent() {
                 <div className="ml-3 flex-1 text-left">
                   <h4 className="text-sm font-medium text-gray-900">Aprovar</h4>
                   <p className="text-xs text-gray-500">
-                    Aprovar solicitação e gerar tarefas para RH, MEDICINA e TREINAMENTO (para desligamentos, irá direto para SUBMETER RASCUNHO)
+                    Aprovar solicitação e gerar tarefas padrão
                   </p>
                 </div>
               </button>
@@ -4545,15 +3920,20 @@ function FuncionariosPageContent() {
 
             <div className="mb-6">
               <p className="text-sm text-gray-700 mb-4">
-                Serão geradas tarefas para os seguintes setores:
+                Selecione os setores para os quais deseja gerar tarefas padrão:
               </p>
 
               <div className="space-y-3">
                 {["RH", "MEDICINA", "TREINAMENTO"].map((setor) => (
-                  <div key={setor} className="flex items-center">
-                    <CheckIcon className="h-5 w-5 text-green-500 mr-2" />
-                    <span className="text-sm text-gray-700">{setor}</span>
-                  </div>
+                  <label key={setor} className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={selectedSetores.includes(setor)}
+                      onChange={() => toggleSetor(setor)}
+                      className="h-4 w-4 text-gray-600 focus:ring-gray-500 border-gray-300 rounded"
+                    />
+                    <span className="ml-3 text-sm text-gray-700">{setor}</span>
+                  </label>
                 ))}
               </div>
             </div>
@@ -4567,7 +3947,7 @@ function FuncionariosPageContent() {
               </button>
               <button
                 onClick={gerarTarefasPadrao}
-                disabled={generatingTarefas}
+                disabled={generatingTarefas || selectedSetores.length === 0}
                 className="px-4 py-2 text-sm font-medium text-white bg-gray-600 border border-transparent rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
               >
                 {generatingTarefas ? (
@@ -4577,199 +3957,6 @@ function FuncionariosPageContent() {
                   </>
                 ) : (
                   "Gerar Tarefas"
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal de Lista de Tarefas */}
-      {showListaTarefasModal && selectedFuncionario && (
-        <ListaTarefasModal
-          isOpen={showListaTarefasModal}
-          onClose={() => setShowListaTarefasModal(false)}
-          funcionario={{
-            id: selectedFuncionario.remanejamentoId,
-            nome: selectedFuncionario.nome,
-            matricula: selectedFuncionario.matricula,
-          }}
-        />
-      )}
-
-      {/* Modal do SISPAT */}
-      {showSispatModal && funcionarioParaSispat && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-medium text-gray-900">
-                Informar SISPAT
-              </h3>
-              <button
-                onClick={() => {
-                  setShowSispatModal(false);
-                  setSispatValue("");
-                  setFuncionarioParaSispat(null);
-                }}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <XMarkIcon className="h-6 w-6" />
-              </button>
-            </div>
-
-            <div className="mb-4">
-              <p className="text-sm text-gray-600 mb-2">
-                Funcionário:{" "}
-                <span className="font-medium">
-                  {funcionarioParaSispat.nome}
-                </span>
-              </p>
-              <p className="text-sm text-gray-600 mb-4">
-                Matrícula:{" "}
-                <span className="font-medium">
-                  {funcionarioParaSispat.matricula}
-                </span>
-              </p>
-            </div>
-
-            <div className="mb-6">
-              <label
-                htmlFor="sispat"
-                className="block text-sm font-medium text-gray-700 mb-2"
-              >
-                Número SISPAT *
-              </label>
-              <input
-                type="text"
-                id="sispat"
-                value={sispatValue}
-                onChange={(e) => setSispatValue(e.target.value)}
-                placeholder="Digite o número SISPAT"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                autoFocus
-              />
-            </div>
-
-            <div className="flex justify-end space-x-3">
-              <button
-                onClick={() => {
-                  setShowSispatModal(false);
-                  setSispatValue("");
-                  setFuncionarioParaSispat(null);
-                }}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-1"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={() => {
-                  if (sispatValue.trim()) {
-                    processarValidacaoComSispat(sispatValue.trim());
-                  }
-                }}
-                disabled={
-                  !sispatValue.trim() ||
-                  updatingStatus === funcionarioParaSispat.id
-                }
-                className="px-4 py-2 text-sm font-medium text-white bg-green-600 border border-transparent rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {updatingStatus === funcionarioParaSispat.id ? (
-                  <div className="flex items-center">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Validando...
-                  </div>
-                ) : (
-                  "Validar"
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal de Aprovação em Lote */}
-      {showAprovacaoLoteModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">
-              Aprovar Funcionários em Lote
-            </h3>
-            <p className="text-sm text-gray-600 mb-4">
-              Você está prestes a aprovar {funcionariosSelecionados.size}{" "}
-              funcionário(s):
-            </p>
-
-            {/* Lista de funcionários selecionados */}
-            <div className="bg-gray-50 rounded-lg p-4 mb-6 max-h-60 overflow-y-auto">
-              {Array.from(funcionariosSelecionados).map((funcionarioId) => {
-                const funcionario = funcionarios.find(
-                  (f) => f.id === funcionarioId
-                );
-                return funcionario ? (
-                  <div
-                    key={funcionario.id}
-                    className="flex items-center justify-between py-2 border-b border-gray-200 last:border-b-0"
-                  >
-                    <div>
-                      <div className="font-medium text-sm">
-                        {funcionario.nome}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        ID: {funcionario.remanejamentoId} | {funcionario.funcao}
-                      </div>
-                    </div>
-                    <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded">
-                      {funcionario.statusTarefas}
-                    </span>
-                  </div>
-                ) : null;
-              })}
-            </div>
-
-            <p className="text-sm text-gray-600 mb-6">
-              Após a aprovação, o status destes funcionários será alterado para{" "}
-              <strong>"CRIAR TAREFAS"</strong> e serão geradas tarefas automaticamente para os setores RH, MEDICINA e TREINAMENTO. Para solicitações de desligamento, o status será alterado para <strong>"SUBMETER RASCUNHO"</strong> sem gerar tarefas.
-            </p>
-
-            <div className="flex justify-end space-x-3">
-              <button
-                onClick={() => setShowAprovacaoLoteModal(false)}
-                disabled={processandoAprovacaoLote}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 disabled:opacity-50"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={processarAprovacaoLote}
-                disabled={processandoAprovacaoLote}
-                className="px-4 py-2 text-sm font-medium text-white bg-green-600 border border-transparent rounded-md hover:bg-green-700 disabled:opacity-50 flex items-center"
-              >
-                {processandoAprovacaoLote ? (
-                  <>
-                    <svg
-                      className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                      ></circle>
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      ></path>
-                    </svg>
-                    Processando...
-                  </>
-                ) : (
-                  `Aprovar ${funcionariosSelecionados.size} Funcionário(s)`
                 )}
               </button>
             </div>
