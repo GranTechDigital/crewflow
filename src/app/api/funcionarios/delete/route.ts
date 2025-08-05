@@ -4,8 +4,12 @@ import { prisma } from '@/lib/prisma'
 
 export async function DELETE() {
   try {
-    await prisma.funcionario.deleteMany()
-    return NextResponse.json({ message: 'Todos os funcionários foram excluídos.' })
+    await prisma.funcionario.deleteMany({
+      where: {
+        matricula: { not: 'ADMIN001' }
+      }
+    })
+    return NextResponse.json({ message: 'Todos os funcionários foram excluídos (exceto administrador).' })
   } catch (error) {
     console.error('Erro ao deletar funcionários:', error)
     return NextResponse.json(

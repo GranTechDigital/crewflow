@@ -5,7 +5,8 @@ const prisma = new PrismaClient();
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const funcionarioId = parseInt(params.id);
+    const { id } = await params;
+    const funcionarioId = parseInt(id);
     
     if (isNaN(funcionarioId)) {
       return NextResponse.json(
@@ -49,7 +50,8 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
 export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const funcionarioId = parseInt(params.id);
+    const { id } = await params;
+    const funcionarioId = parseInt(id);
     
     if (isNaN(funcionarioId)) {
       return NextResponse.json(
@@ -69,6 +71,14 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json(
         { error: 'Funcionário não encontrado' },
         { status: 404 }
+      );
+    }
+
+    // Verificar se é o administrador do sistema
+    if (funcionarioExistente.matricula === 'ADMIN001') {
+      return NextResponse.json(
+        { error: 'Não é possível excluir o administrador do sistema' },
+        { status: 403 }
       );
     }
 
@@ -117,7 +127,8 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const funcionarioId = parseInt(params.id);
+    const { id } = await params;
+    const funcionarioId = parseInt(id);
     
     if (isNaN(funcionarioId)) {
       return NextResponse.json(

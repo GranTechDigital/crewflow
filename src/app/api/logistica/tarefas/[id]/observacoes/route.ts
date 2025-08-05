@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+type JWTUser = {
+  id: string;
+  funcionarioId?: string;
+  nome?: string;
+  iat: number;
+  exp: number;
+};
+
 // GET - Buscar observações de uma tarefa
 export async function GET(
   request: NextRequest,
@@ -16,7 +24,17 @@ export async function GET(
       }
     });
 
-    return NextResponse.json(observacoes);
+    // Mapear os campos do banco de dados para os nomes esperados pelo frontend
+    const observacoesFormatadas = observacoes.map(obs => ({
+      id: String(obs.id),
+      texto: obs.texto,
+      criadoPor: obs.criadoPor,
+      criadoEm: obs.dataCriacao.toISOString(),
+      modificadoPor: obs.modificadoPor,
+      modificadoEm: obs.dataModificacao.toISOString()
+    }));
+
+    return NextResponse.json(observacoesFormatadas);
   } catch (error) {
     console.error('Erro ao buscar observações:', error);
     return NextResponse.json(
@@ -32,12 +50,39 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
+    // Obter o usuário autenticado
+    const { getUserFromRequest } = await import('@/utils/authUtils');
+    const usuarioAutenticado = await getUserFromRequest(request);
+    console.log('DEBUG - Usuário autenticado na rota de observações:', usuarioAutenticado ? JSON.stringify({
+      id: usuarioAutenticado.id,
+      nome: usuarioAutenticado.funcionario?.nome,
+      funcionarioId: usuarioAutenticado.funcionario?.id
+    }) : 'null');
+    
     const body = await request.json();
-    const { texto, criadoPor } = body;
+    const { texto, criadoPor: criadoPorRequest } = body;
+    
+    // Verificar token diretamente para debug
+    const token = request.cookies.get('auth-token')?.value;
+    if (token) {
+      try {
+        const jwt = await import('jsonwebtoken');
+        const decoded = jwt.default.verify(token, process.env.JWT_SECRET || 'fallback-secret') as JWTUser;
+        console.log('DEBUG - Token decodificado diretamente na rota de observações:', JSON.stringify(decoded, null, 2));
+      } catch (tokenError) {
+        console.error('DEBUG - Erro ao decodificar token na rota de observações:', tokenError);
+      }
+    } else {
+      console.log('DEBUG - Nenhum token encontrado nos cookies na rota de observações');
+    }
+    
+    // Usar o nome do usuário autenticado ou o nome fornecido na requisição ou 'Sistema' como fallback
+    const criadoPor = usuarioAutenticado?.funcionario?.nome || criadoPorRequest || 'Sistema';
+    console.log('DEBUG - criadoPor definido como:', criadoPor);
 
-    if (!texto || !criadoPor) {
+    if (!texto) {
       return NextResponse.json(
-        { error: 'Texto e criador são obrigatórios' },
+        { error: 'Texto da observação é obrigatório' },
         { status: 400 }
       );
     }

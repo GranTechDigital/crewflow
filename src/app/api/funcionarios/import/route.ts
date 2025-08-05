@@ -31,8 +31,12 @@ export async function POST() {
 
     const now = new Date();
 
-    await prisma.funcionario.deleteMany();
-    console.log('Dados antigos removidos do banco.');
+    await prisma.funcionario.deleteMany({
+      where: {
+        matricula: { not: 'ADMIN001' }
+      }
+    });
+    console.log('Dados antigos removidos do banco (exceto administrador).');
 
     const dadosParaInserir = dadosExternos.map((item: any) => ({
       matricula: item.MATRICULA,

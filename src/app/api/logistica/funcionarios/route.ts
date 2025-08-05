@@ -1,65 +1,126 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
-// GET - Listar funcionários em remanejamento
+// GET - Listar funcionários baseado no tipo de solicitação
 export async function GET(request: NextRequest) {
   try {
-    const funcionarios = await prisma.remanejamentoFuncionario.findMany({
-      where: {
-        statusPrestserv: {
-          in: ['CRIADO', 'PENDENTE', 'EM_ANALISE', 'REJEITADO']
-        }
-      },
-      include: {
-        funcionario: {
-          select: {
-            id: true,
-            nome: true,
-            matricula: true,
-            funcao: true,
-            centroCusto: true
+    const { searchParams } = new URL(request.url);
+    const tipo = searchParams.get('tipo'); // 'alocacao', 'realocacao' ou 'desligamento'
+    const contratoId = searchParams.get('contratoId');
+
+    // Se não há parâmetro de tipo, retorna funcionários em remanejamento (comportamento antigo)
+    if (!tipo) {
+      const funcionarios = await prisma.remanejamentoFuncionario.findMany({
+        where: {
+          statusPrestserv: {
+            in: ['CRIADO', 'PENDENTE', 'EM_ANALISE', 'REJEITADO']
           }
         },
-        solicitacao: {
-          select: {
-            id: true,
-            contratoOrigem: {
-              select: {
-                nome: true,
-                cliente: true
-              }
-            },
-            contratoDestino: {
-              select: {
-                nome: true,
-                cliente: true
+        include: {
+          funcionario: {
+            select: {
+              id: true,
+              nome: true,
+              matricula: true,
+              funcao: true,
+              centroCusto: true
+            }
+          },
+          solicitacao: {
+            select: {
+              id: true,
+              contratoOrigem: {
+                select: {
+                  nome: true,
+                  cliente: true
+                }
+              },
+              contratoDestino: {
+                select: {
+                  nome: true,
+                  cliente: true
+                }
               }
             }
+          }
+        },
+        orderBy: {
+          funcionario: {
+            nome: 'asc'
+          }
+        }
+      });
+
+      const funcionariosFormatados = funcionarios.map(rf => ({
+        id: rf.id,
+        funcionarioId: rf.funcionario.id,
+        nome: rf.funcionario.nome,
+        matricula: rf.funcionario.matricula,
+        funcao: rf.funcionario.funcao,
+        centroCusto: rf.funcionario.centroCusto,
+        statusTarefas: rf.statusTarefas,
+        statusPrestserv: rf.statusPrestserv,
+        contratoOrigem: rf.solicitacao.contratoOrigem?.nome,
+        contratoDestino: rf.solicitacao.contratoDestino?.nome
+      }));
+
+      return Response.json(funcionariosFormatados);
+    }
+
+    // Definir filtro baseado no tipo de solicitação
+    let whereClause: any = {
+      // Excluir o administrador do sistema das listagens
+      matricula: {
+        not: 'ADMIN001'
+      },
+      // Excluir funcionários que estão em processo de migração
+      emMigracao: false
+    };
+
+    if (tipo === 'alocacao') {
+      // Para alocação: funcionários com statusPrestserv SEM_CADASTRO
+      whereClause.statusPrestserv = 'SEM_CADASTRO';
+    } else if (tipo === 'realocacao') {
+      // Para realocação: funcionários com statusPrestserv ATIVO ou INATIVO
+      whereClause.statusPrestserv = {
+        in: ['ATIVO', 'INATIVO']
+      };
+    } else if (tipo === 'desligamento') {
+      // Para desligamento: apenas funcionários com statusPrestserv ATIVO
+      whereClause.statusPrestserv = 'ATIVO';
+    }
+
+    // Se contratoId for fornecido, filtrar por contrato
+    if (contratoId) {
+      whereClause.contratoId = parseInt(contratoId);
+    }
+
+    const funcionarios = await prisma.funcionario.findMany({
+      where: whereClause,
+      select: {
+        id: true,
+        nome: true,
+        matricula: true,
+        funcao: true,
+        centroCusto: true,
+        status: true,
+        statusPrestserv: true,
+        contratoId: true,
+        contrato: {
+          select: {
+            id: true,
+            numero: true,
+            nome: true,
+            cliente: true
           }
         }
       },
       orderBy: {
-        funcionario: {
-          nome: 'asc'
-        }
+        nome: 'asc'
       }
     });
 
-    // Formatar os dados para o frontend
-    const funcionariosFormatados = funcionarios.map(rf => ({
-      id: rf.id,
-      funcionarioId: rf.funcionario.id,
-      nome: rf.funcionario.nome,
-      matricula: rf.funcionario.matricula,
-      funcao: rf.funcionario.funcao,
-      centroCusto: rf.funcionario.centroCusto,
-      statusTarefas: rf.statusTarefas,
-      statusPrestserv: rf.statusPrestserv,
-      contratoOrigem: rf.solicitacao.contratoOrigem?.nome,
-      contratoDestino: rf.solicitacao.contratoDestino?.nome
-    }));
-
-    return Response.json(funcionariosFormatados);
+    return Response.json(funcionarios);
   } catch (error) {
     console.error('Erro ao buscar funcionários:', error);
     return Response.json(

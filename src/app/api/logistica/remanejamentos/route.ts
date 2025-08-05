@@ -1,79 +1,271 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { NovasolicitacaoRemanejamento } from '@/types/remanejamento-funcionario';
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { NovasolicitacaoRemanejamento } from "@/types/remanejamento-funcionario";
+
+// Tipos de status de tarefas que são considerados em processo
+type StatusTarefasEmProcesso = "CRIAR TAREFAS" | "ATENDER TAREFAS";
+
+// Função auxiliar para filtrar solicitações para processo de criação de tarefas
+function filtrarSolicitacoesParaProcesso(solicitacoes: any[]) {
+  const statusEmProcesso: StatusTarefasEmProcesso[] = ["CRIAR TAREFAS", "ATENDER TAREFAS"];
+  
+  return solicitacoes.filter((s) =>
+    s.funcionarios.some(
+      (f) =>
+        f.funcionario &&
+        f.funcionario.emMigracao === true &&
+        statusEmProcesso.includes(f.statusTarefas as StatusTarefasEmProcesso)
+    )
+  );
+}
+
+// Interface para os parâmetros de busca de remanejamentos
+interface ParametrosBuscaRemanejamento {
+  status?: string;
+  statusTarefas?: string | string[];
+  statusPrestserv?: string;
+  funcionarioId?: string;
+  filtrarProcesso: boolean;
+  page?: number;
+  limit?: number;
+  nome?: string;
+  contratoOrigem?: string | string[];
+  contratoDestino?: string | string[];
+  tipoSolicitacao?: string | string[];
+  solicitacaoId?: string | string[];
+  responsavel?: string | string[];
+}
+
+// Função auxiliar para buscar remanejamentos com filtros
+async function buscarRemanejamentos(params: ParametrosBuscaRemanejamento) {
+  const { 
+    status, 
+    statusTarefas, 
+    statusPrestserv, 
+    funcionarioId, 
+    filtrarProcesso, 
+    page, 
+    limit,
+    nome,
+    contratoOrigem,
+    contratoDestino,
+    tipoSolicitacao,
+    solicitacaoId,
+    responsavel
+  } = params;
+  
+  const where: any = {};
+  if (status) {
+    where.status = status;
+  }
+  
+  // Adicionar filtros para solicitação
+  if (tipoSolicitacao) {
+    where.tipo = Array.isArray(tipoSolicitacao) ? { in: tipoSolicitacao } : tipoSolicitacao;
+  }
+  
+  if (solicitacaoId) {
+    where.id = Array.isArray(solicitacaoId) 
+      ? { in: Array.isArray(solicitacaoId) ? solicitacaoId.map(id => parseInt(id)) : [parseInt(solicitacaoId)] }
+      : parseInt(solicitacaoId);
+  }
+  
+  // Filtros para contratos
+  if (contratoOrigem) {
+    where.contratoOrigem = {
+      numero: Array.isArray(contratoOrigem) ? { in: contratoOrigem } : { equals: contratoOrigem }
+    };
+  }
+  
+  if (contratoDestino) {
+    where.contratoDestino = {
+      numero: Array.isArray(contratoDestino) ? { in: contratoDestino } : { equals: contratoDestino }
+    };
+  }
+  
+  const funcionariosWhere: any = {
+    ...(statusTarefas && { statusTarefas: statusTarefas as any }),
+    ...(statusPrestserv && { statusPrestserv: statusPrestserv as any }),
+  };
+  
+  if (funcionarioId) {
+    funcionariosWhere.funcionarioId = parseInt(funcionarioId);
+  }
+  
+  // Filtro por nome de funcionário
+  const funcionarioWhere: any = {};
+  if (nome) {
+    funcionarioWhere.nome = {
+      contains: nome
+    };
+  }
+  
+  // Filtro por responsável nas tarefas
+  const tarefasWhere: any = {};
+  if (responsavel) {
+    tarefasWhere.responsavel = Array.isArray(responsavel) ? { in: responsavel } : responsavel;
+  }
+
+  // Buscar todos os remanejamentos que atendem aos critérios, sem filtrar por funcionário único
+  const funcionariosComRemanejamentos = await prisma.remanejamentoFuncionario.findMany({
+    where: {
+      funcionario: {
+        // Só aplicar filtro de emMigracao se estiver filtrando para processo
+        ...(filtrarProcesso ? { emMigracao: true } : {}),
+        // Adicionar filtro por nome se fornecido
+        ...funcionarioWhere
+      },
+      ...funcionariosWhere,
+      // Adicionar filtro por tarefas se responsável for fornecido
+      ...(Object.keys(tarefasWhere).length > 0 ? {
+        tarefas: {
+          some: tarefasWhere
+        }
+      } : {})
+    },
+    include: {
+      funcionario: {
+        select: {
+          id: true
+        }
+      }
+    },
+    orderBy: {
+      createdAt: 'desc'
+    }
+  });
+  
+  // Obter todos os IDs dos remanejamentos, sem filtrar por funcionário único
+  const remanejamentoIds = funcionariosComRemanejamentos.map(rem => rem.id);
+  
+  // Buscar as solicitações com todos os remanejamentos encontrados
+  const solicitacoes = await prisma.solicitacaoRemanejamento.findMany({
+    where,
+    include: {
+      contratoOrigem: true,
+      contratoDestino: true,
+      funcionarios: {
+        where: {
+          id: {
+            in: remanejamentoIds
+          },
+          ...funcionariosWhere
+        },
+        include: {
+          funcionario: {
+            select: {
+              id: true,
+              nome: true,
+              matricula: true,
+              funcao: true,
+              centroCusto: true,
+              status: true,
+              emMigracao: true,
+              statusPrestserv: true,
+            },
+          },
+          tarefas: true,
+        }
+      },
+    },
+    orderBy: {
+      id: 'desc'
+    }
+  });
+  
+  // Filtrar solicitações que não têm funcionários (após a filtragem)
+  let solicitacoesFiltradas = solicitacoes.filter(s => s.funcionarios.length > 0);
+  
+  // Aplicar filtro adicional ANTES da paginação se estiver filtrando para processo
+  if (params.filtrarProcesso) {
+    solicitacoesFiltradas = filtrarSolicitacoesParaProcesso(solicitacoesFiltradas);
+  }
+  
+  // Aplicar paginação se page e limit forem fornecidos
+  if (page && limit) {
+    // Paginação por solicitações, não por funcionários
+    const totalSolicitacoes = solicitacoesFiltradas.length;
+    const totalPaginas = Math.ceil(totalSolicitacoes / limit);
+    const skip = (page - 1) * limit;
+    const solicitacoesPaginadas = solicitacoesFiltradas.slice(skip, skip + limit);
+    
+    return {
+      solicitacoes: solicitacoesPaginadas,
+      totalSolicitacoes: totalSolicitacoes,
+      totalPaginas: totalPaginas,
+      paginaAtual: page,
+      itensPorPagina: limit
+    };
+  }
+  
+  return solicitacoesFiltradas;
+}
 
 // GET - Listar todas as solicitações de remanejamento
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const status = searchParams.get('status');
-    const statusTarefas = searchParams.get('statusTarefas');
-    const statusPrestserv = searchParams.get('statusPrestserv');
-
-    const where: any = {};
+    const status = searchParams.get("status");
+    const statusTarefasParams = searchParams.getAll("statusTarefas");
+    const statusTarefas = statusTarefasParams.length > 0 ? statusTarefasParams : searchParams.get("statusTarefas");
+    const statusPrestserv = searchParams.get("statusPrestserv");
+    const funcionarioId = searchParams.get("funcionarioId");
+    const filtrarProcesso = searchParams.get("filtrarProcesso") === "true";
     
-    if (status) {
-      where.status = status;
-    }
+    // Parâmetros de paginação
+    const page = searchParams.get("page") ? parseInt(searchParams.get("page")!) : undefined;
+    const limit = searchParams.get("limit") ? parseInt(searchParams.get("limit")!) : undefined;
+    
+    // Novos parâmetros de filtro
+    const nome = searchParams.get("nome");
+    const contratoOrigemParams = searchParams.getAll("contratoOrigem");
+    const contratoOrigem = contratoOrigemParams.length > 0 ? contratoOrigemParams : undefined;
+    const contratoDestinoParams = searchParams.getAll("contratoDestino");
+    const contratoDestino = contratoDestinoParams.length > 0 ? contratoDestinoParams : undefined;
+    const tipoSolicitacaoParams = searchParams.getAll("tipoSolicitacao");
+    const tipoSolicitacao = tipoSolicitacaoParams.length > 0 ? tipoSolicitacaoParams : undefined;
+    const solicitacaoIdParams = searchParams.getAll("solicitacaoId");
+    const solicitacaoId = solicitacaoIdParams.length > 0 ? solicitacaoIdParams : undefined;
+    const responsavelParams = searchParams.getAll("responsavel");
+    const responsavel = responsavelParams.length > 0 ? responsavelParams : undefined;
 
-    const solicitacoes = await prisma.solicitacaoRemanejamento.findMany({
-      where,
-      include: {
-        contratoOrigem: {
-          select: {
-            id: true,
-            numero: true,
-            nome: true,
-            cliente: true
-          }
-        },
-        contratoDestino: {
-          select: {
-            id: true,
-            numero: true,
-            nome: true,
-            cliente: true
-          }
-        },
-        funcionarios: {
-          where: {
-            ...(statusTarefas && { statusTarefas: statusTarefas as any }),
-            ...(statusPrestserv && { statusPrestserv: statusPrestserv as any })
-          },
-          include: {
-            funcionario: {
-              select: {
-                id: true,
-                nome: true,
-                matricula: true,
-                funcao: true,
-                centroCusto: true
-              }
-            },
-            tarefas: {
-              select: {
-                id: true,
-                tipo: true,
-                status: true,
-                responsavel: true,
-                dataCriacao: true,
-                dataLimite: true,
-                dataConclusao: true
-              }
-            }
-          }
-        }
-      },
-      orderBy: {
-        dataSolicitacao: 'desc'
-      }
+    // Buscar solicitações de remanejamento com os filtros aplicados
+    const resultado = await buscarRemanejamentos({
+      status,
+      statusTarefas,
+      statusPrestserv,
+      funcionarioId,
+      filtrarProcesso,
+      page,
+      limit,
+      nome,
+      contratoOrigem,
+      contratoDestino,
+      tipoSolicitacao,
+      solicitacaoId,
+      responsavel
     });
 
-    return NextResponse.json(solicitacoes);
+    // Se o resultado tem paginação, é um objeto com metadados
+    if (typeof resultado === 'object' && 'solicitacoes' in resultado) {
+      return NextResponse.json({
+        solicitacoes: resultado.solicitacoes,
+        totalSolicitacoes: resultado.totalSolicitacoes,
+        totalPaginas: resultado.totalPaginas,
+        paginaAtual: resultado.paginaAtual,
+        itensPorPagina: resultado.itensPorPagina
+      });
+    }
+    
+    // Se não há paginação, resultado é array direto
+    const solicitacoesComFuncionarios = resultado as any[];
+    
+    // Retornar todas as solicitações com funcionários (filtros já aplicados na função buscarRemanejamentos)
+    return NextResponse.json(solicitacoesComFuncionarios);
   } catch (error) {
-    console.error('Erro ao buscar remanejamentos:', error);
+    console.error("Erro ao buscar funcionários de remanejamento:", error);
     return NextResponse.json(
-      { error: 'Erro interno do servidor' },
+      { error: "Erro interno do servidor" },
       { status: 500 }
     );
   }
@@ -83,43 +275,66 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body: NovasolicitacaoRemanejamento = await request.json();
-    
+
     const {
+      tipo = "REMANEJAMENTO",
       funcionarioIds,
       contratoOrigemId,
       contratoDestinoId,
       justificativa,
-      prioridade = 'Normal',
-      solicitadoPor
+      prioridade = "Normal",
+      solicitadoPor,
     } = body;
 
     // Validações básicas
     if (!funcionarioIds || funcionarioIds.length === 0) {
       return NextResponse.json(
-        { error: 'Pelo menos um funcionário deve ser selecionado' },
+        { error: "Pelo menos um funcionário deve ser selecionado" },
         { status: 400 }
       );
     }
 
     if (!solicitadoPor) {
       return NextResponse.json(
-        { error: 'Solicitante é obrigatório' },
+        { error: "Solicitante é obrigatório" },
         { status: 400 }
       );
+    }
+
+    // Validações específicas por tipo
+    if (tipo === "DESLIGAMENTO") {
+      // Para desligamento, não precisa de contrato destino
+      if (contratoDestinoId) {
+        return NextResponse.json(
+          { error: "Desligamento não deve ter contrato de destino" },
+          { status: 400 }
+        );
+      }
+    } else {
+      // Para alocação e remanejamento, contrato destino é obrigatório
+      if (!contratoDestinoId) {
+        return NextResponse.json(
+          {
+            error:
+              "Contrato de destino é obrigatório para alocação e remanejamento",
+          },
+          { status: 400 }
+        );
+      }
     }
 
     // Verificar se os funcionários existem
     const funcionarios = await prisma.funcionario.findMany({
       where: {
         id: {
-          in: funcionarioIds
-        }
-      }
+          in: funcionarioIds,
+        },
+      },
     });
 
     if (funcionarios.length !== funcionarioIds.length) {
       return NextResponse.json(
-        { error: 'Um ou mais funcionários não foram encontrados' },
+        { error: "Um ou mais funcionários não foram encontrados" },
         { status: 400 }
       );
     }
@@ -127,18 +342,19 @@ export async function POST(request: NextRequest) {
     // Criar a solicitação de remanejamento
     const solicitacao = await prisma.solicitacaoRemanejamento.create({
       data: {
+        tipo,
         contratoOrigemId,
         contratoDestinoId,
         justificativa,
         prioridade,
         solicitadoPor,
         funcionarios: {
-          create: funcionarioIds.map(funcionarioId => ({
+          create: funcionarioIds.map((funcionarioId) => ({
             funcionarioId,
-            statusTarefas: 'PENDENTE',
-            statusPrestserv: 'PENDENTE'
-          }))
-        }
+            statusTarefas: "APROVAR SOLICITAÇÃO",
+            statusPrestserv: "PENDENTE",
+          })),
+        },
       },
       include: {
         contratoOrigem: true,
@@ -151,12 +367,25 @@ export async function POST(request: NextRequest) {
                 nome: true,
                 matricula: true,
                 funcao: true,
-                centroCusto: true
-              }
-            }
-          }
-        }
-      }
+                centroCusto: true,
+                status: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // Marcar funcionários como em migração
+    await prisma.funcionario.updateMany({
+      where: {
+        id: {
+          in: funcionarioIds,
+        },
+      },
+      data: {
+        emMigracao: true,
+      },
     });
 
     // Registrar no histórico para cada funcionário
@@ -167,25 +396,31 @@ export async function POST(request: NextRequest) {
             data: {
               solicitacaoId: solicitacao.id,
               remanejamentoFuncionarioId: funcionarioRem.id,
-              tipoAcao: 'CRIACAO',
-              entidade: 'SOLICITACAO',
-              descricaoAcao: `Solicitação de remanejamento criada para ${funcionarioRem.funcionario.nome} (${funcionarioRem.funcionario.matricula})`,
+              tipoAcao: "CRIACAO",
+              entidade: "SOLICITACAO",
+              descricaoAcao: `Solicitação de ${tipo.toLowerCase()} criada para ${
+                funcionarioRem.funcionario.nome
+              } (${funcionarioRem.funcionario.matricula})`,
               usuarioResponsavel: solicitadoPor,
-              observacoes: `Contrato origem: ${solicitacao.contratoOrigem?.nome || 'N/A'} → Contrato destino: ${solicitacao.contratoDestino?.nome || 'N/A'}. Justificativa: ${justificativa}`
-            }
+              observacoes: `Contrato origem: ${
+                solicitacao.contratoOrigem?.nome || "N/A"
+              } → Contrato destino: ${
+                solicitacao.contratoDestino?.nome || "N/A"
+              }. Justificativa: ${justificativa}`,
+            },
           });
         })
       );
     } catch (historicoError) {
-      console.error('Erro ao registrar histórico:', historicoError);
+      console.error("Erro ao registrar histórico:", historicoError);
       // Não falha a criação da solicitação se o histórico falhar
     }
 
     return NextResponse.json(solicitacao, { status: 201 });
   } catch (error) {
-    console.error('Erro ao criar remanejamento:', error);
+    console.error("Erro ao criar remanejamento:", error);
     return NextResponse.json(
-      { error: 'Erro interno do servidor' },
+      { error: "Erro interno do servidor" },
       { status: 500 }
     );
   }
