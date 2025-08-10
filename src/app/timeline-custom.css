@@ -1,0 +1,135 @@
+/* Estilos personalizados para o componente Timeline do Flowbite */
+
+/* Linha conectora única entre os pontos */
+.timeline-custom .timeline-item-custom:not(:last-child)::after {
+  content: "" !important;
+  position: absolute !important;
+  height: 3px !important;
+  width: calc(100% - 32px) !important;
+  top: 16px !important;
+  left: calc(50% + 16px) !important;
+  background-color: #d1d5db !important;
+  z-index: 0 !important;
+  display: block !important;
+}
+
+/* Aumenta o tamanho dos pontos da timeline */
+.timeline-custom .timeline-item-custom .timeline-point-custom {
+  width: 32px !important;
+  height: 32px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 50% !important;
+  z-index: 10 !important;
+  position: relative !important;
+  border: 2px solid currentColor !important;
+}
+
+/* Ajusta o espaçamento entre os itens da timeline */
+.timeline-custom .timeline-item-custom {
+  margin-right: 0 !important;
+  padding-right: 0 !important;
+  position: relative !important;
+  flex: 1 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+}
+
+/* Ajusta o conteúdo da timeline */
+.timeline-custom .timeline-content-custom {
+  margin-top: 0.5rem !important;
+  text-align: center !important;
+  min-width: 80px !important;
+  padding: 0 0.5rem !important;
+}
+
+/* Ajusta o tamanho dos ícones dentro dos pontos */
+.timeline-custom .timeline-point-custom svg {
+  width: 20px !important;
+  height: 20px !important;
+}
+
+/* Adiciona um efeito de hover nos pontos da timeline */
+.timeline-custom .timeline-point-custom:hover {
+  transform: scale(1.1) !important;
+  transition: transform 0.2s ease-in-out !important;
+}
+
+/* Estilo para o container principal da timeline */
+.timeline-custom {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: flex-start !important;
+  width: 100% !important;
+  padding: 0.5rem 1rem !important;
+  position: relative !important;
+  overflow: visible !important;
+  min-height: 60px !important;
+}
+
+/* Estilo para o container externo da timeline */
+.timeline-container {
+  position: relative !important;
+  overflow: visible !important;
+}
+
+/* Remove pseudo-elementos desnecessários dos pontos */
+.timeline-custom .timeline-item-custom .timeline-point-custom::before,
+.timeline-custom .timeline-item-custom .timeline-point-custom::after {
+  display: none !important;
+}
+
+/* Estilo para os pontos completados */
+.timeline-custom .text-green-600.timeline-point-custom {
+  background-color: rgba(22, 163, 74, 0.1) !important;
+  border: 2px solid rgb(22, 163, 74) !important;
+}
+
+/* Estilo para o ponto atual */
+.timeline-custom .text-blue-600.timeline-point-custom {
+  background-color: rgba(37, 99, 235, 0.1) !important;
+  border: 2px solid rgb(37, 99, 235) !important;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.2) !important;
+}
+
+/* Estilo para o ponto rejeitado */
+.timeline-custom .text-red-600.timeline-point-custom {
+  background-color: rgba(220, 38, 38, 0.1) !important;
+  border: 2px solid rgb(220, 38, 38) !important;
+}
+
+/* Estilo para o ponto invalidado */
+.timeline-custom .text-orange-600.timeline-point-custom {
+  background-color: rgba(234, 88, 12, 0.1) !important;
+  border: 2px solid rgb(234, 88, 12) !important;
+}
+
+/* Estilo para os pontos pendentes */
+.timeline-custom .text-gray-400.timeline-point-custom {
+  background-color: rgba(156, 163, 175, 0.1) !important;
+  border: 2px solid rgb(156, 163, 175) !important;
+}
+
+/* Estilos para as linhas conectoras com cores baseadas no progresso */
+.timeline-custom .timeline-item-custom.completed:not(:last-child)::after {
+  background-color: #22c55e !important; /* Verde para completado */
+}
+
+.timeline-custom .timeline-item-custom.progress:not(:last-child)::after {
+  background-color: #3b82f6 !important; /* Azul para progresso */
+}
+
+.timeline-custom .timeline-item-custom.current:not(:last-child)::after {
+  background-color: #3b82f6 !important; /* Azul para atual */
+}
+
+.timeline-custom .timeline-item-custom.canceled:not(:last-child)::after {
+  background-color: #ef4444 !important; /* Vermelho para cancelado */
+}
+
+.timeline-custom .timeline-item-custom.invalidated:not(:last-child)::after {
+  background-color: #f97316 !important; /* Laranja para invalidado */
+}
