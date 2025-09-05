@@ -9,7 +9,7 @@ interface Tarefa {
   id: string
   titulo: string
   descricao: string
-  status: 'PENDENTE' | 'EM_ANDAMENTO' | 'CONCLUIDA'
+  status: 'ATENDER TAREFAS' | 'EM_ANDAMENTO' | 'SOLICITAÇÃO CONCLUÍDA'
   prioridade: 'BAIXA' | 'MEDIA' | 'ALTA'
   setor: string
   criadoEm: string
@@ -76,11 +76,11 @@ export default function TarefasLogisticaPage() {
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'PENDENTE':
+      case 'ATENDER TAREFAS':
         return <Clock className="text-yellow-500" size={16} />
       case 'EM_ANDAMENTO':
         return <AlertCircle className="text-blue-500" size={16} />
-      case 'CONCLUIDA':
+      case 'SOLICITAÇÃO CONCLUÍDA':
         return <CheckCircle className="text-green-500" size={16} />
       default:
         return <Clock className="text-gray-500" size={16} />
@@ -89,11 +89,11 @@ export default function TarefasLogisticaPage() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'PENDENTE':
+      case 'ATENDER TAREFAS':
         return 'bg-yellow-100 text-yellow-800'
       case 'EM_ANDAMENTO':
         return 'bg-blue-100 text-blue-800'
-      case 'CONCLUIDA':
+      case 'SOLICITAÇÃO CONCLUÍDA':
         return 'bg-green-100 text-green-800'
       default:
         return 'bg-gray-100 text-gray-800'
@@ -160,9 +160,9 @@ export default function TarefasLogisticaPage() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">Todos os status</option>
-                <option value="PENDENTE">Pendente</option>
+                <option value="ATENDER TAREFAS">Atender Tarefas</option>
                 <option value="EM_ANDAMENTO">Em Andamento</option>
-                <option value="CONCLUIDA">Concluída</option>
+                <option value="SOLICITAÇÃO CONCLUÍDA">Solicitação Concluída</option>
               </select>
             </div>
 
@@ -230,7 +230,7 @@ export default function TarefasLogisticaPage() {
                       </div>
                     </div>
                     <div className="flex gap-2 ml-4">
-                      {tarefa.status === 'PENDENTE' && (
+                      {tarefa.status === 'ATENDER TAREFAS' && (
                         <button
                           onClick={() => atualizarStatusTarefa(tarefa.id, 'EM_ANDAMENTO')}
                           className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700"
@@ -240,7 +240,7 @@ export default function TarefasLogisticaPage() {
                       )}
                       {tarefa.status === 'EM_ANDAMENTO' && (
                         <button
-                          onClick={() => atualizarStatusTarefa(tarefa.id, 'CONCLUIDA')}
+                          onClick={() => atualizarStatusTarefa(tarefa.id, 'SOLICITAÇÃO CONCLUÍDA')}
                           className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700"
                         >
                           Concluir

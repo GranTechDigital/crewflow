@@ -29,13 +29,22 @@ export interface Remanejamento {
   observacoes: string | null;
   createdAt: string;
   updatedAt: string;
-  
+
   // Novo relacionamento com funcionários
   funcionarios?: {
     id: string;
     funcionarioId: number;
-    statusTarefas: 'PENDENTE' | 'CONCLUIDO';
-    statusPrestserv: 'PENDENTE' | 'CRIADO' | 'SUBMETIDO' | 'APROVADO' | 'REJEITADO';
+    statusTarefas:
+      | "APROVAR SOLICITACAO"
+      | "CRIAR_TAREFAS"
+      | "SUBMETER RASCUNHO";
+    statusPrestserv:
+      | "PENDENTE"
+      | "CRIADO"
+      | "SOLICITAR_DESLIGAMENTO"
+      | "SUBMETIDO"
+      | "APROVADO"
+      | "REJEITADO";
     funcionario: {
       id: number;
       nome: string;
@@ -46,8 +55,13 @@ export interface Remanejamento {
   }[];
 }
 
-export type StatusRemanejamento = 'Pendente' | 'Em_Analise' | 'Aprovado' | 'Rejeitado' | 'Concluido';
-export type PrioridadeRemanejamento = 'baixa' | 'media' | 'alta' | 'urgente';
+export type StatusRemanejamento =
+  | "Pendente"
+  | "Em_Analise"
+  | "Aprovado"
+  | "Rejeitado"
+  | "Concluido";
+export type PrioridadeRemanejamento = "baixa" | "media" | "alta" | "urgente";
 
 export interface NovoRemanejamento {
   funcionarioIds: number[];

@@ -4,15 +4,16 @@ export interface RemanejamentoFuncionario {
   id: string;
   solicitacaoId: number;
   funcionarioId: number;
-  statusTarefas: StatusTarefas;
+  statusTarefa: StatusTarefa;
   statusPrestserv: StatusPrestserv;
+  statusFuncionario: StatusFuncionarioPrestserv;
   dataRascunhoCriado?: string;
   dataSubmetido?: string;
   dataResposta?: string;
   observacoesPrestserv?: string;
   createdAt: string;
   updatedAt: string;
-  
+
   // Relacionamentos
   solicitacao?: SolicitacaoRemanejamento;
   funcionario?: {
@@ -35,12 +36,14 @@ export interface TarefaRemanejamento {
   prioridade: string;
   dataCriacao: string;
   dataLimite?: string;
+  dataVencimento?: string;
   dataConclusao?: string;
   observacoes?: string;
 }
 
 export interface SolicitacaoRemanejamento {
   id: number;
+  tipo: TipoSolicitacao;
   contratoOrigemId?: number;
   centroCustoOrigem: string;
   contratoDestinoId?: number;
@@ -57,7 +60,7 @@ export interface SolicitacaoRemanejamento {
   observacoes?: string;
   createdAt: string;
   updatedAt: string;
-  
+
   // Relacionamentos
   contratoOrigem?: {
     id: number;
@@ -75,12 +78,37 @@ export interface SolicitacaoRemanejamento {
 }
 
 // Enums
-export type StatusTarefas = 'PENDENTE' | 'CONCLUIDO';
-export type StatusPrestserv = 'PENDENTE' | 'CRIADO' | 'SUBMETIDO' | 'APROVADO' | 'REJEITADO';
-export type StatusTarefa = 'PENDENTE' | 'EM_ANDAMENTO' | 'CONCLUIDO' | 'CANCELADO';
+export type StatusFuncionarioPrestserv =
+  | "SEM_CADASTRO"
+  | "ATIVO"
+  | "INATIVO"
+  | "EM_MIGRACAO";
+export type StatusPrestserv =
+  | "PENDENTE"
+  | "CRIADO"
+  | "EM VALIDAÇÃO"
+  | "INVALIDADO"
+  | "VALIDADO"
+  | "CANCELADO";
+export type StatusTarefa =
+  | "APROVAR SOLICITACAO"
+  | "REPROVADO"
+  | "APROVADO"
+  | "CRIAR_TAREFAS"
+  | "PRONTO_PARA_ENVIO"
+  | "SUBMETER RASCUNHO"
+  | "CANCELADO";
+export type StatusSetor =
+  | "APROVAR SOLICITACAO"
+  | "EM_ANDAMENTO"
+  | "SUBMETER RASCUNHO"
+  | "CANCELADO";
+
+export type TipoSolicitacao = "ALOCACAO" | "REMANEJAMENTO" | "DESLIGAMENTO";
 
 // Interfaces para criação
 export interface NovasolicitacaoRemanejamento {
+  tipo: TipoSolicitacao;
   funcionarioIds: number[];
   contratoOrigemId?: number;
   contratoDestinoId?: number;
@@ -96,6 +124,7 @@ export interface NovaTarefaRemanejamento {
   responsavel: string;
   prioridade?: string;
   dataLimite?: string;
+  dataVencimento?: string;
 }
 
 export interface AtualizarStatusPrestserv {
@@ -104,6 +133,7 @@ export interface AtualizarStatusPrestserv {
   dataSubmetido?: string;
   dataResposta?: string;
   observacoesPrestserv?: string;
+  sispat?: string;
 }
 
 // Tipos para dashboard
@@ -114,27 +144,41 @@ export interface DashboardRemanejamento {
   funcionariosSubmetidos: number;
   funcionariosAprovados: number;
   funcionariosRejeitados: number;
-  
+  funcionariosValidados?: number;
+  funcionariosCancelados?: number;
+  funcionariosEmProcesso?: number;
+
   solicitacoesPorStatus: {
     status: string;
     count: number;
   }[];
-  
-  funcionariosPorStatusTarefas: {
-    status: StatusTarefas;
+
+  funcionariosPorStatusTarefa: {
+    status: StatusTarefa;
     count: number;
   }[];
-  
+
   funcionariosPorStatusPrestserv: {
     status: StatusPrestserv;
     count: number;
   }[];
+  
+  // Novos campos para os gráficos adicionais
+  solicitacoesPorTipo?: Record<string, number>;
+  solicitacoesPorOrigemDestino?: Array<{
+    origem: string;
+    destino: string;
+    count: number;
+  }>;
+  pendenciasPorSetor?: Record<string, number>;
+  funcionariosPorResponsavel?: Record<string, number>;
+  solicitacoesPorMes?: number[];
 }
 
 // Tipos para filtros
 export interface FiltrosRemanejamento {
   status?: string;
-  statusTarefas?: StatusTarefas;
+  statusTarefa?: StatusTarefa;
   statusPrestserv?: StatusPrestserv;
   contratoOrigem?: number;
   contratoDestino?: number;

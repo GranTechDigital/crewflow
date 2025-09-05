@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { jwtVerify } from 'jose'
 
-const publicRoutes = ['/login', '/api/auth/login']
+const publicRoutes = ['/login', '/unauthorized', '/api/auth/login']
 const publicApiRoutes = ['/api/auth/login']
 
 export async function middleware(request: NextRequest) {
@@ -20,6 +20,25 @@ export async function middleware(request: NextRequest) {
 
   // Verificar se é uma rota pública
   if (publicRoutes.includes(pathname)) {
+    // Se for a página de login, verificar se o usuário já está logado
+    if (pathname === '/login') {
+      const token = request.cookies.get('auth-token')?.value
+      
+      if (token) {
+        try {
+          // Verificar se o token é válido
+          const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret')
+          await jwtVerify(token, secret)
+          
+          // Se o token é válido, redirecionar para a página principal
+          return NextResponse.redirect(new URL('/', request.url))
+        } catch (error) {
+          // Token inválido, permitir acesso à página de login
+          return NextResponse.next()
+        }
+      }
+    }
+    
     return NextResponse.next()
   }
 

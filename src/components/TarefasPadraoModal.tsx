@@ -10,6 +10,7 @@ interface TarefasPadraoModalProps {
     id: number | string;
     nome: string;
     matricula: string;
+    statusPrestserv?: string;
   } | null;
   onSuccess?: () => void;
 }
@@ -42,7 +43,7 @@ export default function TarefasPadraoModal({ isOpen, onClose, funcionario, onSuc
   const fetchTarefasPadrao = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/tarefas/padrao');
+      const response = await fetch('/api/tarefas-padrao');
       
       if (!response.ok) {
         throw new Error('Erro ao carregar tarefas padrões');
@@ -75,8 +76,8 @@ export default function TarefasPadraoModal({ isOpen, onClose, funcionario, onSuc
     }
 
     // Validar se é possível criar tarefas baseado no status do prestserv
-    if (funcionario.statusPrestserv === 'SUBMETIDO' || funcionario.statusPrestserv === 'APROVADO') {
-      showToast('Não é possível criar novas tarefas quando o prestserv está submetido ou aprovado', 'error');
+    if (funcionario.statusPrestserv === 'SUBMETIDO') {
+      showToast('Não é possível criar novas tarefas quando o prestserv está submetido', 'error');
       return;
     }
 
@@ -114,6 +115,10 @@ export default function TarefasPadraoModal({ isOpen, onClose, funcionario, onSuc
       }
       
       const result = await response.json();
+      
+      // Sinalizar que tarefas foram criadas para atualizar a página principal
+      localStorage.setItem('tarefasPadraoAtualizadas', Date.now().toString());
+      
       showToast(result.message, 'success');
       
       // Resetar estado

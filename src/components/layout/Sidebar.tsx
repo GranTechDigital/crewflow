@@ -9,18 +9,19 @@ import {
   ChevronLeft,
   Home,
   LayoutDashboard,
-  Boxes,
   Stethoscope,
   Users,
   GraduationCap,
   Shield,
 } from "lucide-react";
 import { useAuth, usePermissions } from "@/app/hooks/useAuth";
+import { PERMISSIONS, hasFullAccess } from "@/lib/permissions";
 
 export default function Sidebar() {
   const [activeSection, setActiveSection] = useState<string | null>(null);
-  const [collapsed, setCollapsed] = useState<boolean>(false);
+  const [collapsed, setCollapsed] = useState<boolean>(true); // Iniciar colapsado por padrão
   const [userLoaded, setUserLoaded] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
   const { usuario, loading } = useAuth();
   const permissions = usePermissions();
 
@@ -38,6 +39,8 @@ export default function Sidebar() {
     const storedCollapsed = localStorage.getItem("sidebar-collapsed");
     if (storedCollapsed !== null) {
       setCollapsed(storedCollapsed === "true");
+    } else {
+      setCollapsed(true); // Padrão colapsado se não houver valor salvo
     }
   }, []);
 
@@ -67,24 +70,48 @@ export default function Sidebar() {
       label: "Planejamento",
       icon: LayoutDashboard,
       items: [
-        { label: "Dashboard", href: "/prestserv/dashboard" },
-        { label: "Minhas Solicitações de Remanejamento", href: "/prestserv/remanejamentos/tabela" },
-        { label: "Solicitar Remanejamento/Alocação de Funcionários entre Contratos", href: "/prestserv/remanejamentos/novo" },
-        { label: "Visualizar Funcionários por Contrato (Cadastro Prestserv)", href: "/prestserv/funcionarios-por-contrato" },
-        { label: "Visualizar Funcionários por Centro de Custo (Folha)", href: "/planejamento/funcionarios" },
+        // { label: "Dashboard", h
+        // ref: "/prestserv/dashboard" },
+        //{ label: "Minhas Solicitações de Remanejamento", href: "/prestserv/remanejamentos/tabela" },
+        // { label: "Criar Solicitação", href: "/prestserv/remanejamentos/novo" },
+        {
+          label: "Solicitações de Remanejamento",
+          href: "/prestserv/funcionarios/planejamento",
+        },
+        {
+          label: "Lista de Funcionários",
+          href: "/prestserv/funcionarios-por-contrato",
+        },
+        // { label: "Visualizar Funcionários por Centro de Custo (Folha)", href: "/planejamento/funcionarios" },
       ],
       permission: "canAccessPlanejamento",
     },
     {
       key: "prestserv",
-      label: "Cadastro Prestserv",
+      label: "Logística",
       icon: Stethoscope,
       items: [
-        { label: "Dashboard", href: "/prestserv/dashboard" },
-        { label: "Solicitações de Remanejamento", href: "/prestserv/remanejamentos/tabela" },
-        { label: "Funcionários em Processo de Remanejamento/Alocação", href: "/prestserv/funcionarios" },
-        { label: "Visualizar Funcionários por Centro de Custo (Folha)", href: "/prestserv/funcionarios-por-contrato" },
-        { label: "Criar Tarefas para os Setores", href: "/prestserv/tarefas" },
+        // { label: "Dashboard", href: "/prestserv/dashboard" },
+        {
+          label: "Solicitações de Remanejamento",
+          href: "/prestserv/funcionarios",
+        },
+
+        //{ label: "Criar Solicitação", href: "/prestserv/remanejamentos/novo" },
+
+        // {
+        //   label: "Visualizar Funcionários por Centro de Custo (Folha)",
+        //   href: "/prestserv/funcionarios-por-contrato",
+        // },
+        { label: "Tarefas dos Setores", href: "/tarefas" },
+        {
+          label: "Lista de Funcionários",
+          href: "/prestserv/funcionarios-por-contrato",
+        },
+        // {
+        //   label: "Matriz de Status",
+        //   href: "/prestserv/funcionarios/matriz-status",
+        // },
       ],
       permission: "canAccessPrestServ",
     },
@@ -92,18 +119,14 @@ export default function Sidebar() {
       key: "rh",
       label: "Recursos Humanos",
       icon: Users,
-      items: [
-        { label: "Minhas Tarefas", href: "/tarefas/rh" },
-      ],
+      items: [{ label: "Minhas Tarefas", href: "/tarefas?setor=rh" }],
       permission: "canAccessRH",
     },
     {
       key: "treinamento",
       label: "Treinamento",
       icon: GraduationCap,
-      items: [
-        { label: "Minhas Tarefas", href: "/tarefas/treinamento" },
-      ],
+      items: [{ label: "Minhas Tarefas", href: "/tarefas?setor=treinamento" }],
       permission: "canAccessTreinamento",
     },
     {
@@ -113,7 +136,7 @@ export default function Sidebar() {
       items: [
         // { label: "Geral", href: "/medicina/geral" },
         // { label: "Segurança", href: "/medicina/seguranca" },
-        { label: "Minhas Tarefas", href: "/tarefas/medicina" },
+        { label: "Minhas Tarefas", href: "/tarefas?setor=medicina" },
       ],
       permission: "canAccessMedicina",
     },
@@ -133,15 +156,16 @@ export default function Sidebar() {
       items: [
         { label: "Gerenciar Usuários", href: "/admin/usuarios" },
         { label: "Gerenciar Equipes", href: "/admin/equipes" },
+        { label: "Gerenciar Tarefas Padrão", href: "/admin/tarefas-padrao" },
         { label: "Sincronizar Lista de Funcionários", href: "/funcionarios" },
         { label: "Criar Contratos", href: "/planejamento/contratos" },
       ],
-      permission: "canAccessAdmin",
+      permission: PERMISSIONS.ACCESS_ADMIN,
     },
   ];
 
-  // Verificar se o usuário é admin
-  const isAdmin = usuario?.permissoes?.includes('admin');
+  // Verificar se o usuário tem acesso total (admin)
+  const isAdmin = hasFullAccess(usuario?.permissoes || []);
 
   // Filtrar seções baseado nas permissões do usuário
   const sections = isAdmin
@@ -200,17 +224,19 @@ export default function Sidebar() {
       className={`
         bg-gradient-to-b from-gray-800 via-gray-750 to-gray-700 text-white h-full
         transition-all duration-300 ease-in-out
-        ${collapsed ? "w-20" : "w-64"}
+        ${collapsed && !isHovered ? "w-20" : "w-64"}
         border-r border-gray-600/50
         overflow-hidden
         flex flex-col
         shadow-xl
         backdrop-blur-sm
       `}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
     >
       {/* Header integrado com navbar */}
       <div className="flex items-center justify-between px-4 h-12 border-b border-gray-600/50 bg-gray-700/30 backdrop-blur-sm">
-        {!collapsed && (
+        {!(collapsed && !isHovered) && (
           <div className="flex items-center gap-3">
             <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse shadow-sm"></div>
             <span className="text-sm font-semibold text-gray-100 tracking-wide">
@@ -221,25 +247,28 @@ export default function Sidebar() {
         <button
           onClick={toggleCollapse}
           aria-label="Alternar barra lateral"
-          className={`p-1.5 hover:bg-gray-600/50 rounded-md transition-all duration-200 hover:shadow-md border border-transparent hover:border-gray-500/30 ${collapsed ? "mx-auto" : ""
+          className={`p-1.5 hover:bg-gray-600/50 rounded-md transition-all duration-200 hover:shadow-md border border-transparent hover:border-gray-500/30 ${
+            collapsed && !isHovered ? "mx-auto" : ""
             }`}
         >
-          {collapsed ? <ChevronRight size={14} className="text-gray-300" /> : <ChevronLeft size={14} className="text-gray-300" />}
+          {collapsed && !isHovered ? <ChevronRight size={14} className="text-gray-300" /> : <ChevronLeft size={14} className="text-gray-300" />}
         </button>
       </div>
 
       {/* Navegação com scrollbar customizada mais fina */}
-      <nav className={`flex flex-col space-y-0.5 text-sm flex-1 overflow-y-auto custom-scrollbar ${collapsed ? "px-2 py-3" : "px-3 py-3"
+      <nav className={`flex flex-col space-y-0.5 text-sm flex-1 overflow-y-auto custom-scrollbar ${
+        collapsed && !isHovered ? "px-2 py-3" : "px-3 py-3"
         }`}>
         {/* Página Inicial */}
         <Link
           href="/"
-          className={`hover:bg-gray-600/40 flex items-center rounded-lg transition-all duration-200 hover:shadow-lg group border border-transparent hover:border-gray-500/20 backdrop-blur-sm ${collapsed ? "gap-0 px-2 py-2 justify-center" : "gap-2.5 px-3 py-2"
+          className={`hover:bg-gray-600/40 flex items-center rounded-lg transition-all duration-200 hover:shadow-lg group border border-transparent hover:border-gray-500/20 backdrop-blur-sm ${
+            collapsed && !isHovered ? "gap-0 px-2 py-2 justify-center" : "gap-2.5 px-3 py-2"
             }`}
-          title={collapsed ? "Página Inicial" : ""}
+          title={collapsed && !isHovered ? "Página Inicial" : ""}
         >
           <Home size={16} className="text-blue-400 group-hover:text-blue-300 transition-colors" />
-          {!collapsed && (
+          {!(collapsed && !isHovered) && (
             <span className="font-medium group-hover:text-white transition-colors text-sm">Página Inicial</span>
           )}
         </Link>
@@ -249,33 +278,33 @@ export default function Sidebar() {
           <div key={section.key} className="space-y-0.5">
             <button
               className={`flex items-center justify-between w-full hover:bg-gray-600/40 rounded-lg transition-all duration-200 hover:shadow-lg group border border-transparent hover:border-gray-500/20 backdrop-blur-sm ${
-                collapsed ? "px-2 py-2" : "px-3 py-2"
+                collapsed && !isHovered ? "px-2 py-2" : "px-3 py-2"
               }`}
               onClick={() => {
-                if (collapsed) {
-                  // Se estiver colapsado, expandir primeiro
+                if (collapsed && !isHovered) {
+                  // Se estiver colapsado e não hover, expandir primeiro
                   setCollapsed(false);
                   // Aguardar a animação antes de abrir a seção
                   setTimeout(() => {
                     handleToggle(section.key);
                   }, 150);
                 } else {
-                  // Se não estiver colapsado, toggle normal
+                  // Se não estiver colapsado ou estiver em hover, toggle normal
                   handleToggle(section.key);
                 }
               }}
               aria-expanded={activeSection === section.key}
-              title={collapsed ? section.label : ""}
+              title={collapsed && !isHovered ? section.label : ""}
             >
               <span className={`flex items-center ${
-                collapsed ? "gap-0 justify-center w-full" : "gap-2.5"
+                collapsed && !isHovered ? "gap-0 justify-center w-full" : "gap-2.5"
               }`}>
                 <section.icon size={16} className="text-gray-300 group-hover:text-white transition-colors" />
-                {!collapsed && (
+                {!(collapsed && !isHovered) && (
                   <span className="font-medium group-hover:text-white transition-colors text-sm">{section.label}</span>
                 )}
               </span>
-              {!collapsed &&
+              {!(collapsed && !isHovered) &&
                 (activeSection === section.key ? (
                   <ChevronDown size={14} className="text-gray-400 group-hover:text-gray-200 transition-colors" />
                 ) : (
@@ -285,7 +314,8 @@ export default function Sidebar() {
 
             {/* Sub-itens com transição suave */}
             <div
-              className={`transition-all duration-300 ease-in-out overflow-hidden ${activeSection === section.key && !collapsed
+              className={`transition-all duration-300 ease-in-out overflow-hidden ${
+                activeSection === section.key && !(collapsed && !isHovered)
                   ? "max-h-96 opacity-100"
                   : "max-h-0 opacity-0"
                 }`}
@@ -309,10 +339,11 @@ export default function Sidebar() {
       </nav>
 
       {/* Footer com informações do usuário (quando colapsado) */}
-      {usuario && collapsed && (
+      {usuario && collapsed && !isHovered && (
         <div className="px-2 py-4 border-t border-gray-600/50 bg-gray-700/30 backdrop-blur-sm">
           <div className="flex justify-center">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-lg border ${isAdmin
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-lg border ${
+                isAdmin
                 ? "bg-gradient-to-br from-red-500 to-red-600 border-red-400/30"
                 : "bg-gradient-to-br from-blue-500 to-blue-600 border-blue-400/30"
               }`}

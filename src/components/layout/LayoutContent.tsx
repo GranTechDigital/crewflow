@@ -1,7 +1,8 @@
 'use client'
 
 import { useAuth } from '@/app/hooks/useAuth'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
+import { useEffect } from 'react'
 import Sidebar from './Sidebar'
 import Navbar from './Navbar'
 import LoadingSpinner from '@/components/LoadingSpinner'
@@ -13,6 +14,14 @@ interface LayoutContentProps {
 export default function LayoutContent({ children }: LayoutContentProps) {
   const { usuario, loading } = useAuth()
   const pathname = usePathname()
+  const router = useRouter()
+
+  // Redirecionar usuários logados que tentem acessar /login
+  useEffect(() => {
+    if (!loading && usuario && pathname === '/login') {
+      router.push('/');
+    }
+  }, [usuario, loading, pathname, router]);
 
   // Se estiver na página de login, mostrar apenas o conteúdo
   if (pathname === '/login') {
@@ -46,13 +55,15 @@ export default function LayoutContent({ children }: LayoutContentProps) {
 
   // Layout completo com navbar
   return (
-    <div className="h-screen flex flex-col overflow-hidden bg-gray-100">
-      <div className="flex flex-1">
-        <Sidebar key={usuario?.id || 'no-user'} />
-        <div className="flex-1 flex flex-col">
+    <div className="h-screen flex flex-col overflow-hidden bg-gray-100 min-h-0">
+      <div className="flex flex-1 min-h-0 overflow-x-auto" style={{ minWidth: '1200px' }}>
+        <div className="sidebar-container">
+          <Sidebar key={usuario?.id || 'no-user'} />
+        </div>
+        <div className="flex-1 flex flex-col min-h-0 main-content">
           <Navbar />
-          <main className="flex-1 bg-gray-50 border border-gray-300 rounded-xl shadow-xl m-4 relative z-10 overflow-auto custom-scrollbar">
-            <div className="p-2">
+          <main className="flex-1 bg-gray-50 border border-gray-300 rounded-xl shadow-xl m-4 relative z-10 overflow-auto custom-scrollbar flex flex-col min-h-0">
+            <div className="p-2 flex-1 min-h-0 overflow-y-auto">
               {children}
             </div>
           </main>
