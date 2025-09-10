@@ -3,7 +3,14 @@ import { prisma } from '@/lib/prisma';
 
 export async function GET() {
   try {
-    const funcionarios = await prisma.funcionario.findMany();
+    const funcionarios = await prisma.funcionario.findMany({
+      where: {
+        // Excluir o administrador do sistema das listagens
+        matricula: {
+          not: 'ADMIN001'
+        }
+      }
+    });
     return NextResponse.json(funcionarios);
   } catch (error) {
     console.error('Erro ao buscar funcionários do banco:', error);

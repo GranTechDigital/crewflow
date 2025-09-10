@@ -7,21 +7,56 @@ function parseDate(dateStr: string): Date | null {
   return isNaN(date.getTime()) ? null : date;
 }
 
+async function fetchExternalDataWithRetry(maxRetries = 3, timeout = 15000) {
+  const url = "https://granihcservices145382.rm.cloudtotvs.com.br:8051/api/framework/v1/consultaSQLServer/RealizaConsulta/GS.INT.0005/1/P";
+  const headers = { Authorization: 'Basic SW50ZWdyYS5BZG1pc3NhbzpHckBuIWhjMjAyMg==' };
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeout);
+      
+      const response = await fetch(url, { 
+        headers,
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.log(`Tentativa ${attempt}/${maxRetries} falhou:`, error instanceof Error ? error.message : 'Erro desconhecido');
+      
+      if (attempt === maxRetries) {
+        throw error;
+      }
+      
+      // Aguardar antes da próxima tentativa (backoff exponencial)
+      await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+    }
+  }
+}
+
 export async function POST() {
   try {
-    // Buscar dados da API externa
-    const url = "https://granihcservices145382.rm.cloudtotvs.com.br:8051/api/framework/v1/consultaSQLServer/RealizaConsulta/GS.INT.0005/1/P";
-    const headers = { Authorization: 'Basic SW50ZWdyYS5BZG1pc3NhbzpHckBuIWhjMjAyMg==' };
-    const response = await fetch(url, { headers });
+    console.log('Iniciando sincronização...');
+    
+    // Buscar dados da API externa com retry
+    const dadosExternos = await fetchExternalDataWithRetry();
+    console.log(`Dados externos obtidos: ${dadosExternos.length} registros`);
 
-    if (!response.ok) {
-      return NextResponse.json({ error: 'Erro ao buscar dados da API externa.' }, { status: response.status });
-    }
-
-    const dadosExternos = await response.json();
-
-    // Buscar dados atuais do banco
-    const dadosBanco = await prisma.funcionario.findMany();
+    // Buscar dados atuais do banco (excluindo o administrador do sistema)
+    const dadosBanco = await prisma.funcionario.findMany({
+      where: {
+        matricula: {
+          not: 'ADMIN001'
+        }
+      }
+    });
 
     const now = new Date();
 
@@ -33,8 +68,9 @@ export async function POST() {
     dadosBanco.forEach((item) => mapBanco.set(item.matricula, item));
 
     // 1) Atualizar status para "DEMITIDO" para funcionários que tem no banco mas NÃO tem na API
+    // Excluir o administrador do sistema da sincronização
     const matriculasParaDemitir = dadosBanco
-      .filter(f => !mapApi.has(f.matricula) && f.status !== 'DEMITIDO')
+      .filter(f => !mapApi.has(f.matricula) && f.status !== 'DEMITIDO' && f.matricula !== 'ADMIN001')
       .map(f => f.matricula);
 
     if (matriculasParaDemitir.length > 0) {
@@ -57,6 +93,7 @@ export async function POST() {
         cpf: item.CPF,
         nome: item.NOME,
         funcao: item.FUNCAO,
+        
         rg: item.RG,
         orgaoEmissor: item['ORGÃO_EMISSOR'],
         uf: item.UF,
@@ -65,7 +102,8 @@ export async function POST() {
         telefone: item.TELEFONE,
         centroCusto: item.CENTRO_CUSTO,
         departamento: item.DEPARTAMENTO,
-        status: item.STATUS,
+        status: item.STATUS, // Status da folha de pagamento
+        statusPrestserv: 'SEM_CADASTRO', // Novos funcionários sempre começam com SEM_CADASTRO no Prestserv
         criadoEm: now,
         atualizadoEm: now,
         excluidoEm: null,
@@ -119,6 +157,8 @@ export async function POST() {
       });
     }
 
+    console.log(`Sincronização concluída: ${matriculasParaDemitir.length} demitidos, ${novosFuncionarios.length} adicionados, ${paraAtualizar.length} atualizados`);
+    
     return NextResponse.json({
       message: 'Sincronização concluída',
       demitidos: matriculasParaDemitir.length,
@@ -127,6 +167,22 @@ export async function POST() {
     });
   } catch (error) {
     console.error('Erro na sincronização:', error);
-    return NextResponse.json({ error: 'Erro interno na sincronização.' }, { status: 500 });
+    
+    // Retornar erro mais específico
+    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+    const isTimeoutError = errorMessage.includes('AbortError') || errorMessage.includes('timeout');
+    const isNetworkError = errorMessage.includes('fetch') || errorMessage.includes('network');
+    
+    let userMessage = 'Erro interno na sincronização.';
+    if (isTimeoutError) {
+      userMessage = 'Timeout na sincronização. A API externa demorou muito para responder.';
+    } else if (isNetworkError) {
+      userMessage = 'Erro de conexão com a API externa.';
+    }
+    
+    return NextResponse.json({ 
+      error: userMessage,
+      details: errorMessage 
+    }, { status: 500 });
   }
 }

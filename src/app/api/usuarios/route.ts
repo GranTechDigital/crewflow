@@ -17,8 +17,16 @@ export async function GET(request: NextRequest) {
 
     const where: any = {};
 
+    // Excluir o administrador do sistema das listagens
+    where.funcionario = {
+      matricula: {
+        not: 'ADMIN001'
+      }
+    };
+
     if (search) {
       where.funcionario = {
+        ...where.funcionario,
         OR: [
           { nome: { contains: search, mode: 'insensitive' } },
           { matricula: { contains: search, mode: 'insensitive' } },

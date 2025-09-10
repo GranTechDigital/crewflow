@@ -158,6 +158,18 @@ export async function POST(request: NextRequest) {
       })
     );
 
+    // Marcar funcionários como em migração
+    await prisma.funcionario.updateMany({
+      where: {
+        id: {
+          in: funcionarioIds
+        }
+      },
+      data: {
+        emMigracao: true
+      }
+    });
+
     return NextResponse.json({
       message: `${remanejamentos.length} solicitação(ões) de remanejamento criada(s) com sucesso`,
       remanejamentos

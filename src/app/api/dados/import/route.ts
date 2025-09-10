@@ -22,11 +22,16 @@ export async function POST() {
     }
     
     const data = await response.json();
-    console.log(`Dados recebidos da API: ${data.length} registros`);
     
-    // Deletar todos os registros existentes
-    await prisma.funcionario.deleteMany({});
-    console.log('Registros existentes deletados');
+    // Deletar todos os registros existentes (exceto o administrador do sistema)
+    await prisma.funcionario.deleteMany({
+      where: {
+        matricula: {
+          not: 'ADMIN001'
+        }
+      }
+    });
+    console.log('Registros existentes deletados (preservando administrador)');
     
     // Mapear e inserir os novos dados
     const funcionariosData = data.map((item: any) => ({

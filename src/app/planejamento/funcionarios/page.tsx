@@ -69,11 +69,15 @@ export default function FuncionariosPage() {
     fetchData();
   }, []);
 
+  // Função utilitária para filtrar funcionários válidos (com centro de custo)
+  const funcionariosValidos = funcionarios.filter(f => f.centroCusto && f.centroCusto !== 'Sem centro de custo');
+
+  // Atualize getCentrosCusto para usar apenas funcionários válidos
   const getCentrosCusto = (): CentroCusto[] => {
     const centrosMap = new Map<string, { total: number; statusCount: Record<string, number>; departamentos: Set<string> }>();
     
-    funcionarios.forEach(funcionario => {
-      const centro = funcionario.centroCusto || 'Sem centro de custo';
+    funcionariosValidos.forEach(funcionario => {
+      const centro = funcionario.centroCusto;
       const status = funcionario.status || 'sem status';
       const departamento = funcionario.departamento || 'Sem departamento';
       
@@ -95,10 +99,11 @@ export default function FuncionariosPage() {
     }));
   };
 
-  const getFuncoes = () => {
+  // Altere getFuncoes para aceitar uma lista de funcionários
+  const getFuncoes = (funcionariosList: Funcionario[] = funcionarios) => {
     const funcoesMap = new Map<string, { total: number; statusCount: Record<string, number> }>();
     
-    funcionarios.forEach(funcionario => {
+    funcionariosList.forEach(funcionario => {
       const funcao = funcionario.funcao || 'Sem função';
       const status = funcionario.status || 'sem status';
       
@@ -124,19 +129,31 @@ export default function FuncionariosPage() {
     );
   };
 
+  // Atualize funcoesFiltradas para usar funcionários válidos
   const funcoesFiltradas = () => {
-    return getFuncoes().filter(funcao =>
+    // Se o filtro for explicitamente 'Sem centro de custo', mostre nada
+    if (centroCustoSelecionado === 'Sem centro de custo') return [];
+    const funcionariosParaFuncoes = centroCustoSelecionado
+      ? funcionariosValidos.filter(f => f.centroCusto === centroCustoSelecionado)
+      : funcionariosValidos;
+    return getFuncoes(funcionariosParaFuncoes).filter(funcao =>
       funcao.nome.toLowerCase().includes(buscaFuncao.toLowerCase())
     );
   };
 
+  // Atualize funcionariosFiltrados para ocultar sem centro de custo, exceto se explicitamente filtrado
   const funcionariosFiltrados = () => {
     return funcionarios.filter(funcionario => {
+      // Se o filtro for explicitamente 'Sem centro de custo', mostre apenas esses
+      if (centroCustoSelecionado === 'Sem centro de custo') {
+        return funcionario.centroCusto === 'Sem centro de custo';
+      }
+      // Caso contrário, oculte os sem centro de custo
+      if (!funcionario.centroCusto || funcionario.centroCusto === 'Sem centro de custo') return false;
       const matchCentro = !centroCustoSelecionado || funcionario.centroCusto === centroCustoSelecionado;
       const matchFuncao = !funcaoSelecionada || funcionario.funcao === funcaoSelecionada;
       const matchBusca = funcionario.nome.toLowerCase().includes(buscaFuncionario.toLowerCase()) ||
                         funcionario.id.toString().toLowerCase().includes(buscaFuncionario.toLowerCase());
-      
       return matchCentro && matchFuncao && matchBusca;
     });
   };

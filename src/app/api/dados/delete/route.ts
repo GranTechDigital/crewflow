@@ -3,7 +3,11 @@ import { prisma } from '@/lib/prisma';
 
 export async function DELETE() {
   try {
-    const result = await prisma.funcionario.deleteMany({});
+    const result = await prisma.funcionario.deleteMany({
+      where: {
+        matricula: { not: 'ADMIN001' }
+      }
+    });
     return NextResponse.json({ 
       message: 'Todos os funcionários foram deletados com sucesso!', 
       count: result.count 

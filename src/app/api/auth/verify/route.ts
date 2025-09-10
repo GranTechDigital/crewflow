@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { jwtVerify } from 'jose';
+import { getPermissionsByTeam } from '@/lib/permissions';
 
 const prisma = new PrismaClient();
 
@@ -10,19 +11,27 @@ export async function GET(request: NextRequest) {
     const token = authHeader?.replace('Bearer ', '') || request.cookies.get('auth-token')?.value;
 
     if (!token) {
+      console.log('DEBUG - Token não fornecido na rota verify');
       return NextResponse.json(
         { error: 'Token não fornecido' },
         { status: 401 }
       );
     }
 
+    console.log('DEBUG - Token encontrado na rota verify');
+    
     // Verificar e decodificar o token usando jose
     const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret');
     const { payload: decoded } = await jwtVerify(token, secret);
+    
+    console.log('DEBUG - Token decodificado na rota verify:', JSON.stringify(decoded, null, 2));
 
     // Buscar dados atualizados do usuário
+    const funcionarioId = decoded.funcionarioId as number;
+    console.log('DEBUG - Buscando funcionário com ID:', funcionarioId);
+    
     const funcionario = await prisma.funcionario.findUnique({
-      where: { id: decoded.funcionarioId as number },
+      where: { id: funcionarioId },
       include: {
         usuario: {
           include: {
@@ -31,6 +40,8 @@ export async function GET(request: NextRequest) {
         }
       }
     });
+    
+    console.log('DEBUG - Funcionário encontrado:', funcionario ? funcionario.nome : 'null');
 
     if (!funcionario || !funcionario.usuario || !funcionario.usuario.ativo) {
       return NextResponse.json(
@@ -39,55 +50,16 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Definir permissões baseadas na equipe
+    // Obter permissões baseadas na equipe usando o sistema centralizado
+    const nomeEquipe = funcionario.usuario.equipe.nome;
     let permissoes: string[] = [];
-    
-    // Mapeamento de equipes para permissões
-    const equipePermissoes: { [key: string]: string[] } = {
-      'Administração': [
-        'admin',
-        'canAccessFuncionarios',
-        'canAccessPrestServ',
-        'canAccessPlanejamento',
-        'canAccessLogistica',
-        'canAccessAdmin',
-        'canAccessRH',
-        'canAccessTreinamento',
-        'canAccessMedicina'
-      ],
-      'RH': [
-        'canAccessFuncionarios',
-        'canAccessRH'
-      ],
-      'Treinamento': [
-        'canAccessFuncionarios',
-        'canAccessTreinamento'
-      ],
-      'Medicina': [
-        'canAccessFuncionarios',
-        'canAccessMedicina'
-      ],
-      'Logistica': [
-        'canAccessFuncionarios',
-        'canAccessLogistica'
-      ],
-      'Planejamento': [
-        'canAccessFuncionarios',
-        'canAccessPlanejamento'
-      ],
-      'Prestserv': [
-        'canAccessFuncionarios',
-        'canAccessPrestServ'
-      ]
-    };
     
     // Verificar se é admin por matrícula (fallback)
     if (funcionario.matricula === 'ADMIN001') {
-      permissoes = equipePermissoes['Administração'];
+      permissoes = getPermissionsByTeam('Administração');
     } else {
       // Buscar permissões baseadas na equipe
-      const nomeEquipe = funcionario.usuario.equipe.nome;
-      permissoes = equipePermissoes[nomeEquipe] || ['canAccessFuncionarios'];
+      permissoes = getPermissionsByTeam(nomeEquipe);
     }
 
     // Retornar dados do usuário

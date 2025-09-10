@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeftIcon, UserIcon, ClockIcon, CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/outline';
 import HistoricoRemanejamento from '@/components/HistoricoRemanejamento';
+import ProtectedRoute from '@/components/ProtectedRoute';
 
 interface Funcionario {
   id: string;
@@ -59,6 +60,17 @@ interface RemanejamentoFuncionario {
 }
 
 export default function FuncionarioDetalhes() {
+  return (
+    <ProtectedRoute 
+      requiredEquipe={['LOGISTICA', 'Administração']}
+      requiredPermissions={['admin', 'canAccessLogistica']}
+    >
+      <FuncionarioDetalhesContent />
+    </ProtectedRoute>
+  );
+}
+
+function FuncionarioDetalhesContent() {
   const params = useParams();
   const router = useRouter();
   const funcionarioId = params.id as string;

@@ -61,7 +61,18 @@ export async function POST(request: NextRequest) {
 
     // Gerar token JWT usando jose
     const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret');
+    console.log('DEBUG - Gerando token com dados:', JSON.stringify({
+      id: funcionario.usuario.id, // Adicionando id para compatibilidade
+      userId: funcionario.usuario.id,
+      funcionarioId: funcionario.id,
+      matricula: funcionario.matricula,
+      nome: funcionario.nome,
+      equipe: funcionario.usuario.equipe.nome,
+      equipeId: funcionario.usuario.equipeId
+    }));
+    
     const token = await new SignJWT({
+      id: funcionario.usuario.id, // Adicionando id para compatibilidade
       userId: funcionario.usuario.id,
       funcionarioId: funcionario.id,
       matricula: funcionario.matricula,

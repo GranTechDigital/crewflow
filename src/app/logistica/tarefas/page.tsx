@@ -6,6 +6,8 @@ import { ArrowLeft, Plus, CheckCircle, Clock, AlertTriangle, User, Briefcase } f
 import { useToast } from '@/components/Toast';
 import { formatarData } from '@/lib/utils';
 import TarefasPadraoModal from '@/components/TarefasPadraoModal';
+import ProtectedRoute from '@/components/ProtectedRoute';
+import { ROUTE_PROTECTION } from '@/lib/permissions';
 
 interface Funcionario {
   id: number;
@@ -45,6 +47,17 @@ interface RemanejamentoFuncionario {
 }
 
 export default function TarefasPage() {
+  return (
+    <ProtectedRoute 
+      requiredEquipe={ROUTE_PROTECTION.LOGISTICA.requiredEquipe}
+      requiredPermissions={ROUTE_PROTECTION.LOGISTICA.requiredPermissions}
+    >
+      <TarefasPageContent />
+    </ProtectedRoute>
+  );
+}
+
+function TarefasPageContent() {
   const params = useParams();
   const router = useRouter();
   const funcionarioId = params.id as string;

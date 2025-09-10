@@ -10,7 +10,9 @@ import {
   GraduationCap,
   Settings,
   ArrowRight,
+  Activity,
 } from 'lucide-react';
+
 
 interface SetorCard {
   key: string;
@@ -29,104 +31,115 @@ interface SetorCard {
 
 const setores: SetorCard[] = [
   {
-    key: 'configuracao',
-    title: 'Configuração',
-    description: 'Configurações gerais do sistema, sincronização de funcionários e criação de contratos.',
+    key: "Administração",
+    title: "Configuração",
+    description:
+      "Configurações gerais do sistema, sincronização de funcionários e criação de contratos.",
     icon: Settings,
-    color: 'text-gray-700',
-    bgColor: 'bg-gray-50',
-    borderColor: 'border-gray-200 hover:border-gray-300',
-    equipes: ['Administração'], // Apenas Administração
+    color: "text-gray-700",
+    bgColor: "bg-gray-50",
+    borderColor: "border-gray-200 hover:border-gray-300",
+    equipes: ["Administração"], // Apenas Administração
     links: [
-      { label: 'Sincronizar Lista de Funcionários', href: '/funcionarios' },
-      { label: 'Criar Contratos', href: '/planejamento/contratos' },
+      { label: "Gerenciar Usuários", href: "/admin/usuarios" },
+      { label: "Gerenciar Equipes", href: "/admin/equipes" },
+      { label: "Gerenciar Tarefas Padrão", href: "/admin/tarefas-padrao" },
+      { label: "Sincronizar Lista de Funcionários", href: "/funcionarios" },
+      { label: "Criar Contratos", href: "/planejamento/contratos" },
     ],
   },
   {
-    key: 'planejamento',
-    title: 'Planejamento',
-    description: 'Dashboard, solicitações de remanejamento e visualização de funcionários por contrato.',
+    key: "uptime",
+    title: "Monitoramento",
+    description:
+      "Monitoramento de uptime dos sistemas e serviços da empresa.",
+    icon: Activity,
+    color: "text-purple-700",
+    bgColor: "bg-purple-50",
+    borderColor: "border-purple-200 hover:border-purple-300",
+    equipes: ["Administração", "TI"], // Administração e TI
+    links: [
+      { label: "Dashboard de Uptime", href: "/uptime" },
+    ],
+  },
+  {
+    key: "planejamento",
+    title: "Planejamento",
+    description:
+      "Dashboard, solicitações de remanejamento e visualização de funcionários por contrato.",
     icon: LayoutDashboard,
-    color: 'text-blue-700',
-    bgColor: 'bg-blue-50',
-    borderColor: 'border-blue-200 hover:border-blue-300',
-    equipes: ['Administração', 'Planejamento'], // Administração e Planejamento
+    color: "text-blue-700",
+    bgColor: "bg-blue-50",
+    borderColor: "border-blue-200 hover:border-blue-300",
+    equipes: ["Administração", "Planejamento"], // Administração e Planejamento
     links: [
-      { label: 'Dashboard', href: '/prestserv/dashboard' },
-      { label: 'Minhas Solicitações de Remanejamento', href: '/prestserv/remanejamentos/tabela' },
-      { label: 'Solicitar Remanejamento/Alocação', href: '/prestserv/remanejamentos/novo' },
-      { label: 'Funcionários por Contrato (Prestserv)', href: '/prestserv/funcionarios-por-contrato' },
-      { label: 'Funcionários por Centro de Custo (Folha)', href: '/planejamento/funcionarios' },
+      {
+        label: "Criar Solicitação",
+        href: "/prestserv/funcionarios/planejamento",
+      },
+      {
+        label: "Lista de Funcionários",
+        href: "/prestserv/funcionarios-por-contrato",
+      },
     ],
   },
   {
-    key: 'cadastro-prestserv',
-    title: 'Cadastro Prestserv',
-    description: 'Gestão de funcionários em processo de remanejamento e criação de tarefas para setores.',
+    key: "cadastro-prestserv",
+    title: "Logística",
+    description:
+      "Gestão de funcionários em processo de remanejamento e criação de tarefas para setores.",
     icon: Boxes,
-    color: 'text-green-700',
-    bgColor: 'bg-green-50',
-    borderColor: 'border-green-200 hover:border-green-300',
-    equipes: ['Administração', 'Planejamento'], // Administração e Planejamento (prestserv)
+    color: "text-green-700",
+    bgColor: "bg-green-50",
+    borderColor: "border-green-200 hover:border-green-300",
+    equipes: ["Administração", "Logística"], // Administração e Planejamento (prestserv)
     links: [
-      { label: 'Dashboard', href: '/prestserv/dashboard' },
-      { label: 'Solicitações de Remanejamento', href: '/prestserv/remanejamentos/tabela' },
-      { label: 'Funcionários em Processo', href: '/prestserv/funcionarios' },
-      { label: 'Funcionários por Centro de Custo', href: '/prestserv/funcionarios-por-contrato' },
-      { label: 'Criar Tarefas para os Setores', href: '/prestserv/tarefas' },
+      // { label: 'Dashboard', href: '/prestserv/dashboard' },
+      {
+        label: "Solicitações de Remanejamento",
+        href: "/prestserv/funcionarios",
+      },
+      { label: "Tarefas dos Setores", href: "/tarefas" },
+      // { label: "Funcionários em Processo", href: "/prestserv/funcionarios" },
+      // {
+      //   label: "Funcionários por Centro de Custo",
+      //   href: "/prestserv/funcionarios-por-contrato",
+      // },
+      // { label: "Criar Tarefas para os Setores", href: "/prestserv/tarefas" },
     ],
   },
   {
-    key: 'medicina',
-    title: 'Medicina',
-    description: 'Gestão de tarefas médicas e de segurança do trabalho.',
+    key: "medicina",
+    title: "Medicina",
+    description: "Gestão de tarefas médicas e de segurança do trabalho.",
     icon: Stethoscope,
-    color: 'text-red-700',
-    bgColor: 'bg-red-50',
-    borderColor: 'border-red-200 hover:border-red-300',
-    equipes: ['Administração', 'Medicina'], // Administração e Medicina
-    links: [
-      { label: 'Minhas Tarefas', href: '/tarefas/medicina' },
-    ],
+    color: "text-red-700",
+    bgColor: "bg-red-50",
+    borderColor: "border-red-200 hover:border-red-300",
+    equipes: ["Administração", "Medicina"], // Administração e Medicina
+    links: [{ label: "Minhas Tarefas", href: "/tarefas?setor=medicina" }],
   },
   {
-    key: 'rh',
-    title: 'Recursos Humanos',
-    description: 'Gestão de tarefas relacionadas aos recursos humanos.',
+    key: "rh",
+    title: "Recursos Humanos",
+    description: "Gestão de tarefas relacionadas aos recursos humanos.",
     icon: Users,
-    color: 'text-purple-700',
-    bgColor: 'bg-purple-50',
-    borderColor: 'border-purple-200 hover:border-purple-300',
-    equipes: ['Administração', 'RH'], // Administração e RH
-    links: [
-      { label: 'Minhas Tarefas', href: '/tarefas/rh' },
-    ],
+    color: "text-purple-700",
+    bgColor: "bg-purple-50",
+    borderColor: "border-purple-200 hover:border-purple-300",
+    equipes: ["Administração", "RH"], // Administração e RH
+    links: [{ label: "Minhas Tarefas", href: "/tarefas?setor=rh" }],
   },
   {
-    key: 'treinamento',
-    title: 'Treinamento',
-    description: 'Gestão de tarefas relacionadas ao treinamento e capacitação.',
+    key: "treinamento",
+    title: "Treinamento",
+    description: "Gestão de tarefas relacionadas ao treinamento e capacitação.",
     icon: GraduationCap,
-    color: 'text-orange-700',
-    bgColor: 'bg-orange-50',
-    borderColor: 'border-orange-200 hover:border-orange-300',
-    equipes: ['Administração', 'Treinamento'], // Administração e Treinamento
-    links: [
-      { label: 'Minhas Tarefas', href: '/tarefas/treinamento' },
-    ],
-  },
-  {
-    key: 'logistica',
-    title: 'Logística',
-    description: 'Gestão de tarefas relacionadas à logística e operações.',
-    icon: Boxes,
-    color: 'text-indigo-700',
-    bgColor: 'bg-indigo-50',
-    borderColor: 'border-indigo-200 hover:border-indigo-300',
-    equipes: ['Administração', 'Logística'], // Administração e Logística
-    links: [
-      { label: 'Minhas Tarefas', href: '/tarefas/logistica' },
-    ],
+    color: "text-orange-700",
+    bgColor: "bg-orange-50",
+    borderColor: "border-orange-200 hover:border-orange-300",
+    equipes: ["Administração", "Treinamento"], // Administração e Treinamento
+    links: [{ label: "Minhas Tarefas", href: "/tarefas?setor=treinamento" }],
   },
 ];
 

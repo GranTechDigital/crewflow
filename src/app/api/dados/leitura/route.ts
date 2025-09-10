@@ -1,5 +1,18 @@
 import { NextResponse } from 'next/server';
 
+type funcionario = {
+  matricula: string;
+  cpf: string;
+  nome: string;
+  funcao: string;
+  centroCusto: string;
+  email: string;
+  telefone: string;
+  dataAdmissao: string;
+  dataDemissao: string;
+  status: string;
+}
+
 function parseDate(dateString: string): Date | null {
   if (!dateString) return null;
   
@@ -21,10 +34,9 @@ export async function GET() {
     }
     
     const data = await response.json();
-    console.log(`Dados recebidos da API: ${data.length} registros`);
     
     // Mapear os dados para o formato esperado
-    const funcionariosData = data.map((item: any) => ({
+    const funcionariosData = data.map((item: funcionario) => ({
       matricula: item.matricula,
       cpf: item.cpf,
       nome: item.nome,
@@ -34,7 +46,7 @@ export async function GET() {
       telefone: item.telefone || null,
       dataAdmissao: parseDate(item.dataAdmissao),
       dataDemissao: parseDate(item.dataDemissao),
-      status: item.status
+      status: item.status,
     }));
     
     return NextResponse.json(funcionariosData);

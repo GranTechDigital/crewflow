@@ -120,22 +120,25 @@ export default function Home() {
     setSyncMsg(null);
     setSyncError(null);
 
-    try {
-      const res = await fetch('/api/dados/sincronizar', { method: 'POST' });
-      const data = await res.json();
+    const { syncWithRetry, formatSyncMessage } = await import('@/utils/syncUtils');
 
-      if (!res.ok) {
-        setSyncError(data.error || 'Erro desconhecido na sincronização');
-      } else {
-        setSyncMsg(`Sincronização concluída: ${data.demitidos} funcionários demitidos, ${data.adicionados} funcionários adicionados.`);
-        await fetchDados();
+    const result = await syncWithRetry({
+      maxRetries: 3,
+      retryDelay: 2000,
+      timeout: 60000,
+      onProgress: (message) => {
+        setSyncMsg(message);
       }
-    } catch (error) {
-      setSyncError('Erro ao conectar com o servidor');
-      console.error(error);
-    } finally {
-      setSyncLoading(false);
+    });
+
+    if (result.success) {
+      setSyncMsg(formatSyncMessage(result.data));
+      await fetchDados();
+    } else {
+      setSyncError(result.error || 'Erro na sincronização após todas as tentativas');
     }
+
+    setSyncLoading(false);
   };
 
   // Função para filtrar dados
