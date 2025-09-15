@@ -9,7 +9,7 @@ datasource db {
 
 model Contrato {
   id                    Int                        @id @default(autoincrement())
-  numero                String
+  numero                String                     @unique
   nome                  String
   cliente               String
   dataInicio            DateTime
@@ -18,8 +18,8 @@ model Contrato {
   createdAt             DateTime                   @default(now())
   centrosCusto          ContratosCentrosCusto[]
   funcionarios          Funcionario[]
-  remanejamentosDestino SolicitacaoRemanejamento[] @relation("ContratoDestino")
   remanejamentosOrigem  SolicitacaoRemanejamento[] @relation("ContratoOrigem")
+  remanejamentosDestino SolicitacaoRemanejamento[] @relation("ContratoDestino")
 }
 
 model CentroCusto {
@@ -37,8 +37,8 @@ model ContratosCentrosCusto {
   contratoId    Int
   centroCustoId Int
   createdAt     DateTime    @default(now())
-  centroCusto   CentroCusto @relation(fields: [centroCustoId], references: [id], onDelete: Cascade)
   contrato      Contrato    @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  centroCusto   CentroCusto @relation(fields: [centroCustoId], references: [id], onDelete: Cascade)
 
   @@unique([contratoId, centroCustoId])
 }
@@ -58,19 +58,21 @@ model Funcionario {
   centroCusto               String?
   departamento              String?
   status                    String?
+  statusPrestserv           String?
+  emMigracao                Boolean                    @default(false)
   contratoId                Int?
   criadoEm                  DateTime                   @default(now())
   atualizadoEm              DateTime                   @updatedAt
   excluidoEm                DateTime?
+  sispat                    String?
   contrato                  Contrato?                  @relation(fields: [contratoId], references: [id])
   remanejamentosFuncionario RemanejamentoFuncionario[]
   usuario                   Usuario?
 }
 
-
-
 model SolicitacaoRemanejamento {
   id                Int                        @id @default(autoincrement())
+  tipo              String                     @default("REMANEJAMENTO")
   contratoOrigemId  Int?
   contratoDestinoId Int?
   justificativa     String?
@@ -85,10 +87,10 @@ model SolicitacaoRemanejamento {
   observacoes       String?
   createdAt         DateTime                   @default(now())
   updatedAt         DateTime                   @updatedAt
-  funcionarios      RemanejamentoFuncionario[]
-  contratoDestino   Contrato?                  @relation("ContratoDestino", fields: [contratoDestinoId], references: [id])
-  contratoOrigem    Contrato?                  @relation("ContratoOrigem", fields: [contratoOrigemId], references: [id])
   historico         HistoricoRemanejamento[]
+  funcionarios      RemanejamentoFuncionario[]
+  contratoOrigem    Contrato?                  @relation("ContratoOrigem", fields: [contratoOrigemId], references: [id])
+  contratoDestino   Contrato?                  @relation("ContratoDestino", fields: [contratoDestinoId], references: [id])
 
   @@index([status])
   @@index([dataSolicitacao])
@@ -98,18 +100,19 @@ model RemanejamentoFuncionario {
   id                   String                   @id @default(cuid())
   solicitacaoId        Int
   funcionarioId        Int
-  statusTarefas        String                   @default("PENDENTE")
+  statusTarefas        String                   @default("APROVAR SOLICITAÇÃO")
   statusPrestserv      String                   @default("PENDENTE")
+  statusFuncionario    String                   @default("SEM_CADASTRO")
   dataRascunhoCriado   DateTime?
   dataSubmetido        DateTime?
   dataResposta         DateTime?
   observacoesPrestserv String?
   createdAt            DateTime                 @default(now())
   updatedAt            DateTime                 @updatedAt
+  historico            HistoricoRemanejamento[]
   funcionario          Funcionario              @relation(fields: [funcionarioId], references: [id])
   solicitacao          SolicitacaoRemanejamento @relation(fields: [solicitacaoId], references: [id], onDelete: Cascade)
   tarefas              TarefaRemanejamento[]
-  historico            HistoricoRemanejamento[]
 
   @@unique([solicitacaoId, funcionarioId])
   @@index([statusTarefas])
@@ -117,21 +120,21 @@ model RemanejamentoFuncionario {
 }
 
 model TarefaRemanejamento {
-  id                         String                           @id @default(cuid())
+  id                         String                          @id @default(cuid())
   remanejamentoFuncionarioId String
   tipo                       String
   descricao                  String?
   responsavel                String
-  status                     String                           @default("PENDENTE")
-  prioridade                 String                           @default("Normal")
-  dataCriacao                DateTime                         @default(now())
+  status                     String                          @default("PENDENTE")
+  prioridade                 String                          @default("Normal")
+  dataCriacao                DateTime                        @default(now())
   dataLimite                 DateTime?
   dataConclusao              DateTime?
   observacoes                String?
-  observacoesTarefa          ObservacaoTarefaRemanejamento[]
+  dataVencimento             DateTime?
   historico                  HistoricoRemanejamento[]
-
-  remanejamentoFuncionario   RemanejamentoFuncionario         @relation(fields: [remanejamentoFuncionarioId], references: [id], onDelete: Cascade)
+  observacoesTarefa          ObservacaoTarefaRemanejamento[]
+  remanejamentoFuncionario   RemanejamentoFuncionario        @relation(fields: [remanejamentoFuncionarioId], references: [id], onDelete: Cascade)
 
   @@index([status])
   @@index([responsavel])
@@ -149,24 +152,23 @@ model ObservacaoTarefaRemanejamento {
 }
 
 model HistoricoRemanejamento {
-  id                         Int                      @id @default(autoincrement())
+  id                         Int                       @id @default(autoincrement())
   remanejamentoFuncionarioId String?
   solicitacaoId              Int?
-  tarefaId                   String?                  // ID da tarefa específica
-  tipoAcao                   String                   // CRIACAO, ATUALIZACAO_STATUS, ATUALIZACAO_CAMPO, EXCLUSAO
-  entidade                   String                   // SOLICITACAO, FUNCIONARIO, TAREFA
-  campoAlterado              String?                  // Nome do campo alterado (se aplicável)
-  valorAnterior              String?                  // Valor anterior do campo
-  valorNovo                  String?                  // Novo valor do campo
-  descricaoAcao              String                   // Descrição da ação realizada
-  usuarioResponsavel         String                   // Usuário que realizou a ação
-  dataAcao                   DateTime                 @default(now())
-  observacoes                String?                  // Observações adicionais
-  
+  tarefaId                   String?
+  tipoAcao                   String
+  entidade                   String
+  campoAlterado              String?
+  valorAnterior              String?
+  valorNovo                  String?
+  descricaoAcao              String
+  usuarioResponsavel         String
+  dataAcao                   DateTime                  @default(now())
+  observacoes                String?
   remanejamentoFuncionario   RemanejamentoFuncionario? @relation(fields: [remanejamentoFuncionarioId], references: [id], onDelete: Cascade)
   solicitacao                SolicitacaoRemanejamento? @relation(fields: [solicitacaoId], references: [id], onDelete: Cascade)
-  tarefa                     TarefaRemanejamento?     @relation(fields: [tarefaId], references: [id], onDelete: Cascade)
-  
+  tarefa                     TarefaRemanejamento?      @relation(fields: [tarefaId], references: [id], onDelete: Cascade)
+
   @@index([dataAcao])
   @@index([tipoAcao])
   @@index([entidade])
@@ -176,7 +178,7 @@ model HistoricoRemanejamento {
 
 model Equipe {
   id        Int       @id @default(autoincrement())
-  nome      String    @unique // RH, Treinamento, Medicina, Logistica, Planejamento
+  nome      String    @unique
   descricao String?
   ativo     Boolean   @default(true)
   createdAt DateTime  @default(now())
@@ -184,19 +186,31 @@ model Equipe {
   usuarios  Usuario[]
 }
 
+model TarefaPadrao {
+  id        Int      @id @default(autoincrement())
+  setor     String
+  tipo      String
+  descricao String
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([setor])
+  @@index([ativo])
+}
+
 model Usuario {
   id            Int         @id @default(autoincrement())
   funcionarioId Int         @unique
-  senha         String      // Hash da senha
+  senha         String
   equipeId      Int
   ativo         Boolean     @default(true)
   ultimoLogin   DateTime?
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
-  
   funcionario   Funcionario @relation(fields: [funcionarioId], references: [id], onDelete: Cascade)
   equipe        Equipe      @relation(fields: [equipeId], references: [id])
-  
+
   @@index([funcionarioId])
   @@index([equipeId])
   @@index([ativo])

@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { PlusIcon, PencilIcon, TrashIcon, KeyIcon } from '@heroicons/react/24/outline';
+import ProtectedRoute from '@/components/ProtectedRoute';
+import { ROUTE_PROTECTION } from '@/lib/permissions';
 
 interface Funcionario {
   id: number;
@@ -34,6 +36,17 @@ interface Usuario {
 }
 
 export default function UsuariosAdminPage() {
+  return (
+    <ProtectedRoute 
+      requiredPermissions={ROUTE_PROTECTION.ADMIN.requiredPermissions}
+      requiredEquipe={ROUTE_PROTECTION.ADMIN.requiredEquipe}
+    >
+      <UsuariosAdminContent />
+    </ProtectedRoute>
+  );
+}
+
+function UsuariosAdminContent() {
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [equipes, setEquipes] = useState<Equipe[]>([]);
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
