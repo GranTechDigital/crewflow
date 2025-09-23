@@ -18,8 +18,8 @@ model Contrato {
   createdAt             DateTime                   @default(now())
   centrosCusto          ContratosCentrosCusto[]
   funcionarios          Funcionario[]
-  remanejamentosOrigem  SolicitacaoRemanejamento[] @relation("ContratoOrigem")
   remanejamentosDestino SolicitacaoRemanejamento[] @relation("ContratoDestino")
+  remanejamentosOrigem  SolicitacaoRemanejamento[] @relation("ContratoOrigem")
 }
 
 model CentroCusto {
@@ -37,8 +37,8 @@ model ContratosCentrosCusto {
   contratoId    Int
   centroCustoId Int
   createdAt     DateTime    @default(now())
-  contrato      Contrato    @relation(fields: [contratoId], references: [id], onDelete: Cascade)
   centroCusto   CentroCusto @relation(fields: [centroCustoId], references: [id], onDelete: Cascade)
+  contrato      Contrato    @relation(fields: [contratoId], references: [id], onDelete: Cascade)
 
   @@unique([contratoId, centroCustoId])
 }
@@ -66,8 +66,62 @@ model Funcionario {
   excluidoEm                DateTime?
   sispat                    String?
   contrato                  Contrato?                  @relation(fields: [contratoId], references: [id])
+  periodoUploads            PeriodoUpload[]
   remanejamentosFuncionario RemanejamentoFuncionario[]
+  uptimeSheets              UptimeSheet[]
+  uptimeUploads             UptimeUpload[]
   usuario                   Usuario?
+}
+
+model UptimeSheet {
+  id               Int         @id @default(autoincrement())
+  matricula        String
+  dataAdmissao     DateTime?
+  dataDemissao     DateTime?
+  dataInicio       DateTime?
+  dataFim          DateTime?
+  totalDias        Int?
+  totalDiasPeriodo Int?
+  nome             String?
+  funcao           String?
+  status           String?
+  embarcacao       String?
+  observacoes      String?
+  sispat           String?
+  departamento     String?
+  centroCusto      String?
+  createdAt        DateTime    @default(now())
+  periodoFinal     DateTime?
+  periodoInicial   DateTime?
+  funcionario      Funcionario @relation(fields: [matricula], references: [matricula], onDelete: NoAction)
+}
+
+model DowntimeSheet {
+  id                 Int      @id @default(autoincrement())
+  codProjeto         String?
+  nomeProjeto        String?
+  uptime             Float?
+  downtime           Float?
+  agEmbarque         Int?
+  percentAgEmbarque  Float?
+  cadastro           Int?
+  percentCadastro    Float?
+  medicina           Int?
+  percentMedicina    Float?
+  treinamento        Int?
+  percentTreinamento Float?
+  atestado           Int?
+  percentAtestado    Float?
+  falta              Int?
+  percentFalta       Float?
+  demissao           Int?
+  percentDemissao    Float?
+  dataUpload         DateTime @default(now())
+  nomeArquivo        String?
+  uploadPor          String?
+  createdAt          DateTime @default(now())
+
+  @@map("downtime_sheet")
 }
 
 model SolicitacaoRemanejamento {
@@ -89,8 +143,8 @@ model SolicitacaoRemanejamento {
   updatedAt         DateTime                   @updatedAt
   historico         HistoricoRemanejamento[]
   funcionarios      RemanejamentoFuncionario[]
-  contratoOrigem    Contrato?                  @relation("ContratoOrigem", fields: [contratoOrigemId], references: [id])
   contratoDestino   Contrato?                  @relation("ContratoDestino", fields: [contratoDestinoId], references: [id])
+  contratoOrigem    Contrato?                  @relation("ContratoOrigem", fields: [contratoOrigemId], references: [id])
 
   @@index([status])
   @@index([dataSolicitacao])
@@ -110,8 +164,8 @@ model RemanejamentoFuncionario {
   createdAt            DateTime                 @default(now())
   updatedAt            DateTime                 @updatedAt
   historico            HistoricoRemanejamento[]
-  funcionario          Funcionario              @relation(fields: [funcionarioId], references: [id])
   solicitacao          SolicitacaoRemanejamento @relation(fields: [solicitacaoId], references: [id], onDelete: Cascade)
+  funcionario          Funcionario              @relation(fields: [funcionarioId], references: [id])
   tarefas              TarefaRemanejamento[]
 
   @@unique([solicitacaoId, funcionarioId])
@@ -165,9 +219,9 @@ model HistoricoRemanejamento {
   usuarioResponsavel         String
   dataAcao                   DateTime                  @default(now())
   observacoes                String?
-  remanejamentoFuncionario   RemanejamentoFuncionario? @relation(fields: [remanejamentoFuncionarioId], references: [id], onDelete: Cascade)
-  solicitacao                SolicitacaoRemanejamento? @relation(fields: [solicitacaoId], references: [id], onDelete: Cascade)
   tarefa                     TarefaRemanejamento?      @relation(fields: [tarefaId], references: [id], onDelete: Cascade)
+  solicitacao                SolicitacaoRemanejamento? @relation(fields: [solicitacaoId], references: [id], onDelete: Cascade)
+  remanejamentoFuncionario   RemanejamentoFuncionario? @relation(fields: [remanejamentoFuncionarioId], references: [id], onDelete: Cascade)
 
   @@index([dataAcao])
   @@index([tipoAcao])
@@ -208,10 +262,142 @@ model Usuario {
   ultimoLogin   DateTime?
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
-  funcionario   Funcionario @relation(fields: [funcionarioId], references: [id], onDelete: Cascade)
   equipe        Equipe      @relation(fields: [equipeId], references: [id])
+  funcionario   Funcionario @relation(fields: [funcionarioId], references: [id], onDelete: Cascade)
 
   @@index([funcionarioId])
   @@index([equipeId])
+  @@index([ativo])
+}
+
+model UptimeUpload {
+  id             Int          @id @default(autoincrement())
+  dataUpload     DateTime     @default(now())
+  nomeArquivo    String?
+  registros      Int
+  atualizados    Int
+  naoEncontrados Int
+  uploadPor      String
+  funcionarioId  Int?
+  createdAt      DateTime     @default(now())
+  dataRelatorio  DateTime?
+  funcionario    Funcionario? @relation(fields: [funcionarioId], references: [id])
+
+  @@index([dataUpload])
+  @@index([dataRelatorio])
+}
+
+model PeriodoSheet {
+  id               Int       @id @default(autoincrement())
+  matricula        String
+  dataAdmissao     DateTime?
+  dataDemissao     DateTime?
+  dataInicio       DateTime?
+  dataFim          DateTime?
+  periodoInicial   DateTime?
+  periodoFinal     DateTime?
+  totalDias        Int?
+  totalDiasPeriodo Int?
+  nome             String?
+  funcao           String?
+  embarcacao       String?
+  statusFolha      String?
+  codigo           String?
+  observacoes      String?
+  embarcacaoAtual  String?
+  sispat           String?
+  departamento     String?
+  regimeTrabalho   String?
+  regimeTratado    String?
+  statusId         Int?
+  projetoId        Int?
+  mesReferencia    Int
+  anoReferencia    Int
+  createdAt        DateTime  @default(now())
+  projeto          Projeto?  @relation(fields: [projetoId], references: [id])
+  status           Status?   @relation(fields: [statusId], references: [id])
+
+  @@index([mesReferencia, anoReferencia])
+  @@index([matricula])
+  @@index([statusId])
+  @@index([projetoId])
+  @@index([regimeTratado])
+}
+
+model PeriodoUpload {
+  id               Int          @id @default(autoincrement())
+  dataUpload       DateTime     @default(now())
+  dataRelatorio    DateTime?
+  nomeArquivo      String?
+  registros        Int
+  atualizados      Int
+  naoEncontrados   Int
+  uploadPor        String
+  funcionarioId    Int?
+  mesReferencia    Int
+  anoReferencia    Int
+  periodoInicial   DateTime
+  periodoFinal     DateTime
+  totalDiasPeriodo Int
+  createdAt        DateTime     @default(now())
+  funcionario      Funcionario? @relation(fields: [funcionarioId], references: [id])
+
+  @@index([dataUpload])
+  @@index([dataRelatorio])
+  @@index([mesReferencia, anoReferencia])
+}
+
+model Status {
+  id             Int             @id @default(autoincrement())
+  categoria      String          @unique
+  ativo          Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  periodoSheets  PeriodoSheet[]
+  statusMappings StatusMapping[]
+
+  @@index([categoria])
+  @@index([ativo])
+}
+
+model Projeto {
+  id            Int                  @id @default(autoincrement())
+  nome          String               @unique
+  ativo         Boolean              @default(true)
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  centrosCusto  CentroCustoProjeto[]
+  periodoSheets PeriodoSheet[]
+
+  @@index([nome])
+  @@index([ativo])
+}
+
+model StatusMapping {
+  id          Int      @id @default(autoincrement())
+  statusGeral String   @unique
+  statusId    Int
+  ativo       Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  status      Status   @relation(fields: [statusId], references: [id])
+
+  @@index([statusId])
+  @@index([ativo])
+}
+
+model CentroCustoProjeto {
+  id              Int      @id @default(autoincrement())
+  centroCusto     String
+  nomeCentroCusto String
+  projetoId       Int
+  ativo           Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  projeto         Projeto  @relation(fields: [projetoId], references: [id])
+
+  @@unique([centroCusto, projetoId])
+  @@index([centroCusto])
+  @@index([projetoId])
   @@index([ativo])
 }
