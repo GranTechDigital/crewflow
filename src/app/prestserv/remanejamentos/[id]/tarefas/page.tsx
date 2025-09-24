@@ -331,9 +331,9 @@ function TarefasFuncionarioContent() {
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ 
+          body: JSON.stringify({
             texto: textoEdicaoObservacao,
-            modificadoPor: "Sistema"
+            modificadoPor: "Sistema",
           }),
         }
       );
@@ -353,7 +353,6 @@ function TarefasFuncionarioContent() {
       );
     }
   };
-
 
   const excluirObservacaoTarefa = async (
     observacaoId: number,
@@ -508,7 +507,7 @@ function TarefasFuncionarioContent() {
                     className={`inline-flex px-3 py-1 text-sm font-medium rounded-full border ${
                       funcionario.statusTarefas === "SUBMETER RASCUNHO"
                         ? "bg-green-50 text-green-700 border-green-200"
-                        : funcionario.statusTarefas === "CRIAR TAREFAS"
+                        : funcionario.statusTarefas === "REPROVAR TAREFAS"
                         ? "bg-yellow-50 text-yellow-700 border-yellow-200"
                         : funcionario.statusTarefas === "ATENDER TAREFAS"
                         ? "bg-blue-50 text-blue-700 border-blue-200"
@@ -516,8 +515,8 @@ function TarefasFuncionarioContent() {
                     }`}
                   >
                     📋 Tarefas:{" "}
-                    {funcionario.statusTarefas === "CRIAR TAREFAS"
-                      ? "CRIAR TAREFAS"
+                    {funcionario.statusTarefas === "REPROVAR TAREFAS"
+                      ? "REPROVAR TAREFAS"
                       : funcionario.statusTarefas === "SUBMETER RASCUNHO"
                       ? "PROCESSO CONCLUÍDO"
                       : funcionario.statusTarefas === "ATENDER TAREFAS"

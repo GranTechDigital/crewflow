@@ -184,7 +184,7 @@ export default function DetalheFuncionarioElegante() {
     // Status de tarefas
     const statusTarefas = [
       "SUBMETER RASCUNHO", "TAREFAS PENDENTES", "ATENDER TAREFAS", 
-      "SOLICITAÇÃO CONCLUÍDA", "APROVAR SOLICITAÇÃO", "CRIAR TAREFAS"
+      "SOLICITAÇÃO CONCLUÍDA", "APROVAR SOLICITAÇÃO", "REPROVAR TAREFAS"
     ];
     
     // Combinar status das tarefas existentes

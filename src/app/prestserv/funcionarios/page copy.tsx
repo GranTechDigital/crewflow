@@ -17,7 +17,9 @@ import {
   ChevronDownIcon,
   ChevronRightIcon as ChevronRightIcon2,
   UsersIcon,
-  DocumentTextIcon
+  DocumentTextIcon,
+  ExclamationTriangleIcon,
+  ExclamationCircleIcon
 } from '@heroicons/react/24/outline';
 
 interface ProgressoPorSetor {
@@ -271,6 +273,29 @@ export default function FuncionariosPage() {
     }
   };
 
+  // Função para verificar se funcionário demitido precisa de atenção
+  const funcionarioDemitidoPrecisaAtencao = (funcionario: FuncionarioTableData): boolean => {
+    // Verifica se o funcionário está em migração ou tem status Prestserv ativo
+    const statusPrestservAtivo = funcionario.statusPrestserv === 'ATIVO' || funcionario.statusPrestserv === 'APROVADO';
+    const emMigracao = funcionario.statusFuncionario === 'INATIVO'; // Considerando INATIVO como demitido
+    
+    return emMigracao || statusPrestservAtivo;
+  };
+
+  // Função para determinar o tipo de alerta
+  const getTipoAlertaDemitido = (funcionario: FuncionarioTableData): 'critico' | 'processo' | 'aviso' => {
+    if (funcionario.statusFuncionario === 'INATIVO' && funcionario.statusPrestserv === 'ATIVO') {
+      return 'critico'; // Funcionário demitido mas ainda ativo no Prestserv
+    }
+    if (funcionario.statusFuncionario === 'INATIVO') {
+      return 'processo'; // Funcionário demitido em processo
+    }
+    if (funcionario.statusPrestserv === 'APROVADO') {
+      return 'aviso'; // Status Prestserv aprovado
+    }
+    return 'aviso';
+  };
+
   const funcionariosFiltrados = funcionarios.filter(func => {
     const matchStatus = filtroStatus === 'TODOS' || func.statusTarefas === filtroStatus || func.statusPrestserv === filtroStatus;
     const matchNome = (func.nome?.toLowerCase() || '').includes(filtroNome.toLowerCase()) || 
@@ -365,7 +390,7 @@ export default function FuncionariosPage() {
   // Filtro Ação Necessária - APENAS statusTarefas que requerem ação
   const getStatusAcaoNecessaria = () => {
     const statusAcaoNecessaria = [
-      "SUBMETER RASCUNHO", "TAREFAS PENDENTES", "ATENDER TAREFAS", "APROVAR SOLICITAÇÃO", "CRIAR TAREFAS"
+      "SUBMETER RASCUNHO", "TAREFAS PENDENTES", "ATENDER TAREFAS", "APROVAR SOLICITAÇÃO", "REPROVAR TAREFAS"
     ];
     
     const statusExistentes = new Set<string>();
@@ -547,7 +572,7 @@ export default function FuncionariosPage() {
       
       if (!response.ok) {
         const errorData = await response.json();
-        showToast(errorData.error || 'Erro ao criar tarefas padrão', 'error');
+        showToast(errorData.error || 'Erro ao reprovar tarefas padrão', 'error');
         return;
       }
       
@@ -558,7 +583,7 @@ export default function FuncionariosPage() {
       setSelectedFuncionario(null);
       setSelectedSetores(['RH', 'MEDICINA', 'TREINAMENTO']);
     } catch (error) {
-      showToast('Erro ao criar tarefas padrão', 'error');
+      showToast('Erro ao reprovar tarefas padrão', 'error');
     } finally {
       setGeneratingTarefas(false);
     }
@@ -954,20 +979,57 @@ export default function FuncionariosPage() {
                     </select>
                   </td>
                   <td className="px-4 py-4">
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0 h-8 w-8">
-                        <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center">
-                          <span className="text-xs font-medium text-gray-700">
-                             {(funcionario.nome || 'N/A').split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
-                           </span>
+                    {(() => {
+                      const precisaAtencao = funcionarioDemitidoPrecisaAtencao(funcionario);
+                      const tipoAlerta = getTipoAlertaDemitido(funcionario);
+                      
+                      return (
+                        <div className={`flex items-center ${
+                          precisaAtencao 
+                            ? tipoAlerta === 'critico' 
+                              ? 'border-l-4 border-red-500 bg-red-50 pl-2 -ml-2' 
+                              : tipoAlerta === 'processo' 
+                              ? 'border-l-4 border-orange-500 bg-orange-50 pl-2 -ml-2'
+                              : 'border-l-4 border-yellow-500 bg-yellow-50 pl-2 -ml-2'
+                            : ''
+                        }`}>
+                          <div className="flex-shrink-0 h-8 w-8">
+                            <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center">
+                              <span className="text-xs font-medium text-gray-700">
+                                 {(funcionario.nome || 'N/A').split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
+                               </span>
+                            </div>
+                          </div>
+                          <div className="ml-3 flex-1">
+                            <div className="flex items-center gap-2">
+                              <div className="text-sm font-medium text-gray-900">{funcionario.nome}</div>
+                              {precisaAtencao && (
+                                <div className="group relative">
+                                  {tipoAlerta === 'critico' ? (
+                                    <ExclamationTriangleIcon className="h-4 w-4 text-red-500" />
+                                  ) : tipoAlerta === 'processo' ? (
+                                    <ExclamationCircleIcon className="h-4 w-4 text-orange-500" />
+                                  ) : (
+                                    <ExclamationCircleIcon className="h-4 w-4 text-yellow-500" />
+                                  )}
+                                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10">
+                                    {tipoAlerta === 'critico' 
+                                      ? 'Funcionário demitido com status Prestserv ativo - Ação urgente necessária'
+                                      : tipoAlerta === 'processo' 
+                                      ? 'Funcionário demitido em processo de migração'
+                                      : 'Funcionário com status Prestserv aprovado - Verificar situação'
+                                    }
+                                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                            <div className="text-xs text-gray-500">Mat: {funcionario.matricula}</div>
+                            <div className="text-xs text-gray-400">{funcionario.funcao}</div>
+                          </div>
                         </div>
-                      </div>
-                      <div className="ml-3">
-                        <div className="text-sm font-medium text-gray-900">{funcionario.nome}</div>
-                        <div className="text-xs text-gray-500">Mat: {funcionario.matricula}</div>
-                        <div className="text-xs text-gray-400">{funcionario.funcao}</div>
-                      </div>
-                    </div>
+                      );
+                    })()}
                   </td>
                   <td className="px-4 py-4">
                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${

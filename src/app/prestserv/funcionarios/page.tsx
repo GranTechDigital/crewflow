@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/Toast";
 import {
@@ -24,6 +24,8 @@ import {
   UsersIcon,
   DocumentTextIcon,
   ClipboardDocumentListIcon,
+  ExclamationTriangleIcon,
+  ExclamationCircleIcon,
 } from "@heroicons/react/24/outline";
 import {
   Chart as ChartJS,
@@ -70,6 +72,8 @@ interface FuncionarioTableData {
   nome: string;
   matricula: string;
   funcao: string;
+  statusFolha: string;
+  emMigracao: boolean;
   statusTarefas: string;
   statusPrestserv: string;
   solicitacaoId: string;
@@ -84,6 +88,7 @@ interface FuncionarioTableData {
   progressoPorSetor: ProgressoPorSetor[];
   statusFuncionario?: string;
   responsavelAtual?: string;
+  sispat?: string;
 }
 
 export default function FuncionariosPage() {
@@ -181,6 +186,11 @@ function FuncionariosPageContent() {
   const [paginaAtualSolicitacoes, setPaginaAtualSolicitacoes] = useState(1);
   const [itensPorPaginaSolicitacoes] = useState(10);
   const [totalSolicitacoes, setTotalSolicitacoes] = useState(0);
+
+  // Estado para aprovação de todas as tarefas (teste)
+  const [aprovandoTodasTarefas, setAprovandoTodasTarefas] = useState<
+    string | null
+  >(null);
 
   // Função para carregar dados do dashboard com filtros aplicados
   const fetchDashboardData = async () => {
@@ -420,6 +430,53 @@ function FuncionariosPageContent() {
     return () => clearInterval(interval);
   }, []);
 
+  // Função para aprovar todas as tarefas de um funcionário (para teste)
+  const aprovarTodasTarefas = async (funcionarioId: string) => {
+    try {
+      setAprovandoTodasTarefas(funcionarioId);
+
+      const funcionario = funcionarios.find((f) => f.id === funcionarioId);
+      if (!funcionario) {
+        throw new Error("Funcionário não encontrado");
+      }
+
+      const response = await fetch(
+        `/api/tarefas/aprovar-todas/${funcionarioId}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Erro ao aprovar todas as tarefas");
+      }
+
+      const result = await response.json();
+
+      showToast(
+        `Todas as tarefas de ${funcionario.nome} foram aprovadas! (${result.tarefasAprovadas} tarefas)`,
+        "success"
+      );
+
+      // Recarregar dados
+      fetchFuncionarios();
+    } catch (error) {
+      console.error("Erro ao aprovar todas as tarefas:", error);
+      showToast(
+        `Erro ao aprovar tarefas: ${
+          error instanceof Error ? error.message : "Erro desconhecido"
+        }`,
+        "error"
+      );
+    } finally {
+      setAprovandoTodasTarefas(null);
+    }
+  };
+
   // Função para processar validação com SISPAT
   const processarValidacaoComSispat = async (sispat: string) => {
     if (!funcionarioParaSispat) return;
@@ -535,11 +592,11 @@ function FuncionariosPageContent() {
         updateData.statusTarefas = "RETORNO DO PRESTSERV";
       }
 
-      // Se status for INVALIDADO, automaticamente mudar status geral para CRIAR TAREFAS
+      // Se status for INVALIDADO, automaticamente mudar status geral para REPROVAR TAREFAS
       if (novoStatus === "INVALIDADO") {
-        updateData.statusTarefas = "CRIAR TAREFAS";
+        updateData.statusTarefas = "REPROVAR TAREFAS";
         // Não alterar emMigracao nem statusFuncionario quando invalidado - o setor deve corrigir e o ciclo se repete
-        
+
         // Salvar o funcionário selecionado para mostrar o modal de tarefas após a atualização
         setSelectedFuncionario(funcionario);
       }
@@ -581,7 +638,7 @@ function FuncionariosPageContent() {
                 ...func,
                 statusPrestserv: novoStatus,
                 ...(novoStatus === "INVALIDADO" && {
-                  statusTarefas: "CRIAR TAREFAS",
+                  statusTarefas: "REPROVAR TAREFAS",
                 }),
                 ...(novoStatus === "EM VALIDAÇÃO" && {
                   statusTarefas: "RETORNO DO PRESTSERV",
@@ -601,13 +658,18 @@ function FuncionariosPageContent() {
             : func
         )
       );
-      
+
       // Se o status for INVALIDADO, mostrar o modal de LISTA de tarefas para reprovar tarefas
       if (novoStatus === "INVALIDADO") {
         // Encontrar o funcionário pelo ID para definir como selecionado
-        const funcionario = funcionarios.find(f => f.id === funcionarioId);
+        const funcionario = funcionarios.find((f) => f.id === funcionarioId);
         if (funcionario) {
-          setSelectedFuncionario(funcionario);
+          // Atualizar o funcionário com o novo status antes de abrir o modal
+          const funcionarioAtualizado = {
+            ...funcionario,
+            statusPrestserv: novoStatus
+          };
+          setSelectedFuncionario(funcionarioAtualizado);
           setShowListaTarefasModal(true); // Mostrar o modal de lista de tarefas em vez do modal de tarefas padrão
         }
       }
@@ -620,7 +682,7 @@ function FuncionariosPageContent() {
         REJEITADO:
           "Prestserv foi rejeitado. Verifique as observações e corrija as pendências.",
         INVALIDADO:
-          "Prestserv foi invalidado. Status geral alterado para 'Criar Tarefas'. Funcionário permanece em migração até validação.",
+          "Prestserv foi invalidado. Status geral alterado para 'REPROVAR TAREFAS'. Funcionário permanece em migração até validação.",
         VALIDADO:
           funcionario.tipoSolicitacao === "DESLIGAMENTO"
             ? "Prestserv foi validado! Funcionário desligado (status: Inativo). Migração finalizada. ✅"
@@ -720,7 +782,7 @@ function FuncionariosPageContent() {
       SUBMETIDO: "5. SUBMETIDO",
       "EM VALIDAÇÃO": "6. EM VALIDAÇÃO",
       VALIDADO: "8. VALIDADO",
-      INVALIDADO: "9. INVALIDADO",
+      INVALIDADO: "9. CORREÇÃO",
       CANCELADO: "10. CANCELADO",
     };
     return statusMap[status] || status;
@@ -761,7 +823,7 @@ function FuncionariosPageContent() {
       "ATENDER TAREFAS",
       "SOLICITAÇÃO CONCLUÍDA",
       "APROVAR SOLICITAÇÃO",
-      "CRIAR TAREFAS",
+      "REPROVAR TAREFAS",
     ];
 
     // Adicionar todos os status
@@ -782,15 +844,18 @@ function FuncionariosPageContent() {
     if (statusTarefas === "APROVAR SOLICITAÇÃO") {
     } else if (prestservStatus === "PENDENTE") {
       options.push("CRIADO");
+    } else if (prestservStatus === "PENDENTE") {
+      options.push("INVALIDADO");
     } else if (prestservStatus === "EM VALIDAÇÃO") {
       options.push("VALIDADO");
       options.push("INVALIDADO");
     } else if (statusTarefas === "SUBMETER RASCUNHO") {
+      options.push("INVALIDADO");
       options.push("EM VALIDAÇÃO");
     }
 
     options.push("CANCELADO");
-    options.push("CANCELADO");
+
     return [...new Set(options)]; // Remove duplicatas
   };
 
@@ -869,6 +934,9 @@ function FuncionariosPageContent() {
       if (activeTab === "solicitacao" && data.solicitacoes) {
         // Resposta com paginação
         solicitacoes = data.solicitacoes;
+        console.log("solicitacoes");
+        console.log(solicitacoes);
+
         totalSolicitacoesAPI = data.totalSolicitacoes;
       } else {
         // Resposta sem paginação (array direto)
@@ -891,6 +959,9 @@ function FuncionariosPageContent() {
             nome: rf.funcionario.nome,
             matricula: rf.funcionario.matricula,
             funcao: rf.funcionario.funcao,
+            sispat: rf.funcionario.sispat || "-",
+            statusFolha: rf.funcionario.status || "-",
+            emMigracao: rf.funcionario.emMigracao || false,
             statusTarefas: rf.statusTarefas || "ATENDER TAREFAS",
             statusPrestserv: rf.statusPrestserv || "PENDENTE",
             solicitacaoId: solicitacao.id,
@@ -969,6 +1040,51 @@ function FuncionariosPageContent() {
       setLoading(false);
     }
   };
+
+  // Função para verificar se funcionário demitido precisa de atenção
+  const funcionarioDemitidoPrecisaAtencao = useCallback(
+    (funcionario: FuncionarioTableData) => {
+      if (funcionario?.statusFolha === "DEMITIDO") {
+        return (
+          funcionario.emMigracao || funcionario.statusPrestserv === "ATIVO"
+        );
+      }
+      return false;
+    },
+    []
+  );
+
+  // Função para obter o tipo de alerta para funcionário demitido
+  const getTipoAlertaDemitido = useCallback(
+    (funcionario: FuncionarioTableData) => {
+      if (funcionario.statusFolha === "DEMITIDO") {
+        if (funcionario.emMigracao && funcionario.statusPrestserv === "ATIVO") {
+          return {
+            tipo: "critico",
+            mensagem: "Funcionário demitido em migração e com status ativo",
+            icon: ExclamationCircleIcon,
+            classes: "text-red-600 bg-red-50 border-red-200",
+          };
+        } else if (funcionario.emMigracao) {
+          return {
+            tipo: "alerta",
+            mensagem: "Funcionário demitido em migração",
+            icon: ExclamationTriangleIcon,
+            classes: "text-orange-600 bg-orange-50 border-orange-200",
+          };
+        } else if (funcionario.statusPrestserv === "ATIVO") {
+          return {
+            tipo: "aviso",
+            mensagem: "Funcionário demitido com status ativo",
+            icon: ExclamationTriangleIcon,
+            classes: "text-yellow-600 bg-yellow-50 border-yellow-200",
+          };
+        }
+      }
+      return null;
+    },
+    []
+  );
 
   const estatisticasPorSetor = () => {
     const estatisticas = funcionarios.reduce((acc, funcionario) => {
@@ -1105,7 +1221,7 @@ function FuncionariosPageContent() {
     }
 
     // Status Geral: AGUARDANDO_LOGISTICA
-    else if (statusGeral === "CRIAR TAREFAS") {
+    else if (statusGeral === "REPROVAR TAREFAS") {
       baseMessage =
         "🔧 Aguardando ação da logística para prosseguir com o processo.";
     }
@@ -1153,7 +1269,7 @@ function FuncionariosPageContent() {
       "TAREFAS PENDENTES",
       "ATENDER TAREFAS",
       "APROVAR SOLICITAÇÃO",
-      "CRIAR TAREFAS",
+      "REPROVAR TAREFAS",
     ];
 
     const statusExistentes = new Set<string>();
@@ -1508,9 +1624,10 @@ function FuncionariosPageContent() {
 
     try {
       // Definir o status adequado com base no tipo de solicitação
-      const novoStatus = selectedFuncionario.tipoSolicitacao === "DESLIGAMENTO" 
-        ? "SUBMETER RASCUNHO" 
-        : "CRIAR TAREFAS";
+      const novoStatus =
+        selectedFuncionario.tipoSolicitacao === "DESLIGAMENTO"
+          ? "SUBMETER RASCUNHO"
+          : "REPROVAR TAREFAS";
 
       const response = await fetch(
         `/api/logistica/funcionario/${selectedFuncionario.id}`,
@@ -1603,7 +1720,10 @@ function FuncionariosPageContent() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        showToast(errorData.error || "Erro ao criar tarefas padrão", "error");
+        showToast(
+          errorData.error || "Erro ao reprovar tarefas padrão",
+          "error"
+        );
         return;
       }
 
@@ -1623,7 +1743,7 @@ function FuncionariosPageContent() {
       setSelectedFuncionario(null);
       setSelectedSetores(["RH", "MEDICINA", "TREINAMENTO"]);
     } catch (error) {
-      showToast("Erro ao criar tarefas padrão", "error");
+      showToast("Erro ao reprovar tarefas padrão", "error");
     } finally {
       setGeneratingTarefas(false);
     }
@@ -1719,9 +1839,10 @@ function FuncionariosPageContent() {
       for (const funcionario of funcionariosParaAprovar) {
         try {
           // Definir o status adequado com base no tipo de solicitação
-          const novoStatus = funcionario.tipoSolicitacao === "DESLIGAMENTO" 
-            ? "SUBMETER RASCUNHO" 
-            : "CRIAR TAREFAS";
+          const novoStatus =
+            funcionario.tipoSolicitacao === "DESLIGAMENTO"
+              ? "SUBMETER RASCUNHO"
+              : "REPROVAR TAREFAS";
 
           // Aprovar funcionário
           const response = await fetch(
@@ -1762,10 +1883,15 @@ function FuncionariosPageContent() {
               }
             } catch (tarefaError) {
               errosTarefas++;
-              console.error(`Erro ao gerar tarefas para ${funcionario.nome}:`, tarefaError);
+              console.error(
+                `Erro ao gerar tarefas para ${funcionario.nome}:`,
+                tarefaError
+              );
             }
           } else {
-            console.log(`Não foram geradas tarefas para ${funcionario.nome} por ser um desligamento`);
+            console.log(
+              `Não foram geradas tarefas para ${funcionario.nome} por ser um desligamento`
+            );
           }
         } catch (error) {
           console.error(`Erro ao aprovar ${funcionario.nome}:`, error);
@@ -1777,7 +1903,7 @@ function FuncionariosPageContent() {
       setFuncionarios((prev) =>
         prev.map((func) =>
           funcionariosSelecionados.has(func.id)
-            ? { ...func, statusTarefas: "CRIAR TAREFAS" }
+            ? { ...func, statusTarefas: "REPROVAR TAREFAS" }
             : func
         )
       );
@@ -1799,7 +1925,10 @@ function FuncionariosPageContent() {
         showToast(`${erros} funcionário(s) falharam na aprovação`, "error");
       }
       if (errosTarefas > 0) {
-        showToast(`Falha ao gerar tarefas para ${errosTarefas} funcionário(s)`, "error");
+        showToast(
+          `Falha ao gerar tarefas para ${errosTarefas} funcionário(s)`,
+          "error"
+        );
       }
 
       // Atualizar dashboard se necessário
@@ -1822,15 +1951,29 @@ function FuncionariosPageContent() {
   };
 
   const getFuncionariosResumo = (funcionarios: FuncionarioTableData[]) => {
+    const total = funcionarios.length;
+    const concluidos = funcionarios.filter(
+      (f) =>
+        f.statusTarefas === "CONCLUIDO" ||
+        f.statusTarefas === "SOLICITAÇÃO CONCLUÍDA" ||
+        f.statusTarefas === "CANCELADO"
+    ).length;
     const pendentes = funcionarios.filter(
       (f) =>
+        f.statusTarefas === "ATENDER TAREFAS" ||
         f.statusTarefas === "TAREFAS PENDENTES" ||
-        f.statusTarefas === "ATENDER TAREFAS"
+        f.statusTarefas === "SUBMETER RASCUNHO"
     ).length;
-    const concluidos = funcionarios.filter(
-      (f) => f.statusTarefas === "SUBMETER RASCUNHO"
-    ).length;
-    return { pendentes, concluidos, total: funcionarios.length };
+
+    // Calcular status da solicitação baseado no progresso
+    let status = "Pendente";
+    if (concluidos === total && total > 0) {
+      status = "Concluída";
+    } else if (concluidos > 0) {
+      status = "Em Andamento";
+    }
+
+    return { pendentes, concluidos, total, status };
   };
 
   const getStatusColor = (status: string) => {
@@ -1839,6 +1982,8 @@ function FuncionariosPageContent() {
       "ATENDER TAREFAS": "bg-gray-100 text-gray-700",
       "SUBMETER RASCUNHO": "bg-gray-200 text-gray-800",
       "TAREFAS PENDENTES": "bg-yellow-100 text-yellow-700",
+      CONCLUIDO: "bg-green-100 text-green-700",
+      "SOLICITAÇÃO CONCLUÍDA": "bg-green-100 text-green-700",
 
       // Status prestserv
       PENDENTE: "bg-gray-100 text-gray-700",
@@ -1850,11 +1995,12 @@ function FuncionariosPageContent() {
       CANCELADO: "bg-red-100 text-red-700",
       "EM VALIDAÇÃO": "bg-blue-100 text-blue-700",
       VALIDADO: "bg-green-100 text-green-700",
-
+      //Status Funcionário
+      SEM_CADASTRO: "bg-gray-100 text-gray-700",
       // Status de solicitação
       Pendente: "bg-yellow-100 text-yellow-700",
       "Em Andamento": "bg-blue-100 text-blue-700",
-      Concluído: "bg-green-100 text-green-700",
+      Concluída: "bg-green-100 text-green-700",
     };
     return colors[status] || "bg-gray-100 text-gray-700";
   };
@@ -1981,7 +2127,7 @@ function FuncionariosPageContent() {
     indiceInicio,
     indiceFim
   );
-
+  console.log(funcionariosOrdenados);
   // Resetar página atual quando filtros mudarem
   useEffect(() => {
     if (paginaAtual > totalPaginas && totalPaginas > 0) {
@@ -3580,264 +3726,365 @@ function FuncionariosPageContent() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {funcionariosPaginados.map((funcionario, index) => (
-                  <tr
-                    key={funcionario.id}
-                    className={`hover:bg-gray-50 transition-colors duration-150 ${
-                      index % 2 === 0 ? "bg-white" : "bg-gray-50"
-                    }`}
-                    title={getTooltipMessage(funcionario)}
-                  >
-                    <td className="px-3 py-2 text-xs text-gray-700">
-                      <div className="space-y-1">
-                        <div className="font-mono font-medium">
-                          ID: {funcionario.remanejamentoId}
-                        </div>
-                        <div className="font-mono text-xs text-gray-500">
-                          ID GRUPO: {funcionario.solicitacaoId}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          Tipo: {funcionario.tipoSolicitacao}
-                        </div>
-                        <div className="text-xs text-gray-500 mt-1">
-                          <div>
-                            Criado:{" "}
-                            {new Date(funcionario.createdAt).toLocaleDateString(
-                              "pt-BR",
-                              {
-                                day: "2-digit",
-                                month: "2-digit",
-                                year: "numeric",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              }
-                            )}
-                          </div>
-                          <div>
-                            Atualizado:{" "}
-                            {new Date(funcionario.updatedAt).toLocaleDateString(
-                              "pt-BR",
-                              {
-                                day: "2-digit",
-                                month: "2-digit",
-                                year: "numeric",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              }
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-3 py-2 text-xs text-gray-700">
-                      <div className="space-y-1">
-                        <div className="text-xs">
-                          <span className="font-medium text-gray-600">De:</span>{" "}
-                          <span className="font-mono">
-                            {funcionario.contratoOrigem}
-                          </span>
-                        </div>
-                        <div className="text-xs">
-                          <span className="font-medium text-gray-600">
-                            Para:
-                          </span>{" "}
-                          <span className="font-mono">
-                            {funcionario.contratoDestino}
-                          </span>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-3 py-2 text-xs text-gray-900">
-                      <div className="space-y-1">
-                        <div className="font-medium text-xs">
-                          {funcionario.nome}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          {funcionario.matricula}
-                        </div>
-                        <div>
-                          <span
-                            className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${getStatusColor(
-                              funcionario.statusFuncionario ?? "NÃO INFORMADO"
-                            )}`}
-                          >
-                            {funcionario.statusFuncionario || "NÃO INFORMADO"}
-                          </span>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-3 py-2 text-xs text-gray-700">
-                      <span
-                        className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${getStatusColor(
-                          funcionario.statusTarefas
-                        )}`}
-                      >
-                        {getStatusGeralLabel(funcionario.statusTarefas)}
-                      </span>
-                    </td>
-                    {/* Coluna Responsável */}
-                    <td className="px-3 py-2 text-xs text-gray-700 text-center">
-                      <span
-                        className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${getResponsavelColor(
-                          getResponsavelAtual(funcionario)
-                        )}`}
-                      >
-                        {getResponsavelAtual(funcionario)}
-                      </span>
-                    </td>
+                {funcionariosPaginados.map((funcionario, index) => {
+                  const precisaAtencao =
+                    funcionarioDemitidoPrecisaAtencao(funcionario);
+                  const alertaDemitido = precisaAtencao
+                    ? getTipoAlertaDemitido(funcionario)
+                    : null;
 
-                    {/* Coluna Progresso por Setor */}
-                    <td className="px-3 py-2 text-xs text-gray-700">
-                      <div className="space-y-1">
-                        {["RH", "MEDICINA", "TREINAMENTO"].map((setor) => {
-                          const progresso = funcionario.progressoPorSetor?.find(
-                            (p) => p.setor === setor
-                          );
-                          const hasData = progresso && progresso.total > 0;
-                          const nomeSetor =
-                            setor === "RH"
-                              ? "Recursos Humanos"
-                              : setor === "MEDICINA"
-                              ? "Medicina"
-                              : "Treinamento";
-                          return (
-                            <div
-                              key={setor}
-                              className="flex items-center justify-between py-0.5"
-                              title={
-                                hasData
-                                  ? `${nomeSetor}: ${progresso.concluidas}/${progresso.total} (${progresso.percentual}%)\n\nLegenda:\n● Verde: Concluído\n● Amarelo: Em progresso\n● Cinza: Pendente`
-                                  : `${nomeSetor}: Sem tarefas\n\nLegenda:\n● Verde: Concluído\n● Amarelo: Em progresso\n● Cinza: Pendente`
-                              }
+                  return (
+                    <tr
+                      key={funcionario.id}
+                      className={`hover:bg-gray-50 transition-colors duration-150 ${
+                        index % 2 === 0 ? "bg-white" : "bg-gray-50"
+                      } ${
+                        alertaDemitido
+                          ? alertaDemitido.tipo === "critico"
+                            ? "border-l-4 border-l-red-500 bg-red-50"
+                            : "border-l-4 border-l-yellow-500 bg-yellow-50"
+                          : ""
+                      }`}
+                      title={getTooltipMessage(funcionario)}
+                    >
+                      <td className="px-3 py-2 text-xs text-gray-700">
+                        <div className="space-y-1">
+                          <div className="font-mono font-medium">
+                            ID: {funcionario.remanejamentoId}
+                          </div>
+                          <div className="font-mono text-xs text-gray-500">
+                            ID GRUPO: {funcionario.solicitacaoId}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            Tipo: {funcionario.tipoSolicitacao}
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            <div>
+                              Criado:{" "}
+                              {new Date(
+                                funcionario.createdAt
+                              ).toLocaleDateString("pt-BR", {
+                                day: "2-digit",
+                                month: "2-digit",
+                                year: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </div>
+                            <div>
+                              Atualizado:{" "}
+                              {new Date(
+                                funcionario.updatedAt
+                              ).toLocaleDateString("pt-BR", {
+                                day: "2-digit",
+                                month: "2-digit",
+                                year: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 text-xs text-gray-700">
+                        <div className="space-y-1">
+                          <div className="text-xs">
+                            <span className="font-medium text-gray-600">
+                              De:
+                            </span>{" "}
+                            <span className="font-mono">
+                              {funcionario.contratoOrigem}
+                            </span>
+                          </div>
+                          <div className="text-xs">
+                            <span className="font-medium text-gray-600">
+                              Para:
+                            </span>{" "}
+                            <span className="font-mono">
+                              {funcionario.contratoDestino}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 text-xs text-gray-900">
+                        <div className="space-y-1">
+                          <div className="font-medium text-xs">
+                            <span>
+                              Nome: {funcionario.nome}
+                              {(() => {
+                                const precisaAtencao =
+                                  funcionarioDemitidoPrecisaAtencao(
+                                    funcionario
+                                  );
+                                const alertaDemitido = precisaAtencao
+                                  ? getTipoAlertaDemitido(funcionario)
+                                  : null;
+                                return (
+                                  alertaDemitido && (
+                                    <div className="group relative">
+                                      {React.createElement(
+                                        alertaDemitido.icon,
+                                        {
+                                          className: `h-5 w-5 ${
+                                            alertaDemitido.classes.split(" ")[0]
+                                          } cursor-help`,
+                                        }
+                                      )}
+                                      <div
+                                        className={`absolute z-50 invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity duration-200 bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 text-sm rounded-lg border shadow-lg max-w-xs whitespace-nowrap ${alertaDemitido.classes}`}
+                                      >
+                                        <div className="font-medium mb-1">
+                                          ⚠️ Atenção Necessária
+                                        </div>
+                                        <div>{alertaDemitido.mensagem}</div>
+                                        <div
+                                          className={`absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent ${
+                                            alertaDemitido.classes.includes(
+                                              "red"
+                                            )
+                                              ? "border-t-red-200"
+                                              : alertaDemitido.classes.includes(
+                                                  "orange"
+                                                )
+                                              ? "border-t-orange-200"
+                                              : "border-t-yellow-200"
+                                          }`}
+                                        ></div>
+                                      </div>
+                                    </div>
+                                  )
+                                );
+                              })()}
+                            </span>
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            Matrícula: {funcionario.matricula}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            Sispat: {funcionario.sispat || "-"},
+                          </div>
+                          <div>
+                            Status Prestserv:
+                            <span
+                              className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${getStatusColor(
+                                funcionario.statusFuncionario ?? "SEM CADASTRO"
+                              )}`}
                             >
-                              <div className="flex items-center space-x-1">
-                                <span className="text-xs">
-                                  {getSetorIcon(setor)}
-                                </span>
-                                <span className="text-xs font-medium text-gray-700">
-                                  {nomeSetor}
-                                </span>
-                              </div>
-                              <div className="flex items-center space-x-1">
-                                <span className="text-xs font-mono text-gray-600 bg-gray-100 px-1 rounded">
-                                  {hasData
-                                    ? `${progresso.concluidas}/${progresso.total}`
-                                    : "0/0"}
-                                </span>
-                                <span
-                                  className={`text-sm ${
-                                    hasData
-                                      ? getProgressColor(
+                              {funcionario.statusFuncionario || "SEM CADASTRO"}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 text-xs text-gray-700">
+                        <span
+                          className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${getStatusColor(
+                            funcionario.statusTarefas
+                          )}`}
+                        >
+                          {getStatusGeralLabel(funcionario.statusTarefas)}
+                        </span>
+                      </td>
+
+                      {/* Coluna Responsável */}
+                      <td className="px-3 py-2 text-xs text-gray-700 text-center">
+                        <span
+                          className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${getResponsavelColor(
+                            getResponsavelAtual(funcionario)
+                          )}`}
+                        >
+                          {getResponsavelAtual(funcionario)}
+                        </span>
+                      </td>
+
+                      {/* Coluna Progresso por Setor */}
+                      <td className="px-3 py-2 text-xs text-gray-700">
+                        <div className="space-y-1">
+                          {["RH", "MEDICINA", "TREINAMENTO"].map((setor) => {
+                            const progresso =
+                              funcionario.progressoPorSetor?.find(
+                                (p) => p.setor === setor
+                              );
+                            const hasData = progresso && progresso.total > 0;
+                            const nomeSetor =
+                              setor === "RH"
+                                ? "Recursos Humanos"
+                                : setor === "MEDICINA"
+                                ? "Medicina"
+                                : "Treinamento";
+                            return (
+                              <div
+                                key={setor}
+                                className="flex items-center justify-between py-0.5"
+                                title={
+                                  hasData
+                                    ? `${nomeSetor}: ${progresso.concluidas}/${progresso.total} (${progresso.percentual}%)\n\nLegenda:\n● Verde: Concluído\n● Amarelo: Em progresso\n● Cinza: Pendente`
+                                    : `${nomeSetor}: Sem tarefas\n\nLegenda:\n● Verde: Concluído\n● Amarelo: Em progresso\n● Cinza: Pendente`
+                                }
+                              >
+                                <div className="flex items-center space-x-1">
+                                  <span className="text-xs">
+                                    {getSetorIcon(setor)}
+                                  </span>
+                                  <span className="text-xs font-medium text-gray-700">
+                                    {nomeSetor}
+                                  </span>
+                                </div>
+                                <div className="flex items-center space-x-1">
+                                  <span className="text-xs font-mono text-gray-600 bg-gray-100 px-1 rounded">
+                                    {hasData
+                                      ? `${progresso.concluidas}/${progresso.total}`
+                                      : "0/0"}
+                                  </span>
+                                  <span
+                                    className={`text-sm ${
+                                      hasData
+                                        ? getProgressColor(
+                                            progresso.concluidas,
+                                            progresso.total
+                                          )
+                                        : "text-gray-300"
+                                    }`}
+                                  >
+                                    {hasData
+                                      ? getProgressIcon(
                                           progresso.concluidas,
                                           progresso.total
                                         )
-                                      : "text-gray-300"
-                                  }`}
-                                >
-                                  {hasData
-                                    ? getProgressIcon(
-                                        progresso.concluidas,
-                                        progresso.total
-                                      )
-                                    : "●"}
-                                </span>
+                                      : "●"}
+                                  </span>
+                                </div>
                               </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </td>
-                    <td className="px-3 py-2 text-xs text-gray-700">
-                      <div className="space-y-1">
-                        <select
-                          value={funcionario.statusPrestserv}
-                          onChange={(e) => {
-                            const novoStatus = e.target.value;
-                            if (novoStatus !== funcionario.statusPrestserv) {
-                              updatePrestservStatus(funcionario.id, novoStatus);
-                            }
-                          }}
-                          disabled={updatingStatus === funcionario.id}
-                          className={`w-full text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 ${getStatusColor(
-                            funcionario.statusPrestserv
-                          )} font-medium`}
-                        >
-                          <option value={funcionario.statusPrestserv}>
-                            {getStatusLabel(funcionario.statusPrestserv)}
-                          </option>
-                          {getValidStatusOptions(funcionario)
-                            .filter(
-                              (status) => status !== funcionario.statusPrestserv
-                            )
-                            .map((status) => (
-                              <option key={status} value={status}>
-                                {getStatusLabel(status)}
-                              </option>
-                            ))}
-                        </select>
-                        {updatingStatus === funcionario.id && (
-                          <div className="text-xs text-gray-500 flex items-center">
-                            <span className="animate-spin mr-1">⏳</span>
-                            Atualizando...
-                          </div>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-3 py-2 text-xs text-gray-700">
-                      <div className="flex items-center space-x-2">
-                        {/* Mostrar botão Aprovar/Rejeitar apenas se statusTarefas for APROVAR SOLICITACAO */}
-                        {funcionario.statusTarefas ===
-                          "APROVAR SOLICITAÇÃO" && (
-                          <button
-                            onClick={() => abrirModalConfirmacao(funcionario)}
-                            className="inline-flex items-center px-2 py-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded hover:bg-blue-100 transition-colors focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            title="Aprovar ou rejeitar solicitação"
+                            );
+                          })}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 text-xs text-gray-700">
+                        <div className="space-y-1">
+                          <select
+                            value={funcionario.statusPrestserv}
+                            onChange={(e) => {
+                              const novoStatus = e.target.value;
+                              if (novoStatus !== funcionario.statusPrestserv) {
+                                updatePrestservStatus(
+                                  funcionario.id,
+                                  novoStatus
+                                );
+                              }
+                            }}
+                            disabled={updatingStatus === funcionario.id}
+                            className={`w-full text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 ${getStatusColor(
+                              funcionario.statusPrestserv
+                            )} font-medium`}
                           >
-                            <PlusIcon className="w-3 h-3 mr-1" />
-                            Aprovar/Rejeitar
-                          </button>
-                        )}
-
-                        {/* Mostrar botão Detalhes apenas se statusTarefas for SUBMETER RASCUNHO ou SOLICITAÇÃO REJEITADA */}
-                        {funcionario.statusTarefas !== "CANCELADO" &&
-                          funcionario.statusTarefas !==
-                            "SOLICITAÇÃO REJEITADA" &&
-                          funcionario.statusTarefas !==
+                            <option value={funcionario.statusPrestserv}>
+                              {getStatusLabel(funcionario.statusPrestserv)}
+                            </option>
+                            {getValidStatusOptions(funcionario)
+                              .filter(
+                                (status) =>
+                                  status !== funcionario.statusPrestserv
+                              )
+                              .map((status) => (
+                                <option key={status} value={status}>
+                                  {getStatusLabel(status)}
+                                </option>
+                              ))}
+                          </select>
+                          {updatingStatus === funcionario.id && (
+                            <div className="text-xs text-gray-500 flex items-center">
+                              <span className="animate-spin mr-1">⏳</span>
+                              Atualizando...
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 text-xs text-gray-700">
+                        <div className="flex items-center space-x-2">
+                          {/* Mostrar botão Aprovar/Rejeitar apenas se statusTarefas for APROVAR SOLICITACAO */}
+                          {funcionario.statusTarefas ===
                             "APROVAR SOLICITAÇÃO" && (
                             <button
-                              onClick={() =>
-                                router.push(
-                                  `/prestserv/remanejamentos/${funcionario.id}`
-                                )
-                              }
-                              className="inline-flex items-center px-2 py-1 text-xs font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded hover:bg-gray-100 transition-colors focus:outline-none focus:ring-1 focus:ring-gray-500"
-                              title="Ver detalhes da solicitação"
+                              onClick={() => abrirModalConfirmacao(funcionario)}
+                              className="inline-flex items-center px-2 py-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded hover:bg-blue-100 transition-colors focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              title="Aprovar ou rejeitar solicitação"
                             >
-                              <EyeIcon className="w-3 h-3 mr-1" />
-                              Detalhes
+                              <PlusIcon className="w-3 h-3 mr-1" />
+                              Aprovar/Rejeitar
                             </button>
                           )}
-                        {/* Botão para listar tarefas - ocultar para APROVAR SOLICITAÇÃO, REJEITADO, CANCELADO */}
-                        {funcionario.statusTarefas !== "APROVAR SOLICITAÇÃO" &&
-                          funcionario.statusTarefas !== "REJEITADO" &&
-                          funcionario.statusTarefas !== "SOLICITAÇÃO REJEITADA" &&
-                          funcionario.statusTarefas !== "CANCELADO" && (
-                          <button
-                            onClick={() => {
-                              setSelectedFuncionario(funcionario);
-                              setShowListaTarefasModal(true);
-                            }}
-                            className="inline-flex items-center px-2 py-1 text-xs font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 rounded hover:bg-indigo-100 transition-colors focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                            title="Listar tarefas do funcionário"
-                          >
-                            <ClipboardDocumentListIcon className="w-3 h-3 mr-1" />
-                            Tarefas
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+
+                          {/* Mostrar botão Detalhes apenas se statusTarefas for SUBMETER RASCUNHO ou SOLICITAÇÃO REJEITADA */}
+                          {funcionario.statusTarefas !== "CANCELADO" &&
+                            funcionario.statusTarefas !==
+                              "SOLICITAÇÃO REJEITADA" &&
+                            funcionario.statusTarefas !==
+                              "APROVAR SOLICITAÇÃO" && (
+                              <button
+                                onClick={() =>
+                                  router.push(
+                                    `/prestserv/remanejamentos/${funcionario.id}`
+                                  )
+                                }
+                                className="inline-flex items-center px-2 py-1 text-xs font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded hover:bg-gray-100 transition-colors focus:outline-none focus:ring-1 focus:ring-gray-500"
+                                title="Ver detalhes da solicitação"
+                              >
+                                <EyeIcon className="w-3 h-3 mr-1" />
+                                Detalhes
+                              </button>
+                            )}
+                          {/* Botão para listar tarefas - ocultar para APROVAR SOLICITAÇÃO, REJEITADO, CANCELADO */}
+                          {funcionario.statusTarefas !==
+                            "APROVAR SOLICITAÇÃO" &&
+                            funcionario.statusTarefas !== "REJEITADO" &&
+                            funcionario.statusTarefas !==
+                              "SOLICITAÇÃO REJEITADA" &&
+                            funcionario.statusTarefas !== "CANCELADO" && (
+                              <button
+                                onClick={() => {
+                                  setSelectedFuncionario(funcionario);
+                                  setShowListaTarefasModal(true);
+                                }}
+                                className="inline-flex items-center px-2 py-1 text-xs font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 rounded hover:bg-indigo-100 transition-colors focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                title="Listar tarefas do funcionário"
+                              >
+                                <ClipboardDocumentListIcon className="w-3 h-3 mr-1" />
+                                Tarefas
+                              </button>
+                            )}
+
+                          {/* Botão para aprovar todas as tarefas (apenas para teste) */}
+                          {funcionario.statusTarefas !==
+                            "APROVAR SOLICITAÇÃO" &&
+                            funcionario.statusTarefas !== "REJEITADO" &&
+                            funcionario.statusTarefas !==
+                              "SOLICITAÇÃO REJEITADA" &&
+                            funcionario.statusTarefas !== "CANCELADO" &&
+                            funcionario.statusTarefas !== "CONCLUIDO" && (
+                              <button
+                                onClick={() =>
+                                  aprovarTodasTarefas(funcionario.id)
+                                }
+                                disabled={
+                                  aprovandoTodasTarefas === funcionario.id
+                                }
+                                className="inline-flex items-center px-2 py-1 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded hover:bg-green-100 transition-colors focus:outline-none focus:ring-1 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                                title="Aprovar todas as tarefas (para teste)"
+                              >
+                                {aprovandoTodasTarefas === funcionario.id ? (
+                                  <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-green-700 mr-1"></div>
+                                ) : (
+                                  <CheckIcon className="w-3 h-3 mr-1" />
+                                )}
+                                {aprovandoTodasTarefas === funcionario.id
+                                  ? "Aprovando..."
+                                  : "Aprovar Todas"}
+                              </button>
+                            )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -4124,10 +4371,10 @@ function FuncionariosPageContent() {
                               <div className="space-y-1">
                                 <span
                                   className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(
-                                    solicitacao.status || "Pendente"
+                                    resumo.status
                                   )}`}
                                 >
-                                  {solicitacao.status || "Pendente"}
+                                  {resumo.status}
                                 </span>
                                 <div className="text-xs text-gray-500">
                                   {resumo.concluidos}/{resumo.total} concluídos
@@ -4204,107 +4451,178 @@ function FuncionariosPageContent() {
                               (
                                 funcionario: FuncionarioTableData,
                                 funcIndex: number
-                              ) => (
-                                <tr
-                                  key={`${solicitacao.solicitacaoId}-${funcionario.id}`}
-                                  className="bg-gray-50"
-                                >
-                                  <td className="px-4 py-3 pl-8 text-xs text-gray-600">
-                                    <div className="flex items-center space-x-3">
-                                      {/* Checkbox para seleção individual */}
-                                      {funcionario.statusTarefas ===
-                                        "APROVAR SOLICITAÇÃO" && (
-                                        <input
-                                          type="checkbox"
-                                          checked={funcionariosSelecionados.has(
-                                            funcionario.id
-                                          )}
-                                          onChange={() =>
-                                            toggleFuncionarioSelecionado(
+                              ) => {
+                                const precisaAtencao =
+                                  funcionarioDemitidoPrecisaAtencao(
+                                    funcionario
+                                  );
+                                const alertaDemitido = precisaAtencao
+                                  ? getTipoAlertaDemitido(funcionario)
+                                  : null;
+
+                                return (
+                                  <tr
+                                    key={`${solicitacao.solicitacaoId}-${funcionario.id}`}
+                                    className={`bg-gray-50 ${
+                                      alertaDemitido
+                                        ? alertaDemitido.tipo === "critico"
+                                          ? "border-l-4 border-l-red-500 bg-red-50"
+                                          : "border-l-4 border-l-yellow-500 bg-yellow-50"
+                                        : ""
+                                    }`}
+                                  >
+                                    <td className="px-4 py-3 pl-8 text-xs text-gray-600">
+                                      <div className="flex items-center space-x-3">
+                                        {/* Checkbox para seleção individual */}
+                                        {funcionario.statusTarefas ===
+                                          "APROVAR SOLICITAÇÃO" && (
+                                          <input
+                                            type="checkbox"
+                                            checked={funcionariosSelecionados.has(
                                               funcionario.id
-                                            )
-                                          }
-                                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                                        />
-                                      )}
-                                      <div className="space-y-1">
-                                        <div className="font-medium">
-                                          {funcionario.nome}
-                                        </div>
-                                        <div className="font-mono text-xs text-gray-500">
-                                          ID: {funcionario.remanejamentoId}
+                                            )}
+                                            onChange={() =>
+                                              toggleFuncionarioSelecionado(
+                                                funcionario.id
+                                              )
+                                            }
+                                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                          />
+                                        )}
+                                        <div className="space-y-1">
+                                          <div className="font-medium flex items-center space-x-2">
+                                            <span>
+                                              {funcionario.nome}
+                                              {(() => {
+                                                const precisaAtencao =
+                                                  funcionarioDemitidoPrecisaAtencao(
+                                                    funcionario
+                                                  );
+                                                const alertaDemitido =
+                                                  precisaAtencao
+                                                    ? getTipoAlertaDemitido(
+                                                        funcionario
+                                                      )
+                                                    : null;
+                                                return (
+                                                  alertaDemitido && (
+                                                    <div className="group relative">
+                                                      {React.createElement(
+                                                        alertaDemitido.icon,
+                                                        {
+                                                          className: `h-5 w-5 ${
+                                                            alertaDemitido.classes.split(
+                                                              " "
+                                                            )[0]
+                                                          } cursor-help`,
+                                                        }
+                                                      )}
+                                                      <div
+                                                        className={`absolute z-50 invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity duration-200 bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 text-sm rounded-lg border shadow-lg max-w-xs whitespace-nowrap ${alertaDemitido.classes}`}
+                                                      >
+                                                        <div className="font-medium mb-1">
+                                                          ⚠️ Atenção Necessária
+                                                        </div>
+                                                        <div>
+                                                          {
+                                                            alertaDemitido.mensagem
+                                                          }
+                                                        </div>
+                                                        <div
+                                                          className={`absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent ${
+                                                            alertaDemitido.classes.includes(
+                                                              "red"
+                                                            )
+                                                              ? "border-t-red-200"
+                                                              : alertaDemitido.classes.includes(
+                                                                  "orange"
+                                                                )
+                                                              ? "border-t-orange-200"
+                                                              : "border-t-yellow-200"
+                                                          }`}
+                                                        ></div>
+                                                      </div>
+                                                    </div>
+                                                  )
+                                                );
+                                              })()}
+                                            </span>
+                                          </div>
+                                          <div className="font-mono text-xs text-gray-500">
+                                            ID: {funcionario.remanejamentoId}
+                                          </div>
                                         </div>
                                       </div>
-                                    </div>
-                                  </td>
-                                  <td className="px-4 py-3 text-xs text-gray-600">
-                                    {funcionario.funcao}
-                                  </td>
-                                  <td className="px-4 py-3 text-xs text-gray-600">
-                                    <span
-                                      className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(
-                                        funcionario.statusTarefas
-                                      )}`}
-                                    >
-                                      {funcionario.statusTarefas}
-                                    </span>
-                                  </td>
-                                  <td className="px-4 py-3 text-xs text-gray-600">
-                                    {funcionario.tarefasConcluidas}/
-                                    {funcionario.totalTarefas} tarefas
-                                  </td>
-                                  <td className="px-4 py-3 text-xs text-gray-600">
-                                    <span
-                                      className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(
-                                        funcionario.statusPrestserv
-                                      )}`}
-                                    >
-                                      {funcionario.statusPrestserv}
-                                    </span>
-                                  </td>
-                                  <td className="px-4 py-3 text-xs text-gray-600">
-                                    <div className="flex items-center space-x-2">
-                                      {/* Mostrar botão Aprovar/Rejeitar apenas se statusTarefas for APROVAR SOLICITAÇÃO */}
-                                      {funcionario.statusTarefas ===
-                                      "APROVAR SOLICITAÇÃO" ? (
-                                        <button
-                                          onClick={() =>
-                                            abrirModalConfirmacao(funcionario)
-                                          }
-                                          className="inline-flex items-center px-2 py-1 text-xs font-medium text-gray-600 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors"
-                                        >
-                                          <PlusIcon className="w-3 h-3 mr-1" />
-                                          Aprovar Individual
-                                        </button>
-                                      ) : funcionario.statusTarefas ===
-                                          "APROVADO" ||
-                                        funcionario.statusTarefas ===
-                                          "AGUARDANDO_LOGISTICA" ||
-                                        funcionario.statusTarefas ===
-                                          "CRIAR_TAREFAS" ? (
-                                        <button
-                                          onClick={() =>
-                                            router.push(
-                                              `/prestserv/funcionario/${funcionario.id}/tarefas`
-                                            )
-                                          }
-                                          className="inline-flex items-center px-2 py-1 text-xs font-medium text-blue-600 bg-blue-50 border border-blue-300 rounded hover:bg-blue-100 transition-colors"
-                                        >
-                                          <PlusIcon className="w-3 h-3 mr-1" />+
-                                          TAREFAS
-                                        </button>
-                                      ) : (
-                                        <span className="text-xs text-gray-400">
-                                          {funcionario.statusTarefas ===
-                                          "REJEITADO"
-                                            ? "✅ Aprovado"
-                                            : "❌ Rejeitado"}
-                                        </span>
-                                      )}
-                                    </div>
-                                  </td>
-                                </tr>
-                              )
+                                    </td>
+                                    <td className="px-4 py-3 text-xs text-gray-600">
+                                      {funcionario.funcao}
+                                    </td>
+                                    <td className="px-4 py-3 text-xs text-gray-600">
+                                      <span
+                                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(
+                                          funcionario.statusTarefas
+                                        )}`}
+                                      >
+                                        {funcionario.statusTarefas}
+                                      </span>
+                                    </td>
+                                    <td className="px-4 py-3 text-xs text-gray-600">
+                                      {funcionario.tarefasConcluidas}/
+                                      {funcionario.totalTarefas} tarefas
+                                    </td>
+                                    <td className="px-4 py-3 text-xs text-gray-600">
+                                      <span
+                                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(
+                                          funcionario.statusPrestserv
+                                        )}`}
+                                      >
+                                        {funcionario.statusPrestserv}
+                                      </span>
+                                    </td>
+                                    <td className="px-4 py-3 text-xs text-gray-600">
+                                      <div className="flex items-center space-x-2">
+                                        {/* Mostrar botão Aprovar/Rejeitar apenas se statusTarefas for APROVAR SOLICITAÇÃO */}
+                                        {funcionario.statusTarefas ===
+                                        "APROVAR SOLICITAÇÃO" ? (
+                                          <button
+                                            onClick={() =>
+                                              abrirModalConfirmacao(funcionario)
+                                            }
+                                            className="inline-flex items-center px-2 py-1 text-xs font-medium text-gray-600 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+                                          >
+                                            <PlusIcon className="w-3 h-3 mr-1" />
+                                            Aprovar Individual
+                                          </button>
+                                        ) : funcionario.statusTarefas ===
+                                            "APROVADO" ||
+                                          funcionario.statusTarefas ===
+                                            "AGUARDANDO_LOGISTICA" ||
+                                          funcionario.statusTarefas ===
+                                            "CRIAR_TAREFAS" ? (
+                                          <button
+                                            onClick={() =>
+                                              router.push(
+                                                `/prestserv/funcionario/${funcionario.id}/tarefas`
+                                              )
+                                            }
+                                            className="inline-flex items-center px-2 py-1 text-xs font-medium text-blue-600 bg-blue-50 border border-blue-300 rounded hover:bg-blue-100 transition-colors"
+                                          >
+                                            <PlusIcon className="w-3 h-3 mr-1" />
+                                            + TAREFAS
+                                          </button>
+                                        ) : (
+                                          <span className="text-xs text-gray-400">
+                                            {funcionario.statusTarefas ===
+                                            "REJEITADO"
+                                              ? "✅ Aprovado"
+                                              : "❌ Rejeitado"}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              }
                             )}
                         </React.Fragment>
                       );
@@ -4472,7 +4790,9 @@ function FuncionariosPageContent() {
                 <div className="ml-3 flex-1 text-left">
                   <h4 className="text-sm font-medium text-gray-900">Aprovar</h4>
                   <p className="text-xs text-gray-500">
-                    Aprovar solicitação e gerar tarefas para RH, MEDICINA e TREINAMENTO (para desligamentos, irá direto para SUBMETER RASCUNHO)
+                    Aprovar solicitação e gerar tarefas para RH, MEDICINA e
+                    TREINAMENTO (para desligamentos, irá direto para SUBMETER
+                    RASCUNHO)
                   </p>
                 </div>
               </button>
@@ -4594,6 +4914,8 @@ function FuncionariosPageContent() {
             nome: selectedFuncionario.nome,
             matricula: selectedFuncionario.matricula,
           }}
+          statusPrestserv={selectedFuncionario.statusPrestserv}
+          onTarefaReprovada={fetchFuncionarios} // Atualizar tabela quando tarefa for reprovada
         />
       )}
 
@@ -4727,8 +5049,11 @@ function FuncionariosPageContent() {
             </div>
 
             <p className="text-sm text-gray-600 mb-6">
-              Após a aprovação, o status destes funcionários será alterado para{" "}
-              <strong>"CRIAR TAREFAS"</strong> e serão geradas tarefas automaticamente para os setores RH, MEDICINA e TREINAMENTO. Para solicitações de desligamento, o status será alterado para <strong>"SUBMETER RASCUNHO"</strong> sem gerar tarefas.
+              Após a aprovação, o status destes funcionários será alterado para
+              <strong> [REPROVAR TAREFAS] </strong> e serão geradas tarefas
+              automaticamente para os setores RH, MEDICINA e TREINAMENTO. Para
+              solicitações de desligamento, o status será alterado para
+              <strong> [SUBMETER RASCUNHO] </strong> sem gerar tarefas.
             </p>
 
             <div className="flex justify-end space-x-3">

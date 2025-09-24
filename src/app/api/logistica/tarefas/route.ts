@@ -38,6 +38,9 @@ export async function GET(request: NextRequest) {
                 nome: true,
                 matricula: true,
                 funcao: true,
+                status: true,
+                statusPrestserv: true,
+                emMigracao: true,
               },
             },
             solicitacao: {
@@ -131,7 +134,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validar se é possível criar tarefas baseado no status do prestserv
+    // Validar se é possível reprovar tarefas baseado no status do prestserv
     if (
       remanejamentoFuncionario.statusPrestserv === "EM_AVALIACAO" ||
       remanejamentoFuncionario.statusPrestserv === "CONCLUIDO"

@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
     ).length;
     const funcionariosEmProcesso = remanejamentos.filter(
       (r) =>
-        r.statusTarefas === "CRIAR TAREFAS" ||
+        r.statusTarefas === "REPROVAR TAREFAS" ||
         r.statusTarefas === "RETORNO DO PRESTSERV" ||
         r.statusTarefas === "ATENDER TAREFAS"
     ).length;

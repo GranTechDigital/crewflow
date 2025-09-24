@@ -140,6 +140,30 @@ export async function GET(request: NextRequest) {
       }
     });
 
+    // Buscar apenas o UptimeSheet mais recente por matrícula usando GROUP BY
+    const uptimeSheets = await prisma.$queryRaw`
+      SELECT 
+        u1.matricula,
+        u1.status,
+        u1.dataInicio,
+        u1.dataFim,
+        u1.totalDiasPeriodo,
+        u1.embarcacao,
+        u1.observacoes
+      FROM UptimeSheet u1
+      INNER JOIN (
+        SELECT matricula, MAX(createdAt) as max_created
+        FROM UptimeSheet
+        GROUP BY matricula
+      ) u2 ON u1.matricula = u2.matricula AND u1.createdAt = u2.max_created
+    `;
+
+    // Criar um mapa de UptimeSheets por matrícula
+    const uptimeSheetsMap = new Map();
+    uptimeSheets.forEach(sheet => {
+      uptimeSheetsMap.set(sheet.matricula, sheet);
+    });
+
     // Agrupar funcionários por contrato atual (não de destino)
     const contratoMap = new Map();
     const contratoMapOriginal = new Map();
@@ -172,6 +196,8 @@ export async function GET(request: NextRequest) {
       const statusPrestserv = funcionario.statusPrestserv || 'SEM_CADASTRO';
       const emMigracao = funcionario.emMigracao || false;
 
+      const uptimeSheet = uptimeSheetsMap.get(funcionario.matricula);
+      
       const funcionarioData = {
         id: funcionario.id,
         nome: funcionario.nome,
@@ -182,6 +208,15 @@ export async function GET(request: NextRequest) {
         status: funcionario.status, // Status geral do funcionário (ATIVO, INATIVO, etc.)
         statusPrestserv: statusPrestserv,
         emMigracao: emMigracao, // Campo que indica se está em processo de migração/remanejamento
+        statusPeoplelog: uptimeSheet?.status || null, // Status da UptimeSheet
+        dataInicio: uptimeSheet?.dataInicio || null,
+        dataFim: uptimeSheet?.dataFim || null,
+        totalDiasPeriodo: uptimeSheet?.totalDiasPeriodo || null,
+        embarcacao: uptimeSheet?.embarcacao || null,
+        observacoes: uptimeSheet?.observacoes || null,
+        // Novas colunas de período
+        periodoInicial: uptimeSheet?.periodoInicial || null,
+        periodoFinal: uptimeSheet?.periodoFinal || null,
       };
 
       contratoData.funcionarios.push(funcionarioData);

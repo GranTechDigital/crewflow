@@ -53,6 +53,7 @@ function UsuariosAdminContent() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showEditEquipeModal, setShowEditEquipeModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState<Usuario | null>(null);
   const [search, setSearch] = useState('');
   const [selectedEquipe, setSelectedEquipe] = useState('');
@@ -61,6 +62,9 @@ function UsuariosAdminContent() {
     senha: '',
     equipeId: ''
   });
+  const [funcionarioSearch, setFuncionarioSearch] = useState('');
+  const [showFuncionarioDropdown, setShowFuncionarioDropdown] = useState(false);
+  const [editEquipeData, setEditEquipeData] = useState({ equipeId: '' });
   const [passwordData, setPasswordData] = useState({
     novaSenha: '',
     confirmarSenha: ''
@@ -137,6 +141,8 @@ function UsuariosAdminContent() {
       if (data.success) {
         setShowModal(false);
         setFormData({ funcionarioId: '', senha: '', equipeId: '' });
+        setFuncionarioSearch('');
+        setShowFuncionarioDropdown(false);
         fetchUsuarios();
         fetchFuncionarios();
       } else {
@@ -145,6 +151,58 @@ function UsuariosAdminContent() {
     } catch (error) {
       console.error('Erro ao criar usuário:', error);
       alert('Erro ao criar usuário');
+    }
+  };
+
+  const handleCloseModal = () => {
+    setShowModal(false);
+    setFormData({ funcionarioId: '', senha: '', equipeId: '' });
+    setFuncionarioSearch('');
+    setShowFuncionarioDropdown(false);
+  };
+
+  // Fechar dropdown quando clicar fora
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      if (!target.closest('.funcionario-dropdown')) {
+        setShowFuncionarioDropdown(false);
+      }
+    };
+
+    if (showFuncionarioDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showFuncionarioDropdown]);
+
+  const handleEditEquipe = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedUser) return;
+
+    try {
+      const response = await fetch(`/api/usuarios/${selectedUser.id}/equipe`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          equipeId: parseInt(editEquipeData.equipeId)
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setShowEditEquipeModal(false);
+        setSelectedUser(null);
+        setEditEquipeData({ equipeId: '' });
+        fetchUsuarios();
+      } else {
+        alert(data.error);
+      }
+    } catch (error) {
+      console.error('Erro ao atualizar equipe:', error);
+      alert('Erro ao atualizar equipe do usuário');
     }
   };
 
@@ -309,6 +367,17 @@ function UsuariosAdminContent() {
                       <button
                         onClick={() => {
                           setSelectedUser(usuario);
+                          setEditEquipeData({ equipeId: usuario.equipe.id.toString() });
+                          setShowEditEquipeModal(true);
+                        }}
+                        className="text-green-600 hover:text-green-900"
+                        title="Editar equipe"
+                      >
+                        <PencilIcon className="h-5 w-5" />
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSelectedUser(usuario);
                           setShowPasswordModal(true);
                         }}
                         className="text-blue-600 hover:text-blue-900"
@@ -338,23 +407,59 @@ function UsuariosAdminContent() {
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
             <h3 className="text-lg font-medium text-gray-900 mb-4">Criar Novo Usuário</h3>
             <form onSubmit={handleCreateUser} className="space-y-4">
-              <div>
+              <div className="relative funcionario-dropdown">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Funcionário
                 </label>
-                <select
-                  value={formData.funcionarioId}
-                  onChange={(e) => setFormData({...formData, funcionarioId: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                >
-                  <option value="">Selecione um funcionário</option>
-                  {funcionarios.map(funcionario => (
-                    <option key={funcionario.id} value={funcionario.id}>
-                      {funcionario.nome} - {funcionario.matricula}
-                    </option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={funcionarioSearch}
+                    onChange={(e) => {
+                      setFuncionarioSearch(e.target.value);
+                      setShowFuncionarioDropdown(true);
+                      if (!e.target.value) {
+                        setFormData({...formData, funcionarioId: ''});
+                      }
+                    }}
+                    onFocus={() => setShowFuncionarioDropdown(true)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Digite o nome ou matrícula do funcionário..."
+                    required={!formData.funcionarioId}
+                  />
+                  {showFuncionarioDropdown && (
+                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                      {funcionarios
+                        .filter(funcionario => 
+                          funcionario.nome.toLowerCase().includes(funcionarioSearch.toLowerCase()) ||
+                          funcionario.matricula.toLowerCase().includes(funcionarioSearch.toLowerCase())
+                        )
+                        .map(funcionario => (
+                          <div
+                            key={funcionario.id}
+                            onClick={() => {
+                              setFormData({...formData, funcionarioId: funcionario.id.toString()});
+                              setFuncionarioSearch(`${funcionario.nome} - ${funcionario.matricula}`);
+                              setShowFuncionarioDropdown(false);
+                            }}
+                            className="px-3 py-2 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0"
+                          >
+                            <div className="font-medium text-gray-900">{funcionario.nome}</div>
+                            <div className="text-sm text-gray-500">{funcionario.matricula} - {funcionario.funcao}</div>
+                          </div>
+                        ))
+                      }
+                      {funcionarios.filter(funcionario => 
+                        funcionario.nome.toLowerCase().includes(funcionarioSearch.toLowerCase()) ||
+                        funcionario.matricula.toLowerCase().includes(funcionarioSearch.toLowerCase())
+                      ).length === 0 && (
+                        <div className="px-3 py-2 text-gray-500 text-center">
+                          Nenhum funcionário encontrado
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -388,7 +493,7 @@ function UsuariosAdminContent() {
               <div className="flex justify-end gap-3 pt-4">
                 <button
                   type="button"
-                  onClick={() => setShowModal(false)}
+                  onClick={handleCloseModal}
                   className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
                 >
                   Cancelar
@@ -456,6 +561,57 @@ function UsuariosAdminContent() {
                   className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
                 >
                   Resetar Senha
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Editar Equipe */}
+      {showEditEquipeModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h2 className="text-xl font-bold mb-4">Editar Equipe do Usuário</h2>
+            <p className="text-gray-600 mb-4">
+              Usuário: <strong>{selectedUser?.nome}</strong>
+            </p>
+            <form onSubmit={handleEditEquipe} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Equipe
+                </label>
+                <select
+                  value={editEquipeData.equipeId}
+                  onChange={(e) => setEditEquipeData({...editEquipeData, equipeId: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                >
+                  <option value="">Selecione uma equipe</option>
+                  {equipes.map((equipe) => (
+                    <option key={equipe.id} value={equipe.id}>
+                      {equipe.nome}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex justify-end gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEditEquipeModal(false);
+                    setSelectedUser(null);
+                    setEditEquipeData({ equipeId: '' });
+                  }}
+                  className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  Atualizar Equipe
                 </button>
               </div>
             </form>

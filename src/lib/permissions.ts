@@ -121,4 +121,9 @@ export const ROUTE_PROTECTION = {
     requiredEquipe: ['Treinamento', 'Administração'] as string[],
     requiredPermissions: [PERMISSIONS.ADMIN, PERMISSIONS.ACCESS_TREINAMENTO] as string[],
   },
-}; 
+
+  FUNCIONARIOS: {
+    requiredEquipe: ['RH', 'Administração', 'Logística', 'Planejamento', 'Prestserv', 'Treinamento', 'Medicina'] as string[],
+    requiredPermissions: [PERMISSIONS.ADMIN, PERMISSIONS.ACCESS_FUNCIONARIOS] as string[],
+  },
+};

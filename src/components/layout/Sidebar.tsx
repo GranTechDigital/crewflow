@@ -108,6 +108,22 @@ export default function Sidebar() {
           label: "Lista de Funcionários",
           href: "/prestserv/funcionarios-por-contrato",
         },
+        {
+          label: "Demitidos",
+          href: "/funcionarios/demitidos",
+        },
+        {
+          label: "Upload da Planilha (Uptime)",
+          href: "/uptime",
+        },
+        {
+          label: "Upload do Downtime",
+          href: "/downtime",
+        },
+        {
+          label: "Upload de Período",
+          href: "/periodo",
+        },
         // {
         //   label: "Matriz de Status",
         //   href: "/prestserv/funcionarios/matriz-status",
@@ -159,6 +175,8 @@ export default function Sidebar() {
         { label: "Gerenciar Tarefas Padrão", href: "/admin/tarefas-padrao" },
         { label: "Sincronizar Lista de Funcionários", href: "/funcionarios" },
         { label: "Criar Contratos", href: "/planejamento/contratos" },
+        { label: "Gerenciar Status", href: "/status" },
+        { label: "Centros de Custo - Projetos", href: "/centros-custo-projetos" },
       ],
       permission: PERMISSIONS.ACCESS_ADMIN,
     },

@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validar se é possível criar tarefas baseado no status do prestserv
+    // Validar se é possível reprovar tarefas baseado no status do prestserv
     if (
       remanejamentoFuncionario.statusPrestserv === "EM_AVALIACAO" ||
       remanejamentoFuncionario.statusPrestserv === "CONCLUIDO" ||
@@ -247,7 +247,7 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("Erro ao criar tarefas padrões:", error);
+    console.error("Erro ao reprovar tarefas padrões:", error);
     console.error(
       "Error stack:",
       error instanceof Error ? error.stack : "No stack trace"
@@ -256,7 +256,7 @@ export async function POST(request: NextRequest) {
       error instanceof Error ? error.message : "Erro desconhecido";
     return NextResponse.json(
       {
-        error: "Erro ao criar tarefas padrões",
+        error: "Erro ao reprovar tarefas padrões",
         details: message,
         stack: error instanceof Error ? error.stack : undefined,
       },

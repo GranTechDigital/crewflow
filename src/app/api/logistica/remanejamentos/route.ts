@@ -3,11 +3,11 @@ import { prisma } from "@/lib/prisma";
 import { NovasolicitacaoRemanejamento } from "@/types/remanejamento-funcionario";
 
 // Tipos de status de tarefas que são considerados em processo
-type StatusTarefasEmProcesso = "CRIAR TAREFAS" | "ATENDER TAREFAS";
+type StatusTarefasEmProcesso = "REPROVAR TAREFAS" | "ATENDER TAREFAS";
 
 // Função auxiliar para filtrar solicitações para processo de criação de tarefas
 function filtrarSolicitacoesParaProcesso(solicitacoes: any[]) {
-  const statusEmProcesso: StatusTarefasEmProcesso[] = ["CRIAR TAREFAS", "ATENDER TAREFAS"];
+  const statusEmProcesso: StatusTarefasEmProcesso[] = ["REPROVAR TAREFAS", "ATENDER TAREFAS"];
   
   return solicitacoes.filter((s) =>
     s.funcionarios.some(
@@ -126,7 +126,13 @@ async function buscarRemanejamentos(params: ParametrosBuscaRemanejamento) {
     include: {
       funcionario: {
         select: {
-          id: true
+          id: true,
+          nome: true,
+          matricula: true,
+          funcao: true,
+          status: true,
+          statusPrestserv: true,
+          emMigracao: true,
         }
       }
     },
@@ -162,6 +168,8 @@ async function buscarRemanejamentos(params: ParametrosBuscaRemanejamento) {
               status: true,
               emMigracao: true,
               statusPrestserv: true,
+              sispat: true,
+              uptimeSheets: true,
             },
           },
           tarefas: true,

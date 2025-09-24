@@ -53,6 +53,7 @@ ChartJS.register(
 );
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { ROUTE_PROTECTION } from "@/lib/permissions";
+import ListaTarefasModal from "@/components/ListaTarefasModal";
 
 interface ProgressoPorSetor {
   setor: string;
@@ -89,7 +90,7 @@ export default function FuncionariosPage() {
     //   requiredEquipe={ROUTE_PROTECTION.PRESTSERV.requiredEquipe}
     //   requiredPermissions={ROUTE_PROTECTION.PRESTSERV.requiredPermissions}
     // >
-      <FuncionariosPageContent />
+    <FuncionariosPageContent />
     // </ProtectedRoute>
   );
 }
@@ -152,6 +153,8 @@ function FuncionariosPageContent() {
   ]);
   const [generatingTarefas, setGeneratingTarefas] = useState(false);
   const [rejectingStatus, setRejectingStatus] = useState(false);
+  const [showListaTarefasModal, setShowListaTarefasModal] = useState(false);
+  const [funcionarioSelecionadoTarefas, setFuncionarioSelecionadoTarefas] = useState<FuncionarioTableData | null>(null);
   const [activeTab, setActiveTab] = useState<
     "nominal" | "solicitacao" | "dashboard"
   >("nominal");
@@ -405,9 +408,9 @@ function FuncionariosPageContent() {
         updateData.statusTarefas = "RETORNO DO PRESTSERV";
       }
 
-      // Se status for INVALIDADO, automaticamente mudar status geral para CRIAR TAREFAS
+      // Se status for INVALIDADO, automaticamente mudar status geral para REPROVAR TAREFAS
       if (novoStatus === "INVALIDADO") {
-        updateData.statusTarefas = "CRIAR TAREFAS";
+        updateData.statusTarefas = "";
         // Não alterar emMigracao nem statusFuncionario quando invalidado - o setor deve corrigir e o ciclo se repete
       }
 
@@ -452,7 +455,7 @@ function FuncionariosPageContent() {
                 ...func,
                 statusPrestserv: novoStatus,
                 ...(novoStatus === "INVALIDADO" && {
-                  statusTarefas: "CRIAR TAREFAS",
+                  statusTarefas: "REPROVAR TAREFAS",
                 }),
                 ...(novoStatus === "EM VALIDAÇÃO" && {
                   statusTarefas: "RETORNO DO PRESTSERV",
@@ -481,7 +484,7 @@ function FuncionariosPageContent() {
         REJEITADO:
           "Prestserv foi rejeitado. Verifique as observações e corrija as pendências.",
         INVALIDADO:
-          "Prestserv foi invalidado. Status geral alterado para 'Criar Tarefas'. Funcionário permanece em migração até validação.",
+          "Prestserv foi invalidado. Status geral alterado para 'REPROVAR TAREFAS'. Funcionário permanece em migração até validação.",
         VALIDADO:
           funcionario.tipoSolicitacao === "DESLIGAMENTO"
             ? "Prestserv foi validado! Funcionário desligado (status: Inativo). Migração finalizada. ✅"
@@ -507,9 +510,6 @@ function FuncionariosPageContent() {
             {
               method: "POST",
             }
-          );
-          console.log(
-            `Verificação de status da solicitação ${funcionario.solicitacaoId} iniciada`
           );
         } catch (error) {
           console.error("Erro ao verificar status da solicitação:", error);
@@ -581,7 +581,7 @@ function FuncionariosPageContent() {
       SUBMETIDO: "5. SUBMETIDO",
       "EM VALIDAÇÃO": "6. EM VALIDAÇÃO",
       VALIDADO: "8. VALIDADO",
-      INVALIDADO: "9. INVALIDADO",
+      INVALIDADO: "9. CORREÇÃO",
       CANCELADO: "10. CANCELADO",
     };
     return statusMap[status] || status;
@@ -622,7 +622,7 @@ function FuncionariosPageContent() {
       "ATENDER TAREFAS",
       "SOLICITAÇÃO CONCLUÍDA",
       "APROVAR SOLICITAÇÃO",
-      "CRIAR TAREFAS",
+      "REPROVAR TAREFAS",
     ];
 
     // Adicionar todos os status
@@ -643,15 +643,17 @@ function FuncionariosPageContent() {
     if (statusTarefas === "APROVAR SOLICITAÇÃO") {
     } else if (prestservStatus === "PENDENTE") {
       options.push("CRIADO");
+    } else if (prestservStatus === "CRIADO") {
+      options.push("INVALIDADO");
     } else if (prestservStatus === "EM VALIDAÇÃO") {
       options.push("VALIDADO");
       options.push("INVALIDADO");
     } else if (statusTarefas === "SUBMETER RASCUNHO") {
+      options.push("INVALIDADO");
       options.push("EM VALIDAÇÃO");
     }
+    options.push("CANCELADO");
 
-    options.push("CANCELADO");
-    options.push("CANCELADO");
     return [...new Set(options)]; // Remove duplicatas
   };
 
@@ -893,7 +895,7 @@ function FuncionariosPageContent() {
     }
 
     // Status Geral: AGUARDANDO_LOGISTICA
-    else if (statusGeral === "CRIAR TAREFAS") {
+    else if (statusGeral === "REPROVAR TAREFAS") {
       baseMessage =
         "🔧 Aguardando ação da logística para prosseguir com o processo.";
     }
@@ -941,7 +943,7 @@ function FuncionariosPageContent() {
       "TAREFAS PENDENTES",
       "ATENDER TAREFAS",
       "APROVAR SOLICITAÇÃO",
-      "CRIAR TAREFAS",
+      "REPROVAR TAREFAS",
     ];
 
     const statusExistentes = new Set<string>();
@@ -1302,7 +1304,7 @@ function FuncionariosPageContent() {
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ statusTarefas: "CRIAR TAREFAS" }),
+          body: JSON.stringify({ statusTarefas: "REPROVAR TAREFAS" }),
         }
       );
 
@@ -1315,7 +1317,7 @@ function FuncionariosPageContent() {
       setFuncionarios((prev) =>
         prev.map((func) =>
           func.id === selectedFuncionario.id
-            ? { ...func, statusTarefas: "CRIAR TAREFAS" }
+            ? { ...func, statusTarefas: "REPROVAR TAREFAS" }
             : func
         )
       );
@@ -1374,7 +1376,10 @@ function FuncionariosPageContent() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        showToast(errorData.error || "Erro ao criar tarefas padrão", "error");
+        showToast(
+          errorData.error || "Erro ao reprovar tarefas padrão",
+          "error"
+        );
         return;
       }
 
@@ -1394,24 +1399,57 @@ function FuncionariosPageContent() {
       setSelectedFuncionario(null);
       setSelectedSetores(["RH", "MEDICINA", "TREINAMENTO"]);
     } catch (error) {
-      showToast("Erro ao criar tarefas padrão", "error");
+      showToast("Erro ao reprovar tarefas padrão", "error");
     } finally {
       setGeneratingTarefas(false);
     }
   };
 
+  // Função para abrir o modal de lista de tarefas
+  const abrirListaTarefas = (funcionario: FuncionarioTableData, statusAtualizado?: string) => {
+    // Se um status atualizado for fornecido, usar ele; caso contrário, usar o status atual do funcionário
+    const funcionarioParaModal = statusAtualizado ? {
+      ...funcionario,
+      statusPrestserv: statusAtualizado
+    } : funcionario;
+    
+    setFuncionarioSelecionadoTarefas(funcionarioParaModal);
+    setShowListaTarefasModal(true);
+  };
+
+  // Função para fechar o modal de lista de tarefas
+  const fecharListaTarefas = () => {
+    setShowListaTarefasModal(false);
+    setFuncionarioSelecionadoTarefas(null);
+  };
+
+  // Função de callback para atualizar a tabela quando uma tarefa for reprovada
+  const handleTarefaReprovada = () => {
+    // Recarregar os dados dos funcionários para refletir as mudanças
+    fetchFuncionarios();
+    
+    // Se estiver na aba dashboard, também atualizar os dados do dashboard
+    if (activeTab === "dashboard") {
+      fetchDashboardData();
+    }
+  };
+
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && (showConfirmModal || showTarefasModal)) {
-        cancelarAprovacao();
+      if (event.key === "Escape") {
+        if (showListaTarefasModal) {
+          fecharListaTarefas();
+        } else if (showConfirmModal || showTarefasModal) {
+          cancelarAprovacao();
+        }
       }
     };
 
-    if (showConfirmModal || showTarefasModal) {
+    if (showConfirmModal || showTarefasModal || showListaTarefasModal) {
       document.addEventListener("keydown", handleEscape);
       return () => document.removeEventListener("keydown", handleEscape);
     }
-  }, [showConfirmModal, showTarefasModal]);
+  }, [showConfirmModal, showTarefasModal, showListaTarefasModal]);
 
   // Funções para visão por solicitação
   const toggleRow = (solicitacaoId: string) => {
@@ -3166,9 +3204,6 @@ function FuncionariosPageContent() {
                   <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
                     Rascunho Prestserv
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                    Ações
-                  </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -3277,7 +3312,6 @@ function FuncionariosPageContent() {
                         {getResponsavelAtual(funcionario)}
                       </span>
                     </td>
-
                     {/* Coluna Progresso por Setor */}
                     <td className="px-3 py-2 text-xs text-gray-700">
                       <div className="space-y-1">
@@ -3387,6 +3421,18 @@ function FuncionariosPageContent() {
                           >
                             <PlusIcon className="w-3 h-3 mr-1" />
                             Aprovar/Rejeitar
+                          </button>
+                        )}
+
+                        {/* Botão para visualizar tarefas */}
+                        {funcionario.totalTarefas > 0 && (
+                          <button
+                            onClick={() => abrirListaTarefas(funcionario)}
+                            className="inline-flex items-center px-2 py-1 text-xs font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded hover:bg-purple-100 transition-colors focus:outline-none focus:ring-1 focus:ring-purple-500"
+                            title="Ver lista de tarefas"
+                          >
+                            <DocumentTextIcon className="w-3 h-3 mr-1" />
+                            Tarefas ({funcionario.totalTarefas})
                           </button>
                         )}
 
@@ -3750,47 +3796,6 @@ function FuncionariosPageContent() {
                                       {funcionario.statusPrestserv}
                                     </span>
                                   </td>
-                                  <td className="px-4 py-3 text-xs text-gray-600">
-                                    <div className="flex items-center space-x-2">
-                                      {/* Mostrar botão Aprovar/Rejeitar apenas se statusTarefas for APROVAR SOLICITAÇÃO */}
-                                      {funcionario.statusTarefas ===
-                                      "APROVAR SOLICITAÇÃO" ? (
-                                        <button
-                                          onClick={() =>
-                                            abrirModalConfirmacao(funcionario)
-                                          }
-                                          className="inline-flex items-center px-2 py-1 text-xs font-medium text-gray-600 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors"
-                                        >
-                                          <PlusIcon className="w-3 h-3 mr-1" />
-                                          Aprovar/Rejeitar
-                                        </button>
-                                      ) : funcionario.statusTarefas ===
-                                          "APROVADO" ||
-                                        funcionario.statusTarefas ===
-                                          "AGUARDANDO_LOGISTICA" ||
-                                        funcionario.statusTarefas ===
-                                          "CRIAR_TAREFAS" ? (
-                                        <button
-                                          onClick={() =>
-                                            router.push(
-                                              `/prestserv/funcionario/${funcionario.id}/tarefas`
-                                            )
-                                          }
-                                          className="inline-flex items-center px-2 py-1 text-xs font-medium text-blue-600 bg-blue-50 border border-blue-300 rounded hover:bg-blue-100 transition-colors"
-                                        >
-                                          <PlusIcon className="w-3 h-3 mr-1" />+
-                                          TAREFAS
-                                        </button>
-                                      ) : (
-                                        <span className="text-xs text-gray-400">
-                                          {funcionario.statusTarefas ===
-                                          "SUBMETER RASCUNHO"
-                                            ? "✅ Aprovado"
-                                            : "❌ Rejeitado"}
-                                        </span>
-                                      )}
-                                    </div>
-                                  </td>
                                 </tr>
                               )
                             )}
@@ -3963,6 +3968,19 @@ function FuncionariosPageContent() {
           </div>
         </div>
       )}
+
+      {/* Modal de Lista de Tarefas */}
+      <ListaTarefasModal
+        isOpen={showListaTarefasModal}
+        onClose={fecharListaTarefas}
+        funcionario={funcionarioSelecionadoTarefas ? {
+          id: funcionarioSelecionadoTarefas.id,
+          nome: funcionarioSelecionadoTarefas.nome,
+          matricula: funcionarioSelecionadoTarefas.matricula
+        } : null}
+        statusPrestserv={funcionarioSelecionadoTarefas?.statusPrestserv}
+        onTarefaReprovada={handleTarefaReprovada}
+      />
     </div>
   );
 }

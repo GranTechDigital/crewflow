@@ -2,7 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/Toast";
-import { XMarkIcon, MagnifyingGlassIcon, FunnelIcon } from "@heroicons/react/24/outline";
+import {
+  XMarkIcon,
+  MagnifyingGlassIcon,
+  FunnelIcon,
+} from "@heroicons/react/24/outline";
 import { Tooltip } from "flowbite-react";
 
 interface TarefaRemanejamento {
@@ -26,25 +30,34 @@ interface ListaTarefasModalProps {
     nome: string;
     matricula: string;
   } | null;
+  statusPrestserv?: string; // Status do prestserv para controlar visibilidade do botão reprovar
+  onTarefaReprovada?: () => void; // Callback para notificar quando uma tarefa foi reprovada
 }
 
 export default function ListaTarefasModal({
   isOpen,
   onClose,
   funcionario,
+  statusPrestserv,
+  onTarefaReprovada,
 }: ListaTarefasModalProps) {
   const { showToast } = useToast();
   const [tarefas, setTarefas] = useState<TarefaRemanejamento[]>([]);
-  const [tarefasFiltradas, setTarefasFiltradas] = useState<TarefaRemanejamento[]>([]);
+  const [tarefasFiltradas, setTarefasFiltradas] = useState<
+    TarefaRemanejamento[]
+  >([]);
   const [loading, setLoading] = useState(false);
   const [expandedTarefaId, setExpandedTarefaId] = useState<string | null>(null);
   const [justificativa, setJustificativa] = useState("");
   const [reprovarLoading, setReprovarLoading] = useState(false);
-  const [observacoesTarefa, setObservacoesTarefa] = useState<{
-    [key: string]: any[];
-  }>({});
+  const [reprovarLoadingId, setReprovarLoadingId] = useState<string | null>(
+    null
+  );
+  // Removido estado de observações - não são exibidas na interface e causavam múltiplas requisições desnecessárias
   const [filtroSetor, setFiltroSetor] = useState<string>("");
   const [termoBusca, setTermoBusca] = useState<string>("");
+  const [tarefaReprovada, setTarefaReprovada] = useState<boolean>(false); // Rastrear se alguma tarefa foi reprovada
+  
 
   useEffect(() => {
     if (isOpen && funcionario) {
@@ -59,36 +72,32 @@ export default function ListaTarefasModal({
     }
   }, [tarefas, filtroSetor, termoBusca]);
 
-  // Buscar observações quando as tarefas são carregadas
-  useEffect(() => {
-    if (tarefas.length > 0) {
-      tarefas.forEach((tarefa) => {
-        buscarObservacoesTarefa(tarefa.id);
-      });
-    }
-  }, [tarefas]);
+  // Remover o carregamento automático de observações para evitar múltiplas requisições
+  // As observações serão carregadas apenas quando necessário (lazy loading)
 
   // Função para aplicar filtros nas tarefas
   const aplicarFiltros = () => {
     let tarefasFiltradas = [...tarefas];
-    
+
     // Filtrar por setor
     if (filtroSetor) {
-      tarefasFiltradas = tarefasFiltradas.filter(tarefa => 
-        tarefa.responsavel === filtroSetor
+      tarefasFiltradas = tarefasFiltradas.filter(
+        (tarefa) => tarefa.responsavel === filtroSetor
       );
     }
-    
+
     // Filtrar por termo de busca (em tipo, descrição e responsável)
     if (termoBusca.trim()) {
       const termo = termoBusca.toLowerCase().trim();
-      tarefasFiltradas = tarefasFiltradas.filter(tarefa => 
-        tarefa.tipo.toLowerCase().includes(termo) || 
-        (tarefa.descricao && tarefa.descricao.toLowerCase().includes(termo)) ||
-        tarefa.responsavel.toLowerCase().includes(termo)
+      tarefasFiltradas = tarefasFiltradas.filter(
+        (tarefa) =>
+          tarefa.tipo.toLowerCase().includes(termo) ||
+          (tarefa.descricao &&
+            tarefa.descricao.toLowerCase().includes(termo)) ||
+          tarefa.responsavel.toLowerCase().includes(termo)
       );
     }
-    
+
     setTarefasFiltradas(tarefasFiltradas);
   };
 
@@ -115,59 +124,8 @@ export default function ListaTarefasModal({
     };
   }, [expandedTarefaId]);
 
-  // Função para buscar observações de uma tarefa
-  const buscarObservacoesTarefa = async (tarefaId: string) => {
-    try {
-      let response;
-      try {
-        response = await fetch(
-          `/api/logistica/tarefas/${tarefaId}/observacoes`
-        );
-      } catch (fetchError) {
-        console.error(
-          `Erro na requisição de observações para tarefa ${tarefaId}:`,
-          fetchError
-        );
-        // Definir um array vazio para observações em caso de erro
-        setObservacoesTarefa((prev) => ({ ...prev, [tarefaId]: [] }));
-        return; // Encerra a função em caso de erro de rede
-      }
-
-      if (!response.ok) {
-        let errorMessage;
-        try {
-          const errorData = await response.json();
-          errorMessage =
-            errorData.error || `Erro ao buscar observações: ${response.status}`;
-        } catch (jsonError) {
-          errorMessage = `Erro ao buscar observações: ${response.status}`;
-        }
-        console.error(errorMessage);
-        // Definir um array vazio para observações em caso de erro
-        setObservacoesTarefa((prev) => ({ ...prev, [tarefaId]: [] }));
-        return; // Encerra a função em vez de lançar erro
-      }
-
-      let observacoes;
-      try {
-        observacoes = await response.json();
-      } catch (jsonError) {
-        console.error(
-          `Erro ao processar JSON das observações para tarefa ${tarefaId}:`,
-          jsonError
-        );
-        // Definir um array vazio para observações em caso de erro
-        setObservacoesTarefa((prev) => ({ ...prev, [tarefaId]: [] }));
-        return; // Encerra a função em vez de lançar erro
-      }
-
-      setObservacoesTarefa((prev) => ({ ...prev, [tarefaId]: observacoes }));
-    } catch (err) {
-      console.error(`Erro ao buscar observações para tarefa ${tarefaId}:`, err);
-      // Definir um array vazio para evitar erros de renderização
-      setObservacoesTarefa((prev) => ({ ...prev, [tarefaId]: [] }));
-    }
-  };
+  // Função removida - buscarObservacoesTarefa não é mais necessária
+  // As observações não são exibidas na interface e causavam múltiplas requisições desnecessárias
 
   const fetchTarefas = async () => {
     if (!funcionario) return;
@@ -278,8 +236,10 @@ export default function ListaTarefasModal({
       return;
     }
 
+    
     try {
       setReprovarLoading(true);
+      setReprovarLoadingId(tarefaId);
 
       // Encontrar a tarefa pelo ID
       const tarefa = tarefas.find((t) => t.id === tarefaId);
@@ -287,106 +247,67 @@ export default function ListaTarefasModal({
         throw new Error("Tarefa não encontrada");
       }
 
-      // Verificar se é uma tarefa de teste (ID começa com "teste")
-      const isTarefaTeste = tarefaId.startsWith("teste");
-      let novaObservacao;
-
-      if (!isTarefaTeste) {
-        // 1. Primeiro adicionar a justificativa como uma observação (apenas para tarefas reais)
-        let observacaoResponse;
-        try {
-          observacaoResponse = await fetch(
-            `/api/logistica/tarefas/${tarefaId}/observacoes`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                texto: `Status alterado: De "${tarefa.status}" para "REPROVADO". \nDescrição: ${justificativa}`,
-              }),
-            }
-          );
-        } catch (fetchError) {
-          console.error("Erro na requisição de observação:", fetchError);
-          throw new Error("Falha na conexão ao adicionar observação");
-        }
-
-        if (!observacaoResponse.ok) {
-          let errorData;
-          try {
-            errorData = await observacaoResponse.json();
-          } catch (jsonError) {
-            throw new Error("Erro ao processar resposta da observação");
-          }
-          throw new Error(errorData.error || "Erro ao adicionar observação");
-        }
-
-        try {
-          novaObservacao = await observacaoResponse.json();
-        } catch (jsonError) {
-          console.error("Erro ao processar JSON da observação:", jsonError);
-          throw new Error("Erro ao processar dados da observação");
-        }
-
-        // 2. Depois atualizar o status da tarefa para REPROVADO (apenas para tarefas reais)
-        let statusResponse;
-        try {
-          statusResponse = await fetch(`/api/logistica/tarefas/${tarefaId}`, {
-            method: "PUT",
+      // 1. Primeiro adicionar a justificativa como uma observação (apenas para tarefas reais)
+      try {
+        const observacaoResponse = await fetch(
+          `/api/logistica/tarefas/${tarefaId}/observacoes`,
+          {
+            method: "POST",
             headers: {
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              status: "REPROVADO",
+              texto: `Status alterado: De "${tarefa.status}" para "REPROVADO". \nDescrição: ${justificativa}`,
             }),
-          });
-        } catch (fetchError) {
-          console.error(
-            "Erro na requisição de atualização de status:",
-            fetchError
-          );
-          throw new Error("Falha na conexão ao atualizar status");
-        }
-
-        if (!statusResponse.ok) {
-          let errorData;
-          try {
-            errorData = await statusResponse.json();
-          } catch (jsonError) {
-            throw new Error(
-              "Erro ao processar resposta da atualização de status"
-            );
           }
-          throw new Error(errorData.error || "Erro ao reprovar tarefa");
-        }
-      } else {
-        // Para tarefas de teste, apenas simular a atualização localmente
-        console.log("Simulando reprovação para tarefa de teste:", tarefaId);
-        novaObservacao = {
-          id: "teste-obs-" + Date.now(),
-          texto: `Status alterado: De "${tarefa.status}" para "REPROVADO". \nDescrição: ${justificativa}`,
-          dataCriacao: new Date().toISOString(),
-          criadoPor: "Sistema (Teste)"
-        };
+        );
 
-        // Atualizar o status da tarefa localmente
-        setTarefas(tarefas.map(t => 
-          t.id === tarefaId ? {...t, status: "REPROVADO"} : t
-        ));
-        setTarefasFiltradas(tarefasFiltradas.map(t => 
-          t.id === tarefaId ? {...t, status: "REPROVADO"} : t
-        ));
+        if (!observacaoResponse.ok) {
+          const errorData = await observacaoResponse.json().catch(() => ({}));
+          throw new Error(errorData.error || "Erro ao adicionar observação");
+        }
+      } catch (fetchError) {
+        console.error("Erro na requisição de observação:", fetchError);
+        throw new Error("Falha ao adicionar observação");
       }
 
-      // 3. Atualizar as observações localmente
-      setObservacoesTarefa((prev) => {
-        const tarefaObservacoes = prev[tarefaId] || [];
-        return {
-          ...prev,
-          [tarefaId]: [...tarefaObservacoes, novaObservacao],
-        };
-      });
+      // 2. Depois atualizar o status da tarefa para REPROVADO (apenas para tarefas reais)
+      let statusResponse;
+      try {
+        statusResponse = await fetch(`/api/logistica/tarefas/${tarefaId}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            status: "REPROVADO",
+          }),
+        });
+      } catch (fetchError) {
+        console.error(
+          "Erro na requisição de atualização de status:",
+          fetchError
+        );
+        throw new Error("Falha na conexão ao atualizar status");
+      }
+
+      if (!statusResponse.ok) {
+        let errorData;
+        try {
+          errorData = await statusResponse.json();
+        } catch (jsonError) {
+          throw new Error(
+            "Erro ao processar resposta da atualização de status"
+          );
+        }
+        throw new Error(errorData.error || "Erro ao reprovar tarefa");
+      }
+
+      // 3. Observação adicionada com sucesso via API
+      // Não é necessário atualizar estado local de observações pois elas não são exibidas na interface
+
+      // Marcar que uma tarefa foi reprovada
+      setTarefaReprovada(true);
 
       showToast("Tarefa reprovada com sucesso", "success");
       // Close the expanded section after successful reprovação
@@ -409,15 +330,29 @@ export default function ListaTarefasModal({
     }
   };
 
+  // Função personalizada para fechar o modal
+  const handleCloseModal = () => {
+    // Se alguma tarefa foi reprovada, chamar o callback para atualizar a página principal
+    if (tarefaReprovada && onTarefaReprovada) {
+      onTarefaReprovada();
+    }
+    
+    // Resetar o estado de tarefa reprovada
+    setTarefaReprovada(false);
+    
+    // Fechar o modal
+    onClose();
+  };
+
   if (!isOpen) return null;
 
   return (
     <div
       className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-      onClick={onClose}
+      onClick={handleCloseModal}
     >
       <div
-        className="bg-white rounded-lg p-6 max-w-4xl w-full mx-4 max-h-[90vh] flex flex-col"
+        className="bg-white rounded-lg p-6 max-w-6xl w-full mx-4 max-h-[80vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
@@ -435,7 +370,7 @@ export default function ListaTarefasModal({
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              onClose();
+              handleCloseModal();
             }}
             className="text-gray-400 hover:text-gray-600"
           >
@@ -476,173 +411,110 @@ export default function ListaTarefasModal({
           </div>
         </div>
 
-        <div className="overflow-auto flex-grow">
-          {loading ? (
-            <div className="flex items-center justify-center h-40">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-600"></div>
-            </div>
-          ) : tarefasFiltradas.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              {tarefas.length === 0
-                ? "Nenhuma tarefa encontrada para este funcionário."
-                : "Nenhuma tarefa corresponde aos filtros aplicados."}
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th
-                      scope="col"
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+        <div className="overflow-x-auto">
+          <table className="min-w-full table-auto divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Setor
+                </th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Item
+                </th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/3">
+                  Descrição
+                </th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Status
+                </th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-red-100 border border-gray-300">
+                  Ações
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {tarefasFiltradas.map((tarefa) => (
+                <tr key={tarefa.id} className="align-top">
+                  <td className="px-4 py-2 text-sm text-gray-900 break-words">
+                    {tarefa.responsavel}
+                  </td>
+                  <td className="px-4 py-2 text-sm text-gray-900 break-words">
+                    {tarefa.tipo}
+                  </td>
+                  <td className="px-4 py-2 text-sm text-gray-500 break-words">
+                    {tarefa.descricao || "N/A"}
+                  </td>
+                  <td className="px-4 py-2 whitespace-nowrap">
+                    <span
+                      className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(
+                        tarefa.status
+                      )}`}
                     >
-                      Setor
-                    </th>
-                    <th
-                      scope="col"
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                    >
-                      Item
-                    </th>
-                    <th
-                      scope="col"
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                    >
-                      Descrição
-                    </th>
-                    <th
-                      scope="col"
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                    >
-                      Status
-                    </th>
-                    <th
-                      scope="col"
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-red-100 border border-gray-300"
-                    >
-                      Ações
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {tarefasFiltradas.map((tarefa) => (
-                    <tr key={tarefa.id}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {tarefa.responsavel}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {tarefa.tipo}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {tarefa.descricao || "N/A"}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span
-                          className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(
-                            tarefa.status
-                          )}`}
-                        >
-                          {tarefa.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {tarefa.status === "CONCLUIDO" && (
-                          <div className="relative" style={{ zIndex: 50 }}>
-                            {expandedTarefaId !== tarefa.id ? (
-                              <button
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  handleReprovarClick(tarefa.id);
-                                }}
-                                className="px-3 py-1 bg-red-600 text-white rounded-md hover:bg-red-700 mr-2"
-                                style={{ pointerEvents: "auto" }}
-                              >
-                                Reprovar
-                              </button>
-                            ) : (
-                              <>
-                                <div
-                                  className="fixed inset-0 bg-black bg-opacity-50 z-[999]"
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    setExpandedTarefaId(null);
-                                  }}
-                                />
-                                <div
-                                  className="space-y-2 p-4 bg-white border border-gray-300 rounded-md shadow-lg"
-                                  style={{
-                                    position: "fixed",
-                                    width: "350px",
-                                    zIndex: 1000,
-                                    top: "50%",
-                                    left: "50%",
-                                    transform: "translate(-50%, -50%)",
-                                  }}
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <h4 className="font-medium text-sm">
-                                    Justificativa de reprovação
-                                  </h4>
-                                  <textarea
-                                    className="w-full border border-gray-300 rounded-md p-2 text-sm"
-                                    placeholder="Digite a justificativa da reprovação (obrigatório)"
-                                    value={justificativa}
-                                    onChange={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      setJustificativa(e.target.value);
-                                    }}
-                                    onClick={(e) => e.stopPropagation()}
-                                    rows={3}
-                                    required
-                                    style={{ pointerEvents: "auto" }}
-                                  />
-                                  <div className="flex space-x-2">
-                                    <button
-                                      onClick={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        handleReprovarTarefa(tarefa.id);
-                                      }}
-                                      className="px-2 py-1 text-xs bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50"
-                                      disabled={
-                                        reprovarLoading || !justificativa.trim()
-                                      }
-                                      style={{ pointerEvents: "auto" }}
-                                    >
-                                      {reprovarLoading
-                                        ? "Processando..."
-                                        : "Confirmar"}
-                                    </button>
-                                    <button
-                                      onClick={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        setExpandedTarefaId(null);
-                                      }}
-                                      className="px-2 py-1 text-xs bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300"
-                                      disabled={reprovarLoading}
-                                      style={{ pointerEvents: "auto" }}
-                                    >
-                                      Cancelar
-                                    </button>
-                                  </div>
-                                </div>
-                              </>
-                            )}
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                      {tarefa.status}
+                    </span>
+                  </td>
+                  <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500">
+                    {tarefa.status === "CONCLUIDO" && 
+                     statusPrestserv && 
+                     (statusPrestserv === "CRIADO" || statusPrestserv === "INVALIDADO") && (
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleReprovarClick(tarefa.id);
+                        }}
+                        className="px-3 py-1 bg-red-600 text-white rounded-md hover:bg-red-700 mr-2 disabled:opacity-50"
+                        disabled={reprovarLoadingId === tarefa.id}
+                      >
+                        {reprovarLoadingId === tarefa.id
+                          ? "Processando..."
+                          : "Reprovar"}
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-
+        {/* Modal de Justificativa (fora da tabela) */}
+        {expandedTarefaId && (
+          <>
+            <div
+              className="fixed inset-0 bg-black bg-opacity-50 z-[999]"
+              onClick={() => setExpandedTarefaId(null)}
+            />
+            <div className="space-y-2 p-4 bg-white border border-gray-300 rounded-md shadow-lg fixed w-80 z-[1000] top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+              <h4 className="font-medium text-sm">
+                Justificativa de reprovação
+              </h4>
+              <textarea
+                className="w-full border border-gray-300 rounded-md p-2 text-sm"
+                placeholder="Digite a justificativa da reprovação (obrigatório)"
+                value={justificativa}
+                onChange={(e) => setJustificativa(e.target.value)}
+                rows={3}
+                required
+              />
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => handleReprovarTarefa(expandedTarefaId)}
+                  className="px-2 py-1 text-xs bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50"
+                  disabled={reprovarLoading || !justificativa.trim()}
+                >
+                  {reprovarLoading ? "Processando..." : "Confirmar"}
+                </button>
+                <button
+                  onClick={() => setExpandedTarefaId(null)}
+                  className="px-2 py-1 text-xs bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300"
+                  disabled={reprovarLoading}
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </>
+        )}
         <div className="flex justify-end mt-4">
           <button
             onClick={(e) => {

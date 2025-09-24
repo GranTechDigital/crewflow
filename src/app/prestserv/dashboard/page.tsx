@@ -211,7 +211,7 @@ export default function DashboardPrestserv() {
             </div>
           </div>
 
-          <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-xl shadow-lg p-6 border border-red-200 hover:shadow-xl transition-all duration-300">
+          {/* <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-xl shadow-lg p-6 border border-red-200 hover:shadow-xl transition-all duration-300">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-red-600 mb-1">Funcionários Rejeitados</p>
@@ -224,7 +224,7 @@ export default function DashboardPrestserv() {
                 </svg>
               </div>
             </div>
-          </div>
+          </div> */}
         </div>
 
         {/* Seções Principais */}

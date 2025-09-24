@@ -275,9 +275,9 @@ function FuncionariosPageContent() {
         updateData.statusTarefas = "RETORNO DO PRESTSERV";
       }
 
-      // Se status for INVALIDADO, automaticamente mudar status geral para CRIAR TAREFAS
+      // Se status for INVALIDADO, automaticamente mudar status geral para REPROVAR TAREFAS
       if (novoStatus === "INVALIDADO") {
-        updateData.statusTarefas = "CRIAR TAREFAS";
+        updateData.statusTarefas = "REPROVAR TAREFAS";
         // Não alterar emMigracao nem statusFuncionario quando invalidado - o setor deve corrigir e o ciclo se repete
       }
 
@@ -322,7 +322,7 @@ function FuncionariosPageContent() {
                 ...func,
                 statusPrestserv: novoStatus,
                 ...(novoStatus === "INVALIDADO" && {
-                  statusTarefas: "CRIAR TAREFAS",
+                  statusTarefas: "REPROVAR TAREFAS",
                 }),
                 ...(novoStatus === "EM VALIDAÇÃO" && {
                   statusTarefas: "RETORNO DO PRESTSERV",
@@ -351,7 +351,7 @@ function FuncionariosPageContent() {
         REJEITADO:
           "Prestserv foi rejeitado. Verifique as observações e corrija as pendências.",
         INVALIDADO:
-          "Prestserv foi invalidado. Status geral alterado para 'Criar Tarefas'. Funcionário permanece em migração até validação.",
+          "Prestserv foi invalidado. Status geral alterado para 'REPROVAR TAREFAS'. Funcionário permanece em migração até validação.",
         VALIDADO:
           funcionario.tipoSolicitacao === "DESLIGAMENTO"
             ? "Prestserv foi validado! Funcionário desligado (status: Inativo). Migração finalizada. ✅"
@@ -466,7 +466,7 @@ function FuncionariosPageContent() {
       "ATENDER TAREFAS",
       "SOLICITAÇÃO CONCLUÍDA",
       "APROVAR SOLICITAÇÃO",
-      "CRIAR TAREFAS",
+      "REPROVAR TAREFAS",
     ];
 
     // Adicionar todos os status
@@ -504,7 +504,9 @@ function FuncionariosPageContent() {
       setLoading(true);
       setError(null);
 
-      const response = await fetch("/api/logistica/remanejamentos?filtrarProcesso=false");
+      const response = await fetch(
+        "/api/logistica/remanejamentos?filtrarProcesso=false"
+      );
 
       if (!response.ok) {
         throw new Error("Erro ao carregar remanejamentos");
@@ -731,7 +733,7 @@ function FuncionariosPageContent() {
     }
 
     // Status Geral: AGUARDANDO_LOGISTICA
-    else if (statusGeral === "CRIAR TAREFAS") {
+    else if (statusGeral === "REPROVAR TAREFAS") {
       baseMessage =
         "🔧 Aguardando ação da logística para prosseguir com o processo.";
     }
@@ -779,7 +781,7 @@ function FuncionariosPageContent() {
       "TAREFAS PENDENTES",
       "ATENDER TAREFAS",
       "APROVAR SOLICITAÇÃO",
-      "CRIAR TAREFAS",
+      "REPROVAR TAREFAS",
     ];
 
     const statusExistentes = new Set<string>();
@@ -1135,7 +1137,7 @@ function FuncionariosPageContent() {
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ statusTarefas: "CRIAR TAREFAS" }),
+          body: JSON.stringify({ statusTarefas: "REPROVAR TAREFAS" }),
         }
       );
 
@@ -1148,7 +1150,7 @@ function FuncionariosPageContent() {
       setFuncionarios((prev) =>
         prev.map((func) =>
           func.id === selectedFuncionario.id
-            ? { ...func, statusTarefas: "CRIAR TAREFAS" }
+            ? { ...func, statusTarefas: "REPROVAR TAREFAS" }
             : func
         )
       );
@@ -1202,7 +1204,10 @@ function FuncionariosPageContent() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        showToast(errorData.error || "Erro ao criar tarefas padrão", "error");
+        showToast(
+          errorData.error || "Erro ao reprovar tarefas padrão",
+          "error"
+        );
         return;
       }
 
@@ -1216,7 +1221,7 @@ function FuncionariosPageContent() {
       setSelectedFuncionario(null);
       setSelectedSetores(["RH", "MEDICINA", "TREINAMENTO"]);
     } catch (error) {
-      showToast("Erro ao criar tarefas padrão", "error");
+      showToast("Erro ao reprovar tarefas padrão", "error");
     } finally {
       setGeneratingTarefas(false);
     }

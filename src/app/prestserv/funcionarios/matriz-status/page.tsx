@@ -175,72 +175,6 @@ function MatrizStatusPageContent() {
 
       setFuncionarios(funcionariosTransformados);
 
-      // Se não há dados, adicionar dados de exemplo para demonstração
-      if (funcionariosTransformados.length === 0) {
-        const dadosExemplo: FuncionarioTableData[] = [
-          {
-            id: '1',
-            nome: 'João Silva',
-            matricula: '001',
-            funcao: 'Operador',
-            statusTarefas: 'ATENDER TAREFAS',
-            statusPrestserv: 'CRIAR TAREFAS',
-            statusFuncionario: 'ATIVO',
-            solicitacaoId: 'REM001',
-            contratoOrigem: 'CTR001',
-            contratoDestino: 'CTR002',
-            totalTarefas: 6,
-            tarefasConcluidas: 2,
-            dataSolicitacao: '2024-01-15',
-            progressoPorSetor: [
-              { setor: 'RH', total: 2, concluidas: 1, percentual: 50 },
-              { setor: 'MEDICINA', total: 2, concluidas: 0, percentual: 0 },
-              { setor: 'TREINAMENTO', total: 2, concluidas: 1, percentual: 50 }
-            ]
-          },
-          {
-            id: '2',
-            nome: 'Maria Santos',
-            matricula: '002',
-            funcao: 'Técnico',
-            statusTarefas: 'SOLICITAÇÃO CONCLUÍDA',
-            statusPrestserv: 'SOLICITAÇÃO CONCLUÍDA',
-            statusFuncionario: 'ATIVO',
-            solicitacaoId: 'REM001',
-            contratoOrigem: 'CTR001',
-            contratoDestino: 'CTR002',
-            totalTarefas: 6,
-            tarefasConcluidas: 6,
-            dataSolicitacao: '2024-01-15',
-            progressoPorSetor: [
-              { setor: 'RH', total: 2, concluidas: 2, percentual: 100 },
-              { setor: 'MEDICINA', total: 2, concluidas: 2, percentual: 100 },
-              { setor: 'TREINAMENTO', total: 2, concluidas: 2, percentual: 100 }
-            ]
-          },
-          {
-            id: '3',
-            nome: 'Pedro Costa',
-            matricula: '003',
-            funcao: 'Supervisor',
-            statusTarefas: 'ATENDER TAREFAS',
-            statusPrestserv: 'ATENDER TAREFAS',
-            statusFuncionario: 'ATIVO',
-            solicitacaoId: 'REM002',
-            contratoOrigem: 'CTR003',
-            contratoDestino: 'CTR004',
-            totalTarefas: 6,
-            tarefasConcluidas: 3,
-            dataSolicitacao: '2024-01-20',
-            progressoPorSetor: [
-              { setor: 'RH', total: 2, concluidas: 1, percentual: 50 },
-              { setor: 'MEDICINA', total: 2, concluidas: 1, percentual: 50 },
-              { setor: 'TREINAMENTO', total: 2, concluidas: 1, percentual: 50 }
-            ]
-          }
-        ];
-        setFuncionarios(dadosExemplo);
-      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro desconhecido');
     } finally {
@@ -280,7 +214,7 @@ function MatrizStatusPageContent() {
       case 'EM_ANDAMENTO':
         return 'ATENDIDO';
       case 'APROVAR SOLICITAÇÃO':
-      case 'CRIAR TAREFAS':
+      case 'REPROVAR TAREFAS':
         return 'EM_ANDAMENTO';
       default:
         return 'ATENDER TAREFAS';
@@ -371,8 +305,8 @@ function MatrizStatusPageContent() {
       case 'APROVAR SOLICITAÇÃO':
         tooltip = 'Status: Aprovar Solicitação - Aguardando aprovação';
         return <ExclamationTriangleIcon className="w-5 h-5 text-yellow-500" title={tooltip} />;
-      case 'CRIAR TAREFAS':
-        tooltip = 'Status: Criar Tarefas - Aguardando criação das tarefas';
+      case 'REPROVAR TAREFAS':
+        tooltip = 'Status: Reprovar Tarefas - Aguardando reprovação das tarefas';
         return <ClockIcon className="w-5 h-5 text-blue-600" title={tooltip} />
       default:
         tooltip = `Status: ${status} - Status não reconhecido`;
