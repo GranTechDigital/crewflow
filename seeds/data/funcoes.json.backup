@@ -1,0 +1,1682 @@
+[
+    {
+        "funcao":  "ADMINISTRADORA DE GESTAO E SUPORTE",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "AJUDANTE",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "AJUDANTE",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ALMOXARIFE",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "ALMOXARIFE",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ALMOXARIFE II",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ALMOXARIFE OPERADOR",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ALMOXARIFE OPERADOR II",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ANALISTA ADMINISTRATIVO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ANALISTA CONTABIL",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ANALISTA CONTROLADOR JURIDICO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ANALISTA DE ADMINISTRACAO CONTRATUAL",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ANALISTA DE BENEFÇ?CIOS E R\u0026S",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ANALISTA DE COMUNICACAO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ANALISTA DE DEPARTAMENTO PESSOAL",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ANALISTA DE DEPARTAMENTO PESSOAL / FOLHA",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ANALISTA DE DEPARTAMENTO PESSOAL I",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ANALISTA DE DOCUMENTACAO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ANALISTA DE FATURAMENTO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ANALISTA DE FP\u0026A",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ANALISTA DE LOGISTICA DE PESSOAL",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ANALISTA DE LOGISTICA DE TRANSPORTE",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ANALISTA DE MATERIAIS",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ANALISTA DE MATERIAIS E INVENTARIO SENIOR",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ANALISTA DE MATERIAIS JUNIOR",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ANALISTA DE MATERIAIS PLENO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ANALISTA DE MATERIAIS SENIOR",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ANALISTA DE OPERACOES COMERCIAIS JUNIOR",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ANALISTA DE OPERACOES COMERCIAIS PLENO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ANALISTA DE OPERACOES JUNIOR",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ANALISTA DE PESSOAS E PROCESSOS",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ANALISTA DE PLANEJAMENTO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ANALISTA DE PLANEJAMENTO FINANCEIRO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ANALISTA DE PLANEJAMENTO SUBSEA",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ANALISTA DE PROCESSOS",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ANALISTA DE RECURSOS HUMANOS",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ANALISTA DE SEGURANCA DA INFORMACAO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ANALISTA DE SGI",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ANALISTA DE SMS",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ANALISTA DE SUPRIMENTOS",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ANALISTA DE TI PL",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ANALISTA FINANCEIRO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ANALISTA FISCAL JUNIOR",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ANALISTA FISCAL SENIOR",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ANALISTA JURIDICO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ANALISTA SENIOR DE PROCESSOS E PERFORMANCE",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "APRENDIZ DE ASSISTENTE DE LOGISTICA",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "APRENDIZ DE ELETRICISTA INDUSTRIAL",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "APRENDIZ DE MECANICO DE MANUTENCAO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "APRENDIZ DE TECNICO DE LOGISTICA",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "APRENDIZ DE TECNICO EM PLANEJAMENTO E CONTROLE DE PRODUCAO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "APRENDIZ TECNICO DE MECANICA",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "APRENDIZ TECNICO EM ELETROTECNICA",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ASSISTENTE ADMINISTRATIVO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ASSISTENTE CONTABIL",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ASSISTENTE DE ADMINISTRACAO CONTRATUAL",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ASSISTENTE DE COMPRAS E SERVICOS",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ASSISTENTE DE COMUNICACAO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ASSISTENTE DE DELINEAMENTO",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "ASSISTENTE DE DELINEAMENTO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ASSISTENTE DE DEPARTAMENTO PESSOAL",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ASSISTENTE DE LOGISTICA DE MATERIAIS",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ASSISTENTE DE LOGISTICA DE PESSOAL",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ASSISTENTE DE MATERIAIS",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "ASSISTENTE DE MATERIAIS",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ASSISTENTE DE OPERAÇÎÇES",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "ASSISTENTE DE OPERAÇÎÇES",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ASSISTENTE DE OPERACOES II",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ASSISTENTE DE OPERACOES III",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ASSISTENTE DE OPERACOES IV",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ASSISTENTE DE PLANEJAMENTO",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "ASSISTENTE DE PLANEJAMENTO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ASSISTENTE DE QUALIDADE",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ASSISTENTE DE RECRUTAMENTO E SELECAO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ASSISTENTE DE RECURSOS HUMANOS",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ASSISTENTE DE RH E BENEFICIOS",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ASSISTENTE DE SAUDE OCUPACIONAL",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ASSISTENTE DE SEGURANCA DO TRABALHO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ASSISTENTE DE TI I",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ASSISTENTE DE TREINAMENTO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ASSISTENTE FINANCEIRO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ASSISTENTE FISCAL I",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ASSISTENTE FISCAL II",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ASSISTENTE MOVIMENTACOES DE CARGAS",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "ASSISTENTE MOVIMENTACOES DE CARGAS",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ASSISTENTE TECNICO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ASSISTENTE TECNICO DE MATERIAIS",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ASSISTENTE TECNICO DE QUALIDADE",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "AUXILIAR ADMINISTRATIVO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "AUXILIAR CONTABIL/FINANCEIRO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "AUXILIAR DE ADMINISTRAÇÎÇŸO CONTRATUAL",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "AUXILIAR DE ALMOXARIFADO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "AUXILIAR DE CONTROLE DE QUALIDADE",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "AUXILIAR DE DELINEAMENTO",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "AUXILIAR DE DELINEAMENTO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "AUXILIAR DE LOGISTICA DE MATERIAIS",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "AUXILIAR DE LOGISTICA DE PESSOAS",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "AUXILIAR DE OPERACOES",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "AUXILIAR DE OPERACOES",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "AUXILIAR DE PLANEJAMENTO",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "AUXILIAR DE PLANEJAMENTO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "AUXILIAR DE QSMS",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "AUXILIAR DE RECRUTAMENTO E SELEÇÎÇŸO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "AUXILIAR DE RIGGER",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "AUXILIAR DE SEGURANCA DO TRABALHO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "AUXILIAR DE SEGURANCA/MEIO AMBIENTE",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "AUXILIAR DE SERVICOS GERAIS",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "AUXILIAR DE SUPRIMENTOS",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "AUXILIAR DE TESOURARIA E RELACAO COM INVESTIDORES",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "AUXILIAR DE TREINAMENTO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "AUXILIAR DEPARTAMENTO PESSOAL",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "AUXILIAR FINANCEIRO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "CALDEIREIRO",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "CALDEIREIRO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "CALDEIREIRO ESCALADOR NI",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "CALDEIREIRO ESCALADOR NI",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "CALDEIREIRO ESCALADOR NII",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "CALDEIREIRO ESPECIALIZADO",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "CALDEIREIRO ESPECIALIZADO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "CALDEIREIRO MECANICO",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "CALDEIREIRO MECANICO ESCALADOR NI",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "CALDEIREIRO MONTADOR",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "CALDEIREIRO MONTADOR",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "CALDEIREIRO PINTOR ESCALADOR NI",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "CALDEIREIRO PINTOR ESCALADOR NII",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "CALDEIREIRO SOLDADOR",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "COMPRADOR",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "COMPRADOR JUNIOR",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "COMPRADOR LIDER",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "COORDENADOR ( A ) DE SUPRIMENTOS",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "COORDENADOR COMERCIAL",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "COORDENADOR COMERCIAL LÇ?DER",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "COORDENADOR CONTABIL",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "COORDENADOR DE ALMOXARIFADO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "COORDENADOR DE DEPARTAMENTO PESSOAL ",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "COORDENADOR DE ELETRICA",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "COORDENADOR DE EMPREENDIMENTO",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "COORDENADOR DE EMPREENDIMENTO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "COORDENADOR DE LOGISTICA DE MATERIAIS",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "COORDENADOR DE MANUTENCAO",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "COORDENADOR DE MANUTENCAO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "COORDENADOR DE MATERIAIS",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "COORDENADOR DE MEDIÇÎÇŸO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "COORDENADOR DE PLANEJAMENTO",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "COORDENADOR DE PLANEJAMENTO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "COORDENADOR DE PLANEJAMENTO E GOVERNANCA DE PROJETOS",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "COORDENADOR DE PLANEJAMENTO E PRODUCAO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "COORDENADOR DE PRESERVACAO",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "COORDENADOR DE PRODUCAO",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "COORDENADOR DE PRODUCAO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "COORDENADOR DE PROJETOS",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "COORDENADOR DE PROJETOS LOGSUBSEA",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "COORDENADOR DE SEGURANÇÎA DO TRABALHO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "COORDENADOR DE SEGURANCA OPERACIONAL E HSE",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "COORDENADOR DE TI",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "COORDENADOR FINANCEIRO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "COORDENADOR LIDER DE PRODUCAO",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "COORDENADOR LIDER DE PRODUCAO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "COORDENADOR OPERACIONAL",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "COORDENADOR SAUDE OCUPACIONAL",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "DELINEADOR DE CALDEIRARIA",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "DELINEADOR DE CALDEIRARIA",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "DELINEADOR DE ELETRICA",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "DELINEADOR DE PINTURA",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "DELINEADOR DE PINTURA",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ELETRICISTA",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "ELETRICISTA DE FORCA E CONTROLE",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "ELETRICISTA ESCALADOR NI",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "ELETRICISTA ESCALADOR NI",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ELETRICISTA ESCALADOR NII",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "ELETRICISTA MANUTENCAO",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "ELETRICISTA MANUTENCAO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ENCARREGADO DE ALMOXARIFADO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ENCARREGADO DE ANDAIME",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "ENCARREGADO DE CALDEIRARIA",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "ENCARREGADO DE CALDEIRARIA",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ENCARREGADO DE LOGISTICA DE PESSOAS",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ENCARREGADO DE MATERIAIS",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ENCARREGADO DE OPERAÇÎOES LOGISTICAS",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ENCARREGADO DE PINTURA",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "ENCARREGADO DE PINTURA",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ENCARREGADO DE PRODUÇÎÇŸO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ENCARREGADO DE RIGGER",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "ENCARREGADO DE RIGGER",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ENCARREGADO DE SOLDA",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ENCARREGADO ESPECIALISTA EM ESTRUTURAS METALICAS",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ENFERMEIRO (A)",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "ENFERMEIRO (A)",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ENFERMEIRO DO TRABALHO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ENGENHEIRO MECANICO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ESCALADOR NIII",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "ESPECIALISTA DE LOGISTICA DE MATERIAIS SENIOR",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ESPECIALISTA DE MATERIAIS",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ESPECIALISTA DE OPERACOES",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ESPECIALISTA DE OPERAÇÎÇES III",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ESPECIALISTA DE OPERAÇÎÇES O\u0026G",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ESPECIALISTA DE OPERACOES O\u0026G II",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ESPECIALISTA DE OPERACOES O\u0026G III",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ESPECIALISTA DE OPERACOES PORTUARIAS",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ESPECIALISTA DE PROCESSOS",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ESPECIALISTA EM INTEGRACAO E EXECUCAO DE PROJETOS",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ESPECIALISTA FISCAL",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ESTAGIÇ?RIO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "GERENTE DE CONTRATOS",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "GERENTE DE DHO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "GERENTE DE OPERACOES",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "GERENTE DE PLANEJAMENTO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "GERENTE DE PLANEJAMENTO FISCAL",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "GERENTE DE PRODUÇÎÇŸO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "GERENTE DE PROJETOS",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "GERENTE DE QUALIDADE",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "GERENTE DE RECURSOS HUMANOS",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "GERENTE DE SEGURANÇÎA DO TRABALHO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "GERENTE DE SUPRIMENTOS",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "GERENTE JURIDICO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "GERENTE OPERACIONAL",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "INSPETOR DE AUTOMACAO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "INSPETOR DE ELETRICA",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "INSPETOR DE ELETRICA/INSTRUMENTACAO ESCALADOR NI",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "INSPETOR DE EPI",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "INSPETOR DE EQUIPAMENTOS",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "INSPETOR DE EQUIPAMENTOS / LPPM",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "INSPETOR DE EQUIPAMENTOS / MEDIÇÎÇŸO DE ESPESSURA (ME) / END¶ïs ESCALADOR",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "INSPETOR DE MATERIAIS I",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "INSPETOR DE MECANICA",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "INSPETOR DE PINTURA",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "INSPETOR DE PINTURA",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "INSPETOR DE PINTURA ESCALADOR NI",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "INSPETOR DE PINTURA ESCALADOR NIII",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "INSPETOR DE QUALIDADE",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "INSPETOR DE QUALIDADE LIDER",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "INSPETOR DE SOLDA",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "INSPETOR DE SOLDA",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "INSPETOR DE SOLDA ESCALADOR NI",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "INSPETOR DE SOLDA/END/ EQUIPAMENTOS/ ME  ",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "INSPETOR DE SOLDA/LP ESCALADOR NI ",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "INSPETOR DE SOLDA/LP ESCALADOR NI ",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "INSPETOR DIMENSIONAL",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "INSPETOR DIMENSIONAL/EQUIPAMENTOS",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "INSPETOR ELETRICA/INSTRUMENTACAO",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "INSPETOR ELETRICA/INSTRUMENTACAO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "INSPETOR ESPECIALIZADO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "INSPETOR IF-TF/ABENDI N1",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "INSPETOR IF-TF/ABENDI N2",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "INSTRUMENTISTA",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "INSTRUMENTISTA DE AUTOMACAO",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "INSTRUMENTISTA ESCALADOR NI",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "INSTRUTOR DE TREINAMENTO ",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "ISOLADOR CALDEIREIRO",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "ISOLADOR CALDEIREIRO ESCALADOR NI",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "LIDER DE ALMOXARIFADO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "LIDER DE MANUTENCAO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "LIDER DE MATERIAIS",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "LIDER DE MATERIAIS",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "LIDER DE MATERIAIS II",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "LIDER DE NEGOCIOS",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "LIDER DE OPERACOES DE LOGISTICA",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "LIDER DE PROJETOS I",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "LIDER LOGISTICA PESSOAL",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "LIDER PATRIMONIAL",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "MECANICO",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "MECÇ'NICO DE MANUTENÇÎÇŸO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "MECANICO DE MAQUINAS",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "MECANICO DE MAQUINAS",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "MECANICO ESCALADOR",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "MESTRE DE CABOTAGEM",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "MESTRE DE CABOTAGEM LIDER",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "MONTADOR DE ANDAIME",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "MONTADOR DE ANDAIME",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "MONTADOR DE ANDAIME LÇ?DER",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "MONTADOR DE ANDAIME LÇ?DER",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "MONTADOR DE ESTRUTURAS EM COMPOSITOS",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "MOTORISTA",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "MOTORISTA DE CAMINHAO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "OPERADOR DE CAMPO",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "OPERADOR DE EMPILHADEIRA",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "OPERADOR DE EMPILHADEIRA/RIGGER",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "OPERADOR DE EQUIPAMENTOS",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "OPERADOR DE LOGISTICA DE PESSOAS",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "OPERADOR DE MAQUINA DE HIDROJATO",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "OPERADOR DE PAINEL (SUPERVISORIO)",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "OPERADOR DE PRODUÇÎÇŸO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "OPERADOR GUINDASTE",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "OPERADOR LIDER DE PRODUCAO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "PEDREIRO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "PINTOR HIDROJATISTA",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "PINTOR INDUSTRIAL",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "PINTOR INDUSTRIAL",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "PINTOR INDUSTRIAL ESCALADOR NI",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "PINTOR INDUSTRIAL ESCALADOR NI / HIDROJATISTA",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "PINTOR INDUSTRIAL ESCALADOR NII",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "PINTOR INDUSTRIAL ESPECIALIZADO ",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "PINTOR JATISTA DE ABRASIVO",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "PINTOR JATISTA DE ABRASIVO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "PINTOR JATISTA LIDER",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "PINTOR JATISTA LIDER",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "PINTOR MONTADOR",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "PORTEIRO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "PROGRAMADOR DE TI",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "PROJETISTA",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "RADIO OPERADOR",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "RECEPCIONISTA",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "RIGGER",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "RIGGER",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "SOLDADOR",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "SOLDADOR",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "SOLDADOR CHAPARIA",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "SOLDADOR CHAPARIA",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "SOLDADOR ESCALADOR NI",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "SOLDADOR ESCALADOR NII",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "SOLDADOR ESPECIALIZADO ",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "SOLDADOR ESPECIALIZADO ",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "SOLDADOR LIGAS ESPECIAIS",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "SOLDADOR LIGAS ESPECIAIS",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "SOLDADOR LIGAS ESPECIAIS ESCALADOR NI",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "SOLDADOR MONTADOR",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "SOLDADOR MONTADOR ESCALADOR NI",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "SOLDADOR MONTADOR ESCALADOR NII",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "SOLDADOR TIG/ER",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "SUPERVISOR ( A )",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "SUPERVISOR ADMINISTRATIVO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "SUPERVISOR DE ACESSO POR CORDAS",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "SUPERVISOR DE ADMINISTRAÇÎÇŸO CONTRATUAL",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "SUPERVISOR DE ALMOXARIFADO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "SUPERVISOR DE ANDAIME",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "SUPERVISOR DE CALDEIRARIA",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "SUPERVISOR DE CALDEIRARIA E TUBULACAO",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "SUPERVISOR DE COMISSIONAMENTO EM INSTRUMENTACAO",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "SUPERVISOR DE CONTRATOS",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "SUPERVISOR DE DELINEAMENTO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "SUPERVISOR DE ELETRICA",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "SUPERVISOR DE INDICADORES",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "SUPERVISOR DE INSTRUMENTACAO",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "SUPERVISOR DE LOGISTICA DE PESSOAL",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "SUPERVISOR DE LOGISTICA DE TRANSPORTE",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "SUPERVISOR DE MANUTENCAO",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "SUPERVISOR DE MECANICA",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "SUPERVISOR DE MONTAGEM/ESCALADOR NIII",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "SUPERVISOR DE OPERACOES",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "SUPERVISOR DE PINTURA",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "SUPERVISOR DE PLANEJAMENTO",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "SUPERVISOR DE PLANEJAMENTO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "SUPERVISOR DE PRODUÇÎÇŸO",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "SUPERVISOR DE PRODUÇÎÇŸO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "SUPERVISOR DE PRODUCAO/INSPETOR",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "SUPERVISOR DE PRODUCAO/PLANEJAMENTO",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "SUPERVISOR DE PRODUCAO/PLANEJAMENTO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "SUPERVISOR DE QUALIDADE",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "SUPERVISOR DE SEGURANCA DO TRABALHO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "SUPERVISOR DE SERVICOS GERAIS",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "SUPERVISOR DE SGI",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "SUPERVISOR DE SMS",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "SUPERVISOR DE TREINAMENTO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "SUPERVISOR LIDER DE ALMOXARIFADO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "SUPERVISOR LIDER DE ELETRICA/INSTRUMENTAÇÎÇŸO",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "SUPERVISOR LIDER DE PINTURA",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "SUPERVISOR LIDER DE PLANEJAMENTO",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "SUPERVISOR LIDER DE PLANEJAMENTO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "SUPERVISOR LIDER DE PRODUCAO",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "SUPERVISOR LIDER DE PRODUCAO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "TECNICO CONTABIL",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "TECNICO CONTABIL- FISCAL ",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "TECNICO DE ACOMPANHAMENTO E CONTROLE",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "TECNICO DE ACOMPANHAMENTO E CONTROLE",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "TECNICO DE COMISSIONAMENTO ESPECIALISTA EM INSTRUMENTACAO",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "TECNICO DE COMISSIONAMENTO INSTRUMENTACAO",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "TECNICO DE COMISSIONAMENTO MECANICA",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "TECNICO DE COMISSIONAMENTO MECANICA  ESCALADOR NI",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "TECNICO DE COMISSIONAMENTO MECANICA/CALDEIREIRO  ESCALADOR NI",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "TECNICO DE DOCUMENTACAO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "TECNICO DE ELETRICA",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "TECNICO DE ELETRICA",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "TECNICO DE ELETRICA E INSTRUMENTACAO ESCALADOR NI",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "TECNICO DE ELETRICA ESCALADOR NI",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "TECNICO DE ELETRICA ESCALADOR NII",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "TECNICO DE ELETRICA LIDER",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "TECNICO DE ELETRICA/INSTRUMENTACAO",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "TÇ%CNICO DE ENFERMAGEM DO TRABALHO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "TECNICO DE INSTRUMENTACAO",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "TECNICO DE INSTRUMENTACAO LIDER",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "TECNICO DE LOGISTICA",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "TECNICO DE LOGISTICA DE PESSOAS",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "TECNICO DE M\u0026R E CONTRATO",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "TECNICO DE M\u0026R E CONTRATO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "TECNICO DE MATERIAIS",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "TECNICO DE MATERIAIS",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "TECNICO DE MATERIAIS INTEGRADO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "TECNICO DE MATERIAIS SUBSEA",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "TECNICO DE MECANICA",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "TECNICO DE MEDICAO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "TECNICO DE OPERACAO DE CAMPO",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "TECNICO DE PLANEJAMENTO",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "TECNICO DE PLANEJAMENTO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "TECNICO DE PLANEJAMENTO DE PESSOAS",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "TECNICO DE PLANEJAMENTO INTEGRADO",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "TECNICO DE PLANEJAMENTO INTEGRADO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "TECNICO DE PLANEJAMENTO, MEDIÇÎÇŸO E CONTROLE",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "TECNICO DE PLANEJAMENTO, MEDIÇÎÇŸO E CONTROLE",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "TECNICO DE PRESERVACAO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "TECNICO DE QUALIDADE",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "TECNICO DE SEGURANÇÎA BOMBEIRO CIVIL",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "TECNICO DE SEGURANÇÎA DO TRABALHO",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "TECNICO DE SEGURANÇÎA DO TRABALHO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "TECNICO DE SEGURANCA DO TRABALHO LIDER",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "TECNICO DE SEGURANCA DO TRABALHO LIDER",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "TECNICO DE SUPRIMENTOS",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "TECNICO DE SUPRIMENTOS",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "TECNICO DE TI",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "TECNICO ELETROMECANICO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "TECNICO EM ADMINISTRACAO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "TECNICO EM ENFERMAGEM",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "TECNICO EM PLANEJAMENTO",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "TECNICO EM PLANEJAMENTO",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "TECNICO EM PLANEJAMENTO SUBSEA",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "TECNICO ESPECIALISTA EM INSTRUMENTACAO",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "TECNICO LIDER DE MECANICA",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "TECNICO LIDER DE MECANICA",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "TECNICO LIDER DE QUALIDADE",
+        "regime":  "ONSHORE"
+    },
+    {
+        "funcao":  "TECNICO MECANICO DE VALVULAS",
+        "regime":  "OFFSHORE"
+    },
+    {
+        "funcao":  "TORNEIRO MECANICO",
+        "regime":  "OFFSHORE"
+    }
+]

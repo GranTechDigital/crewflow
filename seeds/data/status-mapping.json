@@ -1,0 +1,332 @@
+[
+  {
+    "statusGeral": "Aguardando Embarque/Programado",
+    "statusId": 1,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Aguardando embarque",
+    "statusId": 1,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Aguardando Embarque - Aguard. lib. vaga",
+    "statusId": 1,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Aguardando Embarque - Aguard. lib. vaga/Programado",
+    "statusId": 1,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Aguardando Embarque - Aguard. pos. coord/Programado",
+    "statusId": 1,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Aguardando Embarque - Transf. de Vôo/Programado",
+    "statusId": 1,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Aguardando Embarque/Confirmado",
+    "statusId": 1,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Liberado pela medicina",
+    "statusId": 1,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Liberado pela medicina/Programado",
+    "statusId": 1,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Aguardando Embarque - Aguard. pos. coord",
+    "statusId": 1,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Aguardando Embarque - Lic. Paternidade",
+    "statusId": 1,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Aguardando Embarque - Transf. de Vôo",
+    "statusId": 1,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Aguardando Embarque - Lic. Paternidade/Programado",
+    "statusId": 1,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Pré-embarque no Hotel",
+    "statusId": 1,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Pré-embarque no Hotel/Programado",
+    "statusId": 1,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Permanência em Hotel/Programado",
+    "statusId": 1,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Permanência em Hotel",
+    "statusId": 1,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Atestado",
+    "statusId": 2,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Atestado/Programado",
+    "statusId": 2,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Atestado/Confirmado",
+    "statusId": 2,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Trabalho na base",
+    "statusId": 3,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Trabalho na base/Programado",
+    "statusId": 3,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Trabalho na base/Confirmado",
+    "statusId": 3,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Aguardando Primeiro Embarque",
+    "statusId": 1,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Aguardando Primeiro Embarque/Programado",
+    "statusId": 1,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Aguardando Primeiro Embarque/Confirmado",
+    "statusId": 1,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Aguardando Embarque - Cadastro/Programado",
+    "statusId": 4,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Aguardando Embarque - Cadastro",
+    "statusId": 4,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Embarcado",
+    "statusId": 5,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Embarque na Folga",
+    "statusId": 5,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Extensão de Escala de Embarque (Dobra)",
+    "statusId": 5,
+    "ativo": true
+  },
+  {
+    "statusGeral": "No-show",
+    "statusId": 6,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Falta",
+    "statusId": 6,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Falta/Programado",
+    "statusId": 6,
+    "ativo": true
+  },
+  {
+    "statusGeral": "No-show/Programado",
+    "statusId": 6,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Falta/Confirmado",
+    "statusId": 6,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Férias",
+    "statusId": 7,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Férias/Programado",
+    "statusId": 7,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Férias/Confirmado",
+    "statusId": 7,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Folga - Treinamento",
+    "statusId": 8,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Folga",
+    "statusId": 8,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Folga/Programado",
+    "statusId": 8,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Desembarque Antecipado/Programado",
+    "statusId": 8,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Folga/Confirmado",
+    "statusId": 8,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Folga - ASO",
+    "statusId": 8,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Folga - ASO/Programado",
+    "statusId": 8,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Licença s/venc",
+    "statusId": 9,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Inss",
+    "statusId": 9,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Enfermaria",
+    "statusId": 9,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Enfermaria/Programado",
+    "statusId": 9,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Inss/Programado",
+    "statusId": 9,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Impedido",
+    "statusId": 9,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Impedido/Programado",
+    "statusId": 9,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Aguardando Liberação da Enfermaria",
+    "statusId": 9,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Aguardando Liberação da Enfermaria/Programado",
+    "statusId": 9,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Aguardando Embarque - ASO",
+    "statusId": 9,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Aguardando Embarque - ASO/Programado",
+    "statusId": 9,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Processo de Demissão",
+    "statusId": 10,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Contrato Suspenso",
+    "statusId": 10,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Aguardando Embarque - Treinamento",
+    "statusId": 11,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Aguardando Embarque - Treinamento/Programado",
+    "statusId": 11,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Folga - Treinamento/Programado",
+    "statusId": 8,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Permanência em Hotel - Sobreaviso/Programado",
+    "statusId": 8,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Dias Hotel / Folga Indenizada/Programado",
+    "statusId": 8,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Dias Hotel / Folga Indenizada",
+    "statusId": 8,
+    "ativo": true
+  },
+  {
+    "statusGeral": "Permanência em Hotel - Sobreaviso",
+    "statusId": 8,
+    "ativo": true
+  }
+]

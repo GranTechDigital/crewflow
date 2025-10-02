@@ -20,6 +20,7 @@ model Contrato {
   funcionarios          Funcionario[]
   remanejamentosDestino SolicitacaoRemanejamento[] @relation("ContratoDestino")
   remanejamentosOrigem  SolicitacaoRemanejamento[] @relation("ContratoOrigem")
+  matrizTreinamento     MatrizTreinamento[]
 }
 
 model CentroCusto {
@@ -362,6 +363,7 @@ model Status {
 
 model Projeto {
   id            Int                  @id @default(autoincrement())
+  codigo        String               @unique
   nome          String               @unique
   ativo         Boolean              @default(true)
   createdAt     DateTime             @default(now())
@@ -369,6 +371,7 @@ model Projeto {
   centrosCusto  CentroCustoProjeto[]
   periodoSheets PeriodoSheet[]
 
+  @@index([codigo])
   @@index([nome])
   @@index([ativo])
 }
@@ -400,4 +403,50 @@ model CentroCustoProjeto {
   @@index([centroCusto])
   @@index([projetoId])
   @@index([ativo])
+}
+
+model Funcao {
+  id        Int      @id @default(autoincrement())
+  funcao    String   @unique
+  regime    String?
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  matrizTreinamento MatrizTreinamento[]
+
+  @@index([funcao])
+  @@index([regime])
+}
+
+model Treinamentos {
+  id               Int                @id @default(autoincrement())
+  criadoEm         DateTime           @default(now())
+  treinamento      String
+  cargaHoraria     Int
+  validadeValor    Int
+  validadeUnidade  String
+  matrizTreinamento MatrizTreinamento[]
+
+  @@index([treinamento])
+}
+
+model MatrizTreinamento {
+  id            Int          @id @default(autoincrement())
+  contratoId    Int
+  funcaoId      Int
+  treinamentoId Int?
+  tipoObrigatoriedade String // RA, AP, C, SD, N/A
+  ativo         Boolean      @default(true)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  
+  contrato      Contrato     @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  funcao        Funcao       @relation(fields: [funcaoId], references: [id], onDelete: Cascade)
+  treinamento   Treinamentos? @relation(fields: [treinamentoId], references: [id], onDelete: Cascade)
+
+  @@unique([contratoId, funcaoId, treinamentoId])
+  @@index([contratoId])
+  @@index([funcaoId])
+  @@index([treinamentoId])
+  @@index([tipoObrigatoriedade])
 }

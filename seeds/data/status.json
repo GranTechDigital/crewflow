@@ -1,0 +1,50 @@
+[
+  {
+    "categoria": "Aguardando embarque",
+    "ativo": true
+  },
+  {
+    "categoria": "Atestado",
+    "ativo": true
+  },
+  {
+    "categoria": "Base",
+    "ativo": true
+  },
+  {
+    "categoria": "Cadastro",
+    "ativo": true
+  },
+  {
+    "categoria": "Embarcado",
+    "ativo": true
+  },
+  {
+    "categoria": "Falta",
+    "ativo": true
+  },
+  {
+    "categoria": "Férias",
+    "ativo": true
+  },
+  {
+    "categoria": "Folga",
+    "ativo": true
+  },
+  {
+    "categoria": "Medicina",
+    "ativo": true
+  },
+  {
+    "categoria": "Processo de Demissão",
+    "ativo": true
+  },
+  {
+    "categoria": "Treinamento",
+    "ativo": true
+  },
+  {
+    "categoria": "Não Encontrado",
+    "ativo": true
+  }
+]

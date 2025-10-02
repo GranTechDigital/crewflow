@@ -1,0 +1,68 @@
+{
+  "description": "Configuração dos arquivos de seed organizados",
+  "version": "2.1.0",
+  "lastUpdated": "2025-10-01T13:57:10.034Z",
+  "files": {
+    "status": {
+      "file": "data/status.json",
+      "description": "Categorias de status do sistema",
+      "count": 12
+    },
+    "statusMapping": {
+      "file": "data/status-mapping.json",
+      "description": "Mapeamentos entre status gerais e categorias",
+      "count": 66
+    },
+    "projetos": {
+      "file": "data/projetos.json",
+      "description": "Lista de projetos da empresa",
+      "count": 76
+    },
+    "centrosCustoProjeto": {
+      "file": "data/centros-custo-projeto.json",
+      "description": "Centros de custo associados aos projetos",
+      "count": 148
+    },
+    "centros-custo.json": {
+      "path": "data/centros-custo.json",
+      "description": "Centros de custo do sistema",
+      "records": 6
+    },
+    "contratos.json": {
+      "path": "data/contratos.json",
+      "description": "Contratos da empresa",
+      "records": 6
+    },
+    "vinculacoes.json": {
+      "path": "data/vinculacoes.json",
+      "description": "Vinculações entre contratos e centros de custo",
+      "records": 6
+    },
+    "equipes.json": {
+      "path": "data/equipes.json",
+      "description": "Equipes do sistema",
+      "records": 6
+    },
+    "treinamentos.json": {
+      "path": "data/treinamentos.json",
+      "description": "Treinamentos disponíveis",
+      "records": 66
+    },
+    "tarefas-padrao.json": {
+      "path": "data/tarefas-padrao.json",
+      "description": "Tarefas padrão por setor",
+      "records": 45
+    },
+    "funcionario-admin.json": {
+      "path": "data/funcionario-admin.json",
+      "description": "Dados do funcionário administrador",
+      "records": 1
+    }
+  },
+  "totalRecords": null,
+  "structure": {
+    "data": "Arquivos de dados principais",
+    "config": "Arquivos de configuração",
+    "docs": "Documentação"
+  }
+}

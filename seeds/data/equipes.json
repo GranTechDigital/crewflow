@@ -1,0 +1,26 @@
+[
+  {
+    "nome": "RH",
+    "descricao": "Recursos Humanos - Gestão de pessoal e processos administrativos"
+  },
+  {
+    "nome": "Treinamento",
+    "descricao": "Capacitação e desenvolvimento de funcionários"
+  },
+  {
+    "nome": "Medicina",
+    "descricao": "Medicina do trabalho e saúde ocupacional"
+  },
+  {
+    "nome": "Logística",
+    "descricao": "Gestão logística e operacional"
+  },
+  {
+    "nome": "Planejamento",
+    "descricao": "Planejamento estratégico e gestão de contratos"
+  },
+  {
+    "nome": "Administração",
+    "descricao": "Administração geral do sistema"
+  }
+]

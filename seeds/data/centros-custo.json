@@ -1,0 +1,32 @@
+[
+  {
+    "num_centro_custo": "6.21.01",
+    "nome_centro_custo": "Centro de Custo UN-BC-LOTE 2",
+    "status": "Ativo"
+  },
+  {
+    "num_centro_custo": "6.21.02",
+    "nome_centro_custo": "Centro de Custo Descomissionamento",
+    "status": "Ativo"
+  },
+  {
+    "num_centro_custo": "6.21.03",
+    "nome_centro_custo": "Centro de Custo PERENCO",
+    "status": "Ativo"
+  },
+  {
+    "num_centro_custo": "6.24.01",
+    "nome_centro_custo": "Centro de Custo UN-BS-O&M",
+    "status": "Ativo"
+  },
+  {
+    "num_centro_custo": "6.24.02",
+    "nome_centro_custo": "Centro de Custo UN-BS UMS/PAR",
+    "status": "Ativo"
+  },
+  {
+    "num_centro_custo": "6.25.01",
+    "nome_centro_custo": "Centro de Custo TVD UN-BC",
+    "status": "Ativo"
+  }
+]

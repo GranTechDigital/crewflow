@@ -1,0 +1,742 @@
+[
+  {
+    "centroCusto": "1.01",
+    "nomeCentroCusto": "HOLDING",
+    "projeto": "HOLDING"
+  },
+  {
+    "centroCusto": "1.03",
+    "nomeCentroCusto": "HOLDING ADMINISTRATIVO",
+    "projeto": "HOLDING ADMINISTRATIVO"
+  },
+  {
+    "centroCusto": "10.01",
+    "nomeCentroCusto": "SIMULACAO",
+    "projeto": "SIMULACAO"
+  },
+  {
+    "centroCusto": "2.01",
+    "nomeCentroCusto": "DOME",
+    "projeto": "DOME"
+  },
+  {
+    "centroCusto": "2.02",
+    "nomeCentroCusto": "DOME RATEIO",
+    "projeto": "DOME RATEIO"
+  },
+  {
+    "centroCusto": "2.03",
+    "nomeCentroCusto": "DOME CONSOLIDAÇÃO",
+    "projeto": "DOME CONSOLIDAÇÃO"
+  },
+  {
+    "centroCusto": "2.04",
+    "nomeCentroCusto": "DOME 2017",
+    "projeto": "DOME 2017"
+  },
+  {
+    "centroCusto": "3.01",
+    "nomeCentroCusto": "PIPESHOP",
+    "projeto": "PIPESHOP"
+  },
+  {
+    "centroCusto": "3.02",
+    "nomeCentroCusto": "ADMINISTRAÇÃO E MANUTENÇÃO DA BASE",
+    "projeto": "ADMINISTRAÇÃO E MANUTENÇÃO DA BASE"
+  },
+  {
+    "centroCusto": "3.03",
+    "nomeCentroCusto": "RH E COMUNICAÇÃO",
+    "projeto": "RH E COMUNICAÇÃO"
+  },
+  {
+    "centroCusto": "3.04",
+    "nomeCentroCusto": "JURÍDICO",
+    "projeto": "JURÍDICO"
+  },
+  {
+    "centroCusto": "3.05",
+    "nomeCentroCusto": "LOGÍSTICA DE PESSOAS",
+    "projeto": "LOGÍSTICA DE PESSOAS"
+  },
+  {
+    "centroCusto": "3.06",
+    "nomeCentroCusto": "FINANCEIRO",
+    "projeto": "FINANCEIRO"
+  },
+  {
+    "centroCusto": "3.07",
+    "nomeCentroCusto": "TI",
+    "projeto": "TI"
+  },
+  {
+    "centroCusto": "3.08",
+    "nomeCentroCusto": "SUPRIMENTOS",
+    "projeto": "SUPRIMENTOS"
+  },
+  {
+    "centroCusto": "3.09",
+    "nomeCentroCusto": "ALMOXARIFADO",
+    "projeto": "ALMOXARIFADO"
+  },
+  {
+    "centroCusto": "3.10",
+    "nomeCentroCusto": "QSMS",
+    "projeto": "QSMS"
+  },
+  {
+    "centroCusto": "3.11",
+    "nomeCentroCusto": "LOGÍSTICA DE MATERIAIS",
+    "projeto": "LOGÍSTICA DE MATERIAIS"
+  },
+  {
+    "centroCusto": "3.12",
+    "nomeCentroCusto": "MANUTENÇÃO",
+    "projeto": "MANUTENÇÃO"
+  },
+  {
+    "centroCusto": "3.13",
+    "nomeCentroCusto": "ESTOQUE MÍNIMO",
+    "projeto": "ESTOQUE MÍNIMO"
+  },
+  {
+    "centroCusto": "3.14",
+    "nomeCentroCusto": "COMERCIAL",
+    "projeto": "COMERCIAL"
+  },
+  {
+    "centroCusto": "3.15",
+    "nomeCentroCusto": "DESENVOLVIMENTO DE NEGÓCIOS",
+    "projeto": "DESENVOLVIMENTO DE NEGÓCIOS"
+  },
+  {
+    "centroCusto": "3.16",
+    "nomeCentroCusto": "PESQUISA E DESENVOLVIMENTO",
+    "projeto": "PESQUISA E DESENVOLVIMENTO"
+  },
+  {
+    "centroCusto": "3.17",
+    "nomeCentroCusto": "RH APOIO",
+    "projeto": "RH APOIO"
+  },
+  {
+    "centroCusto": "3.18",
+    "nomeCentroCusto": "SERVIÇOS GERAIS BASE",
+    "projeto": "SERVIÇOS GERAIS BASE"
+  },
+  {
+    "centroCusto": "3.19",
+    "nomeCentroCusto": "SMS",
+    "projeto": "SMS"
+  },
+  {
+    "centroCusto": "3.20",
+    "nomeCentroCusto": "PLANEJAMENTO OPERACIONAL",
+    "projeto": "PLANEJAMENTO OPERACIONAL"
+  },
+  {
+    "centroCusto": "3.21",
+    "nomeCentroCusto": "PLANEJAMENTO FINANCEIRO",
+    "projeto": "PLANEJAMENTO FINANCEIRO"
+  },
+  {
+    "centroCusto": "3.22",
+    "nomeCentroCusto": "ENGENHARIA",
+    "projeto": "ENGENHARIA"
+  },
+  {
+    "centroCusto": "3.23",
+    "nomeCentroCusto": "TREINAMENTO",
+    "projeto": "TREINAMENTO"
+  },
+  {
+    "centroCusto": "3.24",
+    "nomeCentroCusto": "PIPESHOP DOME",
+    "projeto": "PIPESHOP DOME"
+  },
+  {
+    "centroCusto": "3.25",
+    "nomeCentroCusto": "MEDICINA",
+    "projeto": "MEDICINA"
+  },
+  {
+    "centroCusto": "3.28",
+    "nomeCentroCusto": "PLANEJAMENTO FISCAL",
+    "projeto": "PLANEJAMENTO FISCAL"
+  },
+  {
+    "centroCusto": "4.01",
+    "nomeCentroCusto": "INTEGRAR",
+    "projeto": "INTEGRAR"
+  },
+  {
+    "centroCusto": "4.02",
+    "nomeCentroCusto": "CONSOLIDAÇÃO | INTEGRAR",
+    "projeto": "CONSOLIDAÇÃO | INTEGRAR"
+  },
+  {
+    "centroCusto": "5.01",
+    "nomeCentroCusto": "GI",
+    "projeto": "GI"
+  },
+  {
+    "centroCusto": "5.04",
+    "nomeCentroCusto": "GI 2027",
+    "projeto": "GI 2027"
+  },
+  {
+    "centroCusto": "6.01.01",
+    "nomeCentroCusto": "NITERÓI",
+    "projeto": "NITERÓI"
+  },
+  {
+    "centroCusto": "6.02.01",
+    "nomeCentroCusto": "APOIO / G&A",
+    "projeto": "APOIO / G&A"
+  },
+  {
+    "centroCusto": "6.03.01",
+    "nomeCentroCusto": "TAMPÃO-ONSHORE REEMBOLSO",
+    "projeto": "TAMPÃO-ONSHORE REEMBOLSO"
+  },
+  {
+    "centroCusto": "6.03.02",
+    "nomeCentroCusto": "TAMPÃO-PMLZ",
+    "projeto": "TAMPÃO-ONSHORE REEMBOLSO"
+  },
+  {
+    "centroCusto": "6.03.03",
+    "nomeCentroCusto": "TAMPÃO-PMXL",
+    "projeto": "TAMPÃO-ONSHORE REEMBOLSO"
+  },
+  {
+    "centroCusto": "6.03.04",
+    "nomeCentroCusto": "TAMPÃO-P66",
+    "projeto": "TAMPÃO-ONSHORE REEMBOLSO"
+  },
+  {
+    "centroCusto": "6.03.05",
+    "nomeCentroCusto": "TAMPÃO-P67",
+    "projeto": "TAMPÃO-ONSHORE REEMBOLSO"
+  },
+  {
+    "centroCusto": "6.03.06",
+    "nomeCentroCusto": "TAMPÃO-P69",
+    "projeto": "TAMPÃO-ONSHORE REEMBOLSO"
+  },
+  {
+    "centroCusto": "6.03.07",
+    "nomeCentroCusto": "TAMPÃO-P68",
+    "projeto": "TAMPÃO-ONSHORE REEMBOLSO"
+  },
+  {
+    "centroCusto": "6.04.01",
+    "nomeCentroCusto": "FIBRA ONSHORE",
+    "projeto": "FIBRA ONSHORE"
+  },
+  {
+    "centroCusto": "6.04.02",
+    "nomeCentroCusto": "PMLZ-FIBRA",
+    "projeto": "FIBRA ONSHORE"
+  },
+  {
+    "centroCusto": "6.04.03",
+    "nomeCentroCusto": "FIBRA OFFSHORE",
+    "projeto": "FIBRA ONSHORE"
+  },
+  {
+    "centroCusto": "6.04.04",
+    "nomeCentroCusto": "PPM1-FIBRA",
+    "projeto": "FIBRA ONSHORE"
+  },
+  {
+    "centroCusto": "6.04.05",
+    "nomeCentroCusto": "PCH1 / PGP1-FIBRA",
+    "projeto": "FIBRA ONSHORE"
+  },
+  {
+    "centroCusto": "6.04.06",
+    "nomeCentroCusto": "P48-FIBRA",
+    "projeto": "FIBRA ONSHORE"
+  },
+  {
+    "centroCusto": "6.04.07",
+    "nomeCentroCusto": "P43-FIBRA",
+    "projeto": "FIBRA ONSHORE"
+  },
+  {
+    "centroCusto": "6.04.08",
+    "nomeCentroCusto": "P50 / P31-FIBRA",
+    "projeto": "FIBRA ONSHORE"
+  },
+  {
+    "centroCusto": "6.04.09",
+    "nomeCentroCusto": "P40-FIBRA",
+    "projeto": "FIBRA ONSHORE"
+  },
+  {
+    "centroCusto": "6.04.10",
+    "nomeCentroCusto": "P38-FIBRA",
+    "projeto": "FIBRA ONSHORE"
+  },
+  {
+    "centroCusto": "6.04.11",
+    "nomeCentroCusto": "P66 / P67 / P69 / P51-FIBRA",
+    "projeto": "FIBRA ONSHORE"
+  },
+  {
+    "centroCusto": "6.04.12",
+    "nomeCentroCusto": "P68-FIBRA",
+    "projeto": "FIBRA ONSHORE"
+  },
+  {
+    "centroCusto": "6.04.14",
+    "nomeCentroCusto": "FIBRA TUBULAÇÕES",
+    "projeto": "FIBRA ONSHORE"
+  },
+  {
+    "centroCusto": "6.05.01",
+    "nomeCentroCusto": "PRELIMINARIES",
+    "projeto": "PRELIMINARIES"
+  },
+  {
+    "centroCusto": "6.05.02",
+    "nomeCentroCusto": "RATES ON",
+    "projeto": "PRELIMINARIES"
+  },
+  {
+    "centroCusto": "6.05.03",
+    "nomeCentroCusto": "PROCUREMENT",
+    "projeto": "PRELIMINARIES"
+  },
+  {
+    "centroCusto": "6.05.04",
+    "nomeCentroCusto": "APOIO COMPARTILHADO",
+    "projeto": "PRELIMINARIES"
+  },
+  {
+    "centroCusto": "6.05.05",
+    "nomeCentroCusto": "RATES OFF",
+    "projeto": "PRELIMINARIES"
+  },
+  {
+    "centroCusto": "6.05.06",
+    "nomeCentroCusto": "COMMISSIONING",
+    "projeto": "PRELIMINARIES"
+  },
+  {
+    "centroCusto": "6.06.01",
+    "nomeCentroCusto": "SPOT",
+    "projeto": "SPOT"
+  },
+  {
+    "centroCusto": "6.06.02",
+    "nomeCentroCusto": "SPOT",
+    "projeto": "SPOT"
+  },
+  {
+    "centroCusto": "6.07.01",
+    "nomeCentroCusto": "TRIDENT",
+    "projeto": "TRIDENT"
+  },
+  {
+    "centroCusto": "6.07.02",
+    "nomeCentroCusto": "PPM-1 | TRIDENT",
+    "projeto": "TRIDENT"
+  },
+  {
+    "centroCusto": "6.07.03",
+    "nomeCentroCusto": "PCE-1 | TRIDENT",
+    "projeto": "TRIDENT"
+  },
+  {
+    "centroCusto": "6.07.04",
+    "nomeCentroCusto": "P-08 | TRIDENT",
+    "projeto": "TRIDENT"
+  },
+  {
+    "centroCusto": "6.07.05",
+    "nomeCentroCusto": "P-65 | TRIDENT",
+    "projeto": "TRIDENT"
+  },
+  {
+    "centroCusto": "6.07.06",
+    "nomeCentroCusto": "REVENDA | TRIDENT",
+    "projeto": "TRIDENT"
+  },
+  {
+    "centroCusto": "6.08.01",
+    "nomeCentroCusto": "KAROON",
+    "projeto": "KAROON"
+  },
+  {
+    "centroCusto": "6.09.01",
+    "nomeCentroCusto": "MODEC FABRICAÇÃO",
+    "projeto": "MODEC FABRICAÇÃO"
+  },
+  {
+    "centroCusto": "6.09.02",
+    "nomeCentroCusto": "MODEC SERVIÇOS OFFSHORE",
+    "projeto": "MODEC FABRICAÇÃO"
+  },
+  {
+    "centroCusto": "6.09.03",
+    "nomeCentroCusto": "MODEC BACALHAU",
+    "projeto": "MODEC FABRICAÇÃO"
+  },
+  {
+    "centroCusto": "6.10.01",
+    "nomeCentroCusto": "SBM-AGREEMENT",
+    "projeto": "SBM-AGREEMENT"
+  },
+  {
+    "centroCusto": "6.10.02",
+    "nomeCentroCusto": "SBM-SERVIÇOS",
+    "projeto": "SBM-AGREEMENT"
+  },
+  {
+    "centroCusto": "6.11.01",
+    "nomeCentroCusto": "3R TRANSITÓRIO",
+    "projeto": "3R TRANSITÓRIO"
+  },
+  {
+    "centroCusto": "6.11.02",
+    "nomeCentroCusto": "CONSOLIDAÇÃO O&M PEROÁ",
+    "projeto": "3R TRANSITÓRIO"
+  },
+  {
+    "centroCusto": "6.12.01",
+    "nomeCentroCusto": "UN-BC-OPERAÇÕES",
+    "projeto": "UN-BC-OPERAÇÕES"
+  },
+  {
+    "centroCusto": "6.12.02",
+    "nomeCentroCusto": "CANTEIRO | UN-BC-LOTE 1",
+    "projeto": "CANTEIRO | UN-BC-LOTE 1"
+  },
+  {
+    "centroCusto": "6.12.03",
+    "nomeCentroCusto": "P18 | UN-BC-LOTE 1",
+    "projeto": "CANTEIRO | UN-BC-LOTE 1"
+  },
+  {
+    "centroCusto": "6.12.04",
+    "nomeCentroCusto": "P19 | UN-BC-LOTE 1",
+    "projeto": "CANTEIRO | UN-BC-LOTE 1"
+  },
+  {
+    "centroCusto": "6.12.05",
+    "nomeCentroCusto": "P20 | UN-BC-LOTE 1",
+    "projeto": "CANTEIRO | UN-BC-LOTE 1"
+  },
+  {
+    "centroCusto": "6.12.06",
+    "nomeCentroCusto": "P35 | UN-BC-LOTE 1",
+    "projeto": "CANTEIRO | UN-BC-LOTE 1"
+  },
+  {
+    "centroCusto": "6.12.07",
+    "nomeCentroCusto": "P43 | UN-BC-LOTE 1",
+    "projeto": "CANTEIRO | UN-BC-LOTE 1"
+  },
+  {
+    "centroCusto": "6.12.08",
+    "nomeCentroCusto": "P47 | UN-BC-LOTE 1",
+    "projeto": "CANTEIRO | UN-BC-LOTE 1"
+  },
+  {
+    "centroCusto": "6.12.09",
+    "nomeCentroCusto": "P48 | UN-BC-LOTE 1",
+    "projeto": "CANTEIRO | UN-BC-LOTE 1"
+  },
+  {
+    "centroCusto": "6.12.10",
+    "nomeCentroCusto": "P61 | UN-BC-LOTE 1",
+    "projeto": "CANTEIRO | UN-BC-LOTE 1"
+  },
+  {
+    "centroCusto": "6.12.11",
+    "nomeCentroCusto": "P63 | UN-BC-LOTE 1",
+    "projeto": "CANTEIRO | UN-BC-LOTE 1"
+  },
+  {
+    "centroCusto": "6.12.12",
+    "nomeCentroCusto": "UN-BC | P. PRODUÇÃO",
+    "projeto": "UN-BC | P. PRODUÇÃO"
+  },
+  {
+    "centroCusto": "6.12.13",
+    "nomeCentroCusto": "UMS1 | UN-BC-LOTE 4",
+    "projeto": "UN-BC | P. PRODUÇÃO"
+  },
+  {
+    "centroCusto": "6.12.14",
+    "nomeCentroCusto": "UMS2 | UN-BC-LOTE 4",
+    "projeto": "UN-BC | P. PRODUÇÃO"
+  },
+  {
+    "centroCusto": "6.12.15",
+    "nomeCentroCusto": "UN-BC | APOIO LOGÍSTICO SJB",
+    "projeto": "UN-BC-OPERAÇÕES"
+  },
+  {
+    "centroCusto": "6.12.16",
+    "nomeCentroCusto": "GO | UN-BC-LOTE 1",
+    "projeto": "CANTEIRO | UN-BC-LOTE 1"
+  },
+  {
+    "centroCusto": "6.12.17",
+    "nomeCentroCusto": "DROPS | UN-BC-LOTE 1",
+    "projeto": "CANTEIRO | UN-BC-LOTE 1"
+  },
+  {
+    "centroCusto": "6.13.01",
+    "nomeCentroCusto": "P68 | UN-BS-EPC REPLICANTES",
+    "projeto": "P68 | UN-BS-EPC REPLICANTES"
+  },
+  {
+    "centroCusto": "6.14.01",
+    "nomeCentroCusto": "UN-BS - FIBRA ONSHORE",
+    "projeto": "UN-BS - FIBRA ONSHORE"
+  },
+  {
+    "centroCusto": "6.14.02",
+    "nomeCentroCusto": "UN-BS - FIBRA OFFSHORE",
+    "projeto": "UN-BS - FIBRA ONSHORE"
+  },
+  {
+    "centroCusto": "6.15.01",
+    "nomeCentroCusto": "MM - EQUINOR SERVIÇOS OFFSHORE",
+    "projeto": "MM - EQUINOR SERVIÇOS OFFSHORE"
+  },
+  {
+    "centroCusto": "6.15.02",
+    "nomeCentroCusto": "MM - EQUINOR REVENDA",
+    "projeto": "MM - EQUINOR SERVIÇOS OFFSHORE"
+  },
+  {
+    "centroCusto": "6.15.03",
+    "nomeCentroCusto": "MM - EQUINOR SERVIÇOS ONSHORE",
+    "projeto": "MM - EQUINOR SERVIÇOS OFFSHORE"
+  },
+  {
+    "centroCusto": "6.16.01",
+    "nomeCentroCusto": "3R | PESCADA-OPERAÇÃO E MANUTENÇÃO",
+    "projeto": "3R | PESCADA-OPERAÇÃO E MANUTENÇÃO"
+  },
+  {
+    "centroCusto": "6.16.02",
+    "nomeCentroCusto": "3R | PESCADA-REVENDA",
+    "projeto": "3R | PESCADA-OPERAÇÃO E MANUTENÇÃO"
+  },
+  {
+    "centroCusto": "6.16.03",
+    "nomeCentroCusto": "3R | SERVIÇOS GRANIHC",
+    "projeto": "3R | PESCADA-OPERAÇÃO E MANUTENÇÃO"
+  },
+  {
+    "centroCusto": "6.17.01",
+    "nomeCentroCusto": "GESTÃO E CANTEIRO | UN-ES-LOTE 3",
+    "projeto": "GESTÃO E CANTEIRO | UN-ES-LOTE 3"
+  },
+  {
+    "centroCusto": "6.17.02",
+    "nomeCentroCusto": "P57 | UN-ES-LOTE 3",
+    "projeto": "GESTÃO E CANTEIRO | UN-ES-LOTE 3"
+  },
+  {
+    "centroCusto": "6.17.03",
+    "nomeCentroCusto": "P58 | UN-ES-LOTE 3",
+    "projeto": "GESTÃO E CANTEIRO | UN-ES-LOTE 3"
+  },
+  {
+    "centroCusto": "6.17.04",
+    "nomeCentroCusto": "PRA1 | UN-ES-LOTE 3",
+    "projeto": "GESTÃO E CANTEIRO | UN-ES-LOTE 3"
+  },
+  {
+    "centroCusto": "6.17.05",
+    "nomeCentroCusto": "MOP | UN-ES-LOTE 3",
+    "projeto": "GESTÃO E CANTEIRO | UN-ES-LOTE 3"
+  },
+  {
+    "centroCusto": "6.17.06",
+    "nomeCentroCusto": "CAMPANHAS",
+    "projeto": "GESTÃO E CANTEIRO | UN-ES-LOTE 3"
+  },
+  {
+    "centroCusto": "6.18.01",
+    "nomeCentroCusto": "3R2 SERVIÇOS",
+    "projeto": "3R2 SERVIÇOS"
+  },
+  {
+    "centroCusto": "6.18.02",
+    "nomeCentroCusto": "3R3 SERVIÇOS",
+    "projeto": "3R2 SERVIÇOS"
+  },
+  {
+    "centroCusto": "6.18.03",
+    "nomeCentroCusto": "3R REVENDA",
+    "projeto": "3R2 SERVIÇOS"
+  },
+  {
+    "centroCusto": "6.19.01",
+    "nomeCentroCusto": "SUPRA SERVIÇOS",
+    "projeto": "SUPRA SERVIÇOS"
+  },
+  {
+    "centroCusto": "6.20.01",
+    "nomeCentroCusto": "3R | UBARANA-OPERAÇÃO E MANUTENÇÃO",
+    "projeto": "3R | UBARANA-OPERAÇÃO E MANUTENÇÃO"
+  },
+  {
+    "centroCusto": "6.21.01",
+    "nomeCentroCusto": "UN-BC-LOTE 2",
+    "projeto": "UN-BC-LOTE 2"
+  },
+  {
+    "centroCusto": "6.21.02",
+    "nomeCentroCusto": "DESCOMISSIONAMENTO NO AÇU",
+    "projeto": "UN-BC-LOTE 2"
+  },
+  {
+    "centroCusto": "6.21.03",
+    "nomeCentroCusto": "PERENCO - PCH-1 & PCH-2",
+    "projeto": "UN-BC-LOTE 2"
+  },
+  {
+    "centroCusto": "6.24.01",
+    "nomeCentroCusto": "UN-BS-O&M SANTOS",
+    "projeto": "UN-BS-O&M SANTOS"
+  },
+  {
+    "centroCusto": "6.24.02",
+    "nomeCentroCusto": "UN-BS | UMS/PAR",
+    "projeto": "UN-BS | UMS/PAR"
+  },
+  {
+    "centroCusto": "6.25.01",
+    "nomeCentroCusto": "TVD | UN-BC-LOTE 1",
+    "projeto": "TVD | UN-BC-LOTE 1"
+  },
+  {
+    "centroCusto": "6.26.01",
+    "nomeCentroCusto": "UMS-3 - UN-BC",
+    "projeto": "UMS-3 - UN-BC"
+  },
+  {
+    "centroCusto": "6.27.01",
+    "nomeCentroCusto": "UNBS | LOTE 2 UMS",
+    "projeto": "UNBS | LOTE 2 UMS"
+  },
+  {
+    "centroCusto": "6.28.01",
+    "nomeCentroCusto": "YINSON",
+    "projeto": "YINSON"
+  },
+  {
+    "centroCusto": "8.01.01",
+    "nomeCentroCusto": "SCM-APOIO/G&A",
+    "projeto": "SCM-APOIO/G&A"
+  },
+  {
+    "centroCusto": "8.02.01",
+    "nomeCentroCusto": "SCM-SHELL-RJ",
+    "projeto": "SCM-SHELL-RJ"
+  },
+  {
+    "centroCusto": "8.02.02",
+    "nomeCentroCusto": "SCM-SHELL-ES",
+    "projeto": "SCM-SHELL-RJ"
+  },
+  {
+    "centroCusto": "8.02.03",
+    "nomeCentroCusto": "SCM-SHELL-REEMBOLSO",
+    "projeto": "SCM-SHELL-RJ"
+  },
+  {
+    "centroCusto": "8.03.01",
+    "nomeCentroCusto": "SCM-EQUINOR-QA-QC",
+    "projeto": "SCM-EQUINOR-QA-QC"
+  },
+  {
+    "centroCusto": "8.03.02",
+    "nomeCentroCusto": "SCM-EQUINOR-OIL LIFTING",
+    "projeto": "SCM-EQUINOR-QA-QC"
+  },
+  {
+    "centroCusto": "8.03.03",
+    "nomeCentroCusto": "SCM-EQUINOR-MATERIAIS",
+    "projeto": "SCM-EQUINOR-QA-QC"
+  },
+  {
+    "centroCusto": "8.03.04",
+    "nomeCentroCusto": "SCM-EQUINOR-REEMBOLSO",
+    "projeto": "SCM-EQUINOR-QA-QC"
+  },
+  {
+    "centroCusto": "8.04.01",
+    "nomeCentroCusto": "SCM-REDUC",
+    "projeto": "SCM-REDUC"
+  },
+  {
+    "centroCusto": "8.04.02",
+    "nomeCentroCusto": "SCM-UTE BLS",
+    "projeto": "SCM-REDUC"
+  },
+  {
+    "centroCusto": "8.04.03",
+    "nomeCentroCusto": "SCM-GLB",
+    "projeto": "SCM-REDUC"
+  },
+  {
+    "centroCusto": "8.04.04",
+    "nomeCentroCusto": "SCM-REVAP",
+    "projeto": "SCM-REDUC"
+  },
+  {
+    "centroCusto": "8.05.01",
+    "nomeCentroCusto": "SCM-WEATHERFORD",
+    "projeto": "SCM-WEATHERFORD"
+  },
+  {
+    "centroCusto": "8.05.02",
+    "nomeCentroCusto": "SCM-OLYMPIA",
+    "projeto": "SCM-WEATHERFORD"
+  },
+  {
+    "centroCusto": "8.05.03",
+    "nomeCentroCusto": "SCM-BASE MACAÉ",
+    "projeto": "SCM-WEATHERFORD"
+  },
+  {
+    "centroCusto": "8.06.01",
+    "nomeCentroCusto": "SCM-MODEC",
+    "projeto": "SCM-MODEC"
+  },
+  {
+    "centroCusto": "8.07.01",
+    "nomeCentroCusto": "SCM-BAKER HUGHES",
+    "projeto": "SCM-BAKER HUGHES"
+  },
+  {
+    "centroCusto": "8.08.01",
+    "nomeCentroCusto": "SCM-LOG SUBSEA",
+    "projeto": "SCM-LOG SUBSEA"
+  },
+  {
+    "centroCusto": "8.09.01",
+    "nomeCentroCusto": "SCM-EQUINOR PERSONNEL",
+    "projeto": "SCM-EQUINOR PERSONNEL"
+  },
+  {
+    "centroCusto": "9.01.01",
+    "nomeCentroCusto": "COMPOSITE",
+    "projeto": "COMPOSITE"
+  },
+  {
+    "centroCusto": "9.01.02",
+    "nomeCentroCusto": "COMPOSITE FABRICATION ",
+    "projeto": "COMPOSITE"
+  }
+]

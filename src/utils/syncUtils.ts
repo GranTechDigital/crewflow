@@ -14,8 +14,8 @@ interface SyncResult {
 export const syncWithRetry = async (options: SyncOptions = {}): Promise<SyncResult> => {
   const {
     maxRetries = 3,
-    retryDelay = 1000,
-    timeout = 30000, // 30 segundos
+    retryDelay = 2000,
+    timeout = 60000, // 60 segundos
     onProgress
   } = options;
 
@@ -23,7 +23,7 @@ export const syncWithRetry = async (options: SyncOptions = {}): Promise<SyncResu
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      onProgress?.(`Tentativa ${attempt}/${maxRetries} - Sincronizando dados...`);
+      onProgress?.(`Tentativa ${attempt}/${maxRetries} - Iniciando sincronização...`);
       
       // Criar um AbortController para timeout
       const controller = new AbortController();
@@ -34,7 +34,8 @@ export const syncWithRetry = async (options: SyncOptions = {}): Promise<SyncResu
         signal: controller.signal,
         headers: {
           'Content-Type': 'application/json'
-        }
+        },
+        cache: 'no-store' // Evitar cache
       });
 
       clearTimeout(timeoutId);
@@ -45,6 +46,12 @@ export const syncWithRetry = async (options: SyncOptions = {}): Promise<SyncResu
       }
 
       const data = await response.json();
+      
+      // Verificar se a resposta contém um erro
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
       onProgress?.('Sincronização concluída com sucesso!');
       
       return {
@@ -57,22 +64,26 @@ export const syncWithRetry = async (options: SyncOptions = {}): Promise<SyncResu
       
       // Se foi cancelado por timeout
       if (error instanceof Error && error.name === 'AbortError') {
-        onProgress?.(`Tentativa ${attempt} - Timeout na sincronização`);
+        onProgress?.(`Tentativa ${attempt} - Timeout na sincronização (${timeout/1000}s)`);
       } else {
         onProgress?.(`Tentativa ${attempt} - Erro: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
       }
 
       // Se não é a última tentativa, aguarda antes de tentar novamente
       if (attempt < maxRetries) {
-        onProgress?.(`Aguardando ${retryDelay / 1000} segundos antes da próxima tentativa...`);
-        await new Promise(resolve => setTimeout(resolve, retryDelay));
+        const waitTime = retryDelay * Math.pow(2, attempt - 1); // Backoff exponencial
+        onProgress?.(`Aguardando ${waitTime/1000} segundos antes da próxima tentativa...`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
       }
     }
   }
 
+  const errorMessage = lastError?.message || 'Erro desconhecido após todas as tentativas';
+  onProgress?.(`Falha na sincronização: ${errorMessage}`);
+
   return {
     success: false,
-    error: lastError?.message || 'Erro desconhecido após todas as tentativas'
+    error: errorMessage
   };
 };
 

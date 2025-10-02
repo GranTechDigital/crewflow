@@ -35,18 +35,9 @@ export const TEAM_PERMISSIONS: { [key: string]: string[] } = {
     PERMISSIONS.ACCESS_FUNCIONARIOS,
     PERMISSIONS.ACCESS_RH,
   ],
-  'Treinamento': [
-    PERMISSIONS.ACCESS_FUNCIONARIOS,
-    PERMISSIONS.ACCESS_TREINAMENTO,
-  ],
-  'Medicina': [
-    PERMISSIONS.ACCESS_FUNCIONARIOS,
-    PERMISSIONS.ACCESS_MEDICINA,
-  ],
   'Logística': [
     PERMISSIONS.ACCESS_FUNCIONARIOS,
     PERMISSIONS.ACCESS_LOGISTICA,
-    PERMISSIONS.ACCESS_PREST_SERV,
   ],
   'Planejamento': [
     PERMISSIONS.ACCESS_FUNCIONARIOS,
@@ -55,6 +46,14 @@ export const TEAM_PERMISSIONS: { [key: string]: string[] } = {
   'Prestserv': [
     PERMISSIONS.ACCESS_FUNCIONARIOS,
     PERMISSIONS.ACCESS_PREST_SERV,
+  ],
+  'Treinamento': [
+    PERMISSIONS.ACCESS_FUNCIONARIOS,
+    PERMISSIONS.ACCESS_TREINAMENTO,
+  ],
+  'Medicina': [
+    PERMISSIONS.ACCESS_FUNCIONARIOS,
+    PERMISSIONS.ACCESS_MEDICINA,
   ],
 } as const;
 
@@ -88,34 +87,28 @@ export const ROUTE_PROTECTION = {
   
   // Prestserv
   PRESTSERV: {
-    requiredEquipe: ['LOGISTICA', 'PRESTSERV', 'Administração'] as string[],
+    requiredEquipe: ['Logística', 'Prestserv', 'Administração'] as string[],
     requiredPermissions: [PERMISSIONS.ADMIN, PERMISSIONS.ACCESS_PREST_SERV] as string[],
   },
   
   // Logística
   LOGISTICA: {
-    requiredEquipe: ['LOGISTICA', 'Administração'] as string[],
+    requiredEquipe: ['Logística', 'Administração'] as string[],
     requiredPermissions: [PERMISSIONS.ADMIN, PERMISSIONS.ACCESS_LOGISTICA] as string[],
   },
   
   // Planejamento
   PLANEJAMENTO: {
-    requiredEquipe: ['PLANEJAMENTO', 'Administração'] as string[],
+    requiredEquipe: ['Planejamento', 'Administração'] as string[],
     requiredPermissions: [PERMISSIONS.ADMIN, PERMISSIONS.ACCESS_PLANEJAMENTO] as string[],
   },
-  
+
   // RH
   RH: {
     requiredEquipe: ['RH', 'Administração'] as string[],
     requiredPermissions: [PERMISSIONS.ADMIN, PERMISSIONS.ACCESS_RH] as string[],
   },
-  
-  // Medicina
-  MEDICINA: {
-    requiredEquipe: ['Medicina', 'Administração'] as string[],
-    requiredPermissions: [PERMISSIONS.ADMIN, PERMISSIONS.ACCESS_MEDICINA] as string[],
-  },
-  
+
   // Treinamento
   TREINAMENTO: {
     requiredEquipe: ['Treinamento', 'Administração'] as string[],

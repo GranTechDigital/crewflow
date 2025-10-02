@@ -1,0 +1,398 @@
+[
+  {
+    "treinamento": "REGRAS DE OURO",
+    "cargaHoraria": 60,
+    "validadeUnidade": "unico",
+    "validadeValor": 0
+  },
+  {
+    "treinamento": "INTEGRAÇÃO",
+    "cargaHoraria": 480,
+    "validadeUnidade": "unico",
+    "validadeValor": 0
+  },
+  {
+    "treinamento": "DIREÇÃO DEFENSIVA",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 12
+  },
+  {
+    "treinamento": "NR 10 BÁSICO",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 24
+  },
+  {
+    "treinamento": "NR 10 SEP",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 24
+  },
+  {
+    "treinamento": "NR 10 RECICLAGEM",
+    "cargaHoraria": 240,
+    "validadeUnidade": "mes",
+    "validadeValor": 24
+  },
+  {
+    "treinamento": "NR 11",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 12
+  },
+  {
+    "treinamento": "NR 12",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 12
+  },
+  {
+    "treinamento": "NR 18",
+    "cargaHoraria": 360,
+    "validadeUnidade": "mes",
+    "validadeValor": 24
+  },
+  {
+    "treinamento": "NR 20",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 36
+  },
+  {
+    "treinamento": "NR 33",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 12
+  },
+  {
+    "treinamento": "NR 34",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 36
+  },
+  {
+    "treinamento": "NR 35",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 24
+  },
+  {
+    "treinamento": "OPERADOR DE GUINDASTE",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 12
+  },
+  {
+    "treinamento": "OPERADOR DE EMPILHADEIRA",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 12
+  },
+  {
+    "treinamento": "OPERADOR DE PLATAFORMA",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 12
+  },
+  {
+    "treinamento": "OPERADOR DE PONTE ROLANTE",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 12
+  },
+  {
+    "treinamento": "OPERADOR DE TALHA",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 12
+  },
+  {
+    "treinamento": "OPERADOR DE TRATOR",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 12
+  },
+  {
+    "treinamento": "OPERADOR DE GUINDAUTO",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 12
+  },
+  {
+    "treinamento": "OPERADOR DE RETROESCAVADEIRA",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 12
+  },
+  {
+    "treinamento": "OPERADOR DE ESCAVADEIRA",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 12
+  },
+  {
+    "treinamento": "OPERADOR DE ROLO COMPACTADOR",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 12
+  },
+  {
+    "treinamento": "OPERADOR DE MOTONIVELADORA",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 12
+  },
+  {
+    "treinamento": "OPERADOR DE PÁ CARREGADEIRA",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 12
+  },
+  {
+    "treinamento": "OPERADOR DE CAMINHÃO FORA DE ESTRADA",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 12
+  },
+  {
+    "treinamento": "OPERADOR DE CAMINHÃO MUNK",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 12
+  },
+  {
+    "treinamento": "OPERADOR DE CAMINHÃO BASCULANTE",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 12
+  },
+  {
+    "treinamento": "OPERADOR DE CAMINHÃO BETONEIRA",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 12
+  },
+  {
+    "treinamento": "OPERADOR DE CAMINHÃO PIPA",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 12
+  },
+  {
+    "treinamento": "OPERADOR DE CAMINHÃO COMBOIO",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 12
+  },
+  {
+    "treinamento": "OPERADOR DE CAMINHÃO PRANCHA",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 12
+  },
+  {
+    "treinamento": "OPERADOR DE CAMINHÃO CARROCERIA",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 12
+  },
+  {
+    "treinamento": "OPERADOR DE CAMINHÃO BAÚ",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 12
+  },
+  {
+    "treinamento": "OPERADOR DE CAMINHÃO CAÇAMBA",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 12
+  },
+  {
+    "treinamento": "Curso para Pintores emitido pelo CQ",
+    "cargaHoraria": 480,
+    "validadeUnidade": "unico",
+    "validadeValor": 0
+  },
+  {
+    "treinamento": "PRIMEIROS SOCORROS",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 24
+  },
+  {
+    "treinamento": "BRIGADA DE INCÊNDIO",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 12
+  },
+  {
+    "treinamento": "CIPA",
+    "cargaHoraria": 1200,
+    "validadeUnidade": "mes",
+    "validadeValor": 12
+  },
+  {
+    "treinamento": "ESPAÇO CONFINADO - SUPERVISOR",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 12
+  },
+  {
+    "treinamento": "ESPAÇO CONFINADO - VIGIA",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 12
+  },
+  {
+    "treinamento": "ESPAÇO CONFINADO - TRABALHADOR",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 12
+  },
+  {
+    "treinamento": "TRABALHO EM ALTURA - SUPERVISOR",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 24
+  },
+  {
+    "treinamento": "TRABALHO EM ALTURA - TRABALHADOR",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 24
+  },
+  {
+    "treinamento": "ELETRICISTA",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 24
+  },
+  {
+    "treinamento": "SOLDADOR",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 36
+  },
+  {
+    "treinamento": "MONTADOR",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 36
+  },
+  {
+    "treinamento": "CALDEIREIRO",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 36
+  },
+  {
+    "treinamento": "PINTOR",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 36
+  },
+  {
+    "treinamento": "INSTRUMENTISTA",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 36
+  },
+  {
+    "treinamento": "MECÂNICO",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 36
+  },
+  {
+    "treinamento": "ISOLADOR",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 36
+  },
+  {
+    "treinamento": "ANDAIME",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 12
+  },
+  {
+    "treinamento": "RIGGER",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 12
+  },
+  {
+    "treinamento": "SINALEIRO",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 12
+  },
+  {
+    "treinamento": "AMARRADOR DE CARGA",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 12
+  },
+  {
+    "treinamento": "OPERADOR DE GUINCHO",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 12
+  },
+  {
+    "treinamento": "OPERADOR DE BATE ESTACA",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 12
+  },
+  {
+    "treinamento": "OPERADOR DE PERFURATRIZ",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 12
+  },
+  {
+    "treinamento": "OPERADOR DE COMPRESSOR",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 12
+  },
+  {
+    "treinamento": "OPERADOR DE GERADOR",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 12
+  },
+  {
+    "treinamento": "OPERADOR DE BOMBA",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 12
+  },
+  {
+    "treinamento": "OPERADOR DE USINA DE CONCRETO",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 12
+  },
+  {
+    "treinamento": "OPERADOR DE BRITADOR",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 12
+  },
+  {
+    "treinamento": "OPERADOR DE DRAGA",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 12
+  },
+  {
+    "treinamento": "OPERADOR DE TRATOR DE ESTEIRA",
+    "cargaHoraria": 480,
+    "validadeUnidade": "mes",
+    "validadeValor": 12
+  }
+]

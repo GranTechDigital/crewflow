@@ -1,0 +1,382 @@
+[
+  {
+    "id": 1,
+    "codigo": "1.01",
+    "nome": "HOLDING"
+  },
+  {
+    "id": 2,
+    "codigo": "1.03",
+    "nome": "HOLDING ADMINISTRATIVO"
+  },
+  {
+    "id": 3,
+    "codigo": "10.01",
+    "nome": "SIMULACAO"
+  },
+  {
+    "id": 4,
+    "codigo": "2.01",
+    "nome": "DOME"
+  },
+  {
+    "id": 5,
+    "codigo": "2.02",
+    "nome": "DOME RATEIO"
+  },
+  {
+    "id": 6,
+    "codigo": "2.03",
+    "nome": "DOME CONSOLIDAÇÃO"
+  },
+  {
+    "id": 7,
+    "codigo": "2.04",
+    "nome": "DOME 2017"
+  },
+  {
+    "id": 8,
+    "codigo": "3.01",
+    "nome": "PIPESHOP"
+  },
+  {
+    "id": 9,
+    "codigo": "3.02",
+    "nome": "ADMINISTRAÇÃO E MANUTENÇÃO DA BASE"
+  },
+  {
+    "id": 10,
+    "codigo": "3.03",
+    "nome": "RH E COMUNICAÇÃO"
+  },
+  {
+    "id": 11,
+    "codigo": "3.04",
+    "nome": "JURÍDICO"
+  },
+  {
+    "id": 12,
+    "codigo": "3.05",
+    "nome": "LOGÍSTICA DE PESSOAS"
+  },
+  {
+    "id": 13,
+    "codigo": "3.06",
+    "nome": "FINANCEIRO"
+  },
+  {
+    "id": 14,
+    "codigo": "3.07",
+    "nome": "TI"
+  },
+  {
+    "id": 15,
+    "codigo": "3.08",
+    "nome": "SUPRIMENTOS"
+  },
+  {
+    "id": 16,
+    "codigo": "3.09",
+    "nome": "ALMOXARIFADO"
+  },
+  {
+    "id": 17,
+    "codigo": "3.10",
+    "nome": "QSMS"
+  },
+  {
+    "id": 18,
+    "codigo": "3.11",
+    "nome": "LOGÍSTICA DE MATERIAIS"
+  },
+  {
+    "id": 19,
+    "codigo": "3.12",
+    "nome": "MANUTENÇÃO"
+  },
+  {
+    "id": 20,
+    "codigo": "3.13",
+    "nome": "ESTOQUE MÍNIMO"
+  },
+  {
+    "id": 21,
+    "codigo": "3.14",
+    "nome": "COMERCIAL"
+  },
+  {
+    "id": 22,
+    "codigo": "3.15",
+    "nome": "DESENVOLVIMENTO DE NEGÓCIOS"
+  },
+  {
+    "id": 23,
+    "codigo": "3.16",
+    "nome": "PESQUISA E DESENVOLVIMENTO"
+  },
+  {
+    "id": 24,
+    "codigo": "3.17",
+    "nome": "RH APOIO"
+  },
+  {
+    "id": 25,
+    "codigo": "3.18",
+    "nome": "SERVIÇOS GERAIS BASE"
+  },
+  {
+    "id": 26,
+    "codigo": "3.19",
+    "nome": "SMS"
+  },
+  {
+    "id": 27,
+    "codigo": "3.20",
+    "nome": "PLANEJAMENTO OPERACIONAL"
+  },
+  {
+    "id": 28,
+    "codigo": "3.21",
+    "nome": "PLANEJAMENTO FINANCEIRO"
+  },
+  {
+    "id": 29,
+    "codigo": "3.22",
+    "nome": "ENGENHARIA"
+  },
+  {
+    "id": 30,
+    "codigo": "3.23",
+    "nome": "TREINAMENTO"
+  },
+  {
+    "id": 31,
+    "codigo": "3.24",
+    "nome": "PIPESHOP DOME"
+  },
+  {
+    "id": 32,
+    "codigo": "3.25",
+    "nome": "MEDICINA"
+  },
+  {
+    "id": 33,
+    "codigo": "3.28",
+    "nome": "PLANEJAMENTO FISCAL"
+  },
+  {
+    "id": 34,
+    "codigo": "4.01",
+    "nome": "INTEGRAR"
+  },
+  {
+    "id": 35,
+    "codigo": "4.02",
+    "nome": "CONSOLIDAÇÃO | INTEGRAR"
+  },
+  {
+    "id": 36,
+    "codigo": "5.01",
+    "nome": "GI"
+  },
+  {
+    "id": 37,
+    "codigo": "5.04",
+    "nome": "GI 2027"
+  },
+  {
+    "id": 38,
+    "codigo": "6.01",
+    "nome": "NITERÓI"
+  },
+  {
+    "id": 39,
+    "codigo": "6.02",
+    "nome": "APOIO / G&A"
+  },
+  {
+    "id": 40,
+    "codigo": "6.03",
+    "nome": "TAMPÃO-ONSHORE REEMBOLSO"
+  },
+  {
+    "id": 41,
+    "codigo": "6.04",
+    "nome": "FIBRA ONSHORE"
+  },
+  {
+    "id": 42,
+    "codigo": "6.05",
+    "nome": "PRELIMINARIES"
+  },
+  {
+    "id": 43,
+    "codigo": "6.06",
+    "nome": "SPOT"
+  },
+  {
+    "id": 44,
+    "codigo": "6.07",
+    "nome": "TRIDENT"
+  },
+  {
+    "id": 45,
+    "codigo": "6.08",
+    "nome": "KAROON"
+  },
+  {
+    "id": 46,
+    "codigo": "6.09",
+    "nome": "MODEC FABRICAÇÃO"
+  },
+  {
+    "id": 47,
+    "codigo": "6.10",
+    "nome": "SBM-AGREEMENT"
+  },
+  {
+    "id": 48,
+    "codigo": "6.11",
+    "nome": "3R TRANSITÓRIO"
+  },
+  {
+    "id": 49,
+    "codigo": "6.12OP",
+    "nome": "UN-BC-OPERAÇÕES"
+  },
+  {
+    "id": 50,
+    "codigo": "6.12L1",
+    "nome": "CANTEIRO | UN-BC-LOTE 1"
+  },
+  {
+    "id": 51,
+    "codigo": "6.12L4",
+    "nome": "UN-BC | P. PRODUÇÃO"
+  },
+  {
+    "id": 52,
+    "codigo": "6.13",
+    "nome": "P68 | UN-BS-EPC REPLICANTES"
+  },
+  {
+    "id": 53,
+    "codigo": "6.14",
+    "nome": "UN-BS - FIBRA ONSHORE"
+  },
+  {
+    "id": 54,
+    "codigo": "6.15",
+    "nome": "MM - EQUINOR SERVIÇOS OFFSHORE"
+  },
+  {
+    "id": 55,
+    "codigo": "6.16",
+    "nome": "3R | PESCADA-OPERAÇÃO E MANUTENÇÃO"
+  },
+  {
+    "id": 56,
+    "codigo": "6.17",
+    "nome": "GESTÃO E CANTEIRO | UN-ES-LOTE 3"
+  },
+  {
+    "id": 57,
+    "codigo": "6.18",
+    "nome": "3R2 SERVIÇOS"
+  },
+  {
+    "id": 58,
+    "codigo": "6.19",
+    "nome": "SUPRA SERVIÇOS"
+  },
+  {
+    "id": 59,
+    "codigo": "6.20",
+    "nome": "3R | UBARANA-OPERAÇÃO E MANUTENÇÃO"
+  },
+  {
+    "id": 60,
+    "codigo": "6.21",
+    "nome": "UN-BC-LOTE 2"
+  },
+  {
+    "id": 61,
+    "codigo": "6.24.1",
+    "nome": "UN-BS-O&M SANTOS"
+  },
+  {
+    "id": 62,
+    "codigo": "6.24.2",
+    "nome": "UN-BS | UMS/PAR"
+  },
+  {
+    "id": 63,
+    "codigo": "6.25.1",
+    "nome": "TVD | UN-BC-LOTE 1"
+  },
+  {
+    "id": 64,
+    "codigo": "6.26.1",
+    "nome": "UMS-3 - UN-BC"
+  },
+  {
+    "id": 65,
+    "codigo": "6.27.1",
+    "nome": "UNBS | LOTE 2 UMS"
+  },
+  {
+    "id": 66,
+    "codigo": "6.28.1",
+    "nome": "YINSON"
+  },
+  {
+    "id": 67,
+    "codigo": "8.01",
+    "nome": "SCM-APOIO/G&A"
+  },
+  {
+    "id": 68,
+    "codigo": "8.02",
+    "nome": "SCM-SHELL-RJ"
+  },
+  {
+    "id": 69,
+    "codigo": "8.03",
+    "nome": "SCM-EQUINOR-QA-QC"
+  },
+  {
+    "id": 70,
+    "codigo": "8.04",
+    "nome": "SCM-REDUC"
+  },
+  {
+    "id": 71,
+    "codigo": "8.05",
+    "nome": "SCM-WEATHERFORD"
+  },
+  {
+    "id": 72,
+    "codigo": "8.06",
+    "nome": "SCM-MODEC"
+  },
+  {
+    "id": 73,
+    "codigo": "8.07",
+    "nome": "SCM-BAKER HUGHES"
+  },
+  {
+    "id": 74,
+    "codigo": "8.08",
+    "nome": "SCM-LOG SUBSEA"
+  },
+  {
+    "id": 75,
+    "codigo": "8.09",
+    "nome": "SCM-EQUINOR PERSONNEL"
+  },
+  {
+    "id": 76,
+    "codigo": "9.01",
+    "nome": "COMPOSITE"
+  }
+]

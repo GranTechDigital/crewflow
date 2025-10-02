@@ -1,0 +1,32 @@
+[
+  {
+    "contratoNumero": "4600677360",
+    "centroCustoNum": "6.21.01",
+    "descricao": "UN-BC-LOTE 2 -> Centro de Custo UN-BC-LOTE 2"
+  },
+  {
+    "contratoNumero": "4600677361",
+    "centroCustoNum": "6.21.02",
+    "descricao": "DESCOMISSIONAMENTO -> Centro de Custo Descomissionamento"
+  },
+  {
+    "contratoNumero": "4600677362",
+    "centroCustoNum": "6.21.03",
+    "descricao": "PERENCO -> Centro de Custo PERENCO"
+  },
+  {
+    "contratoNumero": "4600679351",
+    "centroCustoNum": "6.24.01",
+    "descricao": "UN-BS-O&M -> Centro de Custo UN-BS-O&M"
+  },
+  {
+    "contratoNumero": "4600679352",
+    "centroCustoNum": "6.24.02",
+    "descricao": "UN-BS UMS/PAR -> Centro de Custo UN-BS UMS/PAR"
+  },
+  {
+    "contratoNumero": "4600680673",
+    "centroCustoNum": "6.25.01",
+    "descricao": "TVD -> Centro de Custo TVD UN-BC"
+  }
+]

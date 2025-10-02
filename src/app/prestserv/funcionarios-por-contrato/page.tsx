@@ -17,6 +17,7 @@ import {
   BriefcaseIcon,
   PaintBrushIcon,
   ChartBarIcon,
+  ChartPieIcon,
   ExclamationTriangleIcon,
   ExclamationCircleIcon,
 } from "@heroicons/react/24/outline";
@@ -735,6 +736,22 @@ export default function FuncionariosPorContratoPage() {
                 <ChartBarIcon className="h-5 w-5 mr-2" />
                 Dashboard
               </button>
+              <button
+                onClick={() => {
+                  setActiveTab("uptime");
+                  if (!dashboardData) {
+                    fetchDashboardData();
+                  }
+                }}
+                className={` text-white py-2 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${
+                  activeTab === "uptime"
+                    ? "border-sky-500 text-sky-300"
+                    : "border-transparent text-gray-500 hover:text-white-700 hover:border-white-300"
+                }`}
+              >
+                <ChartPieIcon className="h-5 w-5 mr-2" />
+                Uptime
+              </button>
             </nav>
           </div>
 
@@ -840,11 +857,13 @@ export default function FuncionariosPorContratoPage() {
                       const value = e.target.value;
                       setFuncaoSearch(value);
                       // Se o valor digitado corresponde exatamente a uma função, seleciona ela
-                      const funcaoExata = todasFuncoes.find(f => f.toLowerCase() === value.toLowerCase());
+                      const funcaoExata = todasFuncoes.find(
+                        (f) => f.toLowerCase() === value.toLowerCase()
+                      );
                       if (funcaoExata) {
                         handleFilterChange("funcao", funcaoExata);
-                      } else if (value === '') {
-                        handleFilterChange("funcao", '');
+                      } else if (value === "") {
+                        handleFilterChange("funcao", "");
                       }
                     }}
                     className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
@@ -852,19 +871,23 @@ export default function FuncionariosPorContratoPage() {
                   />
                   <datalist id="funcoes-list">
                     {todasFuncoes
-                      .filter(funcao => 
-                        funcaoSearch === '' || funcao.toLowerCase().includes(funcaoSearch.toLowerCase())
+                      .filter(
+                        (funcao) =>
+                          funcaoSearch === "" ||
+                          funcao
+                            .toLowerCase()
+                            .includes(funcaoSearch.toLowerCase())
                       )
-                      .map((funcao) => (
-                        <option key={funcao} value={funcao} />
+                      .map((funcao, index) => (
+                        <option key={`funcao-${index}-${funcao}`} value={funcao} />
                       ))}
                   </datalist>
                   {(funcaoFilter || funcaoSearch) && (
                     <button
                       type="button"
                       onClick={() => {
-                        setFuncaoSearch('');
-                        handleFilterChange("funcao", '');
+                        setFuncaoSearch("");
+                        handleFilterChange("funcao", "");
                       }}
                       className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
                     >
@@ -891,11 +914,13 @@ export default function FuncionariosPorContratoPage() {
                       const value = e.target.value;
                       setCentroCustoSearch(value);
                       // Se o valor digitado corresponde exatamente a um centro de custo, seleciona ele
-                      const centroCustoExato = todosCentrosCusto.find(c => c.toLowerCase() === value.toLowerCase());
+                      const centroCustoExato = todosCentrosCusto.find(
+                        (c) => c.toLowerCase() === value.toLowerCase()
+                      );
                       if (centroCustoExato) {
                         handleFilterChange("centroCusto", centroCustoExato);
-                      } else if (value === '') {
-                        handleFilterChange("centroCusto", '');
+                      } else if (value === "") {
+                        handleFilterChange("centroCusto", "");
                       }
                     }}
                     className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
@@ -903,19 +928,23 @@ export default function FuncionariosPorContratoPage() {
                   />
                   <datalist id="centros-custo-list">
                     {todosCentrosCusto
-                      .filter(centroCusto => 
-                        centroCustoSearch === '' || centroCusto.toLowerCase().includes(centroCustoSearch.toLowerCase())
+                      .filter(
+                        (centroCusto) =>
+                          centroCustoSearch === "" ||
+                          centroCusto
+                            .toLowerCase()
+                            .includes(centroCustoSearch.toLowerCase())
                       )
-                      .map((centroCusto) => (
-                        <option key={centroCusto} value={centroCusto} />
+                      .map((centroCusto, index) => (
+                        <option key={`centro-custo-${index}-${centroCusto}`} value={centroCusto} />
                       ))}
                   </datalist>
                   {(centroCustoFilter || centroCustoSearch) && (
                     <button
                       type="button"
                       onClick={() => {
-                        setCentroCustoSearch('');
-                        handleFilterChange("centroCusto", '');
+                        setCentroCustoSearch("");
+                        handleFilterChange("centroCusto", "");
                       }}
                       className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
                     >
@@ -950,7 +979,7 @@ export default function FuncionariosPorContratoPage() {
           </div>
 
           {/* Conteúdo da aba ativa */}
-          {activeTab === "lista" ? (
+          {activeTab === "lista" && (
             <>
               {/* Lista de Contratos como Cards */}
               <div className="bg-white rounded-lg shadow overflow-hidden">
@@ -962,9 +991,9 @@ export default function FuncionariosPorContratoPage() {
                 </div>
                 <div className="p-6">
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-8 gap-6">
-                    {contratos.map((contrato) => (
+                    {contratos.map((contrato, index) => (
                       <div
-                        key={contrato.nome}
+                        key={`${contrato.nome}-${index}`}
                         onClick={() => handleContratoClick(contrato.nome)}
                         className={`cursor-pointer rounded-xl p-6 transition-all duration-300 hover:shadow-lg transform hover:-translate-y-1 ${
                           selectedContrato === contrato.nome
@@ -977,19 +1006,25 @@ export default function FuncionariosPorContratoPage() {
                           <div className="mx-auto w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mb-4">
                             <BriefcaseIcon className="h-6 w-6 text-slate-600" />
                           </div>
-                          
+
                           {/* Nome do contrato */}
-                          <h4 className="text-sm font-semibold text-gray-900 mb-2 line-clamp-2 min-h-[2.5rem]" title={contrato.nome}>
+                          <h4
+                            className="text-sm font-semibold text-gray-900 mb-2 line-clamp-2 min-h-[2.5rem]"
+                            title={contrato.nome}
+                          >
                             {contrato.nome}
                           </h4>
-                          
+
                           {/* Cliente */}
-                          {contrato.cliente && contrato.cliente !== '-' && (
-                            <p className="text-xs text-gray-500 mb-3 truncate" title={contrato.cliente}>
+                          {contrato.cliente && contrato.cliente !== "-" && (
+                            <p
+                              className="text-xs text-gray-500 mb-3 truncate"
+                              title={contrato.cliente}
+                            >
                               {contrato.cliente}
                             </p>
                           )}
-                          
+
                           {/* Total de funcionários */}
                           <div className="bg-slate-50 rounded-lg p-3 mt-4">
                             <div className="text-2xl font-bold text-slate-700 mb-1">
@@ -1143,15 +1178,19 @@ export default function FuncionariosPorContratoPage() {
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {funcionariosPaginados.map((funcionario) => {
-                        const alertaDemitido = getTipoAlertaDemitido(funcionario);
-                        const precisaAtencao = funcionarioDemitidoPrecisaAtencao(funcionario);
-                        
+                      {funcionariosPaginados.map((funcionario, index) => {
+                        const alertaDemitido =
+                          getTipoAlertaDemitido(funcionario);
+                        const precisaAtencao =
+                          funcionarioDemitidoPrecisaAtencao(funcionario);
+
                         return (
-                          <tr 
-                            key={funcionario.id} 
+                          <tr
+                            key={`funcionario-${index}-${funcionario.id}`}
                             className={`hover:bg-gray-50 ${
-                              precisaAtencao ? 'border-l-4 border-l-red-500 bg-red-50/30' : ''
+                              precisaAtencao
+                                ? "border-l-4 border-l-red-500 bg-red-50/30"
+                                : ""
                             }`}
                           >
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
@@ -1159,99 +1198,142 @@ export default function FuncionariosPorContratoPage() {
                                 <span>{funcionario.nome}</span>
                                 {alertaDemitido && (
                                   <div className="group relative">
-                                    <alertaDemitido.icon className={`h-5 w-5 ${alertaDemitido.classes.split(' ')[0]} cursor-help`} />
-                                    <div className={`absolute z-10 invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity duration-200 bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 text-sm rounded-lg border shadow-lg max-w-xs ${alertaDemitido.classes}`}>
-                                      <div className="font-medium mb-1">⚠️ Atenção Necessária</div>
+                                    <alertaDemitido.icon
+                                      className={`h-5 w-5 ${
+                                        alertaDemitido.classes.split(" ")[0]
+                                      } cursor-help`}
+                                    />
+                                    <div
+                                      className={`absolute z-10 invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity duration-200 bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 text-sm rounded-lg border shadow-lg max-w-xs ${alertaDemitido.classes}`}
+                                    >
+                                      <div className="font-medium mb-1">
+                                        ⚠️ Atenção Necessária
+                                      </div>
                                       <div>{alertaDemitido.mensagem}</div>
-                                      <div className={`absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent ${alertaDemitido.classes.includes('red') ? 'border-t-red-200' : alertaDemitido.classes.includes('orange') ? 'border-t-orange-200' : 'border-t-yellow-200'}`}></div>
+                                      <div
+                                        className={`absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent ${
+                                          alertaDemitido.classes.includes("red")
+                                            ? "border-t-red-200"
+                                            : alertaDemitido.classes.includes(
+                                                "orange"
+                                              )
+                                            ? "border-t-orange-200"
+                                            : "border-t-yellow-200"
+                                        }`}
+                                      ></div>
                                     </div>
                                   </div>
                                 )}
                               </div>
                             </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {funcionario.matricula}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {funcionario.sispat || "-"}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {funcionario.funcao}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {funcionario.centroCusto}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span
-                              className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                                getStatusBadgeClass(funcionario.status).bg
-                              } ${
-                                getStatusBadgeClass(funcionario.status).text
-                              }`}
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {funcionario.matricula}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {funcionario.sispat || "-"}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {funcionario.funcao}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {funcionario.centroCusto}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span
+                                className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                                  getStatusBadgeClass(funcionario.status).bg
+                                } ${
+                                  getStatusBadgeClass(funcionario.status).text
+                                }`}
+                              >
+                                {funcionario.status}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span
+                                className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusPrestservBadge(
+                                  funcionario.statusPrestserv
+                                )}`}
+                              >
+                                {funcionario.statusPrestserv}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span
+                                className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                                  funcionario.statusPeoplelog
+                                    ? getStatusBadgeClass(
+                                        funcionario.statusPeoplelog
+                                      ).bg +
+                                      " " +
+                                      getStatusBadgeClass(
+                                        funcionario.statusPeoplelog
+                                      ).text
+                                    : "bg-gray-100 text-gray-800"
+                                }`}
+                              >
+                                {funcionario.statusPeoplelog || "N/A"}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {funcionario.emMigracao ? "SIM" : "NÃO"}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {funcionario.contrato || "Sem Contrato"}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {funcionario.dataInicio
+                                ? new Date(
+                                    funcionario.dataInicio
+                                  ).toLocaleDateString("pt-BR")
+                                : "-"}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {funcionario.dataFim
+                                ? new Date(
+                                    funcionario.dataFim
+                                  ).toLocaleDateString("pt-BR")
+                                : "-"}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {funcionario.totalDiasPeriodo || "-"}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {funcionario.periodoInicial
+                                ? new Date(
+                                    funcionario.periodoInicial
+                                  ).toLocaleDateString("pt-BR")
+                                : "-"}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {funcionario.periodoFinal
+                                ? new Date(
+                                    funcionario.periodoFinal
+                                  ).toLocaleDateString("pt-BR")
+                                : "-"}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {funcionario.embarcacao || "-"}
+                            </td>
+                            <td
+                              className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 max-w-xs truncate"
+                              title={funcionario.observacoes}
                             >
-                              {funcionario.status}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span
-                              className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusPrestservBadge(
-                                funcionario.statusPrestserv
-                              )}`}
-                            >
-                              {funcionario.statusPrestserv}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span
-                              className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                                funcionario.statusPeoplelog
-                                  ? getStatusBadgeClass(funcionario.statusPeoplelog).bg + ' ' + getStatusBadgeClass(funcionario.statusPeoplelog).text
-                                  : 'bg-gray-100 text-gray-800'
-                              }`}
-                            >
-                              {funcionario.statusPeoplelog || 'N/A'}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {funcionario.emMigracao ? "SIM" : "NÃO"}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {funcionario.contrato || "Sem Contrato"}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {funcionario.dataInicio ? new Date(funcionario.dataInicio).toLocaleDateString('pt-BR') : "-"}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {funcionario.dataFim ? new Date(funcionario.dataFim).toLocaleDateString('pt-BR') : "-"}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {funcionario.totalDiasPeriodo || "-"}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {funcionario.periodoInicial ? new Date(funcionario.periodoInicial).toLocaleDateString('pt-BR') : "-"}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {funcionario.periodoFinal ? new Date(funcionario.periodoFinal).toLocaleDateString('pt-BR') : "-"}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {funcionario.embarcacao || "-"}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 max-w-xs truncate" title={funcionario.observacoes}>
-                            {funcionario.observacoes || "-"}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <button
-                              onClick={() =>
-                                router.push(
-                                  `/prestserv/funcionarios/${funcionario.id}`
-                                )
-                              }
-                              className="text-blue-600 hover:text-blue-900"
-                            >
-                              <EyeIcon className="h-5 w-5" />
-                            </button>
-                          </td>
-                        </tr>
+                              {funcionario.observacoes || "-"}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                              <button
+                                onClick={() =>
+                                  router.push(
+                                    `/prestserv/funcionarios/${funcionario.id}`
+                                  )
+                                }
+                                className="text-blue-600 hover:text-blue-900"
+                              >
+                                <EyeIcon className="h-5 w-5" />
+                              </button>
+                            </td>
+                          </tr>
                         );
                       })}
                     </tbody>
@@ -1315,7 +1397,7 @@ export default function FuncionariosPorContratoPage() {
 
                             return (
                               <button
-                                key={pageNum}
+                                key={`page-${pageNum}`}
                                 onClick={() => setCurrentPage(pageNum)}
                                 className={`relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium ${
                                   currentPage === pageNum
@@ -1354,7 +1436,8 @@ export default function FuncionariosPorContratoPage() {
                 </div>
               </div>
             </>
-          ) : (
+          )}
+          {activeTab === "dashboard" && (
             /* Dashboard */
             <div className="bg-white rounded-lg shadow p-6">
               {loadingDashboard ? (
@@ -1399,14 +1482,14 @@ export default function FuncionariosPorContratoPage() {
                           data={{
                             labels:
                               dashboardData?.funcionariosPorContrato?.map(
-                                (item) => item.contrato
+                                (item, index) => item.contrato
                               ) || [],
                             datasets: [
                               {
                                 label: "Funcionários",
                                 data:
                                   dashboardData?.funcionariosPorContrato?.map(
-                                    (item) => item.count
+                                    (item, index) => item.count
                                   ) || [],
                                 backgroundColor: "rgba(14, 165, 233, 0.7)",
                                 borderColor: "#0EA5E9",
@@ -1482,14 +1565,14 @@ export default function FuncionariosPorContratoPage() {
                               dashboardData?.funcionariosPorStatusPrestserv
                                 ? Object.keys(
                                     dashboardData.funcionariosPorStatusPrestserv
-                                  )
+                                  ).map((key, index) => `${key}-${index}`)
                                 : [],
                             datasets: [
                               {
                                 data: dashboardData?.funcionariosPorStatusPrestserv
                                   ? Object.values(
                                       dashboardData.funcionariosPorStatusPrestserv
-                                    )
+                                    ).map((value, index) => value)
                                   : [],
                                 backgroundColor: [
                                   "#94A3B8", // slate-400
@@ -1572,14 +1655,14 @@ export default function FuncionariosPorContratoPage() {
                           data={{
                             labels:
                               dashboardData?.funcionariosPorStatusFolha?.map(
-                                (item) => item.status
+                                (item, index) => item.status
                               ) || [],
                             datasets: [
                               {
                                 label: "Funcionários",
                                 data:
                                   dashboardData?.funcionariosPorStatusFolha?.map(
-                                    (item) => item.count
+                                    (item, index) => item.count
                                   ) || [],
                                 backgroundColor: "rgba(14, 165, 233, 0.7)",
                                 borderColor: "#0EA5E9",
@@ -1655,9 +1738,8 @@ export default function FuncionariosPorContratoPage() {
                           }}
                         />
                       </div>
-                          </div>
-                          
-                     
+                    </div>
+
                     {/* Gráfico de Funcionários por Status Peoplelog */}
                     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 col-span-2">
                       <h3 className="text-lg font-semibold text-gray-800 mb-4">
@@ -1668,14 +1750,14 @@ export default function FuncionariosPorContratoPage() {
                           data={{
                             labels:
                               dashboardData?.funcionariosPorStatusPeoplelog?.map(
-                                (item) => item.status
+                                (item, index) => item.status
                               ) || [],
                             datasets: [
                               {
                                 label: "Funcionários",
                                 data:
                                   dashboardData?.funcionariosPorStatusPeoplelog?.map(
-                                    (item) => item.count
+                                    (item, index) => item.count
                                   ) || [],
                                 backgroundColor: "rgba(14, 165, 233, 0.7)",
                                 borderColor: "#0EA5E9",
@@ -1750,7 +1832,7 @@ export default function FuncionariosPorContratoPage() {
                           }}
                         />
                       </div>
-                    </div>     
+                    </div>
                     {/* Gráfico de Funcionários por Migração */}
                     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
                       <h3 className="text-lg font-semibold text-gray-800 mb-4">
@@ -1761,16 +1843,14 @@ export default function FuncionariosPorContratoPage() {
                           data={{
                             labels:
                               dashboardData?.funcionariosPorMigracao?.map(
-                                (item) =>
-                                  item.migracao === "SIM"
-                                    ? "Em Migração"
-                                    : "Não em Migração"
+                                (item, index) =>
+                                  `${item.migracao === "SIM" ? "Em Migração" : "Não em Migração"}-${index}`
                               ) || [],
                             datasets: [
                               {
                                 data:
                                   dashboardData?.funcionariosPorMigracao?.map(
-                                    (item) => item.count
+                                    (item, index) => item.count
                                   ) || [],
                                 backgroundColor: [
                                   "#94A3B8", // slate-400
@@ -1832,7 +1912,6 @@ export default function FuncionariosPorContratoPage() {
                       </div>
                     </div>
 
-
                     {/* Tabela de Funcionários por Função */}
                     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 col-span-2">
                       <h3 className="text-lg font-semibold text-gray-800 mb-4">
@@ -1886,6 +1965,20 @@ export default function FuncionariosPorContratoPage() {
               )}
             </div>
           )}
+          {activeTab === "uptime" && (
+             /* Dashboard */
+             <div className="bg-white rounded-lg shadow p-6 h-200">
+               <iframe
+                 title="Uptime Dashboard"
+                 width="1200"
+                 height="747"
+                 src="https://app.powerbi.com/view?r=eyJrIjoiNGU5MjFmNWUtNTNjZi00ZTMxLWI0NmUtODgwM2QyZTc5YzMyIiwidCI6ImNhNmEwZTdiLTUzZTktNDNjMi04YTkyLTVmNzkyZDY4ZWMwNCJ9"
+                 frameBorder="0"
+                 allowFullScreen={true}
+                 style={{ width: '100%', height: '100%' }}
+               ></iframe>
+             </div>
+           )}
         </div>
       </div>
     </div>
