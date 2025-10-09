@@ -2,6 +2,8 @@
 
 Sistema de gestão desenvolvido em Next.js para controle de funcionários, remanejamentos, tarefas e administração.
 
+🔄 **Deploy Automático Ativo** - Última atualização: $(date)
+
 ## 🚀 Tecnologias Utilizadas
 
 - **Next.js 14** - Framework React
