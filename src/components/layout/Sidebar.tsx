@@ -132,6 +132,10 @@ export default function Sidebar() {
           label: "Business Intelligence",
           href: "/prestserv/bi",
         },
+        {
+          label: "Matriz de Treinamento",
+          href: "/matriz-treinamento/contratos",
+        },
         // {
         //   label: "Matriz de Status",
         //   href: "/prestserv/funcionarios/matriz-status",
@@ -150,7 +154,10 @@ export default function Sidebar() {
       key: "treinamento",
       label: "Treinamento",
       icon: GraduationCap,
-      items: [{ label: "Minhas Tarefas", href: "/tarefas?setor=treinamento" }],
+      items: [
+        { label: "Minhas Tarefas", href: "/tarefas?setor=treinamento" },
+        { label: "Matriz de Treinamento", href: "/matriz-treinamento/contratos" },
+      ],
       permission: "canAccessTreinamento",
     },
     {

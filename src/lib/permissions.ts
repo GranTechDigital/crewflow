@@ -121,7 +121,7 @@ export const ROUTE_PROTECTION = {
   },
 
   MATRIZ_TREINAMENTO: {
-    requiredEquipe: ['Treinamento', 'Administração'] as string[],
-    requiredPermissions: [PERMISSIONS.ADMIN, PERMISSIONS.ACCESS_TREINAMENTO] as string[],
+    requiredEquipe: ['Administração', 'Logística', 'Treinamento'] as string[],
+    requiredPermissions: [PERMISSIONS.ADMIN, PERMISSIONS.ACCESS_TREINAMENTO, PERMISSIONS.ACCESS_LOGISTICA] as string[],
   },
 };
