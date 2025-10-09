@@ -1,11 +1,11 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
 const prisma = globalForPrisma.prisma || new PrismaClient();
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     // Estatísticas gerais
     const totalRegistros = await prisma.periodoSheet.count();
@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
     const statusList = await prisma.status.findMany({
       where: {
         id: {
-          in: estatisticasPorStatusFormatado.map(item => item.statusId).filter(Boolean)
+          in: estatisticasPorStatusFormatado.map(item => item.statusId).filter((id): id is number => id !== null)
         }
       }
     });
@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
     const statusMap = new Map(statusList.map(s => [s.id, s.categoria]));
     
     const estatisticasPorStatusComNomes = estatisticasPorStatusFormatado.map(item => ({
-      status: statusMap.get(item.statusId) || 'Status não encontrado',
+      status: item.statusId ? (statusMap.get(item.statusId) || 'Status não encontrado') : 'Status não definido',
       _count: item._count
     }));
 
@@ -146,8 +146,15 @@ export async function GET(request: NextRequest) {
           WHEN totalDiasPeriodo > 30 THEN '30+ dias'
           ELSE 'Não informado'
         END
-      ORDER BY quantidade DESC
-    `;
+      ORDER BY 
+        CASE 
+          WHEN faixa = '0 dias' THEN 1
+          WHEN faixa = '1-15 dias' THEN 2
+          WHEN faixa = '16-30 dias' THEN 3
+          WHEN faixa = '30+ dias' THEN 4
+          ELSE 5
+        END
+    ` as Array<{ faixa: string; quantidade: number }>;
 
     // Histórico de uploads (últimos 12 meses)
     const historicoUploads = await prisma.periodoUpload.findMany({
@@ -176,7 +183,7 @@ export async function GET(request: NextRequest) {
           ultimoUpload: ultimoUpload ? {
             ...ultimoUpload,
             dataUpload: ultimoUpload.dataUpload.toISOString(),
-            dataRelatorio: ultimoUpload.dataRelatorio.toISOString(),
+            dataRelatorio: ultimoUpload.dataRelatorio ? ultimoUpload.dataRelatorio.toISOString() : null,
             periodoInicial: ultimoUpload.periodoInicial.toISOString(),
             periodoFinal: ultimoUpload.periodoFinal.toISOString()
           } : null,

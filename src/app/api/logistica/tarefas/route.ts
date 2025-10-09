@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { NovaTarefaRemanejamento } from "@/types/remanejamento-funcionario";
+import { Prisma } from "@prisma/client";
 
 // GET - Listar tarefas de remanejamento
 export async function GET(request: NextRequest) {
@@ -12,7 +13,7 @@ export async function GET(request: NextRequest) {
     const responsavel = searchParams.get("responsavel");
     const status = searchParams.get("status");
 
-    const where: any = {};
+    const where: Prisma.TarefaRemanejamentoWhereInput = {};
 
     if (remanejamentoFuncionarioId) {
       where.remanejamentoFuncionarioId = remanejamentoFuncionarioId;

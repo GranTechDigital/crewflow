@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import * as XLSX from "xlsx";
+import { read, utils, writeFile } from "xlsx";
 import { toast } from "react-hot-toast";
 import {
   DocumentArrowDownIcon,
@@ -264,7 +264,7 @@ export default function FuncionariosPorContratoPage() {
           aprovadosOriginal: contrato.aprovadosOriginal || contrato.funcionariosAprovados,
           pendentesOriginal: contrato.pendentesOriginal || contrato.funcionariosPendentes,
           rejeitadosOriginal: contrato.rejeitadosOriginal || contrato.funcionariosRejeitados,
-        })).sort((a, b) => {
+        })).sort((a: any, b: any) => {
           // Ordenar por ID do contrato
           if (a.contratoId === 'sem_contrato') return 1;
           if (b.contratoId === 'sem_contrato') return -1;
@@ -275,7 +275,7 @@ export default function FuncionariosPorContratoPage() {
         
         // Criar mapa de contratos originais
         const contratosMap: Record<string, ContratoInfo> = {};
-        contratosArray.forEach(contrato => {
+        contratosArray.forEach((contrato: any) => {
           contratosMap[contrato.nome] = {
             total: contrato.total,
             aprovados: contrato.aprovados,
@@ -484,11 +484,11 @@ export default function FuncionariosPorContratoPage() {
       }));
 
       // Criar workbook e worksheet
-      const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.json_to_sheet(dataToExport);
+      const wb = utils.book_new();
+    const ws = utils.json_to_sheet(dataToExport);
 
       // Adicionar worksheet ao workbook
-      XLSX.utils.book_append_sheet(wb, ws, "Funcionários");
+      utils.book_append_sheet(wb, ws, "Funcionários");
 
       // Gerar nome do arquivo com data atual
       const date = new Date();
@@ -500,7 +500,7 @@ export default function FuncionariosPorContratoPage() {
       const fileName = `funcionarios_${dateStr}.xlsx`;
 
       // Salvar arquivo
-      XLSX.writeFile(wb, fileName);
+      writeFile(wb, fileName);
       toast.success("Dados exportados com sucesso!");
     } catch (err) {
       console.error("Erro ao exportar dados:", err);
@@ -1749,15 +1749,15 @@ export default function FuncionariosPorContratoPage() {
                         <Bar
                           data={{
                             labels:
-                              dashboardData?.funcionariosPorStatusPeoplelog?.map(
-                                (item, index) => item.status
+                              dashboardData?.funcionariosPorStatusFolha?.map(
+                                (item: any, index: any) => item.status
                               ) || [],
                             datasets: [
                               {
                                 label: "Funcionários",
                                 data:
-                                  dashboardData?.funcionariosPorStatusPeoplelog?.map(
-                                    (item, index) => item.count
+                                  dashboardData?.funcionariosPorStatusFolha?.map(
+                                    (item: any, index: any) => item.count
                                   ) || [],
                                 backgroundColor: "rgba(14, 165, 233, 0.7)",
                                 borderColor: "#0EA5E9",
@@ -1984,3 +1984,4 @@ export default function FuncionariosPorContratoPage() {
     </div>
   );
 }
+

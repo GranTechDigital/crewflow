@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import { getUserFromRequest } from '@/utils/authUtils';
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     const statusFolha = searchParams.get('statusFolha'); // Status da folha específico
 
     // Construir filtros
-    const whereClause: any = {};
+    const whereClause: Prisma.PeriodoSheetWhereInput = {};
     
     if (mes && ano) {
       whereClause.mesReferencia = parseInt(mes);

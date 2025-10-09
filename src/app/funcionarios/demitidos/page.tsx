@@ -23,6 +23,8 @@ type Pessoa = {
   centroCusto: string | null;
   departamento: string | null;
   status: string | null;
+  statusPrestserv?: string | null;
+  emMigracao?: boolean;
   dataCriacao: string | null;
   dataAtualizacao: string | null;
   dataExclusao: string | null;
@@ -228,7 +230,7 @@ function FuncionariosDemitidosContent() {
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">Funcionários Demitidos</h1>
                 <p className="text-gray-600 mt-1">
-                  Lista de funcionários com status "Folha Demitido"
+                  Lista de funcionários com status [Folha Demitido]
                 </p>
               </div>
             </div>
@@ -342,7 +344,7 @@ function FuncionariosDemitidosContent() {
                           ) : dados.length === 0 ? (
                             <div>
                               <p className="text-lg font-medium mb-2">Nenhum funcionário demitido encontrado</p>
-                              <p className="text-sm">Não há funcionários com status "folha demitido" no sistema.</p>
+                              <p className="text-sm">Não há funcionários com status [folha demitido] no sistema.</p>
                             </div>
                           ) : (
                             <div>

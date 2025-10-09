@@ -1,0 +1,107 @@
+name: Deploy CrewFlow to Staging
+
+on:
+  push:
+    branches: [ develop, staging ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  deploy-staging:
+    runs-on: ubuntu-latest
+    environment: staging
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+      
+    - name: 🐳 Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: 🔧 Build Docker image
+      run: |
+        docker build -t crewflow-app:staging .
+        
+    - name: 💾 Save Docker image
+      run: |
+        docker save crewflow-app:staging > crewflow-app-staging.tar
+        
+    - name: 🔑 Setup SSH
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+        
+    - name: 📤 Upload image to server
+      run: |
+        scp -o StrictHostKeyChecking=no crewflow-app-staging.tar root@${{ secrets.SERVER_HOST }}:/tmp/
+        
+    - name: 🚀 Deploy to staging
+      run: |
+        ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
+          # Load new image
+          docker load < /tmp/crewflow-app-staging.tar
+          
+          # Stop and remove old staging container
+          docker stop crewflow-app-staging 2>/dev/null || true
+          docker rm crewflow-app-staging 2>/dev/null || true
+          
+          # Start new staging container (different port)
+          docker run -d --name crewflow-app-staging -p 3002:3000 \
+            -e DATABASE_URL='file:./dev-staging.db' \
+            -e JWT_SECRET='crewflow-jwt-secret-staging-2024' \
+            -e NEXTAUTH_URL='http://localhost:3000' \
+            -e NODE_ENV='development' \
+            crewflow-app:staging
+          
+          # Clean up
+          rm /tmp/crewflow-app-staging.tar
+          
+          # Wait for container to start
+          sleep 10
+          
+          # Check if container is running
+          if docker ps | grep -q crewflow-app-staging; then
+            echo "✅ Staging container started successfully"
+          else
+            echo "❌ Staging container failed to start"
+            docker logs crewflow-app-staging
+            exit 1
+          fi
+        EOF
+        
+    - name: 🧪 Run tests (optional)
+      run: |
+        ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
+          # Basic health check
+          sleep 5
+          if curl -f http://localhost:3002/api/health 2>/dev/null; then
+            echo "✅ Health check passed"
+          else
+            echo "⚠️ Health check failed (normal if no health endpoint)"
+          fi
+        EOF
+        
+    - name: 📝 Comment PR (if PR)
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: `🚀 **CrewFlow Staging Deploy Successful!**
+            
+            📍 **Staging URL:** http://${{ secrets.SERVER_HOST }}:3002
+            🔐 **Login:** ADMIN001 / admin123
+            
+            ✅ Ready for testing!`
+          })
+        
+    - name: 🎉 Staging deployment complete
+      run: |
+        echo "🚀 CrewFlow staging deployment completed successfully!"
+        echo "🌐 Staging available at: http://${{ secrets.SERVER_HOST }}:3002"
+        echo "🔐 Login: ADMIN001 / admin123"

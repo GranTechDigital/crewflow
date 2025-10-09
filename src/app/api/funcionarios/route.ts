@@ -2,13 +2,14 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const tipo = searchParams.get('tipo'); // 'alocacao', 'realocacao' ou 'desligamento'
     
-    let whereClause: any = {
+    const whereClause: Prisma.FuncionarioWhereInput = {
       // Excluir o administrador do sistema das listagens
       matricula: {
         not: 'ADMIN001'

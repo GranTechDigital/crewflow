@@ -160,7 +160,7 @@ export const DashboardExample = ({ dashboardData }: { dashboardData: any }) => {
                       },
                       datalabels: {
                         formatter: (value: number, ctx) => {
-                          const total = ctx.dataset.data.reduce((a: number, b: number) => a + b, 0);
+                          const total = ctx.dataset.data.reduce((a: number, b: any) => a + (typeof b === 'number' ? b : 0), 0);
                           const percentage = ((value / total) * 100).toFixed(0);
                           return value > 0 ? value : '';
                         },

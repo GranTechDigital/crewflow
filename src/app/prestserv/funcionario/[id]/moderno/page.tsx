@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useToast } from "@/components/Toast";
 import {
@@ -118,14 +118,9 @@ function DetalheFuncionarioContent() {
   const [textoEdicaoObservacao, setTextoEdicaoObservacao] = useState("");
   const [novaObservacaoTarefa, setNovaObservacaoTarefa] =
     useState<NovaObservacaoTarefa>({ texto: "", criadoPor: "Sistema" });
+  const [mostrarTarefaUnica, setMostrarTarefaUnica] = useState(false);
 
-  useEffect(() => {
-    if (funcionarioId) {
-      fetchFuncionario();
-    }
-  }, [funcionarioId]);
-
-  const fetchFuncionario = async () => {
+  const fetchFuncionario = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch(
@@ -143,7 +138,13 @@ function DetalheFuncionarioContent() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [funcionarioId]);
+
+  useEffect(() => {
+    if (funcionarioId) {
+      fetchFuncionario();
+    }
+  }, [funcionarioId, fetchFuncionario]);
 
   const atualizarStatusPrestserv = async (
     novoStatus: StatusPrestserv,
@@ -178,11 +179,15 @@ function DetalheFuncionarioContent() {
       const mensagens = {
         PENDENTE: "Status pendente.",
         CRIADO: "Rascunho criado com sucesso!",
+        "EM VALIDAÇÃO": "Prestserv em validação!",
+        INVALIDADO: "Prestserv invalidado!",
+        VALIDADO: "Prestserv validado com sucesso!",
         SOLICITAR_DESLIGAMENTO:
           "Solicitação de desligamento registrada com sucesso!",
         SUBMETIDO: "Prestserv submetido para aprovação com sucesso!",
         APROVADO: "Prestserv aprovado com sucesso!",
         REJEITADO: "Prestserv rejeitado com sucesso!",
+        CANCELADO: "Prestserv cancelado com sucesso!",
       };
 
       const mensagem =
@@ -202,7 +207,7 @@ function DetalheFuncionarioContent() {
     }
   };
 
-  const getStatusTarefasColor = (status: string) => {
+  const getStatusTarefaColor = (status: string) => {
     const colors: { [key: string]: string } = {
       "ATENDER TAREFAS": "bg-yellow-100 text-yellow-800 border-yellow-200",
       "SOLICITAÇÃO CONCLUÍDA": "bg-green-100 text-green-800 border-green-200",
@@ -256,14 +261,14 @@ function DetalheFuncionarioContent() {
 
   const podeSolicitarDesligamento = () => {
     return (
-      funcionario?.statusTarefas === "CONCLUIDO" &&
+      funcionario?.statusTarefa === "CONCLUIDO" &&
       (funcionario?.statusPrestserv === "CRIADO" ||
-        funcionario?.statusPrestserv === "REJEITADO")
+        funcionario?.statusPrestserv === "INVALIDADO")
     );
   };
 
   const podeSubmeterPrestserv = () => {
-    return funcionario?.statusPrestserv === "SOLICITAR_DESLIGAMENTO";
+    return funcionario?.statusPrestserv === "CRIADO";
   };
 
   const buscarObservacoesTarefa = async (tarefaId: string) => {
@@ -476,11 +481,11 @@ function DetalheFuncionarioContent() {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <span
-                className={`px-3 py-1 text-sm font-medium rounded-full border ${getStatusTarefasColor(
-                  funcionario.statusTarefas
+                className={`px-3 py-1 text-sm font-medium rounded-full border ${getStatusTarefaColor(
+                  funcionario.statusTarefa
                 )}`}
               >
-                📋 Tarefas: {funcionario.statusTarefas}
+                📋 Tarefas: {funcionario.statusTarefa}
               </span>
               <span
                 className={`px-3 py-1 text-sm font-medium rounded-full border ${getStatusPrestservColor(
@@ -550,7 +555,7 @@ function DetalheFuncionarioContent() {
                       Status da Solicitação
                     </p>
                     <span
-                      className={`inline-block px-2 py-1 text-sm font-medium rounded border ${getStatusTarefasColor(
+                      className={`inline-block px-2 py-1 text-sm font-medium rounded border ${getStatusTarefaColor(
                         funcionario.solicitacao?.status || ""
                       )}`}
                     >
@@ -618,7 +623,7 @@ function DetalheFuncionarioContent() {
                       Solicitante
                     </p>
                     <p className="text-lg text-gray-900">
-                      {funcionario.solicitacao?.solicitante?.nome || ""}
+                      {funcionario.solicitacao?.solicitadoPor || ""}
                     </p>
                   </div>
                   <div>
@@ -715,7 +720,7 @@ function DetalheFuncionarioContent() {
                             </p>
                             <p className="text-2xl font-semibold text-yellow-900">
                               {funcionario.tarefas?.filter(
-                                (t) => t.status === "ATENDER TAREFAS"
+                                (t) => t.status === "EM_ANDAMENTO"
                               ).length || 0}
                             </p>
                           </div>
@@ -756,7 +761,7 @@ function DetalheFuncionarioContent() {
                     {/* Tarefas em Atraso */}
                     {funcionario.tarefas?.some(
                       (t) =>
-                        isTaskOverdue(t.dataLimite) && t.status !== "CONCLUIDO"
+                        isTaskOverdue(t.dataLimite || null) && t.status !== "CONCLUIDO"
                     ) && (
                       <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
                         <div className="flex items-center mb-2">
@@ -769,7 +774,7 @@ function DetalheFuncionarioContent() {
                           {funcionario.tarefas
                             ?.filter(
                               (t) =>
-                                isTaskOverdue(t.dataLimite) &&
+                                isTaskOverdue(t.dataLimite || null) &&
                                 t.status !== "CONCLUIDO"
                             )
                             .map((tarefa) => (
@@ -831,7 +836,7 @@ function DetalheFuncionarioContent() {
                 </div>
 
                 {/* Alertas de Status */}
-                {funcionario.statusTarefas === "ATENDER TAREFAS" && (
+                {funcionario.statusTarefa === "EM_ANDAMENTO" && (
                   <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                     <p className="text-sm text-yellow-800">
                       ⚠️ Aguardando conclusão das tarefas para liberar o
@@ -856,7 +861,7 @@ function DetalheFuncionarioContent() {
                     </p>
                     <button
                       onClick={() =>
-                        atualizarStatusPrestserv("SOLICITAR_DESLIGAMENTO")
+                        atualizarStatusPrestserv("CANCELADO")
                       }
                       disabled={atualizandoStatus}
                       className="mt-2 w-full px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:opacity-50 transition-colors"
@@ -871,7 +876,7 @@ function DetalheFuncionarioContent() {
                   <p className="text-sm font-medium text-gray-500">
                     Ações Disponíveis
                   </p>
-                  {funcionario.statusPrestserv !== "APROVADO" && (
+                  {funcionario.statusPrestserv !== "VALIDADO" && (
                     <select
                       value=""
                       onChange={(e) => {
@@ -881,7 +886,7 @@ function DetalheFuncionarioContent() {
                         if (acao === "criar-rascunho") {
                           if (
                             funcionario.statusPrestserv !== "PENDENTE" &&
-                            funcionario.statusTarefas !== "ATENDER TAREFAS"
+                            funcionario.statusTarefa !== "EM_ANDAMENTO"
                           ) {
                             showToast(
                               "Só é possível criar rascunho quando o status está PENDENTE ou quando há tarefas para atender",
@@ -894,7 +899,7 @@ function DetalheFuncionarioContent() {
                         } else if (acao === "submeter") {
                           if (
                             funcionario.statusPrestserv !==
-                            "SOLICITAR_DESLIGAMENTO"
+                            "CRIADO"
                           ) {
                             showToast(
                               "Só é possível submeter quando o status é Solicitar Desligamento",
@@ -915,7 +920,7 @@ function DetalheFuncionarioContent() {
                           setNovaObservacao({ observacao: "" });
                           setMostrarObservacao(true);
                         } else if (acao === "aprovar") {
-                          if (funcionario.statusPrestserv !== "SUBMETIDO") {
+                          if (funcionario.statusPrestserv !== "EM VALIDAÇÃO") {
                             showToast(
                               "Só é possível aprovar quando o prestserv foi submetido",
                               "warning"
@@ -927,7 +932,7 @@ function DetalheFuncionarioContent() {
                           setNovaObservacao({ observacao: "" });
                           setMostrarObservacao(true);
                         } else if (acao === "rejeitar") {
-                          if (funcionario.statusPrestserv !== "SUBMETIDO") {
+                          if (funcionario.statusPrestserv !== "EM VALIDAÇÃO") {
                             showToast(
                               "Só é possível rejeitar quando o prestserv foi submetido",
                               "warning"
@@ -955,14 +960,14 @@ function DetalheFuncionarioContent() {
                     </select>
                   )}
 
-                  {funcionario.statusPrestserv === "REJEITADO" && (
+                  {funcionario.statusPrestserv === "INVALIDADO" && (
                     <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
                       ⚠️ Prestserv rejeitado. Crie novas tarefas para tratar as
                       pendências e submeta novamente.
                     </div>
                   )}
 
-                  {funcionario.statusPrestserv === "APROVADO" && (
+                  {funcionario.statusPrestserv === "VALIDADO" && (
                     <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm text-center">
                       ✅ Prestserv Aprovado
                     </div>
@@ -1025,11 +1030,11 @@ function DetalheFuncionarioContent() {
                     let novoStatus: StatusPrestserv;
 
                     if (acaoPrestserv === "submeter") {
-                      novoStatus = "SUBMETIDO";
+                      novoStatus = "EM VALIDAÇÃO";
                     } else if (acaoPrestserv === "aprovar") {
-                      novoStatus = "APROVADO";
+                      novoStatus = "VALIDADO";
                     } else if (acaoPrestserv === "rejeitar") {
-                      novoStatus = "REJEITADO";
+                      novoStatus = "INVALIDADO";
                     } else {
                       return;
                     }

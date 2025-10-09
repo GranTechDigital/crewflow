@@ -1,7 +1,56 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-export async function GET(request: NextRequest) {
+// Type definitions for better type safety
+interface SolicitacaoData {
+  id: number;
+  dataSolicitacao: Date;
+}
+
+interface GroupByStatusTarefas {
+  statusTarefas: string | null;
+  _count: {
+    id: number;
+  };
+}
+
+interface GroupByStatusPrestserv {
+  statusPrestserv: string | null;
+  _count: {
+    id: number;
+  };
+}
+
+interface GroupByResponsavel {
+  responsavel: string | null;
+  _count: {
+    id: number;
+  };
+}
+
+interface GroupByTipo {
+  tipo: string | null;
+  _count: {
+    id: number;
+  };
+}
+
+interface SolicitacaoOrigemDestino {
+  id: number;
+  contratoOrigem: {
+    nome: string;
+  } | null;
+  contratoDestino: {
+    nome: string;
+  } | null;
+}
+
+interface TarefaPendente {
+  tipo: string;
+  responsavel: string;
+}
+
+export async function GET() {
   try {
     // Buscar todos os remanejamentos de funcionários com dados completos
     const remanejamentos = await prisma.remanejamentoFuncionario.findMany({
@@ -126,8 +175,8 @@ export async function GET(request: NextRequest) {
         },
         solicitacao: {
           id: r.solicitacao.id,
-          centroCustoOrigem: r.solicitacao.centroCustoOrigem,
-          centroCustoDestino: r.solicitacao.centroCustoDestino,
+          contratoOrigemId: r.solicitacao.contratoOrigemId,
+          contratoDestinoId: r.solicitacao.contratoDestinoId,
           dataSolicitacao: r.solicitacao.dataSolicitacao.toISOString(),
         },
         tarefas: r.tarefas.map((t) => ({
@@ -162,47 +211,47 @@ export async function GET(request: NextRequest) {
     // Calcular solicitações por mês para o gráfico de tendência
     const solicitacoesPorMes = Array(12).fill(0);
 
-    solicitacoes.forEach((solicitacao) => {
+    solicitacoes.forEach((solicitacao: SolicitacaoData) => {
       const data = new Date(solicitacao.dataSolicitacao);
       const mes = data.getMonth(); // 0-11 para Jan-Dez
       solicitacoesPorMes[mes]++;
     });
 
     // Transformar dados de status para formato mais adequado para gráficos
-    const funcionariosPorStatusTarefaFormatado = {};
-    funcionariosPorStatusTarefas.forEach((item) => {
+    const funcionariosPorStatusTarefaFormatado: { [key: string]: number } = {};
+    funcionariosPorStatusTarefas.forEach((item: GroupByStatusTarefas) => {
       funcionariosPorStatusTarefaFormatado[
         item.statusTarefas || "Não definido"
       ] = item._count.id;
     });
 
-    const funcionariosPorStatusPrestservFormatado = {};
-    funcionariosPorStatusPrestserv.forEach((item) => {
+    const funcionariosPorStatusPrestservFormatado: { [key: string]: number } = {};
+    funcionariosPorStatusPrestserv.forEach((item: GroupByStatusPrestserv) => {
       funcionariosPorStatusPrestservFormatado[
         item.statusPrestserv || "Não definido"
       ] = item._count.id;
     });
 
-    const funcionariosPorResponsavelFormatado = {};
-    funcionariosPorResponsavel.forEach((item) => {
+    const funcionariosPorResponsavelFormatado: { [key: string]: number } = {};
+    funcionariosPorResponsavel.forEach((item: GroupByResponsavel) => {
       funcionariosPorResponsavelFormatado[item.responsavel || "Não definido"] =
         item._count.id;
     });
 
     // Transformar dados de solicitações por tipo
-    const solicitacoesPorTipoFormatado = {};
-    solicitacoesPorTipo.forEach((item) => {
+    const solicitacoesPorTipoFormatado: { [key: string]: number } = {};
+    solicitacoesPorTipo.forEach((item: GroupByTipo) => {
       solicitacoesPorTipoFormatado[item.tipo || "Não definido"] =
         item._count.id;
     });
 
     // Transformar dados de solicitações por origem/destino
-    const solicitacoesPorOrigemDestinoFormatado = [];
+    const solicitacoesPorOrigemDestinoFormatado: Array<{origem: string, destino: string, count: number}> = [];
 
     // Agrupar solicitações por origem/destino
-    const origemDestinoMap = {};
+    const origemDestinoMap: { [key: string]: {origem: string, destino: string, count: number} } = {};
 
-    solicitacoesPorOrigemDestino.forEach((item) => {
+    solicitacoesPorOrigemDestino.forEach((item: SolicitacaoOrigemDestino) => {
       const origem = item.contratoOrigem?.nome || "Não definido";
       const destino = item.contratoDestino?.nome || "Não definido";
       const key = `${origem}-${destino}`;
@@ -224,7 +273,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Calcular pendências por setor
-    const pendenciasPorSetor = {};
+    const pendenciasPorSetor: { [key: string]: number } = {};
     const tarefasPendentes = await prisma.tarefaRemanejamento.findMany({
       where: {
         status: {
@@ -237,7 +286,7 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    tarefasPendentes.forEach((tarefa) => {
+    tarefasPendentes.forEach((tarefa: TarefaPendente) => {
       const setor = tarefa.responsavel;
       if (!pendenciasPorSetor[setor]) {
         pendenciasPorSetor[setor] = 0;

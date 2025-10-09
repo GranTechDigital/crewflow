@@ -74,15 +74,15 @@ export const colors = {
 // Exporta funções de utilidade para acessar cores
 export const getColor = (colorPath: string): string => {
   const parts = colorPath.split('.');
-  let result: any = colors;
+  let result: Record<string, unknown> = colors;
   
   for (const part of parts) {
     if (result[part] === undefined) {
       console.warn(`Color path ${colorPath} not found`);
       return '#000000';
     }
-    result = result[part];
+    result = result[part] as Record<string, unknown>;
   }
   
-  return result;
+  return result as unknown as string;
 };

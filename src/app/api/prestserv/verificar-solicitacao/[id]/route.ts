@@ -4,10 +4,11 @@ import { prisma } from "@/lib/prisma";
 // POST - Verificar e atualizar o status da solicitação de remanejamento
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const solicitacaoId = parseInt(params.id);
+    const { id } = await params;
+    const solicitacaoId = parseInt(id);
 
     if (isNaN(solicitacaoId)) {
       return NextResponse.json(

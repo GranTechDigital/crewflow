@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const id = parseInt(params.id);
+    const { id: idParam } = await params;
+    const id = parseInt(idParam);
 
     const usuario = await prisma.usuario.findUnique({
       where: { id },
@@ -66,9 +67,10 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   }
 }
 
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const id = parseInt(params.id);
+    const { id: idParam } = await params;
+    const id = parseInt(idParam);
     const { equipeId, ativo } = await request.json();
 
     const usuario = await prisma.usuario.findUnique({
@@ -82,7 +84,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       );
     }
 
-    const dadosAtualizacao: any = {};
+    const dadosAtualizacao: Prisma.UsuarioUpdateInput = {};
 
     if (equipeId !== undefined) {
       // Verificar se a equipe existe
@@ -97,7 +99,9 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
         );
       }
 
-      dadosAtualizacao.equipeId = equipeId;
+      dadosAtualizacao.equipe = {
+        connect: { id: equipeId }
+      };
     }
 
     if (ativo !== undefined) {
@@ -153,9 +157,10 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const id = parseInt(params.id);
+    const { id: idParam } = await params;
+    const id = parseInt(idParam);
 
     const usuario = await prisma.usuario.findUnique({
       where: { id }

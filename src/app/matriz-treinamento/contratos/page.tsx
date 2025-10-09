@@ -48,7 +48,10 @@ interface ApiResponse {
 
 export default function MatrizTreinamentoContratosPage() {
   return (
-    <ProtectedRoute requiredPermissions={ROUTE_PROTECTION.MATRIZ_TREINAMENTO}>
+    <ProtectedRoute 
+      requiredPermissions={ROUTE_PROTECTION.MATRIZ_TREINAMENTO.requiredPermissions}
+      requiredEquipe={ROUTE_PROTECTION.MATRIZ_TREINAMENTO.requiredEquipe}
+    >
       <MatrizTreinamentoContratosContent />
     </ProtectedRoute>
   );

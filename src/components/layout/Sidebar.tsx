@@ -82,6 +82,10 @@ export default function Sidebar() {
           label: "Lista de Funcionários",
           href: "/prestserv/funcionarios-por-contrato",
         },
+        {
+          label: "BI",
+          href: "/prestserv/bi",
+        },
         // { label: "Visualizar Funcionários por Centro de Custo (Folha)", href: "/planejamento/funcionarios" },
       ],
       permission: "canAccessPlanejamento",
@@ -123,6 +127,10 @@ export default function Sidebar() {
         {
           label: "Upload de Período",
           href: "/periodo",
+        },
+        {
+          label: "Business Intelligence",
+          href: "/prestserv/bi",
         },
         // {
         //   label: "Matriz de Status",

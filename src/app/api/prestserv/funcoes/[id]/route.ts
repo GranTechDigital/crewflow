@@ -6,10 +6,11 @@ const prisma = new PrismaClient()
 // GET - Buscar função específica por ID
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = parseInt(params.id)
+    const { id: idParam } = await params;
+    const id = parseInt(idParam);
 
     if (isNaN(id)) {
       return NextResponse.json(
@@ -44,10 +45,11 @@ export async function GET(
 // PUT - Atualizar função
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = parseInt(params.id)
+    const { id: idParam } = await params;
+    const id = parseInt(idParam);
 
     if (isNaN(id)) {
       return NextResponse.json(
@@ -91,10 +93,10 @@ export async function PUT(
     })
 
     return NextResponse.json(funcaoAtualizada)
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Erro ao atualizar função:', error)
     
-    if (error.code === 'P2025') {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2025') {
       return NextResponse.json(
         { error: 'Função não encontrada' },
         { status: 404 }
@@ -113,10 +115,11 @@ export async function PUT(
 // DELETE - Excluir função (soft delete)
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = parseInt(params.id)
+    const { id: idParam } = await params;
+    const id = parseInt(idParam);
 
     if (isNaN(id)) {
       return NextResponse.json(
@@ -158,10 +161,10 @@ export async function DELETE(
         message: 'Função excluída com sucesso'
       })
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Erro ao excluir função:', error)
     
-    if (error.code === 'P2025') {
+    if (error instanceof Error && error.message.includes('P2025')) {
       return NextResponse.json(
         { error: 'Função não encontrada' },
         { status: 404 }

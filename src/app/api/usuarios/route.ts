@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
 
     const skip = (page - 1) * limit;
 
-    const where: any = {};
+    const where: Prisma.UsuarioWhereInput = {};
 
     // Excluir o administrador do sistema das listagens
     where.funcionario = {
@@ -28,9 +28,9 @@ export async function GET(request: NextRequest) {
       where.funcionario = {
         ...where.funcionario,
         OR: [
-          { nome: { contains: search, mode: 'insensitive' } },
-          { matricula: { contains: search, mode: 'insensitive' } },
-          { email: { contains: search, mode: 'insensitive' } }
+          { nome: { contains: search } },
+          { matricula: { contains: search } },
+          { email: { contains: search } }
         ]
       };
     }

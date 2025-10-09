@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 
 // GET - Listar todas as solicitações de remanejamento
 export async function GET(request: NextRequest) {
@@ -8,20 +9,34 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status');
     const funcionarioId = searchParams.get('funcionarioId');
     
-    const where: any = {};
-    if (status) where.status = status;
-    if (funcionarioId) where.funcionarioId = parseInt(funcionarioId);
+    const where: Prisma.SolicitacaoRemanejamentoWhereInput = {};
+    
+    // Build funcionarios filter conditions
+    const funcionariosConditions: any = {};
+    if (status) funcionariosConditions.status = status;
+    if (funcionarioId) funcionariosConditions.funcionarioId = parseInt(funcionarioId);
+    
+    // Apply funcionarios filter if any conditions exist
+    if (Object.keys(funcionariosConditions).length > 0) {
+      where.funcionarios = {
+        some: funcionariosConditions
+      };
+    }
 
     const remanejamentos = await prisma.solicitacaoRemanejamento.findMany({
       where,
       include: {
-        funcionario: {
-          select: {
-            id: true,
-            nome: true,
-            matricula: true,
-            funcao: true,
-            centroCusto: true
+        funcionarios: {
+          include: {
+            funcionario: {
+              select: {
+                id: true,
+                nome: true,
+                matricula: true,
+                funcao: true,
+                centroCusto: true
+              }
+            }
           }
         },
         contratoOrigem: {
@@ -98,24 +113,33 @@ export async function POST(request: NextRequest) {
       funcionarioIds.map(async (funcionarioId: number) => {
         const solicitacao = await prisma.solicitacaoRemanejamento.create({
           data: {
-            funcionarioId,
             contratoOrigemId: contratoOrigemId || null,
-            centroCustoOrigem,
             contratoDestinoId: contratoDestinoId || null,
-            centroCustoDestino,
             justificativa,
             prioridade,
             solicitadoPor,
-            status: 'Pendente'
+            status: 'Pendente',
+            funcionarios: {
+              create: {
+                funcionarioId: funcionarioId,
+                statusTarefas: 'APROVAR SOLICITAÇÃO',
+                statusPrestserv: 'PENDENTE',
+                statusFuncionario: 'SEM_CADASTRO'
+              }
+            }
           },
           include: {
-            funcionario: {
-              select: {
-                id: true,
-                nome: true,
-                matricula: true,
-                funcao: true,
-                centroCusto: true
+            funcionarios: {
+              include: {
+                funcionario: {
+                  select: {
+                    id: true,
+                    nome: true,
+                    matricula: true,
+                    funcao: true,
+                    centroCusto: true
+                  }
+                }
               }
             },
             contratoOrigem: {
@@ -144,7 +168,7 @@ export async function POST(request: NextRequest) {
               solicitacaoId: solicitacao.id,
               tipoAcao: 'CRIACAO',
               entidade: 'SOLICITACAO',
-              descricaoAcao: `Solicitação de remanejamento criada para ${solicitacao.funcionario.nome} (${solicitacao.funcionario.matricula})`,
+              descricaoAcao: `Solicitação de remanejamento criada para ${solicitacao.funcionarios[0]?.funcionario?.nome} (${solicitacao.funcionarios[0]?.funcionario?.matricula})`,
               usuarioResponsavel: solicitadoPor,
               observacoes: `Centro de custo: ${centroCustoOrigem} → ${centroCustoDestino}. Justificativa: ${justificativa}`
             }
@@ -201,7 +225,7 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const updateData: any = {
+    const updateData: Prisma.SolicitacaoRemanejamentoUpdateInput = {
       status,
       dataAnalise: new Date(),
       updatedAt: new Date()
@@ -215,10 +239,14 @@ export async function PUT(request: NextRequest) {
     const remanejamentoAtual = await prisma.solicitacaoRemanejamento.findUnique({
       where: { id: parseInt(id) },
       include: {
-        funcionario: {
-          select: {
-            nome: true,
-            matricula: true
+        funcionarios: {
+          include: {
+            funcionario: {
+              select: {
+                nome: true,
+                matricula: true
+              }
+            }
           }
         }
       }
@@ -228,13 +256,17 @@ export async function PUT(request: NextRequest) {
       where: { id: parseInt(id) },
       data: updateData,
       include: {
-        funcionario: {
-          select: {
-            id: true,
-            nome: true,
-            matricula: true,
-            funcao: true,
-            centroCusto: true
+        funcionarios: {
+          include: {
+            funcionario: {
+              select: {
+                id: true,
+                nome: true,
+                matricula: true,
+                funcao: true,
+                centroCusto: true
+              }
+            }
           }
         },
         contratoOrigem: {
@@ -266,7 +298,7 @@ export async function PUT(request: NextRequest) {
           campoAlterado: 'status',
           valorAnterior: remanejamentoAtual?.status || '',
           valorNovo: status,
-          descricaoAcao: `Status da solicitação alterado de "${remanejamentoAtual?.status}" para "${status}" para ${remanejamento.funcionario.nome} (${remanejamento.funcionario.matricula})`,
+          descricaoAcao: `Status da solicitação alterado de "${remanejamentoAtual?.funcionarios?.[0]?.funcionario?.nome}" para "${status}" para ${remanejamento.funcionarios?.[0]?.funcionario?.nome} (${remanejamento.funcionarios?.[0]?.funcionario?.matricula})`,
           usuarioResponsavel: analisadoPor || 'Sistema',
           observacoes: observacoes || undefined
         }

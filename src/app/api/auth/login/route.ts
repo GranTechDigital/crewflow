@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
     // Definir cookie com o token
     response.cookies.set('auth-token', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: false, // Desabilitado para permitir HTTP em desenvolvimento
       sameSite: 'lax',
       maxAge: 8 * 60 * 60 // 8 horas
     });

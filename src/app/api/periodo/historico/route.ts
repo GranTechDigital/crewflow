@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const uploads = await prisma.periodoUpload.findMany({
       orderBy: [
@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
       registros: upload.registros,
       atualizados: upload.atualizados,
       naoEncontrados: upload.naoEncontrados,
-      uploadPor: upload.funcionario.nome,
+      uploadPor: upload.funcionario?.nome || 'Sistema',
       mesReferencia: upload.mesReferencia,
       anoReferencia: upload.anoReferencia,
       periodoInicial: upload.periodoInicial,

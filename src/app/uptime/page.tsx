@@ -1,71 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useAuth } from "../hooks/useAuth";
 import { read, utils } from "xlsx";
-
-interface UptimeData {
-  data: string;
-  sistema: string;
-  status: string;
-  uptime: number;
-  observacoes?: string;
-}
-
-interface FuncionarioUptime {
-  matricula: string;
-  sispat: string;
-  totalDias: number;
-  totalDiasPeriodo: number;
-  embarcacaoAtual: string;
-  observacoes: string;
-  status: string;
-}
-
 export default function UptimePage() {
   const { usuario } = useAuth();
-  const [uptimeData, setUptimeData] = useState<UptimeData[]>([]);
-  const [funcionariosData, setFuncionariosData] = useState<FuncionarioUptime[]>(
-    []
-  );
-  const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [limpando, setLimpando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"upload" | "status">("upload");
   const [uploadProgress, setUploadProgress] = useState<number>(0);
-
-  const limparDados = async () => {
-    try {
-      setLimpando(true);
-      setError(null);
-      setSuccessMessage(null);
-
-      const response = await fetch("/api/uptime/limpar", {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Erro ao limpar dados");
-      }
-
-      const result = await response.json();
-      setSuccessMessage(
-        `Dados limpos com sucesso! ${result.registrosRemovidos} registros foram removidos.`
-      );
-      setFuncionariosData([]);
-    } catch (err: any) {
-      console.error("Erro ao limpar dados:", err);
-      setError(err.message || "Erro ao limpar dados");
-    } finally {
-      setLimpando(false);
-    }
-  };
 
   const handleFileUpload = async (
     event: React.ChangeEvent<HTMLInputElement>
@@ -93,7 +37,7 @@ export default function UptimePage() {
           const workbook = read(data, { type: "array" });
           const firstSheetName = workbook.SheetNames[0];
           const worksheet = workbook.Sheets[firstSheetName];
-          const jsonData = utils.sheet_to_json<any>(worksheet, {
+          const jsonData = utils.sheet_to_json<Record<string, unknown>>(worksheet, {
             raw: false,
             defval: "",
             range: 1,
@@ -108,7 +52,7 @@ export default function UptimePage() {
 
           // Filtrar apenas linhas com matrícula válida
           const matriculas = jsonData
-            .map((row: any) => {
+            .map((row: Record<string, unknown>) => {
               const matricula =
                 row["Matrícula"] ||
                 row["matricula"] ||
@@ -132,7 +76,7 @@ export default function UptimePage() {
 
               return matricula;
             })
-            .filter((m: any) => m && m.toString().trim() !== "");
+            .filter((m: unknown) => m && m.toString().trim() !== "");
 
           console.log(
             "Primeiras 5 matrículas encontradas:",
@@ -144,7 +88,7 @@ export default function UptimePage() {
             );
           }
           // Normalizar os dados antes de enviar, garantindo que cada linha tenha um campo matricula padronizado
-          const dadosNormalizados = jsonData.map((row: any) => {
+          const dadosNormalizados = jsonData.map((row: Record<string, unknown>) => {
             // Encontrar a matrícula em qualquer formato possível
             const matriculaOriginal =
               row["Matrícula"] ||
@@ -178,7 +122,7 @@ export default function UptimePage() {
           );
 
           // Enviar todos os dados da planilha, mas só importar no backend os que têm matrícula válida
-          setFuncionariosData(dadosNormalizados);
+          // Removido setFuncionariosData pois não existe no estado do componente
           
           console.log("Enviando dados para API, incluindo worksheet para extração de período...");
           
@@ -212,8 +156,8 @@ export default function UptimePage() {
           setSuccessMessage(
             `Arquivo processado com sucesso! ${result.importados} registros importados de um total de ${result.total}.`
           );
-        } catch (err: any) {
-          setError(err.message || "Erro ao processar o arquivo");
+        } catch (err: unknown) {
+          setError(err instanceof Error ? err.message : "Erro ao processar o arquivo");
         } finally {
           setUploading(false);
           setUploadProgress(0);
@@ -221,9 +165,9 @@ export default function UptimePage() {
       };
 
       reader.readAsArrayBuffer(file);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Erro ao fazer upload:", err);
-      setError(err.message || "Erro ao fazer upload do arquivo");
+      setError(err instanceof Error ? err.message : "Erro ao fazer upload do arquivo");
       setUploading(false);
     }
   };
@@ -330,3 +274,4 @@ export default function UptimePage() {
     </div>
   );
 }
+

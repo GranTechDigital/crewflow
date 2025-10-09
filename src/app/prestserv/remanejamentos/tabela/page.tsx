@@ -3,8 +3,7 @@
 import React, { useState, useEffect } from "react";
 import {
   SolicitacaoRemanejamento,
-  StatusRemanejamento,
-  StatusTarefas,
+  StatusTarefa,
   StatusPrestserv,
 } from "@/types/remanejamento-funcionario";
 import Link from "next/link";
@@ -12,8 +11,8 @@ import { ChevronDownIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
 import { useToast } from "@/components/Toast";
 
 interface FiltrosRemanejamento {
-  status?: StatusRemanejamento;
-  statusTarefas?: StatusTarefas;
+  status?: string;
+  statusTarefa?: StatusTarefa;
   statusPrestserv?: StatusPrestserv;
 }
 
@@ -37,8 +36,8 @@ export default function TabelaRemanejamentos() {
       const params = new URLSearchParams();
 
       if (filtros.status) params.append("status", filtros.status);
-      if (filtros.statusTarefas)
-        params.append("statusTarefas", filtros.statusTarefas);
+      if (filtros.statusTarefa)
+      params.append("statusTarefa", filtros.statusTarefa);
       if (filtros.statusPrestserv)
         params.append("statusPrestserv", filtros.statusPrestserv);
 
@@ -97,10 +96,10 @@ export default function TabelaRemanejamentos() {
 
   const getFuncionariosResumo = (funcionarios: any[]) => {
     const pendentes = funcionarios.filter(
-      (f) => f.statusTarefas === "ATENDER TAREFAS"
+      (f) => f.statusTarefa === "PENDENTE"
     ).length;
     const concluidos = funcionarios.filter(
-      (f) => f.statusTarefas === "SOLICITAÇÃO CONCLUÍDA"
+      (f) => f.statusTarefa === "CONCLUIDA"
     ).length;
     return { pendentes, concluidos, total: funcionarios.length };
   };
@@ -216,8 +215,7 @@ export default function TabelaRemanejamentos() {
                 onChange={(e) =>
                   setFiltros({
                     ...filtros,
-                    status:
-                      (e.target.value as StatusRemanejamento) || undefined,
+                    status: e.target.value || undefined,
                   })
                 }
                 className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -240,12 +238,12 @@ export default function TabelaRemanejamentos() {
                 Status das Tarefas
               </label>
               <select
-                value={filtros.statusTarefas || ""}
+                value={filtros.statusTarefa || ""}
                 onChange={(e) =>
                   setFiltros({
                     ...filtros,
-                    statusTarefas:
-                      (e.target.value as StatusTarefas) || undefined,
+                    statusTarefa:
+                      (e.target.value as StatusTarefa) || undefined,
                   })
                 }
                 className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -346,7 +344,7 @@ export default function TabelaRemanejamentos() {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {remanejamentos.map((remanejamento) => {
                     const resumo = getFuncionariosResumo(
-                      remanejamento.funcionarios
+                      remanejamento.funcionarios || []
                     );
                     const isExpanded = expandedRows.has(remanejamento.id);
 
@@ -371,7 +369,7 @@ export default function TabelaRemanejamentos() {
                                   #{remanejamento.id}
                                 </div>
                                 <div className="text-xs text-gray-500">
-                                  {remanejamento.solicitante?.nome}
+                                  {remanejamento.solicitadoPor}
                                 </div>
                               </div>
                             </div>
@@ -507,7 +505,7 @@ export default function TabelaRemanejamentos() {
                                           </tr>
                                         </thead>
                                         <tbody className="bg-white divide-y divide-gray-100">
-                                          {remanejamento.funcionarios.map(
+                                          {(remanejamento.funcionarios || []).map(
                                             (funcionarioRem, index) => (
                                               <tr
                                                 key={funcionarioRem.id}
@@ -522,9 +520,9 @@ export default function TabelaRemanejamentos() {
                                                     <div className="flex-shrink-0 h-6 w-6">
                                                       <div className="h-6 w-6 rounded-full bg-blue-500 flex items-center justify-center">
                                                         <span className="text-white text-xs font-medium">
-                                                          {funcionarioRem.funcionario.nome
-                                                            .charAt(0)
-                                                            .toUpperCase()}
+                                                          {funcionarioRem.funcionario?.nome
+                                                            ?.charAt(0)
+                                                            ?.toUpperCase() || "?"}
                                                         </span>
                                                       </div>
                                                     </div>
@@ -532,7 +530,7 @@ export default function TabelaRemanejamentos() {
                                                       <div className="text-xs font-medium text-gray-900">
                                                         {
                                                           funcionarioRem
-                                                            .funcionario.nome
+                                                            .funcionario?.nome || "N/A"
                                                         }
                                                       </div>
                                                     </div>
@@ -542,31 +540,31 @@ export default function TabelaRemanejamentos() {
                                                   <div className="text-xs text-gray-900 font-mono bg-gray-100 px-1 py-0.5 rounded">
                                                     {
                                                       funcionarioRem.funcionario
-                                                        .matricula
+                                                        ?.matricula || "N/A"
                                                     }
                                                   </div>
                                                 </td>
                                                 <td className="px-2 py-2 whitespace-nowrap min-w-[100px]">
                                                   <div className="text-xs text-gray-600">
                                                     {funcionarioRem.funcionario
-                                                      .funcao || "N/A"}
+                                                      ?.funcao || "N/A"}
                                                   </div>
                                                 </td>
                                                 <td className="px-2 py-2 whitespace-nowrap min-w-[100px]">
                                                   <span
                                                     className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
-                                                      funcionarioRem.statusTarefas ===
-                                                      "SOLICITAÇÃO CONCLUÍDA"
+                                                      funcionarioRem.statusTarefa ===
+                                                      "CONCLUIDA"
                                                         ? "bg-green-100 text-green-800"
                                                         : "bg-yellow-100 text-yellow-800"
                                                     }`}
                                                   >
-                                                    {funcionarioRem.statusTarefas ===
-                                                    "SOLICITAÇÃO CONCLUÍDA"
+                                                    {funcionarioRem.statusTarefa ===
+                                                    "CONCLUIDA"
                                                       ? "✅"
                                                       : "⏳"}{" "}
                                                     {
-                                                      funcionarioRem.statusTarefas
+                                                      funcionarioRem.statusTarefa
                                                     }
                                                   </span>
                                                 </td>
@@ -574,25 +572,25 @@ export default function TabelaRemanejamentos() {
                                                   <span
                                                     className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
                                                       funcionarioRem.statusPrestserv ===
-                                                      "SOLICITAÇÃO CONCLUÍDA"
+                                                      "VALIDADO"
                                                         ? "bg-green-100 text-green-800"
                                                         : funcionarioRem.statusPrestserv ===
-                                                          "SOLICITAÇÃO REJEITADA"
+                                                          "INVALIDADO"
                                                         ? "bg-red-100 text-red-800"
                                                         : funcionarioRem.statusPrestserv ===
-                                                          "ATENDER TAREFAS"
+                                                          "PENDENTE"
                                                         ? "bg-purple-100 text-purple-800"
                                                         : "bg-gray-100 text-gray-800"
                                                     }`}
                                                   >
                                                     {funcionarioRem.statusPrestserv ===
-                                                    "SOLICITAÇÃO CONCLUÍDA"
+                                                    "VALIDADO"
                                                       ? "✅"
                                                       : funcionarioRem.statusPrestserv ===
-                                                        "SOLICITAÇÃO REJEITADA"
+                                                        "INVALIDADO"
                                                       ? "❌"
                                                       : funcionarioRem.statusPrestserv ===
-                                                        "ATENDER TAREFAS"
+                                                        "PENDENTE"
                                                       ? "📤"
                                                       : "📝"}
                                                     {
@@ -612,7 +610,7 @@ export default function TabelaRemanejamentos() {
                                                       gerarTarefasPadrao(
                                                         funcionarioRem.id,
                                                         funcionarioRem
-                                                          .funcionario.nome
+                                                          .funcionario?.nome || "N/A"
                                                       )
                                                     }
                                                     className="inline-flex items-center px-2 py-1 text-xs font-medium rounded text-white bg-green-500 hover:bg-green-600 ml-1"
@@ -691,10 +689,10 @@ export default function TabelaRemanejamentos() {
                     {remanejamentos.reduce(
                       (acc, r) =>
                         acc +
-                        r.funcionarios.filter(
+                        (r.funcionarios || []).filter(
                           (f) =>
-                            f.statusTarefas === "SOLICITAÇÃO CONCLUÍDA" &&
-                            f.statusPrestserv === "SOLICITAÇÃO CONCLUÍDA"
+                            f.statusTarefa === "CONCLUIDA" &&
+                            f.statusPrestserv === "VALIDADO"
                         ).length,
                       0
                     )}
@@ -706,10 +704,10 @@ export default function TabelaRemanejamentos() {
                     {remanejamentos.reduce(
                       (acc, r) =>
                         acc +
-                        r.funcionarios.filter(
+                        (r.funcionarios || []).filter(
                           (f) =>
-                            f.statusTarefas !== "SOLICITAÇÃO CONCLUÍDA" ||
-                            f.statusPrestserv !== "SOLICITAÇÃO CONCLUÍDA"
+                            f.statusTarefa !== "CONCLUIDA" ||
+                            f.statusPrestserv !== "VALIDADO"
                         ).length,
                       0
                     )}

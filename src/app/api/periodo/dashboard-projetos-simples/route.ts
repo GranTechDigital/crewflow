@@ -1,20 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    
-    // Extrair parâmetros de filtro
-    const regimeTrabalho = searchParams.get('regimeTrabalho'); // 'OFFSHORE' ou 'ONSHORE'
-    const projetos = searchParams.get('projetos'); // IDs separados por vírgula
-    const status = searchParams.get('status'); // IDs separados por vírgula
-    const statusFolha = searchParams.get('statusFolha'); // Valores separados por vírgula
-    const mes = searchParams.get('mes'); // Número do mês
-    const ano = searchParams.get('ano'); // Ano
+    const mesReferencia = parseInt(searchParams.get('mesReferencia') || '0');
+    const anoReferencia = parseInt(searchParams.get('anoReferencia') || '0');
+    const regimeTrabalho = searchParams.get('regimeTrabalho');
+    const projetos = searchParams.get('projetos');
+    const status = searchParams.get('status');
+    const statusFolha = searchParams.get('statusFolha');
 
     // Construir filtros WHERE
-    const whereClause: any = {};
+    const whereClause: Prisma.PeriodoSheetWhereInput = {};
 
     // Filtro de regime de trabalho (offshore/onshore) - usando regimeTratado padronizado
     if (regimeTrabalho) {
@@ -52,22 +51,22 @@ export async function GET(request: NextRequest) {
     }
 
     // Filtro de período
-    if (mes && ano) {
-      whereClause.mesReferencia = parseInt(mes);
-      whereClause.anoReferencia = parseInt(ano);
-    } else if (ano) {
-      whereClause.anoReferencia = parseInt(ano);
+    if (mesReferencia && anoReferencia) {
+      whereClause.mesReferencia = mesReferencia;
+      whereClause.anoReferencia = anoReferencia;
+    } else if (anoReferencia) {
+      whereClause.anoReferencia = anoReferencia;
     }
 
     // Buscar informações do período para filtrar funcionários demitidos
     let periodoInicial: Date | null = null;
     let periodoFinal: Date | null = null;
     
-    if (mes && ano) {
+    if (mesReferencia && anoReferencia) {
       const periodoUpload = await prisma.periodoUpload.findFirst({
         where: {
-          mesReferencia: parseInt(mes),
-          anoReferencia: parseInt(ano)
+          mesReferencia: mesReferencia,
+          anoReferencia: anoReferencia
         },
         select: {
           periodoInicial: true,
@@ -164,7 +163,7 @@ export async function GET(request: NextRequest) {
     };
 
     // Primeiro, agrupar dados por funcionário para calcular totais
-    const funcionariosPorMatricula: { [matricula: string]: any[] } = {};
+    const funcionariosPorMatricula: Record<string, typeof dadosFiltrados> = {};
     
     dadosFiltrados.forEach((registro) => {
       if (!funcionariosPorMatricula[registro.matricula]) {
@@ -175,12 +174,18 @@ export async function GET(request: NextRequest) {
 
     // Agrupar por projeto e status, somando totalDiasPeriodo e coletando funcionários
     const dadosAgrupados: { [projeto: string]: { [status: string]: number } } = {};
-    const funcionariosPorProjeto: { [projeto: string]: Map<string, any> } = {};
+    const funcionariosPorProjeto: Record<string, Map<string, {
+      matricula: string;
+      nome: string | null;
+      funcao: string | null;
+      status: string;
+      totalDiasPeriodo: number;
+    }>> = {};
 
     // Processar cada funcionário para calcular aguardando embarque corrigido
     Object.entries(funcionariosPorMatricula).forEach(([matricula, registros]) => {
       // Agrupar registros do funcionário por projeto
-      const registrosPorProjeto: { [projeto: string]: any[] } = {};
+      const registrosPorProjeto: Record<string, typeof dadosFiltrados> = {};
       
       registros.forEach((registro) => {
         const projeto = registro.projeto?.nome || 'Projeto não definido';
@@ -195,7 +200,7 @@ export async function GET(request: NextRequest) {
         // Calcular total de dias contabilizados para este funcionário neste projeto
         let totalDiasContabilizados = 0;
         let aguardandoEmbarqueAtual = 0;
-        let dadosReferencia = registrosProjeto[0]; // Para pegar dados gerais do funcionário
+        const dadosReferencia = registrosProjeto[0]; // Para pegar dados gerais do funcionário
 
         registrosProjeto.forEach((registro) => {
           let status = registro.status?.categoria || 'Status não definido';
@@ -262,7 +267,9 @@ export async function GET(request: NextRequest) {
           if (funcionariosPorProjeto[projeto].has(funcionarioKey)) {
             // Se já existe, somar os dias
             const funcionarioExistente = funcionariosPorProjeto[projeto].get(funcionarioKey);
-            funcionarioExistente.totalDiasPeriodo += totalDiasPeriodo;
+            if (funcionarioExistente) {
+              funcionarioExistente.totalDiasPeriodo += totalDiasPeriodo;
+            }
           } else {
             // Se não existe, adicionar novo
             funcionariosPorProjeto[projeto].set(funcionarioKey, {
@@ -369,9 +376,9 @@ export async function GET(request: NextRequest) {
           const quantidadeEfetivo = matriculasUnicas.size;
           
           // Calcular dias do período (assumindo período completo se não há filtros específicos)
-          const mesReferencia = mes ? parseInt(mes) : new Date().getMonth() + 1;
-          const anoReferencia = ano ? parseInt(ano) : new Date().getFullYear();
-          const diasPeriodo = new Date(anoReferencia, mesReferencia, 0).getDate();
+          const mesRef = mesReferencia || new Date().getMonth() + 1;
+          const anoRef = anoReferencia || new Date().getFullYear();
+          const diasPeriodo = new Date(anoRef, mesRef, 0).getDate();
           
           statusDataCompleto[coluna] = diasPeriodo * quantidadeEfetivo;
         } else if (coluna === 'Total Real') {
@@ -590,9 +597,9 @@ export async function GET(request: NextRequest) {
               return statusItem ? statusItem.categoria : `ID: ${id}`;
             }) : [],
         statusFolha: statusFolha ? statusFolha.split(',').map(s => s.trim()).filter(s => s.length > 0) : [],
-        mes: mes ? parseInt(mes) : null,
-        ano: ano ? parseInt(ano) : null,
-        periodo: (mes && ano) ? `${mes}/${ano}` : null
+        mesReferencia: mesReferencia || null,
+        anoReferencia: anoReferencia || null,
+        periodo: (mesReferencia && anoReferencia) ? `${mesReferencia}/${anoReferencia}` : null
       }
     });
 

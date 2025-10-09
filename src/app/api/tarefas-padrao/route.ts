@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 
 // GET - Listar todas as tarefas padrão
 export async function GET(request: NextRequest) {
@@ -8,7 +9,7 @@ export async function GET(request: NextRequest) {
     const setor = searchParams.get('setor');
     const ativo = searchParams.get('ativo');
 
-    const where: any = {};
+    const where: Prisma.TarefaPadraoWhereInput = {};
     
     if (setor) {
       where.setor = setor;

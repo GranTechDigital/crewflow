@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { DashboardRemanejamento } from "@/types/remanejamento-funcionario";
+import { DashboardRemanejamento, StatusTarefa, StatusPrestserv } from "@/types/remanejamento-funcionario";
 
 // GET - Dados do dashboard da logística
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     // Contar total de solicitações
     const totalSolicitacoes = await prisma.solicitacaoRemanejamento.count();
@@ -91,8 +91,8 @@ export async function GET(request: NextRequest) {
         solicitacao: {
           select: {
             id: true,
-            centroCustoOrigem: true,
-            centroCustoDestino: true,
+            contratoOrigemId: true,
+            contratoDestinoId: true,
             dataSolicitacao: true,
           },
         },
@@ -159,15 +159,15 @@ export async function GET(request: NextRequest) {
         status: item.status,
         count: item._count.id,
       })),
-      funcionariosPorStatusTarefas: funcionariosPorStatusTarefas.map(
+      funcionariosPorStatusTarefa: funcionariosPorStatusTarefas.map(
         (item) => ({
-          status: item.statusTarefas,
+          status: item.statusTarefas as StatusTarefa,
           count: item._count.id,
         })
       ),
       funcionariosPorStatusPrestserv: funcionariosPorStatusPrestserv.map(
         (item) => ({
-          status: item.statusPrestserv,
+          status: item.statusPrestserv as StatusPrestserv,
           count: item._count.id,
         })
       ),

@@ -40,7 +40,7 @@ const FlowbiteStatusTimeline: React.FC<StatusTimelineProps> = ({
   // Verificar se o status atual está cancelado
   const isCanceled = currentStatus === "CANCELADO";
   // Verificar se foi invalidado (reprovado)
-  const isInvalidated = currentStatus === "REPROVADO";
+  const isInvalidated = currentStatus === "INVALIDADO";
 
   // Formatar data para exibição
   const formatDate = (dateString?: string) => {

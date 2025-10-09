@@ -134,8 +134,8 @@ function TarefasFuncionarioContent() {
 
     if (
       funcionario &&
-      (funcionario.statusPrestserv === "SUBMETIDO" ||
-        funcionario.statusPrestserv === "APROVADO")
+      (funcionario.statusPrestserv === "VALIDADO" ||
+        funcionario.statusPrestserv === "CANCELADO")
     ) {
       showToast(
         "Não é possível criar novas tarefas quando o prestserv está submetido ou aprovado",
@@ -505,33 +505,33 @@ function TarefasFuncionarioContent() {
                 <div className="flex items-center space-x-3 mt-2">
                   <span
                     className={`inline-flex px-3 py-1 text-sm font-medium rounded-full border ${
-                      funcionario.statusTarefas === "SUBMETER RASCUNHO"
+                      funcionario.statusTarefa === "CONCLUIDO"
                         ? "bg-green-50 text-green-700 border-green-200"
-                        : funcionario.statusTarefas === "REPROVAR TAREFAS"
+                        : funcionario.statusTarefa === "REPROVADO"
                         ? "bg-yellow-50 text-yellow-700 border-yellow-200"
-                        : funcionario.statusTarefas === "ATENDER TAREFAS"
+                        : funcionario.statusTarefa === "EM_ANDAMENTO"
                         ? "bg-blue-50 text-blue-700 border-blue-200"
                         : "bg-gray-50 text-gray-700 border-gray-200"
                     }`}
                   >
                     📋 Tarefas:{" "}
-                    {funcionario.statusTarefas === "REPROVAR TAREFAS"
+                    {funcionario.statusTarefa === "REPROVADO"
                       ? "REPROVAR TAREFAS"
-                      : funcionario.statusTarefas === "SUBMETER RASCUNHO"
+                      : funcionario.statusTarefa === "CONCLUIDO"
                       ? "PROCESSO CONCLUÍDO"
-                      : funcionario.statusTarefas === "ATENDER TAREFAS"
+                      : funcionario.statusTarefa === "EM_ANDAMENTO"
                       ? "ATENDER TAREFAS"
-                      : funcionario.statusTarefas}
+                      : funcionario.statusTarefa}
                   </span>
                   <span
                     className={`inline-flex px-3 py-1 text-sm font-medium rounded-full border ${
-                      funcionario.statusPrestserv === "APROVADO"
+                      funcionario.statusPrestserv === "VALIDADO"
                         ? "bg-green-50 text-green-700 border-green-200"
-                        : funcionario.statusPrestserv === "SUBMETIDO"
+                        : funcionario.statusPrestserv === "EM VALIDAÇÃO"
                         ? "bg-blue-50 text-blue-700 border-blue-200"
                         : funcionario.statusPrestserv === "CRIADO"
                         ? "bg-yellow-50 text-yellow-700 border-yellow-200"
-                        : funcionario.statusPrestserv === "REJEITADO"
+                        : funcionario.statusPrestserv === "INVALIDADO"
                         ? "bg-red-50 text-red-700 border-red-200"
                         : "bg-gray-50 text-gray-700 border-gray-200"
                     }`}
@@ -717,7 +717,7 @@ function TarefasFuncionarioContent() {
                   <div
                     key={tarefa.id}
                     className={`border rounded-lg p-4 ${
-                      isTaskOverdue(tarefa.dataLimite) &&
+                      isTaskOverdue(tarefa.dataLimite || null) &&
                       tarefa.status !== "CONCLUIDO"
                         ? "border-red-300 bg-red-50"
                         : "border-gray-200"
@@ -754,7 +754,7 @@ function TarefasFuncionarioContent() {
                       <div>Responsável: {tarefa.responsavel}</div>
                       <div
                         className={
-                          isTaskOverdue(tarefa.dataLimite) &&
+                          isTaskOverdue(tarefa.dataLimite || null) &&
                           tarefa.status !== "CONCLUIDO"
                             ? "text-red-600 font-medium"
                             : ""

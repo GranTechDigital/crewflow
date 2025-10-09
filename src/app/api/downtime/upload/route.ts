@@ -46,7 +46,7 @@ function getPorcentagem(value: any): number | null {
   // }
   if (typeof value === "string") {
     // Remove o símbolo % e outros caracteres não numéricos, exceto ponto e vírgula
-    let cleanValue = value.replace(/%/g, "").replace(/,/g, ".").trim();
+    const cleanValue = value.replace(/%/g, "").replace(/,/g, ".").trim();
     const num = parseFloat(cleanValue);
     return isNaN(num) ? null : num;
   }

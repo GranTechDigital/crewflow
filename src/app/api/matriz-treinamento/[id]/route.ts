@@ -4,10 +4,11 @@ import { getUserFromRequest } from '@/utils/authUtils';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = parseInt(params.id);
+    const { id: idParam } = await params;
+    const id = parseInt(idParam);
 
     if (isNaN(id)) {
       return NextResponse.json(
@@ -68,10 +69,11 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = parseInt(params.id);
+    const { id: idParam } = await params;
+    const id = parseInt(idParam);
 
     if (isNaN(id)) {
       return NextResponse.json(
@@ -128,34 +130,37 @@ export async function PUT(
     }
 
     // Se estiver alterando contrato, função ou treinamento, verificar se já existe essa combinação
-    if (contratoId || funcaoId || treinamentoId) {
-      const novoContratoId = contratoId ? parseInt(contratoId) : matrizExistente.contratoId;
-      const novaFuncaoId = funcaoId ? parseInt(funcaoId) : matrizExistente.funcaoId;
-      const novoTreinamentoId = treinamentoId ? parseInt(treinamentoId) : matrizExistente.treinamentoId;
+        if (contratoId || funcaoId || treinamentoId !== undefined) {
+          const novoContratoId = contratoId ? parseInt(contratoId) : matrizExistente.contratoId;
+          const novaFuncaoId = funcaoId ? parseInt(funcaoId) : matrizExistente.funcaoId;
+          const novoTreinamentoId = treinamentoId ? parseInt(treinamentoId) : matrizExistente.treinamentoId;
 
-      // Verificar se não é a mesma combinação atual
-      if (
-        novoContratoId !== matrizExistente.contratoId ||
-        novaFuncaoId !== matrizExistente.funcaoId ||
-        novoTreinamentoId !== matrizExistente.treinamentoId
-      ) {
-        const combinacaoExistente = await prisma.matrizTreinamento.findUnique({
-          where: {
-            contratoId_funcaoId_treinamentoId: {
-              contratoId: novoContratoId,
-              funcaoId: novaFuncaoId,
-              treinamentoId: novoTreinamentoId,
-            },
-          },
-        });
+          // Verificar se não é a mesma combinação atual
+          if (
+            novoContratoId !== matrizExistente.contratoId ||
+            novaFuncaoId !== matrizExistente.funcaoId ||
+            novoTreinamentoId !== matrizExistente.treinamentoId
+          ) {
+            // Only check for existing combination if treinamentoId is not null
+            if (novoTreinamentoId !== null) {
+              const combinacaoExistente = await prisma.matrizTreinamento.findUnique({
+                where: {
+                  contratoId_funcaoId_treinamentoId: {
+                    contratoId: novoContratoId,
+                    funcaoId: novaFuncaoId,
+                    treinamentoId: novoTreinamentoId,
+                  },
+                },
+              });
 
-        if (combinacaoExistente) {
-          return NextResponse.json(
-            { success: false, message: 'Esta combinação de contrato, função e treinamento já existe' },
-            { status: 409 }
-          );
-        }
-      }
+              if (combinacaoExistente) {
+                return NextResponse.json(
+                  { success: false, message: 'Esta combinação de contrato, função e treinamento já existe' },
+                  { status: 409 }
+                );
+              }
+            }
+          }
 
       // Verificar se as entidades existem
       if (contratoId) {
@@ -199,7 +204,13 @@ export async function PUT(
     }
 
     // Preparar dados para atualização
-    const dadosAtualizacao: any = {};
+    const dadosAtualizacao: {
+      contratoId?: number;
+      funcaoId?: number;
+      treinamentoId?: number | null;
+      tipoObrigatoriedade?: string;
+      ativo?: boolean;
+    } = {};
 
     if (contratoId !== undefined) {
       dadosAtualizacao.contratoId = parseInt(contratoId);
@@ -210,7 +221,7 @@ export async function PUT(
     }
 
     if (treinamentoId !== undefined) {
-      dadosAtualizacao.treinamentoId = parseInt(treinamentoId);
+      dadosAtualizacao.treinamentoId = treinamentoId ? parseInt(treinamentoId) : null;
     }
 
     if (tipoObrigatoriedade !== undefined) {

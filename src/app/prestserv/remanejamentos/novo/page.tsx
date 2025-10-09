@@ -294,13 +294,6 @@ export default function NovoRemanejamentoLogisticaPage() {
   };
   
   const handleSubmit = async () => {
-    // Definir um timeout de segurança para garantir o redirecionamento
-    const redirectTimeout = setTimeout(() => {
-      if (submitting) {
-        console.log('Redirecionamento forçado após timeout');
-        window.location.href = '/prestserv/funcionarios';
-      }
-    }, 3000); // 3 segundos de timeout
     // Validações básicas
     if (funcionariosSelecionados.length === 0 || !justificativa.trim()) {
       showToast('Preencha todos os campos obrigatórios', 'error');
@@ -312,12 +305,6 @@ export default function NovoRemanejamentoLogisticaPage() {
       showToast('Selecione o contrato de destino', 'error');
       return;
     }
-    
-    // // Para remanejamentos entre contratos, contrato de origem é obrigatório
-    // if (tipoRemanejamento === 'entre_contratos' && !contratoOrigem) {
-    //   showToast('Para remanejamentos entre contratos, selecione o contrato de origem', 'error');
-    //   return;
-    // }
     
     setSubmitting(true);
     
@@ -333,7 +320,7 @@ export default function NovoRemanejamentoLogisticaPage() {
       };
       
       // Só incluir contratoDestinoId se não for desligamento
-      if (tipoRemanejamento !== 'desligamento') {
+      if (tipoRemanejamento !== 'desligamento' && contratoDestino) {
         payload.contratoDestinoId = contratoDestino.id;
       }
       
@@ -347,31 +334,22 @@ export default function NovoRemanejamentoLogisticaPage() {
       
       if (response.ok) {
         showToast('Solicitação de remanejamento enviada com sucesso!', 'success');
-        // Forçar o redirecionamento após um pequeno delay para garantir que o toast seja exibido
+        
+        // Aguardar um momento para o toast ser exibido e então redirecionar
+        // Mantém o loading ativo durante todo o processo
         setTimeout(() => {
-          // Usar window.location.href para garantir redirecionamento em todos os navegadores
           window.location.href = '/prestserv/funcionarios';
-        }, 500);
+        }, 1500);
       } else {
         const error = await response.json();
         showToast(error.message || 'Erro ao enviar solicitação', 'error');
+        setSubmitting(false);
       }
     } catch (error) {
       console.error('Erro ao enviar solicitação:', error);
       showToast('Erro ao enviar solicitação', 'error');
-      // Limpar o timeout de redirecionamento
-      clearTimeout(redirectTimeout);
-      // Garantir que o estado de submitting seja atualizado mesmo em caso de erro
-      setTimeout(() => {
-        setSubmitting(false);
-      }, 100);
-      return; // Impedir a execução do código abaixo em caso de erro
+      setSubmitting(false);
     }
-    
-    // Limpar o timeout de redirecionamento se tudo correr bem
-    clearTimeout(redirectTimeout);
-    // Garantir que o estado de submitting seja atualizado após o processamento
-    setSubmitting(false);
   };
   
   if (loading) {

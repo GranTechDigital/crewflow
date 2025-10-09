@@ -4,10 +4,11 @@ import prisma from '@/lib/prisma';
 // GET - Buscar centro de custo por ID
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = parseInt(params.id);
+    const { id: idParam } = await params;
+    const id = parseInt(idParam);
 
     if (isNaN(id)) {
       return NextResponse.json(
@@ -41,10 +42,11 @@ export async function GET(
 // PUT - Atualizar centro de custo
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = parseInt(params.id);
+    const { id: idParam } = await params;
+    const id = parseInt(idParam);
 
     if (isNaN(id)) {
       return NextResponse.json(
@@ -54,7 +56,7 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { cc, ccProjeto, nomeCc, ccNome, projeto, grupo1, grupo2, ativo } = body;
+    const { cc, nomeCc, ativo } = body;
 
     if (!cc || !nomeCc) {
       return NextResponse.json(
@@ -66,30 +68,25 @@ export async function PUT(
     const centroCusto = await prisma.centroCustoProjeto.update({
       where: { id },
       data: {
-        cc,
-        ccProjeto: ccProjeto || cc,
-        nomeCc,
-        ccNome: ccNome || `${cc} | ${nomeCc}`,
-        projeto: projeto || '',
-        grupo1: grupo1 || '',
-        grupo2: grupo2 || '',
+        centroCusto: cc,
+        nomeCentroCusto: nomeCc,
         ativo: ativo !== undefined ? ativo : true
       }
     });
 
     return NextResponse.json(centroCusto);
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Erro ao atualizar centro de custo:', error);
     
-    if (error.code === 'P2002') {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
       return NextResponse.json(
         { error: 'CC já existe' },
         { status: 409 }
       );
     }
 
-    if (error.code === 'P2025') {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2025') {
       return NextResponse.json(
         { error: 'Centro de custo não encontrado' },
         { status: 404 }
@@ -106,10 +103,11 @@ export async function PUT(
 // DELETE - Excluir centro de custo
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = parseInt(params.id);
+    const { id: idParam } = await params;
+    const id = parseInt(idParam);
 
     if (isNaN(id)) {
       return NextResponse.json(
@@ -124,10 +122,10 @@ export async function DELETE(
 
     return NextResponse.json({ message: 'Centro de custo excluído com sucesso' });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Erro ao excluir centro de custo:', error);
     
-    if (error.code === 'P2025') {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2025') {
       return NextResponse.json(
         { error: 'Centro de custo não encontrado' },
         { status: 404 }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, Prisma } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
     const categoria = searchParams.get('categoria');
     const ativo = searchParams.get('ativo');
 
-    const where: any = {};
+    const where: Prisma.StatusWhereInput = {};
     
     if (categoria) {
       where.categoria = categoria;

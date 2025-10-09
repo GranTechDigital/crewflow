@@ -7,9 +7,9 @@ import {
   // RemanejamentoFuncionario,
   // DashboardRemanejamento,
   // StatusPrestserv,
-  StatusTarefas,
+  StatusTarefa,
 } from "@/types/remanejamento-funcionario";
-import * as XLSX from "xlsx";
+import { read, utils, write } from 'xlsx';
 import {
   EyeIcon,
   PlusIcon,
@@ -257,7 +257,7 @@ function FuncionariosPageContent() {
     if (activeTab === "dashboard" && !dashboardData && !loadingDashboard) {
       fetchDashboardData();
     }
-  }, [activeTab]);
+  }, [activeTab, dashboardData, fetchDashboardData, loadingDashboard]);
 
   // Carregar estado dos filtros do localStorage
   useEffect(() => {
@@ -1047,11 +1047,11 @@ function FuncionariosPageContent() {
       };
     });
 
-    const ws = XLSX.utils.json_to_sheet(dadosParaExportar);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Funcionários");
+    const ws = utils.json_to_sheet(dadosParaExportar);
+    const wb = utils.book_new();
+    utils.book_append_sheet(wb, ws, "Funcionários");
 
-    const excelBuffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    const excelBuffer = write(wb, { bookType: "xlsx", type: "array" });
     const data = new Blob([excelBuffer], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     });
@@ -1823,7 +1823,7 @@ function FuncionariosPageContent() {
                         <div>
                           <p className="text-sm text-slate-500">{status}</p>
                           <p className="text-2xl font-semibold text-sky-400">
-                            {valor}
+                            {String(valor)}
                           </p>
                         </div>
                         {/* <div className="p-2 rounded-md">
@@ -1920,13 +1920,13 @@ function FuncionariosPageContent() {
                                 callbacks: {
                                   label: function (context) {
                                     const total = context.dataset.data.reduce(
-                                      (a: number, b: number) => a + b,
+                                      (a: number, b: any) => a + (typeof b === 'number' ? b : 0),
                                       0
                                     );
-                                    const percentage = (
+                                    const percentage = total > 0 ? (
                                       (context.parsed / total) *
                                       100
-                                    ).toFixed(1);
+                                    ).toFixed(1) : '0';
                                     return `${context.label}: ${context.parsed} (${percentage}%)`;
                                   },
                                 },
@@ -1934,13 +1934,13 @@ function FuncionariosPageContent() {
                               datalabels: {
                                 formatter: (value: number, ctx) => {
                                   const total = ctx.dataset.data.reduce(
-                                    (a: number, b: number) => a + b,
+                                    (a: number, b: any) => a + (typeof b === 'number' ? b : 0),
                                     0
                                   );
-                                  const percentage = (
+                                  const percentage = total > 0 ? (
                                     (value / total) *
                                     100
-                                  ).toFixed(0);
+                                  ).toFixed(0) : '0';
                                   return value > 0 ? value : "";
                                 },
                                 color: "#ffffff",
@@ -2391,13 +2391,13 @@ function FuncionariosPageContent() {
                               callbacks: {
                                 label: function (context) {
                                   const total = context.dataset.data.reduce(
-                                    (a: number, b: number) => a + b,
+                                    (a: number, b: any) => a + (typeof b === 'number' ? b : 0),
                                     0
                                   );
-                                  const percentage = (
+                                  const percentage = total > 0 ? (
                                     (context.parsed / total) *
                                     100
-                                  ).toFixed(1);
+                                  ).toFixed(1) : '0';
                                   return `${context.label}: ${context.parsed} (${percentage}%)`;
                                 },
                               },
@@ -2405,13 +2405,13 @@ function FuncionariosPageContent() {
                             datalabels: {
                               formatter: (value: number, ctx) => {
                                 const total = ctx.dataset.data.reduce(
-                                  (a: number, b: number) => a + b,
+                                  (a: number, b: any) => a + (typeof b === 'number' ? b : 0),
                                   0
                                 );
-                                const percentage = (
+                                const percentage = total > 0 ? (
                                   (value / total) *
                                   100
-                                ).toFixed(0);
+                                ).toFixed(0) : '0';
                                 return value > 0 ? `${percentage}%` : "";
                               },
                               color: "#ffffff",
@@ -2476,8 +2476,8 @@ function FuncionariosPageContent() {
                           </thead>
                           <tbody className="bg-white divide-y divide-gray-200">
                             {dashboardData.solicitacoesPorOrigemDestino
-                              .sort((a, b) => b.count - a.count)
-                              .map((item, index) => (
+                              .sort((a: any, b: any) => b.count - a.count)
+                              .map((item: any, index: any) => (
                                 <tr key={index}>
                                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                     {item.origem}

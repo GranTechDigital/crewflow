@@ -583,7 +583,7 @@ export default function Home() {
               {dadosPagina.map((pessoa) => (
                 <tr
                   key={pessoa.matricula}
-                  className={`hover:bg-gray-50 cursor-pointer transition-colors duration-150 ${getStatusBorder(pessoa.status)}`}
+                  className={`hover:bg-gray-50 cursor-pointer transition-colors duration-150 ${getStatusBorder(pessoa.status || undefined)}`}
                   onClick={() => handleRowClick(pessoa)}
                 >
                   <td className="px-2 py-1.5 whitespace-nowrap text-xs text-gray-900">{pessoa.matricula}</td>
@@ -592,7 +592,7 @@ export default function Home() {
                   <td className="px-2 py-1.5 whitespace-nowrap text-xs text-gray-900">{pessoa.departamento}</td>
                   <td className="px-2 py-1.5 whitespace-nowrap text-xs text-gray-900">{pessoa.centroCusto}</td>
                   <td className="px-2 py-1.5 whitespace-nowrap text-xs">
-                    <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[11px] font-medium ${getStatusColor(pessoa.status, 'default')}`}>
+                    <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[11px] font-medium ${getStatusColor(pessoa.status || undefined, 'default')}`}>
                       {pessoa.status}
                     </span>
                 </td>
@@ -640,7 +640,7 @@ export default function Home() {
             <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between bg-gray-50">
               <div className="flex items-center gap-2">
                 <h2 className="text-base font-semibold text-gray-800">Detalhes do Funcionário</h2>
-                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(selectedPessoa.status, 'modal')}`}>
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(selectedPessoa.status || undefined, 'modal')}`}>
                   {selectedPessoa.status}
                 </span>
               </div>

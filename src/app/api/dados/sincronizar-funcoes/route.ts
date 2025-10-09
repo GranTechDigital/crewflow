@@ -53,15 +53,15 @@ export async function POST() {
     // Extrair funções distintas considerando o regime de trabalho (campo EMPREGADO)
     const funcoesDistintas = new Map<string, { funcao: string; regime: string }>();
     
-    dadosExternos.forEach((item: any) => {
+    dadosExternos.forEach((item: Record<string, unknown>) => {
       if (item.FUNCAO && item.EMPREGADO) {
         // Normalizar o regime: se contém "OFFSHORE" então OFFSHORE, caso contrário ONSHORE
-        const regimeNormalizado = item.EMPREGADO.toUpperCase().includes('OFFSHORE') ? 'OFFSHORE' : 'ONSHORE';
+        const regimeNormalizado = String(item.EMPREGADO).toUpperCase().includes('OFFSHORE') ? 'OFFSHORE' : 'ONSHORE';
         
         const chave = `${item.FUNCAO}_${regimeNormalizado}`;
         if (!funcoesDistintas.has(chave)) {
           funcoesDistintas.set(chave, {
-            funcao: item.FUNCAO,
+            funcao: String(item.FUNCAO),
             regime: regimeNormalizado
           });
         }

@@ -1,8 +1,6 @@
 // Utilitário para bordas laterais baseadas em status
 // Complementa o sistema de cores de status
 
-import { STATUS_COLORS } from './statusColors';
-
 /**
  * Mapeamento de cores de status para classes de borda lateral
  */

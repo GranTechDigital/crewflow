@@ -24,10 +24,10 @@ const StatusTimeline: React.FC<StatusTimelineProps> = ({
     setIsVisible(true);
   }, []);
   // Definir a ordem dos status para a timeline
-  const statusOrder: StatusPrestserv[] = ['PENDENTE', 'CRIADO', 'SUBMETIDO', 'APROVADO'];
+  const statusOrder: StatusPrestserv[] = ['PENDENTE', 'CRIADO', 'EM VALIDAÇÃO', 'VALIDADO'];
   
   // Verificar se o status atual está rejeitado
-  const isRejected = currentStatus === 'REJEITADO';
+  const isRejected = currentStatus === 'INVALIDADO';
   
   // Formatar data para exibição
   const formatDate = (dateString?: string) => {
@@ -46,7 +46,7 @@ const StatusTimeline: React.FC<StatusTimelineProps> = ({
     const currentIndex = statusOrder.indexOf(currentStatus);
     const stepIndex = statusOrder.indexOf(step);
     
-    if (isRejected && step === 'SUBMETIDO') return 'rejected';
+    if (isRejected && step === 'EM VALIDAÇÃO') return 'rejected';
     if (stepIndex < currentIndex) return 'completed';
     if (stepIndex === currentIndex) return 'current';
     return 'pending';
@@ -89,8 +89,8 @@ const StatusTimeline: React.FC<StatusTimelineProps> = ({
     switch (step) {
       case 'PENDENTE': return 'Pendente';
       case 'CRIADO': return 'Rascunho';
-      case 'SUBMETIDO': return isRejected ? 'Rejeitado' : 'Submetido';
-      case 'APROVADO': return 'Aprovado';
+      case 'EM VALIDAÇÃO': return isRejected ? 'Rejeitado' : 'Em Validação';
+      case 'VALIDADO': return 'Validado';
       default: return step.replace('_', ' ');
     }
   };
@@ -99,9 +99,9 @@ const StatusTimeline: React.FC<StatusTimelineProps> = ({
   const getStepDate = (step: StatusPrestserv) => {
     switch (step) {
       case 'CRIADO': return formatDate(dataRascunhoCriado);
-      case 'SUBMETIDO': return formatDate(dataSubmetido);
-      case 'APROVADO': 
-      case 'REJEITADO': 
+      case 'EM VALIDAÇÃO': return formatDate(dataSubmetido);
+      case 'VALIDADO': 
+      case 'INVALIDADO': 
         return formatDate(dataResposta);
       default: return '';
     }
@@ -187,7 +187,7 @@ const StatusTimeline: React.FC<StatusTimelineProps> = ({
                 )}
                 
                 {/* Indicador de status rejeitado */}
-                {isRejected && step === 'SUBMETIDO' && (
+                {isRejected && step === 'EM VALIDAÇÃO' && (
                   <div className="mt-1 inline-block bg-red-100 text-red-800 text-[10px] font-medium py-0.5 px-1.5 rounded-md shadow-sm">
                     Rejeitado
                   </div>

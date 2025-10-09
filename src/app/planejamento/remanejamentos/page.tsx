@@ -15,11 +15,11 @@ import {
   CogIcon,
   PlusIcon
 } from '@heroicons/react/24/outline';
-import { SolicitacaoRemanejamento, StatusRemanejamento, PrioridadeRemanejamento } from '@/types/remanejamento';
+import { Remanejamento, StatusRemanejamento, PrioridadeRemanejamento } from '@/types/remanejamento';
 
 // Tipos já importados do arquivo de tipos
 
-interface SolicitacaoCompleta extends Omit<SolicitacaoRemanejamento, 'contratoOrigem' | 'contratoDestino'> {
+interface SolicitacaoCompleta extends Omit<Remanejamento, 'contratoOrigem' | 'contratoDestino' | 'funcionarios'> {
   funcionarios: {
     id: number;
     nome: string;
@@ -118,7 +118,7 @@ export default function RemanejamentosPage() {
 
       if (response.ok) {
         await fetchSolicitacoes();
-        const statusLabel = novoStatus === 'Processado' ? 'processada' : novoStatus.toLowerCase() + 'a';
+        const statusLabel = novoStatus === 'Concluido' ? 'processada' : novoStatus.toLowerCase() + 'a';
         alert(`Solicitação ${statusLabel} com sucesso!`);
       } else {
         const errorData = await response.json().catch(() => ({}));
@@ -141,7 +141,7 @@ export default function RemanejamentosPage() {
       case 'Pendente': return 'bg-yellow-100 text-yellow-800';
       case 'Aprovado': return 'bg-green-100 text-green-800';
       case 'Rejeitado': return 'bg-red-100 text-red-800';
-      case 'Processado': return 'bg-blue-100 text-blue-800';
+      case 'Concluido': return 'bg-blue-100 text-blue-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -171,7 +171,7 @@ export default function RemanejamentosPage() {
       case 'Pendente': return <ClockIcon className="w-4 h-4" />;
       case 'Aprovado': return <CheckCircleIcon className="w-4 h-4" />;
       case 'Rejeitado': return <XCircleIcon className="w-4 h-4" />;
-      case 'Processado': return <CogIcon className="w-4 h-4" />;
+      case 'Concluido': return <CogIcon className="w-4 h-4" />;
       default: return <ClockIcon className="w-4 h-4" />;
     }
   };
@@ -224,7 +224,7 @@ export default function RemanejamentosPage() {
             >
               <option value="Todos">Todos os status</option>
               <option value="Pendente">Pendente</option>
-              <option value="Processado">Processado</option>
+              <option value="Concluido">Concluído</option>
               <option value="Aprovado">Aprovado</option>
               <option value="Rejeitado">Rejeitado</option>
             </select>
@@ -274,7 +274,7 @@ export default function RemanejamentosPage() {
                       getStatusColor(solicitacao.status)
                     }`}>
                       {getStatusIcon(solicitacao.status)}
-                      {solicitacao.status === 'Processado' ? 'Processado' : solicitacao.status}
+                      {solicitacao.status === 'Concluido' ? 'Concluído' : solicitacao.status}
                     </span>
                     <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
                       getPrioridadeColor(solicitacao.prioridade)
@@ -365,7 +365,7 @@ export default function RemanejamentosPage() {
                   {solicitacao.status === 'Pendente' && (
                     <>
                       <button
-                        onClick={() => atualizarStatus(solicitacao.id, 'Processado')}
+                        onClick={() => atualizarStatus(solicitacao.id, 'Concluido')}
                         className="flex items-center gap-1 px-3 py-1 text-sm text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
                       >
                         <CogIcon className="w-4 h-4" />
@@ -396,7 +396,7 @@ export default function RemanejamentosPage() {
                     </>
                   )}
 
-                  {solicitacao.status === 'Processado' && (
+                  {solicitacao.status === 'Concluido' && (
                     <>
                       <button
                         onClick={() => {
@@ -453,7 +453,7 @@ export default function RemanejamentosPage() {
                     getStatusColor(solicitacaoSelecionada.status)
                   }`}>
                     {getStatusIcon(solicitacaoSelecionada.status)}
-                    {solicitacaoSelecionada.status === 'Processado' ? 'Processado' : solicitacaoSelecionada.status}
+                    {solicitacaoSelecionada.status === 'Concluido' ? 'Concluído' : solicitacaoSelecionada.status}
                   </span>
                   <span className={`inline-flex items-center px-3 py-2 rounded-full text-sm font-medium ${
                     getPrioridadeColor(solicitacaoSelecionada.prioridade)

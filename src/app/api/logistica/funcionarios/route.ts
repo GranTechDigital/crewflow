@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 
 // GET - Listar funcionários baseado no tipo de solicitação
 export async function GET(request: NextRequest) {
@@ -7,6 +8,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const tipo = searchParams.get('tipo'); // 'alocacao', 'realocacao' ou 'desligamento'
     const contratoId = searchParams.get('contratoId');
+    const search = searchParams.get('search');
 
     // Se não há parâmetro de tipo, retorna funcionários em remanejamento (comportamento antigo)
     if (!tipo) {
@@ -68,7 +70,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Definir filtro baseado no tipo de solicitação
-    let whereClause: any = {
+    const whereClause: Prisma.FuncionarioWhereInput = {
       // Excluir o administrador do sistema das listagens
       matricula: {
         not: 'ADMIN001'

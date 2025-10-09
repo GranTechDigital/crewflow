@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 import { getUserFromRequest } from "@/utils/authUtils";
 
@@ -17,17 +17,17 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Contar registros antes de deletar
-    const count = await prisma.downtimeProjeto.count();
+    const count = await prisma.downtimeSheet.count();
 
     await prisma.$transaction(async (tx) => {
       // Deletar todos os registros de downtime
-      await tx.downtimeProjeto.deleteMany({});
+      await tx.downtimeSheet.deleteMany({});
 
       // Registrar no histórico
       await tx.historicoRemanejamento.create({
         data: {
           tipoAcao: "LIMPAR_DOWNTIME_PROJETO",
-          entidade: "DowntimeProjeto",
+          entidade: "DowntimeSheet",
           descricaoAcao: `Limpeza de dados de Downtime por Projeto - ${count} registros removidos`,
           usuarioResponsavel: usuario.funcionario.nome || "Sistema",
           dataAcao: new Date(),
@@ -40,10 +40,11 @@ export async function DELETE(request: NextRequest) {
       message: `${count} registros de downtime foram removidos com sucesso`,
       registrosRemovidos: count,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Erro ao limpar dados de downtime:", error);
+    const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
     return NextResponse.json(
-      { message: `Erro ao limpar dados: ${error.message}` },
+      { error: "Erro interno do servidor", details: errorMessage },
       { status: 500 }
     );
   }

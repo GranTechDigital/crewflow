@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/Toast";
 import { RemanejamentoFuncionario } from "@/types/remanejamento-funcionario";
-import * as XLSX from "xlsx";
+import { read, utils, write } from "xlsx";
 import {
   EyeIcon,
   PlusIcon,
@@ -885,11 +885,11 @@ function FuncionariosPageContent() {
       };
     });
 
-    const ws = XLSX.utils.json_to_sheet(dadosParaExportar);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Funcionários");
+    const ws = utils.json_to_sheet(dadosParaExportar);
+    const wb = utils.book_new();
+    utils.book_append_sheet(wb, ws, "Funcionários");
 
-    const excelBuffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    const excelBuffer = write(wb, { bookType: "xlsx", type: "array" });
     const data = new Blob([excelBuffer], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     });

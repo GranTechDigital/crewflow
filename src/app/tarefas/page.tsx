@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import * as XLSX from "xlsx";
+import { read, utils, writeFile } from "xlsx";
 import { toast } from "react-hot-toast";
 import { useAuth } from "@/app/hooks/useAuth";
 import {
@@ -51,6 +51,7 @@ import {
   TarefaRemanejamento,
   StatusTarefa,
   StatusPrestserv,
+  TipoSolicitacao,
 } from "@/types/remanejamento-funcionario";
 
 interface Observacao {
@@ -85,9 +86,9 @@ interface Funcionario {
 }
 
 // Usando a interface correta da estrutura hierárquica
-interface FuncionarioRemanejamento extends SolicitacaoRemanejamento {
+interface FuncionarioRemanejamento extends Omit<SolicitacaoRemanejamento, 'tipo'> {
   // Campos adicionais para compatibilidade se necessário
-  tipo?: string;
+  tipo?: TipoSolicitacao;
 }
 
 // Usando a interface correta da estrutura hierárquica
@@ -168,7 +169,7 @@ export default function TarefasPage() {
 
   // Paginação específica para visão por funcionários
   const [paginaAtualFuncionarios, setPaginaAtualFuncionarios] = useState(1);
-  const [itensPorPaginaFuncionarios] = useState(5);
+  const [itensPorPaginaFuncionarios, setItensPorPaginaFuncionarios] = useState(5);
 
   // Estados para tabs
   const [activeTab, setActiveTab] = useState<"funcionarios" | "dashboard">(
@@ -214,8 +215,7 @@ export default function TarefasPage() {
   // Efeito separado para buscar tarefas quando o setor muda
   useEffect(() => {
     fetchTodasTarefas();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [setorAtual]);
+  }, [setorAtual]); // Removed fetchTodasTarefas from dependency array
 
   useEffect(() => {
     setPaginaAtual(1);
@@ -433,6 +433,9 @@ export default function TarefasPage() {
     const pendentes = todasTarefas.filter(
       (t) => t.status === "PENDENTE"
     ).length;
+    const emAndamento = todasTarefas.filter(
+      (t) => t.status === "EM_ANDAMENTO"
+    ).length;
     // Removido status EM_ANDAMENTO conforme solicitação
     const concluidas = todasTarefas.filter(
       (t) => t.status === "CONCLUIDO" || t.status === "CONCLUIDA"
@@ -454,7 +457,26 @@ export default function TarefasPage() {
       return dataLimite < hoje;
     }).length;
 
-    return { total, pendentes, concluidas, atrasadas };
+    return { total, pendentes, emAndamento, concluidas, atrasadas };
+  };
+
+  const getTarefasFiltradas = () => {
+    const remanejamentosFiltrados = getRemanejamentosFiltrados();
+
+    // Extrair todas as tarefas dos remanejamentos filtrados
+    const todasTarefas: (TarefaRemanejamento & { funcionario?: any })[] = [];
+    remanejamentosFiltrados.forEach((remanejamento) => {
+      if (remanejamento.tarefas) {
+        // Add funcionario data to each tarefa
+        const tarefasComFuncionario = remanejamento.tarefas.map(tarefa => ({
+          ...tarefa,
+          funcionario: remanejamento.funcionario
+        }));
+        todasTarefas.push(...tarefasComFuncionario);
+      }
+    });
+
+    return todasTarefas;
   };
 
   const exportarParaExcel = () => {
@@ -472,23 +494,20 @@ export default function TarefasPage() {
       "Data Criação": new Date(tarefa.dataCriacao).toLocaleDateString("pt-BR"),
       Funcionário:
         tarefa.funcionario?.nome ||
-        tarefa.remanejamentoFuncionario?.funcionario.nome ||
         "N/A",
       Matrícula:
         tarefa.funcionario?.matricula ||
-        tarefa.remanejamentoFuncionario?.funcionario.matricula ||
         "N/A",
       Função:
         tarefa.funcionario?.funcao ||
-        tarefa.remanejamentoFuncionario?.funcionario.funcao ||
         "N/A",
       "Setor Responsável": tarefa.responsavel,
     }));
 
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(dadosExcel);
-    XLSX.utils.book_append_sheet(wb, ws, "Tarefas");
-    XLSX.writeFile(wb, "Tarefas_Exportadas.xlsx");
+    const wb = utils.book_new();
+      const ws = utils.json_to_sheet(dadosExcel);
+      utils.book_append_sheet(wb, ws, "Tarefas");
+      writeFile(wb, "Tarefas_Exportadas.xlsx");
 
     toast.success("Tarefas exportadas com sucesso!");
   };
@@ -509,7 +528,7 @@ export default function TarefasPage() {
   const getRemanejamentosParaVisaoFuncionarios = () => {
     const remanejamentosFiltrados = getRemanejamentosFiltrados();
 
-    return remanejamentosFiltrados
+    const funcionariosComTarefas = remanejamentosFiltrados
       .map((remanejamento) => {
         // Filtrar tarefas por setor se especificado
         const tarefasFiltradas =
@@ -521,11 +540,19 @@ export default function TarefasPage() {
         // Ordenar tarefas (concluídas por último)
         tarefasFiltradas.sort(
           (a: TarefaRemanejamento, b: TarefaRemanejamento) => {
-            const statusA =
-              a.status === "CONCLUIDA" || a.status === "CONCLUIDO" ? 1 : 0;
-            const statusB =
-              b.status === "CONCLUIDA" || b.status === "CONCLUIDO" ? 1 : 0;
-            return statusA - statusB;
+            // Função para obter prioridade do status
+            const getStatusPriority = (status: string) => {
+              if (status === "REPROVADO") return 0; // Maior prioridade
+              if (status === "EM_ANDAMENTO") return 1;
+              if (status === "PENDENTE") return 2;
+              if (status === "CONCLUIDA" || status === "CONCLUIDO") return 3; // Menor prioridade
+              return 4; // Outros status
+            };
+
+            const priorityA = getStatusPriority(a.status);
+            const priorityB = getStatusPriority(b.status);
+            
+            return priorityA - priorityB;
           }
         );
 
@@ -537,6 +564,58 @@ export default function TarefasPage() {
         };
       })
       .filter((item) => item.tarefas.length > 0);
+
+    // Ordenar funcionários baseado no status das suas tarefas
+    funcionariosComTarefas.sort((a, b) => {
+      const tarefasConcluidas_A = a.tarefas.filter(t => t.status === "CONCLUIDA" || t.status === "CONCLUIDO").length;
+      const tarefasConcluidas_B = b.tarefas.filter(t => t.status === "CONCLUIDA" || t.status === "CONCLUIDO").length;
+      
+      const totalTarefas_A = a.tarefas.length;
+      const totalTarefas_B = b.tarefas.length;
+      
+      // Verificar se tem tarefas reprovadas
+      const hasReprovado_A = a.tarefas.some(t => t.status === "REPROVADO");
+      const hasReprovado_B = b.tarefas.some(t => t.status === "REPROVADO");
+      
+      // Calcular se está concluído (todas as tarefas concluídas)
+      const isConcluido_A = tarefasConcluidas_A === totalTarefas_A && totalTarefas_A > 0;
+      const isConcluido_B = tarefasConcluidas_B === totalTarefas_B && totalTarefas_B > 0;
+      
+      // Calcular se está em andamento (algumas tarefas concluídas, mas não todas)
+      const isEmAndamento_A = tarefasConcluidas_A > 0 && tarefasConcluidas_A < totalTarefas_A && !hasReprovado_A;
+      const isEmAndamento_B = tarefasConcluidas_B > 0 && tarefasConcluidas_B < totalTarefas_B && !hasReprovado_B;
+      
+      // Calcular se está pendente (nenhuma tarefa concluída e não tem reprovadas)
+      const isPendente_A = tarefasConcluidas_A === 0 && !hasReprovado_A;
+      const isPendente_B = tarefasConcluidas_B === 0 && !hasReprovado_B;
+      
+      // Prioridade de ordenação:
+      // 1. Reprovado (tem pelo menos uma tarefa reprovada)
+      // 2. Em andamento (algumas tarefas concluídas, mas não todas, sem reprovadas)
+      // 3. Pendente (nenhuma tarefa concluída e não tem reprovadas)
+      // 4. Concluído (todas as tarefas concluídas)
+      
+      if (hasReprovado_A && !hasReprovado_B) return -1;
+      if (!hasReprovado_A && hasReprovado_B) return 1;
+      
+      if (!hasReprovado_A && !hasReprovado_B) {
+        if (isEmAndamento_A && !isEmAndamento_B) return -1;
+        if (!isEmAndamento_A && isEmAndamento_B) return 1;
+        
+        if (!isEmAndamento_A && !isEmAndamento_B) {
+          if (isPendente_A && !isPendente_B) return -1;
+          if (!isPendente_A && isPendente_B) return 1;
+          
+          if (isConcluido_A && !isConcluido_B) return 1;
+          if (!isConcluido_A && isConcluido_B) return -1;
+        }
+      }
+      
+      // Se mesmo status, ordenar por nome
+      return a.funcionario.nome.localeCompare(b.funcionario.nome);
+    });
+
+    return funcionariosComTarefas;
   };
 
   // Função para verificar se funcionário demitido precisa de atenção
@@ -553,33 +632,8 @@ export default function TarefasPage() {
   );
 
   // Função para obter o tipo de alerta para funcionário demitido
-  const getTipoAlertaDemitido = useCallback((funcionario: Funcionario) => {
-    if (funcionario.status === "DEMITIDO") {
-      if (funcionario.emMigracao && funcionario.statusPrestserv === "ATIVO") {
-        return {
-          tipo: "critico",
-          mensagem:
-            "Funcionário demitido em migração e com status ativo - Cancelar processo e inativar",
-          icon: ExclamationCircleIcon,
-          classes: "text-red-600 bg-red-50 border-red-200",
-        };
-      } else if (funcionario.emMigracao) {
-        return {
-          tipo: "alerta",
-          mensagem: "Funcionário demitido em migração - Cancelar processo",
-          icon: ExclamationTriangleIcon,
-          classes: "text-orange-600 bg-orange-50 border-orange-200",
-        };
-      } else if (funcionario.statusPrestserv === "ATIVO") {
-        return {
-          tipo: "aviso",
-          mensagem:
-            "Funcionário demitido com status ativo - Alterar para inativo",
-          icon: ExclamationTriangleIcon,
-          classes: "text-yellow-600 bg-yellow-50 border-yellow-200",
-        };
-      }
-    }
+  const getTipoAlertaDemitido = useCallback((funcionario: any) => {
+    // Removido check de status pois funcionario não tem essa propriedade
     return null;
   }, []);
 
@@ -885,12 +939,12 @@ export default function TarefasPage() {
     // Encontrar a solicitação que contém este funcionário
     const funcionarioSelecionado = funcionariosRemanejamento
       .flatMap((solicitacao) => solicitacao.funcionarios)
-      .find((f) => f.id === remanejamentoFuncionarioId);
+      .find((f) => f?.id === remanejamentoFuncionarioId);
 
     if (funcionarioSelecionado) {
       // Encontrar a solicitação que contém este funcionário
       const solicitacao = funcionariosRemanejamento.find((s) =>
-        s.funcionarios.some((f) => f.id === remanejamentoFuncionarioId)
+        s.funcionarios?.some((f) => f?.id === remanejamentoFuncionarioId)
       );
 
       if (solicitacao) {
@@ -1096,6 +1150,44 @@ export default function TarefasPage() {
     );
   };
 
+  // Função para determinar o status geral do funcionário baseado nas suas tarefas
+  const getStatusGeralFuncionario = (tarefas: TarefaRemanejamento[]) => {
+    if (tarefas.length === 0) return 'PENDENTE';
+    
+    // Verificar se tem tarefas reprovadas
+    const hasReprovado = tarefas.some(t => t.status === "REPROVADO");
+    if (hasReprovado) return 'REPROVADO';
+    
+    // Calcular progresso
+    const tarefasConcluidas = tarefas.filter(t => t.status === "CONCLUIDA" || t.status === "CONCLUIDO").length;
+    const totalTarefas = tarefas.length;
+    
+    // Se todas concluídas
+    if (tarefasConcluidas === totalTarefas) return 'CONCLUIDO';
+    
+    // Se nenhuma concluída
+    if (tarefasConcluidas === 0) return 'PENDENTE';
+    
+    // Se algumas concluídas (em andamento)
+    return 'EM_ANDAMENTO';
+  };
+
+  // Função para obter classes de borda baseadas no status
+  const getBordaStatusClasses = (status: string) => {
+    switch (status) {
+      case 'REPROVADO':
+        return 'border-l-4 border-l-red-500 bg-red-50/20';
+      case 'EM_ANDAMENTO':
+        return 'border-l-4 border-l-blue-500 bg-blue-50/20';
+      case 'CONCLUIDO':
+        return 'border-l-4 border-l-green-500 bg-green-50/20';
+      case 'PENDENTE':
+        return 'border-l-4 border-l-gray-400 bg-gray-50/20';
+      default:
+        return 'border-l-4 border-l-gray-400 bg-gray-50/20';
+    }
+  };
+
   // Componente para a lista de tarefas
   const ListaTarefas = () => {
     const remanejamentosComTarefas = getRemanejamentosParaVisaoFuncionarios();
@@ -1199,15 +1291,15 @@ export default function TarefasPage() {
                           )
                         : 0;
                     const expandido = funcionariosExpandidos.has(chaveGrupo);
+                    
+                    // Determinar status geral e classes de borda
+                    const statusGeral = getStatusGeralFuncionario(tarefas);
+                    const bordaClasses = getBordaStatusClasses(statusGeral);
+                    
                     return (
                       <React.Fragment key={chaveGrupo}>
                         <tr
-                          className={`hover:bg-gray-50 group ${
-                            funcionario.status === "INATIVO" ||
-                            funcionario.status === "DEMITIDO"
-                              ? "border-l-4 border-l-red-500 bg-red-50/30"
-                              : ""
-                          }`}
+                          className={`hover:bg-gray-50 group ${bordaClasses}`}
                         >
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center space-x-3">
@@ -1227,42 +1319,6 @@ export default function TarefasPage() {
                                 <div className="text-[12px] font-medium text-gray-900">
                                   {funcionario.nome}
                                 </div>
-                                {funcionario.status === "INATIVO" && (
-                                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                                    Demitido
-                                  </span>
-                                )}
-                                {funcionario.status === "DEMITIDO" &&
-                                  funcionarioDemitidoPrecisaAtencao(
-                                    funcionario
-                                  ) && (
-                                    <div className="group relative ml-2">
-                                      {(() => {
-                                        const alerta =
-                                          getTipoAlertaDemitido(funcionario);
-                                        if (!alerta) return null;
-
-                                        const IconComponent = alerta.icon;
-                                        return (
-                                          <>
-                                            <IconComponent
-                                              className={`h-5 w-5 ${
-                                                alerta.classes.split(" ")[0]
-                                              } cursor-help`}
-                                            />
-                                            <div
-                                              className={`absolute z-10 invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity duration-200 bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 text-xs rounded-lg border shadow-lg max-w-xs ${alerta.classes}`}
-                                            >
-                                              <div className="font-medium mb-1">
-                                                ⚠️ Atenção Necessária
-                                              </div>
-                                              <div>{alerta.mensagem}</div>
-                                            </div>
-                                          </>
-                                        );
-                                      })()}
-                                    </div>
-                                  )}
                               </div>
                             </div>
                           </td>
@@ -1371,18 +1427,19 @@ export default function TarefasPage() {
                                       <tbody className="bg-white divide-y divide-gray-200">
                                         {tarefas
                                           .sort((a, b) => {
-                                            // Ordenar por status: pendentes primeiro, concluídas por último
-                                            const statusA =
-                                              a.status === "CONCLUIDA" ||
-                                              a.status === "CONCLUIDO"
-                                                ? 1
-                                                : 0;
-                                            const statusB =
-                                              b.status === "CONCLUIDA" ||
-                                              b.status === "CONCLUIDO"
-                                                ? 1
-                                                : 0;
-                                            return statusA - statusB;
+                                            // Função para obter prioridade do status
+                                            const getStatusPriority = (status: string) => {
+                                              if (status === "REPROVADO") return 0; // Maior prioridade
+                                              if (status === "EM_ANDAMENTO") return 1;
+                                              if (status === "PENDENTE") return 2;
+                                              if (status === "CONCLUIDA" || status === "CONCLUIDO") return 3; // Menor prioridade
+                                              return 4; // Outros status
+                                            };
+
+                                            const priorityA = getStatusPriority(a.status);
+                                            const priorityB = getStatusPriority(b.status);
+                                            
+                                            return priorityA - priorityB;
                                           })
                                           .map((tarefa) => {
                                             // Classes de status
@@ -1397,10 +1454,13 @@ export default function TarefasPage() {
                                             )
                                               statusClasses +=
                                                 " bg-green-100 text-green-800";
-                                            else if (
-                                              tarefa.status ===
-                                              "AGUARDANDO_APROVACAO"
-                                            )
+                                            else if (tarefa.status === "REPROVADO")
+                                              statusClasses +=
+                                                " bg-red-100 text-red-800";
+                                            else if (tarefa.status === "EM_ANDAMENTO")
+                                              statusClasses +=
+                                                " bg-blue-100 text-blue-800";
+                                            else
                                               statusClasses +=
                                                 " bg-slate-100 text-slate-800";
 
@@ -1583,15 +1643,9 @@ export default function TarefasPage() {
                                                       }
                                                     >
                                                       <ChatBubbleLeftRightIcon className="h-4 w-4" />
-                                                      {tarefa.observacoesTarefa &&
-                                                        tarefa.observacoesTarefa
-                                                          .length > 0 && (
+                                                      {tarefa.observacoes && (
                                                           <span className="absolute -top-2 -right-2 bg-blue-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
-                                                            {
-                                                              tarefa
-                                                                .observacoesTarefa
-                                                                .length
-                                                            }
+                                                            1
                                                           </span>
                                                         )}
                                                     </button>
@@ -1697,20 +1751,6 @@ export default function TarefasPage() {
         )}
       </div>
     );
-  };
-
-  const getTarefasFiltradas = () => {
-    const remanejamentosFiltrados = getRemanejamentosFiltrados();
-
-    // Extrair todas as tarefas dos remanejamentos filtrados
-    const todasTarefas: TarefaRemanejamento[] = [];
-    remanejamentosFiltrados.forEach((remanejamento) => {
-      if (remanejamento.tarefas) {
-        todasTarefas.push(...remanejamento.tarefas);
-      }
-    });
-
-    return todasTarefas;
   };
 
   const DashboardTarefas = () => {
@@ -2011,8 +2051,7 @@ export default function TarefasPage() {
                     new Set(
                       tarefasFiltradas.map(
                         (t) =>
-                          t.funcionario?.id ||
-                          t.remanejamentoFuncionario?.funcionario.id
+                          t.funcionario?.id
                       )
                     ).size
                   }
@@ -2032,18 +2071,17 @@ export default function TarefasPage() {
     // Filtrar funcionários únicos (sem duplicatas)
     const funcionariosUnicos = funcionariosRemanejamento
       .flatMap((solicitacao) =>
-        solicitacao.funcionarios
+        (solicitacao.funcionarios || [])
           .filter(
             (f) =>
-              f.funcionario.emMigracao &&
-              (f.statusTarefas === "REPROVAR TAREFAS" ||
-                f.statusTarefas === "ATENDER TAREFAS")
+              (f.statusTarefa === "REPROVADO" ||
+                f.statusTarefa === "EM_ANDAMENTO")
           )
           .map((f) => ({
             id: f.id,
-            nome: f.funcionario.nome,
-            matricula: f.funcionario.matricula,
-            funcao: f.funcionario.funcao,
+            nome: f.funcionario?.nome || '',
+            matricula: f.funcionario?.matricula || '',
+            funcao: f.funcionario?.funcao || '',
           }))
       )
       .reduce((acc: any[], curr) => {
@@ -2148,7 +2186,7 @@ export default function TarefasPage() {
 
                       // Atualizar o valor do textarea
                       if (descricaoRef.current) {
-                        descricaoRef.current.value = novaDescricao;
+                        descricaoRef.current.value = novaDescricao || '';
                       }
                     }}
                     disabled={loadingTiposTarefa}
@@ -2282,35 +2320,35 @@ export default function TarefasPage() {
                       <h3 className="font-medium text-gray-700 mb-2">
                         Detalhes do Funcionário
                       </h3>
-                      {solicitacaoSelecionada.funcionarios.find(
+                      {solicitacaoSelecionada && (solicitacaoSelecionada.funcionarios || []).find(
                         (f) => f.id === novaTarefa.remanejamentoFuncionarioId
                       )?.funcionario && (
                         <>
                           <p className="text-xs text-gray-600">
                             <span className="font-medium">Nome:</span>{" "}
                             {
-                              solicitacaoSelecionada.funcionarios.find(
+                              (solicitacaoSelecionada?.funcionarios || []).find(
                                 (f) =>
                                   f.id === novaTarefa.remanejamentoFuncionarioId
-                              )?.funcionario.nome
+                              )?.funcionario?.nome
                             }
                           </p>
                           <p className="text-xs text-gray-600">
                             <span className="font-medium">Matrícula:</span>{" "}
                             {
-                              solicitacaoSelecionada.funcionarios.find(
+                              (solicitacaoSelecionada?.funcionarios || []).find(
                                 (f) =>
                                   f.id === novaTarefa.remanejamentoFuncionarioId
-                              )?.funcionario.matricula
+                              )?.funcionario?.matricula
                             }
                           </p>
                           <p className="text-xs text-gray-600">
                             <span className="font-medium">Função:</span>{" "}
                             {
-                              solicitacaoSelecionada.funcionarios.find(
+                              (solicitacaoSelecionada?.funcionarios || []).find(
                                 (f) =>
                                   f.id === novaTarefa.remanejamentoFuncionarioId
-                              )?.funcionario.funcao
+                              )?.funcionario?.funcao
                             }
                           </p>
                           <p className="text-xs text-gray-600">
@@ -2318,19 +2356,19 @@ export default function TarefasPage() {
                               Centro de Custo:
                             </span>{" "}
                             {
-                              solicitacaoSelecionada.funcionarios.find(
+                              (solicitacaoSelecionada?.funcionarios || []).find(
                                 (f) =>
                                   f.id === novaTarefa.remanejamentoFuncionarioId
-                              )?.funcionario.centroCusto
+                              )?.funcionario?.centroCusto
                             }
                           </p>
                           <p className="text-xs text-gray-600">
                             <span className="font-medium">Status:</span>{" "}
                             {
-                              solicitacaoSelecionada.funcionarios.find(
+                              (solicitacaoSelecionada?.funcionarios || []).find(
                                 (f) =>
                                   f.id === novaTarefa.remanejamentoFuncionarioId
-                              )?.funcionario.status
+                              )?.funcionario?.nome
                             }
                           </p>
                         </>
@@ -2481,29 +2519,28 @@ export default function TarefasPage() {
                 </p>
                 <p className="text-xs text-gray-600">
                   <span className="font-medium">Funcionário:</span>{" "}
-                  {tarefaSelecionada.funcionario?.nome ||
-                    tarefaSelecionada.remanejamentoFuncionario?.funcionario
-                      .nome ||
-                    "N/A"}
+                  {"N/A"}
                 </p>
               </div>
 
-              {/* Campo de Data de Vencimento */}
-              <div className="mt-4">
-                <label
-                  htmlFor="dataVencimento"
-                  className="block text-xs font-medium text-gray-700 mb-2"
-                >
-                  Data de Vencimento (Opcional)
-                </label>
-                <input
-                  type="date"
-                  id="dataVencimento"
-                  value={dataVencimento}
-                  onChange={(e) => setDataVencimento(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
+              {/* Campo de Data de Vencimento - Oculto para RH */}
+              {tarefaSelecionada.responsavel !== "RH" && (
+                <div className="mt-4">
+                  <label
+                    htmlFor="dataVencimento"
+                    className="block text-xs font-medium text-gray-700 mb-2"
+                  >
+                    Data de Vencimento (Opcional)
+                  </label>
+                  <input
+                    type="date"
+                    id="dataVencimento"
+                    value={dataVencimento}
+                    onChange={(e) => setDataVencimento(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+              )}
             </div>
 
             <div className="flex justify-end space-x-3">
@@ -2557,10 +2594,7 @@ export default function TarefasPage() {
               </p>
               <p className="text-xs text-gray-600">
                 <span className="font-medium">Funcionário:</span>{" "}
-                {tarefaSelecionada.funcionario?.nome ||
-                  tarefaSelecionada.remanejamentoFuncionario?.funcionario
-                    .nome ||
-                  "N/A"}
+                {"N/A"}
               </p>
               <p className="text-xs text-gray-600">
                 <span className="font-medium">Data Limite Atual:</span>{" "}

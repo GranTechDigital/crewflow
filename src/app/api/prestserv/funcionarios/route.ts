@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const funcionarios = await prisma.funcionario.findMany({
       where: {
@@ -48,11 +48,25 @@ export async function GET(request: NextRequest) {
         FROM UptimeSheet
         GROUP BY matricula
       ) u2 ON u1.matricula = u2.matricula AND u1.createdAt = u2.max_created
-    `;
+    ` as Array<{ 
+      id: number;
+      matricula: string; 
+      status: string; 
+      nome: string;
+      funcao: string;
+      embarcacao: string;
+      departamento: string;
+      centroCusto: string;
+      dataAdmissao: Date; 
+      dataDemissao: Date; 
+      totalDias: number; 
+      observacoes: string;
+      createdAt: Date;
+    }>;
 
     // Criar um mapa de UptimeSheets por matrícula
-    const uptimeSheetsMap = new Map();
-    uptimeSheets.forEach(sheet => {
+    const uptimeSheetsMap = new Map<string, typeof uptimeSheets[0]>();
+    uptimeSheets.forEach((sheet: typeof uptimeSheets[0]) => {
       uptimeSheetsMap.set(sheet.matricula, sheet);
     });
 

@@ -5,12 +5,13 @@ import { StatusTarefa } from "@/types/remanejamento-funcionario";
 // GET - Buscar detalhes de uma tarefa específica
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const tarefa = await prisma.tarefaRemanejamento.findUnique({
       where: {
-        id: params.id,
+        id: id,
       },
       include: {
         remanejamentoFuncionario: {
@@ -27,8 +28,6 @@ export async function GET(
             solicitacao: {
               select: {
                 id: true,
-                centroCustoOrigem: true,
-                centroCustoDestino: true,
                 justificativa: true,
               },
             },
@@ -57,9 +56,10 @@ export async function GET(
 // PUT - Atualizar status da tarefa
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     // Obter o usuário autenticado
     const { getUserFromRequest } = await import('@/utils/authUtils');
     const usuarioAutenticado = await getUserFromRequest(request);
@@ -96,7 +96,7 @@ export async function PUT(
     // Buscar a tarefa atual
     const tarefaAtual = await prisma.tarefaRemanejamento.findUnique({
       where: {
-        id: params.id,
+        id: id,
       },
     });
 
@@ -108,7 +108,13 @@ export async function PUT(
     }
 
     // Preparar dados para atualização
-    const updateData: any = {};
+    const updateData: {
+      status?: string;
+      observacoes?: string;
+      dataLimite?: Date | null;
+      dataVencimento?: Date | null;
+      dataConclusao?: Date | null;
+    } = {};
 
     if (status !== undefined) updateData.status = status;
     if (observacoes !== undefined) updateData.observacoes = observacoes;
@@ -134,7 +140,7 @@ export async function PUT(
     // Atualizar a tarefa
     const tarefaAtualizada = await prisma.tarefaRemanejamento.update({
       where: {
-        id: params.id,
+        id: id,
       },
       data: updateData,
       include: {
@@ -159,10 +165,10 @@ export async function PUT(
       // Criar uma observação automática sobre a mudança de status
       await prisma.observacaoTarefaRemanejamento.create({
         data: {
-          tarefaId: params.id,
+          tarefaId: id,
           texto: `Status alterado de "${tarefaAtual.status}" para "${status}".`,
-          criadoPor: usuarioAutenticado?.nome || 'Sistema',
-          modificadoPor: usuarioAutenticado?.nome || 'Sistema'
+          criadoPor: usuarioAutenticado?.funcionario.nome || 'Sistema',
+          modificadoPor: usuarioAutenticado?.funcionario.nome || 'Sistema'
         }
       });
     }
@@ -253,13 +259,14 @@ export async function PUT(
 // DELETE - Excluir tarefa
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     // Buscar a tarefa para obter o remanejamentoFuncionarioId e dados para histórico
     const tarefa = await prisma.tarefaRemanejamento.findUnique({
       where: {
-        id: params.id,
+        id: id,
       },
       include: {
         remanejamentoFuncionario: {
@@ -304,7 +311,7 @@ export async function DELETE(
     // Excluir a tarefa
     await prisma.tarefaRemanejamento.delete({
       where: {
-        id: params.id,
+        id: id,
       },
     });
 

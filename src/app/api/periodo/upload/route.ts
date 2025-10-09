@@ -1,13 +1,63 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 import { getUserFromRequest } from "@/utils/authUtils";
-import * as XLSX from "xlsx";
+import { read, utils, WorkSheet } from "xlsx";
 import {
   initProgress,
   updateProgress,
   completeProgress,
   errorProgress,
 } from "./progressManager";
+
+// Type definitions
+interface ExcelRowData {
+  [key: string]: string | number | Date | null | undefined;
+}
+
+interface UltimoUpload {
+  id: number;
+  dataUpload: Date;
+  dataRelatorio: Date | null;
+  nomeArquivo: string | null;
+  periodoInicial: Date;
+  periodoFinal: Date;
+  totalDiasPeriodo: number;
+  uploadPor: string;
+}
+
+interface DadoExtraido {
+  rowObj: ExcelRowData;
+  matricula?: string;
+  sispat?: string;
+  index: number;
+}
+
+interface PeriodoSheetData {
+  matricula: string;
+  dataAdmissao: Date | null;
+  dataDemissao: Date | null;
+  dataInicio: Date | null;
+  dataFim: Date | null;
+  periodoInicial: Date;
+  periodoFinal: Date;
+  totalDias: number | null;
+  totalDiasPeriodo: number | null;
+  nome: string | null;
+  funcao: string | null;
+  embarcacao: string | null;
+  statusFolha: string | null;
+  codigo: string | null;
+  observacoes: string | null;
+  embarcacaoAtual: string | null;
+  sispat: string | null;
+  departamento: string | null;
+  regimeTrabalho: string | null;
+  regimeTratado: string | null;
+  statusId: number;
+  projetoId: number;
+  mesReferencia: number;
+  anoReferencia: number;
+}
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 const prisma = globalForPrisma.prisma || new PrismaClient();
@@ -17,7 +67,7 @@ if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
    Helpers (mantive e otimizei)
    ------------------------- */
 
-const getCampo = (row: any, keys: string | string[]): any => {
+const getCampo = (row: ExcelRowData, keys: string | string[]): string | number | Date | null => {
   const keyArray = Array.isArray(keys) ? keys : [keys];
   for (const key of keyArray) {
     if (
@@ -121,7 +171,7 @@ const validarPeriodo = (
 const verificarRelatorioMesExistente = async (
   mesReferencia: number,
   anoReferencia: number
-): Promise<{ podeUpload: boolean; ultimoUpload?: any; mensagem?: string }> => {
+): Promise<{ podeUpload: boolean; ultimoUpload?: UltimoUpload; mensagem?: string }> => {
   try {
     const ultimoUpload = await prisma.periodoUpload.findFirst({
       where: { mesReferencia, anoReferencia },
@@ -161,7 +211,7 @@ const verificarRelatorioMesExistente = async (
 };
 
 const extrairPeriodoDaCelulaA1 = (
-  worksheet: any
+  worksheet: WorkSheet
 ): {
   periodoInicial: Date;
   periodoFinal: Date;
@@ -235,7 +285,7 @@ const fromExcelSerial = (serial: number): Date => {
   );
 };
 
-const parseDate = (value: any): Date | null => {
+const parseDate = (value: string | number | Date | null | undefined): Date | null => {
   if (!value && value !== 0) return null;
   if (typeof value === "number") return fromExcelSerial(value);
   if (typeof value === "string") {
@@ -275,10 +325,10 @@ const parseDate = (value: any): Date | null => {
   return null;
 };
 
-const getData = (row: any, keys: string | string[]): Date | null =>
+const getData = (row: ExcelRowData, keys: string | string[]): Date | null =>
   parseDate(getCampo(row, keys));
 
-const getNumero = (row: any, keys: string | string[]): number | null => {
+const getNumero = (row: ExcelRowData, keys: string | string[]): number | null => {
   const valor = getCampo(row, keys);
   if (valor === null || valor === undefined || valor === "" || valor === "-")
     return null;
@@ -350,7 +400,7 @@ export async function POST(request: NextRequest) {
     });
 
     const buffer = Buffer.from(await file.arrayBuffer());
-    const workbook = XLSX.read(buffer, { type: "buffer" });
+    const workbook = read(buffer, { type: "buffer" });
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
 
@@ -397,7 +447,7 @@ export async function POST(request: NextRequest) {
     );
 
     // Converter worksheet para JSON (mantendo estrutura header:1 para respeitar A1 e header na linha 2)
-    const jsonData: any[] = XLSX.utils.sheet_to_json(worksheet, {
+    const jsonData: (string | number | Date | null)[][] = utils.sheet_to_json(worksheet, {
       header: 1,
       defval: null,
     });
@@ -414,32 +464,32 @@ export async function POST(request: NextRequest) {
     // Se existe relatório anterior, remover dados antigos
     if (verificacaoMes.ultimoUpload) {
   
-      const deletedSheets = await prisma.periodoSheet.deleteMany({
+      await prisma.periodoSheet.deleteMany({
         where: { mesReferencia, anoReferencia },
       });
      
-      const deletedUploads = await prisma.periodoUpload.deleteMany({
+      await prisma.periodoUpload.deleteMany({
         where: { mesReferencia, anoReferencia },
       });
     
     }
 
-    // 1º PASSO: Extrair dados e coletar sets únicos (status, sispat, matricula, centros de custo)
-    const dadosExtraidos: any[] = [];
+    // 1º PASSO: Extrair dados e coletar sets únicos (status, _sispat, matricula, centros de custo)
+    const dadosExtraidos: DadoExtraido[] = [];
     const statusSet = new Set<string>();
     const centroCustoSet = new Set<string>();
 
     for (let i = 0; i < rows.length; i++) {
-      const row = rows[i];
+      const row = rows[i] as (string | number | Date | null)[];
       const rowObj = headers.reduce(
-        (obj: any, header: string, index: number) => {
+        (obj: ExcelRowData, header: string, index: number) => {
           obj[header] = row[index];
           return obj;
         },
-        {}
+        {} as ExcelRowData
       );
 
-      let matricula = getCampo(rowObj, [
+      const matricula = getCampo(rowObj, [
         "Matrícula",
         "MATRICULA",
         "Matricula",
@@ -467,7 +517,7 @@ export async function POST(request: NextRequest) {
       ]);
       if (codigoCC)
         centroCustoSet.add(
-          processarCodigoCentroCustoSync(codigoCC)?.toString() ||
+          processarCodigoCentroCustoSync(codigoCC?.toString()) ||
             codigoCC.toString()
         );
 
@@ -529,7 +579,7 @@ export async function POST(request: NextRequest) {
       const naoProj = await prisma.projeto.upsert({
         where: { nome: "NÃO ENCONTRADO" },
         update: {},
-        create: { nome: "NÃO ENCONTRADO", ativo: true },
+        create: { nome: "NÃO ENCONTRADO", codigo: "NAO_ENCONTRADO", ativo: true },
         select: { id: true, nome: true },
       });
       projetoCache.set(naoProj.nome.toLowerCase(), naoProj.id);
@@ -575,7 +625,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Verificar se há StatusMapping e usar para mapear status mais específicos
-    let statusMappingCache = new Map<string, number>();
+    const statusMappingCache = new Map<string, number>();
     try {
       const statusMappings = await prisma.statusMapping.findMany({
         where: { ativo: true },
@@ -587,18 +637,18 @@ export async function POST(request: NextRequest) {
       });
       
       console.log(`📋 Carregando ${statusMappings.length} mapeamentos de status específicos`);
-    } catch (error) {
+    } catch {
       console.log('⚠️  StatusMapping não disponível, usando apenas Status direto');
     }
 
     // 3º PASSO: Montar todos os registros em memória usando os caches (sem awaits dentro do loop)
-    const registrosArray: any[] = [];
+    const registrosArray: PeriodoSheetData[] = [];
     let registrosProcessados = 0;
     let registrosAtualizados = 0;
-    let registrosNaoEncontrados = 0;
+    const registrosNaoEncontrados = 0;
 
     for (const dadoExtraido of dadosExtraidos) {
-      const { rowObj, matricula: matriculaOriginal, sispat } = dadoExtraido;
+      const { rowObj, matricula: matriculaOriginal } = dadoExtraido;
 
       // Nota: PeriodoSheet não tem relacionamento direto com Funcionario
       // Apenas armazena a matricula como string
@@ -684,9 +734,9 @@ export async function POST(request: NextRequest) {
         ]);
       }
       
-      let projetoId: number;
+      let projetoId: number = projetoCache.get("não encontrado")!; // Initialize with default value
       if (codigoRaw) {
-        const codigoProcessado = processarCodigoCentroCustoSync(codigoRaw);
+        const codigoProcessado = processarCodigoCentroCustoSync(codigoRaw?.toString());
         const codigoOriginal = codigoRaw.toString().trim();
         
         // Tentar múltiplas variações do código
@@ -724,52 +774,52 @@ export async function POST(request: NextRequest) {
         periodoFinal,
         totalDias,
         totalDiasPeriodo: totalDiasPeriodoCalculado,
-        nome: getCampo(rowObj, ["Nome", "NOME", "nome"])?.toString(),
+        nome: getCampo(rowObj, ["Nome", "NOME", "nome"])?.toString() || "",
         funcao: getCampo(rowObj, [
           "Função",
           "FUNÇÃO",
           "FUNCAO",
           "funcao",
-        ])?.toString(),
+        ])?.toString() || "",
         statusId,
         embarcacao: getCampo(rowObj, [
           "Embarcação",
           "EMBARCAÇÃO",
           "EMBARCACAO",
           "embarcacao",
-        ])?.toString(),
+        ])?.toString() || "",
         statusFolha: getCampo(rowObj, [
           "Status Folha",
           "STATUS FOLHA",
           "status_folha",
           "STATUS_FOLHA",
-        ])?.toString(),
+        ])?.toString() || "",
         codigo: getCampo(rowObj, [
           "Código",
           "CÓDIGO",
           "CODIGO",
           "codigo",
-        ])?.toString(),
+        ])?.toString()  || "",
         observacoes: getCampo(rowObj, [
           "Observações",
           "OBSERVAÇÕES",
           "OBSERVACOES",
           "observacoes",
-        ])?.toString(),
+        ])?.toString() || "",
         embarcacaoAtual: getCampo(rowObj, [
           "Embarcação Atual",
           "EMBARCAÇÃO ATUAL",
           "EMBARCACAO ATUAL",
           "embarcacao_atual",
-        ])?.toString(),
-        sispat: getCampo(rowObj, ["SISPAT", "Sispat", "sispat"])?.toString(),
+        ])?.toString() || "",
+        sispat: getCampo(rowObj, ["SISPAT", "Sispat", "sispat"])?.toString() || "",
         departamento: null,
         regimeTrabalho: getCampo(rowObj, [
           "Regime de Trabalho",
           "REGIME DE TRABALHO",
           "Regime Trabalho",
           "REGIME TRABALHO",
-        ])?.toString(),
+        ])?.toString() || "",
         regimeTratado: (() => {
           const regime = getCampo(rowObj, [
             "Regime de Trabalho",
@@ -825,7 +875,7 @@ export async function POST(request: NextRequest) {
         registros: registrosProcessados,
         atualizados: registrosAtualizados,
         naoEncontrados: registrosNaoEncontrados,
-        uploadPor: user.funcionario?.nome || user.nome || "Desconhecido",
+        uploadPor: user.funcionario?.nome || "Desconhecido",
         funcionarioId: user.funcionario?.id || user.id,
         mesReferencia,
         anoReferencia,
@@ -848,8 +898,8 @@ export async function POST(request: NextRequest) {
         totalDiasPeriodo,
         mesReferencia: `${mesReferencia}/${anoReferencia}`,
         registrosProcessados,
-        registrosAtualizados,
-        registrosNaoEncontrados,
+        atualizados: registrosAtualizados,
+        naoEncontrados: registrosNaoEncontrados,
         uploadId: periodoUpload.id,
         substituicao: !!verificacaoMes.ultimoUpload,
       },

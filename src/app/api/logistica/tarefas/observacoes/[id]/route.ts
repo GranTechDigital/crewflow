@@ -4,9 +4,10 @@ import { prisma } from '@/lib/prisma';
 // PUT - Atualizar observação
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const body = await request.json();
     const { texto, modificadoPor } = body;
 
@@ -19,7 +20,7 @@ export async function PUT(
 
     // Verificar se a observação existe e buscar dados para histórico
     const observacaoExistente = await prisma.observacaoTarefaRemanejamento.findUnique({
-      where: { id: parseInt(params.id) },
+      where: { id: parseInt(id) },
       include: {
         tarefa: {
           include: {
@@ -48,7 +49,7 @@ export async function PUT(
 
     const observacao = await prisma.observacaoTarefaRemanejamento.update({
       where: {
-        id: parseInt(params.id)
+        id: parseInt(id)
       },
       data: {
         texto,
@@ -93,12 +94,13 @@ export async function PUT(
 // DELETE - Excluir observação
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     // Verificar se a observação existe e buscar dados para histórico
     const observacao = await prisma.observacaoTarefaRemanejamento.findUnique({
-      where: { id: parseInt(params.id) },
+      where: { id: parseInt(id) },
       include: {
         tarefa: {
           include: {
@@ -145,7 +147,7 @@ export async function DELETE(
 
     await prisma.observacaoTarefaRemanejamento.delete({
       where: {
-        id: parseInt(params.id)
+        id: parseInt(id)
       }
     });
 

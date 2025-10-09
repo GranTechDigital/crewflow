@@ -4,9 +4,10 @@ import { prisma } from '@/lib/prisma';
 // PUT - Atualizar observação existente
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string; obsId: string } }
+  { params }: { params: Promise<{ id: string; obsId: string }> }
 ) {
   try {
+    const { id, obsId } = await params;
     // Obter o usuário autenticado
     const { getUserFromRequest } = await import('@/utils/authUtils');
     const usuarioAutenticado = await getUserFromRequest(request);
@@ -21,8 +22,8 @@ export async function PUT(
     const body = await request.json();
     const { texto } = body;
     
-    // Usar o nome do usuário autenticado para modificação
-    const modificadoPor = usuarioAutenticado.nome;
+    // Usar o nome do funcionário do usuário autenticado para modificação
+    const modificadoPor = usuarioAutenticado.funcionario.nome;
 
     if (!texto) {
       return NextResponse.json(
@@ -33,7 +34,7 @@ export async function PUT(
 
     // Verificar se a observação existe
     const observacaoExistente = await prisma.observacaoTarefaRemanejamento.findUnique({
-      where: { id: parseInt(params.obsId) }
+      where: { id: parseInt(obsId) }
     });
 
     if (!observacaoExistente) {
@@ -45,7 +46,7 @@ export async function PUT(
 
     // Buscar dados da tarefa para o histórico
     const tarefa = await prisma.tarefaRemanejamento.findUnique({
-      where: { id: params.id },
+      where: { id: id },
       include: {
         remanejamentoFuncionario: {
           include: {
@@ -70,7 +71,7 @@ export async function PUT(
 
     // Atualizar a observação
     const observacaoAtualizada = await prisma.observacaoTarefaRemanejamento.update({
-      where: { id: parseInt(params.obsId) },
+      where: { id: parseInt(obsId) },
       data: {
         texto,
         modificadoPor
@@ -122,9 +123,10 @@ Novo texto: "${texto}"`
 // DELETE - Excluir observação
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string; obsId: string } }
+  { params }: { params: Promise<{ id: string; obsId: string }> }
 ) {
   try {
+    const { id, obsId } = await params;
     // Obter o usuário autenticado
     const { getUserFromRequest } = await import('@/utils/authUtils');
     const usuarioAutenticado = await getUserFromRequest(request);
@@ -138,7 +140,7 @@ export async function DELETE(
 
     // Verificar se a observação existe
     const observacaoExistente = await prisma.observacaoTarefaRemanejamento.findUnique({
-      where: { id: parseInt(params.obsId) }
+      where: { id: parseInt(obsId) }
     });
 
     if (!observacaoExistente) {
@@ -150,7 +152,7 @@ export async function DELETE(
 
     // Buscar dados da tarefa para o histórico
     const tarefa = await prisma.tarefaRemanejamento.findUnique({
-      where: { id: params.id },
+      where: { id: id },
       include: {
         remanejamentoFuncionario: {
           include: {
@@ -175,7 +177,7 @@ export async function DELETE(
 
     // Excluir a observação
     await prisma.observacaoTarefaRemanejamento.delete({
-      where: { id: parseInt(params.obsId) }
+      where: { id: parseInt(obsId) }
     });
 
     // Registrar no histórico
@@ -187,7 +189,7 @@ export async function DELETE(
           tipoAcao: 'EXCLUSAO',
           entidade: 'OBSERVACAO',
           descricaoAcao: `Observação excluída da tarefa "${tarefa.tipo}" para ${tarefa.remanejamentoFuncionario.funcionario.nome} (${tarefa.remanejamentoFuncionario.funcionario.matricula})`,
-          usuarioResponsavel: usuarioAutenticado.nome,
+          usuarioResponsavel: usuarioAutenticado.funcionario.nome,
           observacoes: `Texto da observação excluída: "${observacaoExistente.texto}"`
         }
       });

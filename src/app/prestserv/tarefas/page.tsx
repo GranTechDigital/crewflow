@@ -75,6 +75,7 @@ export default function TarefasPage() {
     descricao: "",
     responsavel: "",
     prioridade: "Media",
+    remanejamentoFuncionarioId: "",
   });
   const [novaTarefa, setNovaTarefa] = useState<NovaTarefa>({
     tipo: "",
@@ -233,6 +234,7 @@ export default function TarefasPage() {
         descricao: "",
         responsavel: "",
         prioridade: "Media",
+        remanejamentoFuncionarioId: "",
       });
     } catch (err) {
       alert(err instanceof Error ? err.message : "Erro desconhecido");
@@ -422,17 +424,24 @@ export default function TarefasPage() {
 
   // Funções auxiliares
   const getStatusColor = (status: StatusTarefa) => {
-    const colors = {
+    const colors: { [key in StatusTarefa]: string } = {
+      "APROVAR SOLICITACAO": "bg-purple-100 text-purple-800",
+      REPROVADO: "bg-red-100 text-red-800",
+      APROVADO: "bg-green-100 text-green-800",
+      CRIAR_TAREFAS: "bg-blue-100 text-blue-800",
+      PRONTO_PARA_ENVIO: "bg-indigo-100 text-indigo-800",
+      "SUBMETER RASCUNHO": "bg-orange-100 text-orange-800",
+      CANCELADO: "bg-red-100 text-red-800",
       PENDENTE: "bg-yellow-100 text-yellow-800",
       EM_ANDAMENTO: "bg-blue-100 text-blue-800",
       CONCLUIDO: "bg-green-100 text-green-800",
-      CANCELADO: "bg-red-100 text-red-800",
+      CONCLUIDA: "bg-green-100 text-green-800",
     };
     return colors[status] || "bg-gray-100 text-gray-800";
   };
 
   const getPrioridadeColor = (prioridade: string) => {
-    const colors = {
+    const colors: { [key: string]: string } = {
       Baixa: "bg-green-100 text-green-800",
       Media: "bg-yellow-100 text-yellow-800",
       Alta: "bg-orange-100 text-orange-800",
@@ -697,6 +706,7 @@ export default function TarefasPage() {
                                 descricao: "",
                                 responsavel: "",
                                 prioridade: "Media",
+                                remanejamentoFuncionarioId: "",
                               });
                             }}
                             className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
@@ -739,7 +749,7 @@ export default function TarefasPage() {
                           <div>Responsável: {tarefa.responsavel}</div>
                           <div
                             className={
-                              isTaskOverdue(tarefa.dataLimite) &&
+                              isTaskOverdue(tarefa.dataLimite || null) &&
                               tarefa.status !== "CONCLUIDO"
                                 ? "text-red-600 font-medium"
                                 : ""
@@ -862,7 +872,7 @@ export default function TarefasPage() {
                               setEditandoTarefa(tarefa.id);
                               setTarefaEditando({
                                 tipo: tarefa.tipo,
-                                descricao: tarefa.descricao,
+                                descricao: tarefa.descricao || "",
                                 responsavel: tarefa.responsavel,
                                 prioridade: tarefa.prioridade as
                                   | "Baixa"
@@ -873,6 +883,7 @@ export default function TarefasPage() {
                                       .toISOString()
                                       .split("T")[0]
                                   : "",
+                                remanejamentoFuncionarioId: tarefa.remanejamentoFuncionarioId || "",
                               });
                             }}
                             className="px-3 py-1 text-sm bg-gray-600 text-white rounded hover:bg-gray-700"

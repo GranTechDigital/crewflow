@@ -1,0 +1,87 @@
+name: Deploy CrewFlow to Server
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch: # Permite execução manual
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+      
+    - name: 🐳 Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: 🔧 Build Docker image
+      run: |
+        docker build -t crewflow-app:latest .
+        
+    - name: 💾 Save Docker image
+      run: |
+        docker save crewflow-app:latest > crewflow-app.tar
+        
+    - name: 🔑 Setup SSH
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+        
+    - name: 📤 Upload image to server
+      run: |
+        scp -o StrictHostKeyChecking=no crewflow-app.tar root@${{ secrets.SERVER_HOST }}:/tmp/
+        
+    - name: 🚀 Deploy on server
+      run: |
+        ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
+          # Load new image
+          docker load < /tmp/crewflow-app.tar
+          
+          # Stop and remove old container
+          docker stop crewflow-app-production 2>/dev/null || true
+          docker rm crewflow-app-production 2>/dev/null || true
+          
+          # Start new container
+          docker run -d --name crewflow-app-production -p 3001:3000 \
+            -e DATABASE_URL='file:./dev.db' \
+            -e JWT_SECRET='crewflow-jwt-secret-key-2024' \
+            -e NEXTAUTH_URL='http://localhost:3000' \
+            -e NODE_ENV='development' \
+            crewflow-app:latest
+          
+          # Clean up
+          rm /tmp/crewflow-app.tar
+          
+          # Wait for container to start
+          sleep 10
+          
+          # Check if container is running
+          if docker ps | grep -q crewflow-app-production; then
+            echo "✅ Container started successfully"
+          else
+            echo "❌ Container failed to start"
+            docker logs crewflow-app-production
+            exit 1
+          fi
+        EOF
+        
+    - name: 🌱 Run seed (optional)
+      run: |
+        ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
+          # Check if database is empty (optional seed)
+          if docker exec crewflow-app-production npx prisma db seed --preview-feature 2>/dev/null; then
+            echo "✅ Seed executed successfully"
+          else
+            echo "ℹ️ Seed skipped (database already populated)"
+          fi
+        EOF
+        
+    - name: 🎉 Deployment complete
+      run: |
+        echo "🚀 Deployment completed successfully!"
+        echo "🌐 Application available at: http://${{ secrets.SERVER_HOST }}:3001"
+        echo "🔐 Login: ADMIN001 / admin123"

@@ -249,12 +249,13 @@ function FuncionarioModernoContent() {
       // Recarregar dados do funcionário
       await fetchFuncionario();
 
-      const mensagens = {
-        RASCUNHO_CRIADO: "Rascunho do prestserv criado com sucesso!",
-        EM_AVALIACAO: "Prestserv submetido para avaliação com sucesso!",
-        CONCLUIDO: "Prestserv concluído com sucesso!",
+      const mensagens: Record<StatusPrestserv, string> = {
+        PENDENTE: "Status alterado para pendente com sucesso!",
+        CRIADO: "Prestserv criado com sucesso!",
+        "EM VALIDAÇÃO": "Prestserv submetido para validação com sucesso!",
+        INVALIDADO: "Prestserv invalidado com sucesso!",
+        VALIDADO: "Prestserv validado com sucesso!",
         CANCELADO: "Prestserv cancelado com sucesso!",
-        EM_CORRECAO: "Prestserv enviado para correção com sucesso!",
       };
 
       const mensagem =
@@ -279,10 +280,10 @@ function FuncionarioModernoContent() {
     switch (status) {
       case "PENDENTE":
         return true; // Pode criar rascunho
-      case "RASCUNHO_CRIADO":
+      case "CRIADO":
         // Pode submeter se todas as tarefas estão concluídas
-        return funcionario.statusTarefas === "CONCLUIDO";
-      case "EM_CORRECAO":
+        return funcionario.statusTarefa === "CONCLUIDO";
+      case "INVALIDADO":
         return true; // Pode recriar rascunho
       default:
         return false;
@@ -296,10 +297,10 @@ function FuncionarioModernoContent() {
 
     switch (status) {
       case "PENDENTE":
-      case "EM_CORRECAO":
-        return "RASCUNHO_CRIADO";
-      case "RASCUNHO_CRIADO":
-        return "EM_AVALIACAO";
+      case "INVALIDADO":
+        return "CRIADO";
+      case "CRIADO":
+        return "EM VALIDAÇÃO";
       default:
         return null;
     }
@@ -309,10 +310,10 @@ function FuncionarioModernoContent() {
     const proximoStatus = getProximoStatus();
 
     switch (proximoStatus) {
-      case "RASCUNHO_CRIADO":
+      case "CRIADO":
         return "Criar Rascunho";
-      case "EM_AVALIACAO":
-        return "Submeter para Avaliação";
+      case "EM VALIDAÇÃO":
+        return "Submeter para Validação";
       default:
         return "Avançar Status";
     }
@@ -578,7 +579,7 @@ function FuncionarioModernoContent() {
                             <ClipboardDocumentListIcon className="w-4 h-4 text-blue-600" />
                           </div>
                           <p className="text-base font-semibold text-gray-900">
-                            {funcionario.statusTarefas}
+                            {funcionario.statusTarefa}
                           </p>
                         </div>
                       </div>
@@ -676,7 +677,7 @@ function FuncionarioModernoContent() {
                   <h3 className="text-lg font-semibold text-gray-900">
                     Lista de Tarefas
                   </h3>
-                  {funcionario.statusTarefas === "CONCLUIDO" && (
+                  {funcionario.statusTarefa === "CONCLUIDO" && (
                     <button
                       onClick={() => setMostrarTarefaUnica(true)}
                       className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
@@ -796,7 +797,7 @@ function FuncionarioModernoContent() {
                     <p className="text-gray-500 mb-6">
                       Este funcionário ainda não possui tarefas atribuídas.
                     </p>
-                    {funcionario.statusTarefas === "CONCLUIDO" && (
+                    {funcionario.statusTarefa === "CONCLUIDO" && (
                       <button
                         onClick={() => setMostrarTarefaUnica(true)}
                         className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"

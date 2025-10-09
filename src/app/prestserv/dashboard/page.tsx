@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { DashboardRemanejamento, StatusTarefas, StatusPrestserv } from '@/types/remanejamento-funcionario';
+import { DashboardRemanejamento, StatusTarefa, StatusPrestserv } from '@/types/remanejamento-funcionario';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -30,7 +30,7 @@ ChartJS.register(
 
 interface FuncionarioAtencao {
   id: string;
-  statusTarefas: StatusTarefas;
+  statusTarefas: StatusTarefa;
   statusPrestserv: StatusPrestserv;
   funcionario: {
     id: number;
@@ -104,7 +104,6 @@ export default function DashboardPrestserv() {
     const colors: { [key: string]: string } = {
       'PENDENTE': 'bg-yellow-100 text-yellow-800 border-yellow-200',
       'CONCLUIDO': 'bg-green-100 text-green-800 border-green-200',
-      'PENDENTE': 'bg-gray-100 text-gray-800 border-gray-200',
       'CRIADO': 'bg-blue-100 text-blue-800 border-blue-200',
       'SUBMETIDO': 'bg-purple-100 text-purple-800 border-purple-200',
       'APROVADO': 'bg-green-100 text-green-800 border-green-200',
@@ -319,7 +318,7 @@ export default function DashboardPrestserv() {
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-bold text-gray-800">📋 Status das Tarefas</h2>
                 <div className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
-                  {dashboardData.funcionariosPorStatusTarefas.reduce((acc, item) => acc + item.count, 0)} total
+                  {dashboardData.funcionariosPorStatusTarefa.reduce((acc, item) => acc + item.count, 0)} total
                 </div>
               </div>
             </div>
@@ -327,9 +326,9 @@ export default function DashboardPrestserv() {
               <div className="h-72">
                 <Doughnut
                   data={{
-                    labels: dashboardData.funcionariosPorStatusTarefas.map(item => item.status),
+                    labels: dashboardData.funcionariosPorStatusTarefa.map(item => item.status),
                     datasets: [{
-                      data: dashboardData.funcionariosPorStatusTarefas.map(item => item.count),
+                      data: dashboardData.funcionariosPorStatusTarefa.map(item => item.count),
                       backgroundColor: [
                         '#3B82F6', // blue
                         '#10B981', // green

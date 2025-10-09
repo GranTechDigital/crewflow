@@ -1,4 +1,4 @@
-# Gran System - Sistema de Gestão Integrada
+# CrewFlow - Sistema de Gestão Integrada
 
 Sistema de gestão desenvolvido em Next.js para controle de funcionários, remanejamentos, tarefas e administração.
 
@@ -22,8 +22,8 @@ Sistema de gestão desenvolvido em Next.js para controle de funcionários, reman
 
 ### 1. Clone o repositório
 ```bash
-git clone <url-do-repositorio>
-cd projetogran
+git clone https://github.com/GranTechDigital/crewflow.git
+cd crewflow
 ```
 
 ### 2. Instale as dependências

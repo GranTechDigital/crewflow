@@ -2,19 +2,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
   AtualizarStatusPrestserv,
-  NovaTarefaRemanejamento,
 } from "@/types/remanejamento-funcionario";
 
 // GET - Buscar detalhes de um funcionário em remanejamento
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const remanejamentoFuncionario =
       await prisma.remanejamentoFuncionario.findUnique({
         where: {
-          id: params.id,
+          id: id,
         },
         include: {
           funcionario: {
@@ -77,9 +77,10 @@ export async function GET(
 // PUT - Atualizar status do Prestserv
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const body: AtualizarStatusPrestserv = await request.json();
 
     const {
@@ -103,7 +104,7 @@ export async function PUT(
     const remanejamentoFuncionario =
       await prisma.remanejamentoFuncionario.findUnique({
         where: {
-          id: params.id,
+          id: id,
         },
         include: {
           tarefas: true,
@@ -125,7 +126,7 @@ export async function PUT(
     }
 
     // Validação: só pode submeter se todas as tarefas estiverem concluídas
-    if (statusPrestserv === "SUBMETIDO") {
+    if (statusPrestserv === "EM VALIDAÇÃO") {
       const tarefasPendentes = remanejamentoFuncionario.tarefas.filter(
         (tarefa) => tarefa.status !== "PROCESSO CONCLUIDO"
       );
@@ -142,7 +143,7 @@ export async function PUT(
     }
 
     // Preparar dados para atualização
-    const updateData: any = {
+    const updateData: Record<string, unknown> = {
       statusPrestserv,
       observacoesPrestserv,
     };
@@ -153,12 +154,10 @@ export async function PUT(
       !remanejamentoFuncionario.dataRascunhoCriado
     ) {
       updateData.dataRascunhoCriado = new Date();
-    } else if (statusPrestserv === "SUBMETIDO") {
-      // Para SUBMETIDO, sempre atualizar a data (permite resubmissão)
+    } else if (statusPrestserv === "EM VALIDAÇÃO") {
+      // Para EM VALIDAÇÃO, sempre atualizar a data (permite resubmissão)
       updateData.dataSubmetido = new Date();
     } else if (
-      statusPrestserv === "APROVADO" ||
-      statusPrestserv === "REJEITADO" ||
       statusPrestserv === "VALIDADO" ||
       statusPrestserv === "INVALIDADO"
     ) {
@@ -174,17 +173,15 @@ export async function PUT(
         remanejamentoFuncionario.dataRascunhoCriado;
     }
     if (
-      !updateData.dataSubmetido &&
-      remanejamentoFuncionario.dataSubmetido &&
-      statusPrestserv !== "SUBMETIDO"
-    ) {
+        !updateData.dataSubmetido &&
+        remanejamentoFuncionario.dataSubmetido &&
+        statusPrestserv !== "EM VALIDAÇÃO"
+      ) {
       updateData.dataSubmetido = remanejamentoFuncionario.dataSubmetido;
     }
     if (
       !updateData.dataResposta &&
       remanejamentoFuncionario.dataResposta &&
-      statusPrestserv !== "APROVADO" &&
-      statusPrestserv !== "REJEITADO" &&
       statusPrestserv !== "VALIDADO" &&
       statusPrestserv !== "INVALIDADO"
     ) {
@@ -208,7 +205,7 @@ export async function PUT(
     // Atualizar o registro
     const funcionarioAtualizado = await prisma.remanejamentoFuncionario.update({
       where: {
-        id: params.id,
+        id: id,
       },
       data: updateData,
       include: {
@@ -263,7 +260,7 @@ export async function PUT(
         funcionarioAtualizado.solicitacao
       );
 
-      const funcionarioMainUpdateData: any = {
+      const funcionarioMainUpdateData: Record<string, unknown> = {
         emMigracao: false,
       };
 
@@ -311,8 +308,8 @@ export async function PUT(
       console.log("✅ Funcionário atualizado com sucesso");
     }
 
-    // Se o Prestserv foi aprovado, mover o funcionário para o contrato de destino e atualizar statusPrestserv
-    if (statusPrestserv === "APROVADO") {
+    // Se o Prestserv foi validado, mover o funcionário para o contrato de destino e atualizar statusPrestserv
+    if (statusPrestserv === "VALIDADO") {
       // Buscar informações da solicitação para obter o contrato de destino
       const solicitacao = await prisma.solicitacaoRemanejamento.findUnique({
         where: { id: funcionarioAtualizado.solicitacaoId },
@@ -335,8 +332,8 @@ export async function PUT(
       }
     }
 
-    // Se o Prestserv foi rejeitado ou cancelado, desmarcar como em migração
-    if (statusPrestserv === "REJEITADO" || statusPrestserv === "CANCELADO") {
+    // Se o Prestserv foi invalidado ou cancelado, desmarcar como em migração
+    if (statusPrestserv === "INVALIDADO" || statusPrestserv === "CANCELADO") {
       await prisma.funcionario.update({
         where: { id: funcionarioAtualizado.funcionarioId },
         data: { emMigracao: false }, // Desmarca migração para permitir nova tentativa
@@ -347,9 +344,9 @@ export async function PUT(
       );
     }
 
-    // Se o Prestserv foi aprovado e todas as tarefas estão concluídas, verificar se a solicitação pode ser concluída
+    // Se o Prestserv foi validado e todas as tarefas estão concluídas, verificar se a solicitação pode ser concluída
     if (
-      statusPrestserv === "APROVADO" &&
+      statusPrestserv === "VALIDADO" &&
       funcionarioAtualizado.statusTarefas === "CONCLUIDO"
     ) {
       await verificarConclusaoSolicitacao(funcionarioAtualizado.solicitacaoId);
@@ -381,9 +378,10 @@ export async function PUT(
 // PATCH - Atualizar apenas o status do Prestserv (método simplificado)
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const body = await request.json();
     const {
       statusPrestserv,
@@ -416,7 +414,7 @@ export async function PATCH(
     const remanejamentoFuncionario =
       await prisma.remanejamentoFuncionario.findUnique({
         where: {
-          id: params.id,
+          id: id,
         },
         include: {
           tarefas: true,
@@ -431,7 +429,7 @@ export async function PATCH(
     }
 
     // Validação: só pode submeter se todas as tarefas estiverem concluídas
-    if (statusPrestserv === "SUBMETIDO") {
+    if (statusPrestserv === "EM VALIDAÇÃO") {
       const tarefasPendentes = remanejamentoFuncionario.tarefas.filter(
         (tarefa) => tarefa.status !== "SUBMETER RASCUNHO"
       );
@@ -463,7 +461,7 @@ export async function PATCH(
     }
 
     // Preparar dados para atualização
-    const updateData: any = {};
+    const updateData: Record<string, unknown> = {};
     if (statusPrestserv) updateData.statusPrestserv = statusPrestserv;
     if (statusFuncionario) updateData.statusFuncionario = statusFuncionario;
     if (statusTarefas) updateData.statusTarefas = statusTarefas;
@@ -481,8 +479,6 @@ export async function PATCH(
       ) {
         updateData.dataSubmetido = new Date();
       } else if (
-        statusPrestserv === "SOLICITAÇÃO CONCLUÍDA" ||
-        statusPrestserv === "SOLICITAÇÃO REJEITADA" ||
         statusPrestserv === "VALIDADO" ||
         statusPrestserv === "INVALIDADO"
       ) {
@@ -506,8 +502,6 @@ export async function PATCH(
       if (
         !updateData.dataResposta &&
         remanejamentoFuncionario.dataResposta &&
-        statusPrestserv !== "SOLICITAÇÃO CONCLUÍDA" &&
-        statusPrestserv !== "SOLICITAÇÃO REJEITADA" &&
         statusPrestserv !== "VALIDADO" &&
         statusPrestserv !== "INVALIDADO"
       ) {
@@ -518,7 +512,7 @@ export async function PATCH(
     // Atualizar o registro
     const funcionarioAtualizado = await prisma.remanejamentoFuncionario.update({
       where: {
-        id: params.id,
+        id: id,
       },
       data: updateData,
       include: {
@@ -548,7 +542,7 @@ export async function PATCH(
       emMigracao !== undefined ||
       contratoId !== undefined
     ) {
-      const funcionarioUpdateData: any = {};
+      const funcionarioUpdateData: Record<string, unknown> = {};
       if (statusFuncionario) {
         funcionarioUpdateData.statusPrestserv = statusFuncionario;
       }
@@ -575,7 +569,7 @@ export async function PATCH(
         funcionarioAtualizado.solicitacao
       );
 
-      const funcionarioMainUpdateData: any = {
+      const funcionarioMainUpdateData: Record<string, unknown> = {
         emMigracao: false,
       };
 
@@ -659,7 +653,7 @@ export async function PATCH(
 
     // Para outros tipos de solicitação, desmarcar como em migração quando finalizado
     if (funcionarioAtualizado.solicitacao?.tipo !== "DESLIGAMENTO") {
-      if (["APROVADO", "REJEITADO", "CANCELADO"].includes(statusPrestserv)) {
+      if (["VALIDADO", "INVALIDADO", "CANCELADO"].includes(statusPrestserv)) {
         await prisma.funcionario.update({
           where: { id: funcionarioAtualizado.funcionarioId },
           data: { emMigracao: false },

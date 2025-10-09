@@ -494,7 +494,7 @@ export default function DashboardProjetosPage() {
                         
                         return Array.from(projetosAgrupados.values()).map((projetoAgrupado) => {
                           // Verificar se algum ID deste projeto está selecionado
-                          const estaSelecionado = projetoAgrupado.ids.some(id => filtrosProjetos.includes(id));
+                          const estaSelecionado = projetoAgrupado.ids.some((id: any) => filtrosProjetos.includes(id));
                           
                           return (
                             <label key={projetoAgrupado.nome} className="flex items-center space-x-2 py-1">
@@ -577,14 +577,14 @@ export default function DashboardProjetosPage() {
                         </span>
                       )}
                       {dashboardData.filtrosAplicados.projetos && dashboardData.filtrosAplicados.projetos.length > 0 && 
-                        dashboardData.filtrosAplicados.projetos.map((projeto: string, index: number) => (
+                        dashboardData.filtrosAplicados.projetos.map((projeto: any, index: number) => (
                           <span key={index} className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
                             Projeto: {projeto}
                           </span>
                         ))
                       }
                       {dashboardData.filtrosAplicados.status && dashboardData.filtrosAplicados.status.length > 0 && 
-                        dashboardData.filtrosAplicados.status.map((status: string, index: number) => (
+                        dashboardData.filtrosAplicados.status.map((status: any, index: number) => (
                           <span key={index} className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
                             Status: {status}
                           </span>
@@ -597,9 +597,9 @@ export default function DashboardProjetosPage() {
                           </span>
                         ))
                       }
-                      {dashboardData.filtrosAplicados.periodo && (
+                      {(dashboardData.filtrosAplicados as any).periodo && (
                         <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-                          Período: {dashboardData.filtrosAplicados.periodo}
+                          Período: {(dashboardData.filtrosAplicados as any).periodo}
                         </span>
                       )}
                     </div>

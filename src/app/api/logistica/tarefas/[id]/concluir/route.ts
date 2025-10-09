@@ -4,9 +4,10 @@ import { prisma } from "@/lib/prisma";
 // PUT - Concluir tarefa
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     // Obter dados do corpo da requisição
     const body = await request.json().catch(() => ({}));
     const { dataVencimento } = body;
@@ -14,7 +15,7 @@ export async function PUT(
     // Buscar a tarefa atual
     const tarefaAtual = await prisma.tarefaRemanejamento.findUnique({
       where: {
-        id: params.id,
+        id: id,
       },
       include: {
         remanejamentoFuncionario: {
@@ -40,7 +41,11 @@ export async function PUT(
     }
 
     // Preparar dados para atualização
-    const updateData: any = {
+    const updateData: {
+      status: string;
+      dataConclusao: Date;
+      dataVencimento?: Date;
+    } = {
       status: "CONCLUIDO",
       dataConclusao: new Date(),
     };
@@ -53,7 +58,7 @@ export async function PUT(
     // Atualizar a tarefa para concluída
     const tarefaAtualizada = await prisma.tarefaRemanejamento.update({
       where: {
-        id: params.id,
+        id: id,
       },
       data: updateData,
       include: {

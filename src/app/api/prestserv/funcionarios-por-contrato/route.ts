@@ -1,7 +1,74 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+﻿import { NextRequest, NextResponse } from 'next/server';
+import { PrismaClient, Prisma } from '@prisma/client';
 
 const prisma = new PrismaClient();
+
+// Type definitions for better type safety
+interface UptimeSheetData {
+  matricula: string;
+  status: string;
+  dataInicio: Date;
+  dataFim: Date;
+  totalDiasPeriodo: number;
+  embarcacao: string;
+  observacoes: string;
+  periodoInicial?: Date | null;
+  periodoFinal?: Date | null;
+}
+
+interface FuncionarioData {
+  id: number;
+  nome: string;
+  sispat: string | null;
+  matricula: string;
+  funcao: string | null;
+  centroCusto: string | null;
+  status: string | null;
+  statusPrestserv: string;
+  emMigracao: boolean;
+  statusPeoplelog: string | null;
+  dataInicio: Date | null;
+  dataFim: Date | null;
+  totalDiasPeriodo: number | null;
+  embarcacao: string | null;
+  observacoes: string | null;
+  periodoInicial: Date | null;
+  periodoFinal: Date | null;
+}
+
+interface ContratoData {
+  contratoId: string;
+  contratoNome: string;
+  contratoCliente: string;
+  funcionarios: FuncionarioData[];
+  totalFuncionarios: number;
+  funcionariosAprovados: number;
+  funcionariosPendentes: number;
+  funcionariosRejeitados: number;
+}
+
+interface ContratoDataOriginal {
+  contratoId: string;
+  contratoNome: string;
+  contratoCliente: string;
+  totalFuncionarios: number;
+  funcionariosAprovados: number;
+  funcionariosPendentes: number;
+  funcionariosRejeitados: number;
+}
+
+interface ContratoInfo {
+  id: number;
+  nome: string;
+  cliente: string;
+}
+
+interface ContratoWithOriginalData extends ContratoData {
+  totalOriginal: number;
+  aprovadosOriginal: number;
+  pendentesOriginal: number;
+  rejeitadosOriginal: number;
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -20,7 +87,7 @@ export async function GET(request: NextRequest) {
     const isExport = searchParams.get('export') === 'true'; // Flag para exportação
 
     // Construir filtros para Prisma
-    const whereClause: any = {
+    const whereClause: Prisma.FuncionarioWhereInput = {
       // Excluir o administrador do sistema das listagens
       matricula: {
         not: 'ADMIN001'
@@ -149,30 +216,32 @@ export async function GET(request: NextRequest) {
         u1.dataFim,
         u1.totalDiasPeriodo,
         u1.embarcacao,
-        u1.observacoes
+        u1.observacoes,
+        u1.periodoInicial,
+        u1.periodoFinal
       FROM UptimeSheet u1
       INNER JOIN (
         SELECT matricula, MAX(createdAt) as max_created
         FROM UptimeSheet
         GROUP BY matricula
       ) u2 ON u1.matricula = u2.matricula AND u1.createdAt = u2.max_created
-    `;
+    ` as UptimeSheetData[];
 
     // Criar um mapa de UptimeSheets por matrícula
-    const uptimeSheetsMap = new Map();
-    uptimeSheets.forEach(sheet => {
+    const uptimeSheetsMap = new Map<string, UptimeSheetData>();
+    uptimeSheets.forEach((sheet: UptimeSheetData) => {
       uptimeSheetsMap.set(sheet.matricula, sheet);
     });
 
     // Agrupar funcionários por contrato atual (não de destino)
-    const contratoMap = new Map();
-    const contratoMapOriginal = new Map();
+    const contratoMap = new Map<string, ContratoData>();
+    const contratoMapOriginal = new Map<string, ContratoDataOriginal>();
 
     // Processar todos os funcionários para dados dos contratos
     todosFuncionarios.forEach(funcionario => {
       // Determinar o contrato atual do funcionário
       const contratoAtual = funcionario.contrato;
-      const contratoId = contratoAtual ? contratoAtual.id : 'sem_contrato';
+      const contratoId = contratoAtual ? contratoAtual.id.toString() : 'sem_contrato';
       const contratoNome = contratoAtual ? contratoAtual.nome : 'Sem contrato';
       const contratoCliente = contratoAtual ? contratoAtual.cliente : '-';
       
@@ -192,13 +261,19 @@ export async function GET(request: NextRequest) {
 
       const contratoData = contratoMap.get(contratoId);
       
+      // Verificar se contratoData existe (deveria sempre existir devido à criação acima)
+      if (!contratoData) {
+        console.error(`Erro: contratoData não encontrado para contratoId: ${contratoId}`);
+        return;
+      }
+      
       // Usar dados diretamente da tabela Funcionario
       const statusPrestserv = funcionario.statusPrestserv || 'SEM_CADASTRO';
       const emMigracao = funcionario.emMigracao || false;
 
       const uptimeSheet = uptimeSheetsMap.get(funcionario.matricula);
       
-      const funcionarioData = {
+      const funcionarioData: FuncionarioData = {
         id: funcionario.id,
         nome: funcionario.nome,
         sispat: funcionario.sispat,
@@ -244,7 +319,7 @@ export async function GET(request: NextRequest) {
     todosFuncionariosOriginais.forEach(funcionario => {
       // Determinar o contrato atual do funcionário
       const contratoAtual = funcionario.contrato;
-      const contratoId = contratoAtual ? contratoAtual.id : 'sem_contrato';
+      const contratoId = contratoAtual ? contratoAtual.id.toString() : 'sem_contrato';
       const contratoNome = contratoAtual ? contratoAtual.nome : 'Sem contrato';
       const contratoCliente = contratoAtual ? contratoAtual.cliente : '-';
       
@@ -262,6 +337,12 @@ export async function GET(request: NextRequest) {
       }
 
       const contratoDataOriginal = contratoMapOriginal.get(contratoId);
+      
+      // Verificar se contratoDataOriginal existe (deveria sempre existir devido à criação acima)
+      if (!contratoDataOriginal) {
+        console.error(`Erro: contratoDataOriginal não encontrado para contratoId: ${contratoId}`);
+        return;
+      }
       
       // Usar dados diretamente da tabela Funcionario
       const statusPrestserv = funcionario.statusPrestserv || 'SEM_CADASTRO';
@@ -296,10 +377,10 @@ export async function GET(request: NextRequest) {
     });
 
     // Adicionar contratos vazios ao mapa filtrado
-    todosContratos.forEach(contrato => {
-      if (!contratoMap.has(contrato.id)) {
-        contratoMap.set(contrato.id, {
-          contratoId: contrato.id,
+    todosContratos.forEach((contrato: ContratoInfo) => {
+      if (!contratoMap.has(contrato.id.toString())) {
+        contratoMap.set(contrato.id.toString(), {
+          contratoId: contrato.id.toString(),
           contratoNome: contrato.nome,
           contratoCliente: contrato.cliente,
           funcionarios: [],
@@ -312,10 +393,10 @@ export async function GET(request: NextRequest) {
     });
 
     // Adicionar contratos vazios ao mapa original
-    todosContratos.forEach(contrato => {
-      if (!contratoMapOriginal.has(contrato.id)) {
-        contratoMapOriginal.set(contrato.id, {
-          contratoId: contrato.id,
+    todosContratos.forEach((contrato: ContratoInfo) => {
+      if (!contratoMapOriginal.has(contrato.id.toString())) {
+        contratoMapOriginal.set(contrato.id.toString(), {
+          contratoId: contrato.id.toString(),
           contratoNome: contrato.nome,
           contratoCliente: contrato.cliente,
           totalFuncionarios: 0,
@@ -341,7 +422,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Converter Map para Array, combinar com dados originais e ordenar por nome do contrato
-    const contratos = Array.from(contratoMap.values()).map(contrato => {
+    const contratos: ContratoWithOriginalData[] = Array.from(contratoMap.values()).map(contrato => {
       const contratoOriginal = contratoMapOriginal.get(contrato.contratoId);
       return {
         ...contrato,
@@ -350,7 +431,7 @@ export async function GET(request: NextRequest) {
         pendentesOriginal: contratoOriginal ? contratoOriginal.funcionariosPendentes : 0,
         rejeitadosOriginal: contratoOriginal ? contratoOriginal.funcionariosRejeitados : 0,
       };
-    }).sort((a, b) => {
+    }).sort((a: ContratoWithOriginalData, b: ContratoWithOriginalData) => {
       // Garantir que "Sem contrato" apareça sempre por último
       if (a.contratoId === 'sem_contrato') return 1;
       if (b.contratoId === 'sem_contrato') return -1;
@@ -358,8 +439,8 @@ export async function GET(request: NextRequest) {
     });
 
     // Ordenar funcionários dentro de cada contrato por nome
-    contratos.forEach(contrato => {
-      contrato.funcionarios.sort((a, b) => a.nome.localeCompare(b.nome));
+    contratos.forEach((contrato: ContratoWithOriginalData) => {
+      contrato.funcionarios.sort((a: FuncionarioData, b: FuncionarioData) => a.nome.localeCompare(b.nome));
     });
 
     // Se for exportação, retornar apenas os funcionários sem dados de contratos e paginação

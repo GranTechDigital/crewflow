@@ -97,7 +97,11 @@ export type StatusTarefa =
   | "CRIAR_TAREFAS"
   | "PRONTO_PARA_ENVIO"
   | "SUBMETER RASCUNHO"
-  | "CANCELADO";
+  | "CANCELADO"
+  | "PENDENTE"
+  | "EM_ANDAMENTO"
+  | "CONCLUIDO"
+  | "CONCLUIDA";
 export type StatusSetor =
   | "APROVAR SOLICITACAO"
   | "EM_ANDAMENTO"

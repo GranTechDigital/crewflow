@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import * as XLSX from 'xlsx';
+import { utils, write } from 'xlsx';
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,7 +13,14 @@ export async function GET(request: NextRequest) {
     const statusFolha = searchParams.get('statusFolha');
 
     // Construir filtros
-    const whereClause: any = {};
+    const whereClause: {
+      mesReferencia?: number;
+      anoReferencia?: number;
+      regimeTrabalho?: { contains?: string; not?: { contains: string } };
+      projetoId?: { in: number[] };
+      statusId?: { in: number[] };
+      statusFolha?: { in: string[] };
+    } = {};
     
     if (mes && ano) {
       whereClause.mesReferencia = parseInt(mes);
@@ -82,14 +89,14 @@ export async function GET(request: NextRequest) {
       'Regime de Trabalho': item.regimeTrabalho,
       'Total Dias Período': item.totalDiasPeriodo || '',
       'Projeto': item.projeto?.nome || '',
-      'Centro de Custo': item.centroCusto || '',
+      'Departamento': item.departamento || '',
       'Mês Referência': item.mesReferencia,
       'Ano Referência': item.anoReferencia
     }));
 
     // Criar workbook
-    const workbook = XLSX.utils.book_new();
-    const worksheet = XLSX.utils.json_to_sheet(dadosExcel);
+    const workbook = utils.book_new();
+    const worksheet = utils.json_to_sheet(dadosExcel);
 
     // Ajustar largura das colunas
     const colWidths = [
@@ -112,10 +119,10 @@ export async function GET(request: NextRequest) {
     ];
     worksheet['!cols'] = colWidths;
 
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Dados Filtrados');
+    utils.book_append_sheet(workbook, worksheet, 'Dados Filtrados');
 
     // Gerar buffer do Excel
-    const excelBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    const excelBuffer = write(workbook, { type: 'buffer', bookType: 'xlsx' });
 
     // Criar nome do arquivo
     const agora = new Date();

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useToast } from '@/components/Toast';
 import { RemanejamentoFuncionario, StatusPrestserv, TarefaRemanejamento, StatusTarefa } from '@/types/remanejamento-funcionario';
@@ -71,13 +71,7 @@ export default function DetalheFuncionarioElegante() {
   const [filtroResponsavel, setFiltroResponsavel] = useState<string>('');
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
 
-  useEffect(() => {
-    if (funcionarioId) {
-      fetchFuncionario();
-    }
-  }, [funcionarioId]);
-
-  const fetchFuncionario = async () => {
+  const fetchFuncionario = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch(`/api/logistica/funcionario/${funcionarioId}`);
@@ -93,7 +87,13 @@ export default function DetalheFuncionarioElegante() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [funcionarioId]);
+
+  useEffect(() => {
+    if (funcionarioId) {
+      fetchFuncionario();
+    }
+  }, [funcionarioId, fetchFuncionario]);
 
   const atualizarTarefa = async (tarefaId: string, status: StatusTarefa) => {
     try {
@@ -269,9 +269,9 @@ export default function DetalheFuncionarioElegante() {
             </div>
             <div className="flex items-center space-x-3">
               <div className="flex items-center space-x-2">
-                {getStatusIcon(funcionario.statusTarefas)}
-                <span className={`px-3 py-1 text-sm font-medium rounded-full border ${getStatusColor(funcionario.statusTarefas)}`}>
-                  {funcionario.statusTarefas.replace('_', ' ')}
+                {getStatusIcon(funcionario.statusTarefa)}
+                <span className={`px-3 py-1 text-sm font-medium rounded-full border ${getStatusColor(funcionario.statusTarefa)}`}>
+                  {funcionario.statusTarefa.replace('_', ' ')}
                 </span>
               </div>
               <div className="flex items-center space-x-2">
@@ -624,9 +624,9 @@ export default function DetalheFuncionarioElegante() {
                 <div>
                   <p className="text-sm font-medium text-gray-500 mb-2">Status das Tarefas</p>
                   <div className="flex items-center space-x-2">
-                    {getStatusIcon(funcionario.statusTarefas)}
-                    <span className={`px-3 py-1 text-sm font-medium rounded-full border ${getStatusColor(funcionario.statusTarefas)}`}>
-                      {funcionario.statusTarefas.replace('_', ' ')}
+                    {getStatusIcon(funcionario.statusTarefa)}
+                    <span className={`px-3 py-1 text-sm font-medium rounded-full border ${getStatusColor(funcionario.statusTarefa)}`}>
+                      {funcionario.statusTarefa.replace('_', ' ')}
                     </span>
                   </div>
                 </div>

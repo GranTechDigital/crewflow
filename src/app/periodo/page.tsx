@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../hooks/useAuth";
 
 interface FuncionarioPeriodo {
@@ -178,7 +178,7 @@ export default function PeriodoPage() {
     }
   };
 
-  const carregarDashboard = async (
+  const carregarDashboard = useCallback(async (
     mes?: number | null, 
     ano?: number | null,
     regime?: string,
@@ -225,9 +225,9 @@ export default function PeriodoPage() {
     } finally {
       setDashboardLoading(false);
     }
-  };
+  }, [usuario]);
 
-  const carregarHistorico = async () => {
+  const carregarHistorico = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch("/api/periodo/historico");
@@ -241,7 +241,7 @@ export default function PeriodoPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   const exportarDadosFiltrados = async () => {
     try {
@@ -292,13 +292,13 @@ export default function PeriodoPage() {
         carregarDashboard(filtroMes, filtroAno, filtroRegime, filtrosProjetos, filtrosStatus, filtrosStatusFolha);
       }
     }
-  }, [activeTab, usuario]);
+  }, [activeTab, usuario, carregarHistorico, carregarDashboard, filtroMes, filtroAno, filtroRegime, filtrosProjetos, filtrosStatus, filtrosStatusFolha]);
 
   useEffect(() => {
     if (usuario && activeTab === "dashboard") {
       carregarDashboard(filtroMes, filtroAno, filtroRegime, filtrosProjetos, filtrosStatus, filtrosStatusFolha);
     }
-  }, [filtroMes, filtroAno, filtroRegime, filtrosProjetos, filtrosStatus, filtrosStatusFolha, usuario]);
+  }, [filtroMes, filtroAno, filtroRegime, filtrosProjetos, filtrosStatus, filtrosStatusFolha, usuario, activeTab, carregarDashboard]);
 
   if (!usuario) {
     return (
@@ -345,7 +345,7 @@ export default function PeriodoPage() {
                 <li>• <strong>Período mínimo:</strong> 7 dias</li>
                 <li>• <strong>Mesmo mês:</strong> Início e fim devem ser no mesmo mês</li>
                 <li>• <strong>Substituição:</strong> Novos uploads substituem dados do mesmo mês</li>
-                <li>• <strong>Formato da célula A1:</strong> "01/Sep/2025 to 15/Sep/2025"</li>
+                <li>• <strong>Formato da célula A1:</strong> 01/Sep/2025 to 15/Sep/2025</li>
               </ul>
             </div>
 
@@ -728,7 +728,7 @@ export default function PeriodoPage() {
                         }}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 h-32"
                       >
-                        {dashboardData?.opcoesFiltros?.statusFolha?.map(statusFolha => (
+                        {(dashboardData?.opcoesFiltros as any)?.statusFolha?.map((statusFolha: any) => (
                           <option key={statusFolha} value={statusFolha}>
                             {statusFolha}
                           </option>

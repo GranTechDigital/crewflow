@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 // Setores válidos para validação
@@ -11,6 +11,128 @@ function normalizarSetor(setor: string): SetorValido | null {
   return SETORES_VALIDOS.includes(setorUpper as SetorValido)
     ? (setorUpper as SetorValido)
     : null;
+}
+
+// Função para gerar tarefas de treinamento baseadas na matriz
+async function gerarTarefasTreinamento(
+  remanejamentoFuncionario: Record<string, unknown>,
+  funcionario: Record<string, unknown>,
+  tarefasParaCriar: Record<string, unknown>[]
+) {
+  console.log("=== INICIANDO GERAÇÃO DE TAREFAS DE TREINAMENTO ===");
+  console.log("RemanejamentoFuncionario ID:", remanejamentoFuncionario?.id);
+  console.log("Funcionario ID:", funcionario?.id);
+  console.log("Funcionario Nome:", funcionario?.nome);
+  console.log("Funcionario Funcao:", funcionario?.funcao);
+
+  try {
+    // Buscar a solicitação de remanejamento para obter o contrato de destino
+    const solicitacao = await prisma.solicitacaoRemanejamento.findUnique({
+      where: { id: remanejamentoFuncionario.solicitacaoId as number },
+      include: {
+        contratoDestino: true,
+      },
+    });
+
+    console.log("Solicitacao encontrada:", !!solicitacao);
+    console.log("Contrato destino ID:", solicitacao?.contratoDestinoId);
+
+    if (!solicitacao || !solicitacao.contratoDestinoId) {
+      console.log("❌ Solicitação ou contrato de destino não encontrado");
+      return;
+    }
+
+    const contratoId = solicitacao.contratoDestinoId;
+    const funcaoNome = funcionario.funcao;
+
+    if (!funcaoNome) {
+      console.log("❌ Função do funcionário não encontrada");
+      return;
+    }
+
+    // Buscar a função na tabela Funcao (não Funcoes)
+    const funcao = await prisma.funcao.findFirst({
+      where: { funcao: funcaoNome },
+    });
+
+    console.log("Funcao encontrada:", !!funcao);
+    console.log("Funcao ID:", funcao?.id);
+
+    if (!funcao) {
+      console.log("❌ Função não encontrada na tabela Funcoes");
+      return;
+    }
+
+    // Buscar treinamentos na matriz baseado no contrato e função
+    const matrizTreinamento = await prisma.matrizTreinamento.findMany({
+      where: {
+        contratoId: contratoId,
+        funcaoId: funcao.id,
+        ativo: true,
+      },
+      include: {
+        treinamento: true,
+        contrato: true,
+      },
+    });
+
+    console.log("Registros encontrados na matriz:", matrizTreinamento.length);
+
+    if (matrizTreinamento.length === 0) {
+      console.log("❌ Nenhum treinamento encontrado na matriz");
+      console.log("Parâmetros da busca:");
+      console.log("- contratoId:", contratoId);
+      console.log("- funcaoId:", funcao.id);
+      console.log("- ativo: true");
+      return;
+    }
+
+    // Gerar tarefas baseadas na matriz de treinamento
+    let tarefasGeradas = 0;
+    for (const matriz of matrizTreinamento) {
+      const treinamento = matriz.treinamento;
+      
+      if (!treinamento) {
+        console.log("⚠️ Treinamento não encontrado para matriz:", matriz.id);
+        continue;
+      }
+
+      // Definir prioridade baseada no tipo de obrigatoriedade
+      let prioridade = "Média";
+      if (matriz.tipoObrigatoriedade === "RA") {
+        prioridade = "Alta";
+      } else if (matriz.tipoObrigatoriedade === "AP") {
+        prioridade = "Média";
+      } else {
+        prioridade = "Baixa";
+      }
+
+      // Criar descrição detalhada
+      const descricao = `Treinamento: ${treinamento.treinamento}
+Carga Horária: ${treinamento.cargaHoraria || "N/A"}
+Validade: ${treinamento.validadeValor || "N/A"} ${treinamento.validadeUnidade || ""}
+Tipo: ${matriz.tipoObrigatoriedade}
+Contrato: ${matriz.contrato?.nome || "N/A"}`;
+
+      const novaTarefa = {
+        remanejamentoFuncionarioId: remanejamentoFuncionario.id,
+        tipo: treinamento.treinamento,
+        descricao: descricao,
+        responsavel: "TREINAMENTO",
+        status: "PENDENTE",
+        prioridade: prioridade,
+        dataLimite: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 dias
+      };
+
+      tarefasParaCriar.push(novaTarefa);
+      tarefasGeradas++;
+      console.log(`✅ Tarefa ${tarefasGeradas} criada:`, treinamento.treinamento);
+    }
+
+    console.log(`✅ Total de tarefas de treinamento geradas: ${tarefasGeradas}`);
+  } catch (error) {
+    console.error("❌ Erro ao gerar tarefas de treinamento:", error);
+  }
 }
 
 // POST: Gerar tarefas padrões para um funcionário
@@ -145,34 +267,43 @@ export async function POST(request: NextRequest) {
     const tarefasParaCriar = [];
 
     for (const setor of setoresValidos) {
-      // Buscar tarefas padrão do banco de dados para o setor
-      const tarefasSetor = await prisma.tarefaPadrao.findMany({
-        where: {
-          setor,
-          ativo: true,
-        },
-        select: {
-          tipo: true,
-          descricao: true,
-        },
-      });
-
-      if (!tarefasSetor || tarefasSetor.length === 0) {
-        console.warn(`Setor ${setor} não possui tarefas padrões definidas`);
-        continue;
-      }
-
-      // Adicionar cada tarefa do setor ao array
-      for (const tarefaPadrao of tarefasSetor) {
-        tarefasParaCriar.push({
-          remanejamentoFuncionarioId: remanejamentoFuncionario.id,
-          tipo: tarefaPadrao.tipo,
-          descricao: tarefaPadrao.descricao,
-          responsavel: setor,
-          status: "PENDENTE",
-          prioridade: "Alta",
-          dataLimite: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 dias
+      if (setor === "TREINAMENTO") {
+        // Para o setor TREINAMENTO, usar a matriz de treinamento
+        await gerarTarefasTreinamento(
+          remanejamentoFuncionario,
+          funcionario,
+          tarefasParaCriar
+        );
+      } else {
+        // Para RH e MEDICINA, usar tarefas padrão como antes
+        const tarefasSetor = await prisma.tarefaPadrao.findMany({
+          where: {
+            setor,
+            ativo: true,
+          },
+          select: {
+            tipo: true,
+            descricao: true,
+          },
         });
+
+        if (!tarefasSetor || tarefasSetor.length === 0) {
+          console.warn(`Setor ${setor} não possui tarefas padrões definidas`);
+          continue;
+        }
+
+        // Adicionar cada tarefa do setor ao array
+        for (const tarefaPadrao of tarefasSetor) {
+          tarefasParaCriar.push({
+            remanejamentoFuncionarioId: remanejamentoFuncionario.id,
+            tipo: tarefaPadrao.tipo,
+            descricao: tarefaPadrao.descricao,
+            responsavel: setor,
+            status: "PENDENTE",
+            prioridade: "Alta",
+            dataLimite: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 dias
+          });
+        }
       }
     }
 
@@ -293,7 +424,7 @@ export async function GET() {
         descricao: tarefa.descricao,
       });
       return acc;
-    }, {} as Record<string, any[]>);
+    }, {} as Record<string, Record<string, unknown>[]>);
 
     return NextResponse.json({
       setores: SETORES_VALIDOS,

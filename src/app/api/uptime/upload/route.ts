@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, Prisma } from "@prisma/client";
 import { getUserFromRequest } from "@/utils/authUtils";
+import * as XLSX from "xlsx";
 
 // Evitar múltiplas instâncias do Prisma no ambiente de desenvolvimento do Next.js
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
@@ -9,8 +10,11 @@ if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 
 /** ---------- Helpers ---------- **/
 
+// Define types for Excel row data
+type ExcelRowData = Record<string, unknown>;
+
 // aceita string única ou array de chaves (usa a primeira que existir)
-const getCampo = (row: any, keys: string | string[]): any => {
+const getCampo = (row: ExcelRowData, keys: string | string[]): unknown => {
   const arr = Array.isArray(keys) ? keys : [keys];
   for (const k of arr) {
     const v = row?.[k];
@@ -138,7 +142,7 @@ const verificarRelatorioMaisRecente = async (dataRelatorio: Date): Promise<{ pod
 };
 
 // Função para extrair período da célula A1 da planilha
-const extrairPeriodoDaCelulaA1 = (worksheet: any): { periodoInicial: Date; periodoFinal: Date; periodosIguais: boolean } | null => {
+const extrairPeriodoDaCelulaA1 = (worksheet: XLSX.WorkSheet): { periodoInicial: Date; periodoFinal: Date; periodosIguais: boolean } | null => {
   try {
     // Tentar ler a célula A1
     const celulaA1 = worksheet['A1'];
@@ -212,7 +216,7 @@ const fromExcelSerial = (serial: number): Date => {
 };
 
 // parse seguro de data: aceita Date, número (serial Excel), ISO, dd/mm/yyyy, dd-mm-yyyy
-const parseDate = (value: any): Date | null => {
+const parseDate = (value: unknown): Date | null => {
   if (value === null || value === undefined || value === "") return null;
 
   // já é Date
@@ -234,7 +238,7 @@ const parseDate = (value: any): Date | null => {
     // dd/mm/yyyy ou dd-mm-yyyy (aceita 2 ou 4 dígitos de ano)
     const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2}|\d{4})$/);
     if (m) {
-      let [, ddStr, mmStr, yyStr] = m;
+      const [, ddStr, mmStr, yyStr] = m;
       const dd = parseInt(ddStr, 10);
       const mm = parseInt(mmStr, 10) - 1; // 0-based
       let yyyy = parseInt(yyStr, 10);
@@ -257,11 +261,11 @@ const parseDate = (value: any): Date | null => {
   return null;
 };
 
-const getData = (row: any, keys: string | string[]): Date | null => {
+const getData = (row: ExcelRowData, keys: string | string[]): Date | null => {
   return parseDate(getCampo(row, keys));
 };
 
-const getNumero = (row: any, keys: string | string[]): number | null => {
+const getNumero = (row: ExcelRowData, keys: string | string[]): number | null => {
   const v = getCampo(row, keys);
   if (v === null) return null;
   if (typeof v === "number") return Math.trunc(v);
@@ -370,7 +374,7 @@ export async function POST(request: NextRequest) {
       // Limpa a staging de Uptime antes de inserir o novo arquivo
       await tx.uptimeSheet.deleteMany({});
 
-      const aInserir: any[] = [];
+      const aInserir: Prisma.UptimeSheetCreateManyInput[] = [];
 
       for (const row of funcionarios) {
         // Matrícula (usa exatamente a coluna "Matrícula")
@@ -401,16 +405,16 @@ export async function POST(request: NextRequest) {
 
         aInserir.push({
           matricula,
-          nome: getCampo(row, "Nome") ?? null,
-          funcao: getCampo(row, "Função") ?? null,
-          status: getCampo(row, "Status") ?? null,
+          nome: (getCampo(row, "Nome") as string) ?? null,
+          funcao: (getCampo(row, "Função") as string) ?? null,
+          status: (getCampo(row, "Status") as string) ?? null,
           // Preferir "Embarcação Atual"; se vazio, usar "Embarcação"
-          embarcacao: getCampo(row, ["Embarcação Atual", "Embarcação"]) ?? null,
-          observacoes: getCampo(row, "Observações") ?? null,
-          sispat: getCampo(row, "SISPAT") ?? null,
+          embarcacao: (getCampo(row, ["Embarcação Atual", "Embarcação"]) as string) ?? null,
+          observacoes: (getCampo(row, "Observações") as string) ?? null,
+          sispat: (getCampo(row, "SISPAT") as string) ?? null,
           // Caso seu schema tenha "departamento", deixe aqui; caso não exista, remova esta linha
           departamento: null,
-          centroCusto: getCampo(row, "Centro de Custo") ?? null,
+          centroCusto: (getCampo(row, "Centro de Custo") as string) ?? null,
 
           dataInicio,
           dataFim,
@@ -436,7 +440,7 @@ export async function POST(request: NextRequest) {
       // Registrar o upload
       await tx.uptimeUpload.create({
         data: {
-          dataUpload: parseDate(dataUpload),
+          dataUpload: parseDate(dataUpload) || new Date(),
           dataRelatorio: dataRelatorio, // Data real do relatório extraída da célula A1
           nomeArquivo: nomeArquivo || "Uptime.xlsx",
           registros: funcionarios.length,
@@ -454,7 +458,7 @@ export async function POST(request: NextRequest) {
           entidade: "UptimeSheet",
           descricaoAcao: `Upload de arquivo Uptime com ${funcionarios.length} registros`,
           usuarioResponsavel: usuario.funcionario.nome || "Sistema",
-          dataAcao: parseDate(dataUpload),
+          dataAcao: parseDate(dataUpload) || new Date(),
           observacoes: `Importados: ${importados}, Não encontrados: ${naoEncontrados}`,
         },
       });
@@ -466,10 +470,11 @@ export async function POST(request: NextRequest) {
       naoEncontrados,
       total: funcionarios.length,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Erro ao processar upload de Uptime:", error);
+    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
     return NextResponse.json(
-      { message: `Erro ao processar o arquivo: ${error.message}` },
+      { message: `Erro ao processar o arquivo: ${errorMessage}` },
       { status: 500 }
     );
   }

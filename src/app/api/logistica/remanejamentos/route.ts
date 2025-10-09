@@ -1,17 +1,228 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { NovasolicitacaoRemanejamento } from "@/types/remanejamento-funcionario";
 
 // Tipos de status de tarefas que são considerados em processo
 type StatusTarefasEmProcesso = "REPROVAR TAREFAS" | "ATENDER TAREFAS";
 
+// Interfaces para tipagem adequada
+// Tipos que correspondem exatamente ao que o Prisma retorna
+type PrismaUptimeSheet = {
+  id: number;
+  matricula: string;
+  dataAdmissao: Date | null;
+  dataDemissao: Date | null;
+  dataInicio: Date | null;
+  dataFim: Date | null;
+  totalDias: number | null;
+  totalDiasPeriodo: number | null;
+  nome: string | null;
+  funcao: string | null;
+  status: string | null;
+  embarcacao: string | null;
+  observacoes: string | null;
+  sispat: string | null;
+  departamento: string | null;
+  centroCusto: string | null;
+  createdAt: Date;
+  periodoFinal: Date | null;
+  periodoInicial: Date | null;
+};
+
+type PrismaFuncionario = {
+  id: number;
+  nome: string;
+  matricula: string;
+  funcao: string | null;
+  centroCusto: string | null;
+  status: string | null;
+  emMigracao: boolean;
+  statusPrestserv: string | null;
+  sispat: string | null;
+  uptimeSheets: PrismaUptimeSheet[];
+};
+
+type PrismaTarefaRemanejamento = {
+  id: string;
+  remanejamentoFuncionarioId: string;
+  tipo: string;
+  descricao: string | null;
+  responsavel: string;
+  status: string;
+  prioridade: string;
+  dataCriacao: Date;
+  dataLimite: Date | null;
+  dataVencimento: Date | null;
+  dataConclusao: Date | null;
+  observacoes: string | null;
+};
+
+type PrismaRemanejamentoFuncionario = {
+  id: string;
+  solicitacaoId: number;
+  funcionarioId: number;
+  statusTarefas: string;
+  statusPrestserv: string;
+  statusFuncionario: string;
+  dataRascunhoCriado: Date | null;
+  dataSubmetido: Date | null;
+  dataResposta: Date | null;
+  observacoesPrestserv: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  funcionario: PrismaFuncionario;
+  tarefas: PrismaTarefaRemanejamento[];
+};
+
+type PrismaContrato = {
+  id: number;
+  numero: string;
+  nome: string;
+  cliente: string;
+  dataInicio: Date;
+  dataFim: Date;
+  status: string;
+  createdAt: Date;
+};
+
+type PrismaSolicitacaoRemanejamento = {
+  id: number;
+  tipo: string;
+  contratoOrigemId: number | null;
+  contratoDestinoId: number | null;
+  justificativa: string | null;
+  status: string;
+  prioridade: string;
+  solicitadoPor: string;
+  analisadoPor: string | null;
+  dataSolicitacao: Date;
+  dataAnalise: Date | null;
+  dataAprovacao: Date | null;
+  dataConclusao: Date | null;
+  observacoes: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  contratoOrigem: PrismaContrato | null;
+  contratoDestino: PrismaContrato | null;
+  funcionarios: PrismaRemanejamentoFuncionario[];
+};
+
+// Interfaces antigas mantidas para compatibilidade (podem ser removidas gradualmente)
+interface FuncionarioSelect {
+  id: number;
+  nome: string;
+  matricula: string;
+  funcao: string | null;
+  centroCusto: string | null;
+  status: string | null;
+  emMigracao: boolean;
+  statusPrestserv: string | null;
+  sispat: string | null;
+  uptimeSheets: UptimeSheetData[];
+}
+
+interface UptimeSheetData {
+  id: number;
+  matricula: string;
+  dataAdmissao: Date | null;
+  dataDemissao: Date | null;
+  dataInicio: Date | null;
+  dataFim: Date | null;
+  totalDias: number | null;
+  totalDiasPeriodo: number | null;
+  nome: string | null;
+  funcao: string | null;
+  status: string | null;
+  embarcacao: string | null;
+  observacoes: string | null;
+  sispat: string | null;
+  departamento: string | null;
+  centroCusto: string | null;
+  createdAt: Date;
+  periodoFinal: Date | null;
+  periodoInicial: Date | null;
+}
+
+interface RemanejamentoFuncionarioWithFuncionario {
+  id: string;
+  solicitacaoId: number;
+  funcionarioId: number;
+  statusTarefas: string;
+  statusPrestserv: string;
+  statusFuncionario: string;
+  dataRascunhoCriado: Date | null;
+  dataSubmetido: Date | null;
+  dataResposta: Date | null;
+  observacoesPrestserv: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  funcionario: FuncionarioSelect;
+  tarefas: TarefaRemanejamento[];
+}
+
+interface TarefaRemanejamento {
+  id: string;
+  remanejamentoFuncionarioId: string;
+  tipo: string;
+  descricao: string | null;
+  responsavel: string;
+  status: string;
+  prioridade: string;
+  dataCriacao: Date;
+  dataLimite: Date | null;
+  dataVencimento: Date | null;
+  dataConclusao: Date | null;
+  observacoes: string | null;
+}
+
+interface ContratoInfo {
+  id: number;
+  numero: string;
+  nome: string;
+  cliente: string;
+  dataInicio: Date;
+  dataFim: Date;
+  status: string;
+  createdAt: Date;
+}
+
+interface SolicitacaoRemanejamentoComplete {
+  id: number;
+  tipo: string;
+  contratoOrigemId: number | null;
+  contratoDestinoId: number | null;
+  justificativa: string | null;
+  status: string;
+  prioridade: string;
+  solicitadoPor: string;
+  analisadoPor: string | null;
+  dataSolicitacao: Date;
+  dataAnalise: Date | null;
+  dataAprovacao: Date | null;
+  dataConclusao: Date | null;
+  observacoes: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  contratoOrigem: ContratoInfo | null;
+  contratoDestino: ContratoInfo | null;
+  funcionarios: RemanejamentoFuncionarioWithFuncionario[];
+}
+
+interface ResultadoPaginado {
+  solicitacoes: PrismaSolicitacaoRemanejamento[];
+  totalSolicitacoes: number;
+  totalPaginas: number;
+  paginaAtual: number;
+  itensPorPagina: number;
+}
+
 // Função auxiliar para filtrar solicitações para processo de criação de tarefas
-function filtrarSolicitacoesParaProcesso(solicitacoes: any[]) {
+function filtrarSolicitacoesParaProcesso(solicitacoes: PrismaSolicitacaoRemanejamento[]): PrismaSolicitacaoRemanejamento[] {
   const statusEmProcesso: StatusTarefasEmProcesso[] = ["REPROVAR TAREFAS", "ATENDER TAREFAS"];
   
-  return solicitacoes.filter((s) =>
+  return solicitacoes.filter((s: SolicitacaoRemanejamentoComplete) =>
     s.funcionarios.some(
-      (f) =>
+      (f: RemanejamentoFuncionarioWithFuncionario) =>
         f.funcionario &&
         f.funcionario.emMigracao === true &&
         statusEmProcesso.includes(f.statusTarefas as StatusTarefasEmProcesso)
@@ -37,7 +248,7 @@ interface ParametrosBuscaRemanejamento {
 }
 
 // Função auxiliar para buscar remanejamentos com filtros
-async function buscarRemanejamentos(params: ParametrosBuscaRemanejamento) {
+async function buscarRemanejamentos(params: ParametrosBuscaRemanejamento): Promise<PrismaSolicitacaoRemanejamento[] | ResultadoPaginado> {
   const { 
     status, 
     statusTarefas, 
@@ -54,7 +265,19 @@ async function buscarRemanejamentos(params: ParametrosBuscaRemanejamento) {
     responsavel
   } = params;
   
-  const where: any = {};
+  interface SolicitacaoWhereClause {
+    status?: string;
+    tipo?: string | { in: string[] };
+    id?: number | { in: number[] };
+    contratoOrigem?: {
+      numero?: string | { in: string[] } | { equals: string };
+    };
+    contratoDestino?: {
+      numero?: string | { in: string[] } | { equals: string };
+    };
+  }
+  
+  const where: SolicitacaoWhereClause = {};
   if (status) {
     where.status = status;
   }
@@ -83,9 +306,17 @@ async function buscarRemanejamentos(params: ParametrosBuscaRemanejamento) {
     };
   }
   
-  const funcionariosWhere: any = {
-    ...(statusTarefas && { statusTarefas: statusTarefas as any }),
-    ...(statusPrestserv && { statusPrestserv: statusPrestserv as any }),
+  interface RemanejamentoFuncionarioWhereClause {
+    statusTarefas?: string | { in: string[] };
+    statusPrestserv?: string;
+    funcionarioId?: number;
+  }
+  
+  const funcionariosWhere: RemanejamentoFuncionarioWhereClause = {
+    ...(statusTarefas && { 
+      statusTarefas: Array.isArray(statusTarefas) ? { in: statusTarefas } : statusTarefas 
+    }),
+    ...(statusPrestserv && { statusPrestserv: statusPrestserv }),
   };
   
   if (funcionarioId) {
@@ -93,7 +324,13 @@ async function buscarRemanejamentos(params: ParametrosBuscaRemanejamento) {
   }
   
   // Filtro por nome de funcionário
-  const funcionarioWhere: any = {};
+  interface FuncionarioWhereClause {
+    nome?: {
+      contains: string;
+    };
+  }
+  
+  const funcionarioWhere: FuncionarioWhereClause = {};
   if (nome) {
     funcionarioWhere.nome = {
       contains: nome
@@ -101,7 +338,11 @@ async function buscarRemanejamentos(params: ParametrosBuscaRemanejamento) {
   }
   
   // Filtro por responsável nas tarefas
-  const tarefasWhere: any = {};
+  interface TarefasWhereClause {
+    responsavel?: string | { in: string[] };
+  }
+  
+  const tarefasWhere: TarefasWhereClause = {};
   if (responsavel) {
     tarefasWhere.responsavel = Array.isArray(responsavel) ? { in: responsavel } : responsavel;
   }
@@ -203,10 +444,10 @@ async function buscarRemanejamentos(params: ParametrosBuscaRemanejamento) {
       totalPaginas: totalPaginas,
       paginaAtual: page,
       itensPorPagina: limit
-    };
+    } as ResultadoPaginado;
   }
   
-  return solicitacoesFiltradas;
+  return solicitacoesFiltradas as SolicitacaoRemanejamentoComplete[];
 }
 
 // GET - Listar todas as solicitações de remanejamento
@@ -239,14 +480,14 @@ export async function GET(request: NextRequest) {
 
     // Buscar solicitações de remanejamento com os filtros aplicados
     const resultado = await buscarRemanejamentos({
-      status,
-      statusTarefas,
-      statusPrestserv,
-      funcionarioId,
+      status: status || undefined,
+      statusTarefas: statusTarefas || undefined,
+      statusPrestserv: statusPrestserv || undefined,
+      funcionarioId: funcionarioId || undefined,
       filtrarProcesso,
       page,
       limit,
-      nome,
+      nome: nome || undefined,
       contratoOrigem,
       contratoDestino,
       tipoSolicitacao,
@@ -266,7 +507,7 @@ export async function GET(request: NextRequest) {
     }
     
     // Se não há paginação, resultado é array direto
-    const solicitacoesComFuncionarios = resultado as any[];
+    const solicitacoesComFuncionarios = resultado as SolicitacaoRemanejamentoComplete[];
     
     // Retornar todas as solicitações com funcionários (filtros já aplicados na função buscarRemanejamentos)
     return NextResponse.json(solicitacoesComFuncionarios);

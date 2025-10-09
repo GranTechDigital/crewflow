@@ -521,7 +521,7 @@ export default function NovoRemanejamentoPage() {
                         return (
                           <button
                             key={funcao}
-                            onClick={() => adicionarTodosDaFuncao(funcao)}
+                            onClick={() => adicionarTodosDaFuncao(funcao || '')}
                             disabled={qtdFuncao === 0}
                             className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                           >

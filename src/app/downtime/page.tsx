@@ -1,7 +1,7 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
-import * as XLSX from "xlsx";
+import {   writeFile } from "xlsx";
 import DowntimeStatsCard from "@/components/DowntimeStatsCard";
 import DowntimeCharts from "@/components/DowntimeCharts";
 

@@ -1,0 +1,13 @@
+version: '3.8'
+services:
+  app:
+    build: .
+    ports:
+      - "3001:3000"
+    environment:
+      - DATABASE_URL=file:./dev.db
+      - JWT_SECRET=crewflow-jwt-secret-key-2024
+      - NEXTAUTH_URL=http://localhost:3000
+      - NODE_ENV=development
+    container_name: crewflow-app-production
+    restart: unless-stopped

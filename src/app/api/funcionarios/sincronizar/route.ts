@@ -61,10 +61,10 @@ export async function POST() {
     const now = new Date();
 
     // Criar maps para facilitar a comparação por matrícula
-    const mapApi = new Map<string, any>();
-    dadosExternos.forEach((item: any) => mapApi.set(item.MATRICULA, item));
+    const mapApi = new Map<string, Record<string, unknown>>();
+    dadosExternos.forEach((item: Record<string, unknown>) => mapApi.set(String(item.MATRICULA), item));
 
-    const mapBanco = new Map<string, any>();
+    const mapBanco = new Map<string, { matricula: string; status: string | null }>();
     dadosBanco.forEach((item) => mapBanco.set(item.matricula, item));
 
     // 1) Atualizar status para "DEMITIDO" para funcionários que tem no banco mas NÃO tem na API
@@ -85,19 +85,19 @@ export async function POST() {
     }
 
     // 2) Inserir funcionários que tem na API mas NÃO tem no banco
-    const novosFuncionarios = dadosExternos.filter((item: any) => !mapBanco.has(item.MATRICULA));
+    const novosFuncionarios = dadosExternos.filter((item: Record<string, unknown>) => !mapBanco.has(String(item.MATRICULA)));
 
     if (novosFuncionarios.length > 0) {
-      const dadosParaInserir = novosFuncionarios.map((item: any) => ({
-        matricula: item.MATRICULA,
-        cpf: item.CPF,
-        nome: item.NOME,
-        funcao: item.FUNCAO,
-        rg: item.RG,
-        orgaoEmissor: item['ORGÃO_EMISSOR'],
-        uf: item.UF,
-        dataNascimento: item.DATA_NASCIMENTO ? parseDate(item.DATA_NASCIMENTO) : null,
-        email: item.EMAIL,
+      const dadosParaInserir = novosFuncionarios.map((item: Record<string, unknown>) => ({
+        matricula: String(item.MATRICULA),
+        cpf: item.CPF ? String(item.CPF) : null,
+        nome: String(item.NOME),
+        funcao: item.FUNCAO ? String(item.FUNCAO) : null,
+        rg: item.RG ? String(item.RG) : null,
+        orgaoEmissor: item['ORGÃO_EMISSOR'] ? String(item['ORGÃO_EMISSOR']) : null,
+        uf: item.UF ? String(item.UF) : null,
+        dataNascimento: item.DATA_NASCIMENTO ? parseDate(String(item.DATA_NASCIMENTO)) : null,
+        email: item.EMAIL ? String(item.EMAIL) : null,
         telefone: item.TELEFONE,
         centroCusto: item.CENTRO_CUSTO,
         departamento: item.DEPARTAMENTO,
@@ -113,13 +113,18 @@ export async function POST() {
 
     // 3) Atualizar funcionários cujo status mudou de "ADMISSÃO PROX.MÊS" para "ATIVO"
     // e também atualizar status se mudou na API (exceto casos já tratados acima)
-    const paraAtualizar: any[] = [];
+    const paraAtualizar: Array<{
+      matricula: string;
+      status: string;
+      atualizadoEm: Date;
+      excluidoEm?: Date | null;
+    }> = [];
 
     dadosBanco.forEach((func) => {
       const dadosApi = mapApi.get(func.matricula);
       if (!dadosApi) return;
 
-      const statusApi = dadosApi.STATUS;
+      const statusApi = String(dadosApi.STATUS);
       const statusBanco = func.status;
 
       // Se status é diferente e não é "DEMITIDO" (que já tratamos)

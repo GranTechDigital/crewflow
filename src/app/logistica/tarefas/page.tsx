@@ -12,7 +12,6 @@ import {
   Briefcase,
 } from "lucide-react";
 import { useToast } from "@/components/Toast";
-import { formatarData } from "@/lib/utils";
 import TarefasPadraoModal from "@/components/TarefasPadraoModal";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { ROUTE_PROTECTION } from "@/lib/permissions";
@@ -52,6 +51,7 @@ interface RemanejamentoFuncionario {
   funcionario: Funcionario;
   tarefas: Tarefa[];
   statusTarefas: string;
+  statusPrestserv?: string;
 }
 
 export default function TarefasPage() {
@@ -438,7 +438,7 @@ function TarefasPageContent() {
                 <Briefcase className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                 <p className="text-gray-500">Nenhuma tarefa encontrada</p>
                 <p className="text-sm text-gray-400 mt-1">
-                  Clique em "Nova Tarefa" ou "Tarefas Padrões" para começar
+                  Clique em [Nova Tarefa] ou [Tarefas Padrões] para começar
                 </p>
               </div>
             ) : (

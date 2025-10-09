@@ -86,10 +86,11 @@ export async function GET(request: NextRequest) {
       funcionario,
       registros: registrosProcessados
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Erro ao buscar dados do funcionário:', error);
+    const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
     return NextResponse.json(
-      { message: `Erro ao buscar dados: ${error.message}` },
+      { message: `Erro ao buscar dados: ${errorMessage}` },
       { status: 500 }
     );
   }

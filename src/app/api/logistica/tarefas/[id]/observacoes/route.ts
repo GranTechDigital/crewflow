@@ -12,12 +12,13 @@ type JWTUser = {
 // GET - Buscar observações de uma tarefa
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const observacoes = await prisma.observacaoTarefaRemanejamento.findMany({
       where: {
-        tarefaId: params.id
+        tarefaId: id
       },
       orderBy: {
         dataCriacao: 'desc'
@@ -47,9 +48,10 @@ export async function GET(
 // POST - Criar nova observação
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     // Obter o usuário autenticado
     const { getUserFromRequest } = await import('@/utils/authUtils');
     const usuarioAutenticado = await getUserFromRequest(request);
@@ -89,7 +91,7 @@ export async function POST(
 
     // Verificar se a tarefa existe e buscar dados para histórico
     const tarefa = await prisma.tarefaRemanejamento.findUnique({
-      where: { id: params.id },
+      where: { id: id },
       include: {
         remanejamentoFuncionario: {
           include: {
@@ -114,7 +116,7 @@ export async function POST(
 
     const observacao = await prisma.observacaoTarefaRemanejamento.create({
       data: {
-        tarefaId: params.id,
+        tarefaId: id,
         texto,
         criadoPor,
         modificadoPor: criadoPor

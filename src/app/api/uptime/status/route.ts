@@ -88,10 +88,11 @@ export async function GET(request: NextRequest) {
       dataReferencia: dataReferencia.toISOString(),
       total: funcionariosComStatus.length
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Erro ao buscar status de Uptime dos funcionários:', error);
+    const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
     return NextResponse.json(
-      { message: `Erro ao buscar dados: ${error.message}` },
+      { message: `Erro ao buscar dados: ${errorMessage}` },
       { status: 500 }
     );
   }

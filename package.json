@@ -1,8 +1,13 @@
 {
-  "name": "sis-app",
+  "name": "crewflow",
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/GranTechDigital/crewflow.git"
+  },
+  "homepage": "https://github.com/GranTechDigital/crewflow",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

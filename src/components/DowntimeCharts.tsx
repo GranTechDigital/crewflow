@@ -36,7 +36,18 @@ interface DowntimeChartsProps {
   };
 }
 
-export default function DowntimeCharts({ projetos = [], distribuicaoCategorias = {} }: DowntimeChartsProps) {
+export default function DowntimeCharts({ 
+  projetos = [], 
+  distribuicaoCategorias = {
+    agEmbarque: 0,
+    cadastro: 0,
+    medicina: 0,
+    treinamento: 0,
+    atestado: 0,
+    falta: 0,
+    demissao: 0
+  } 
+}: DowntimeChartsProps) {
   const [selectedProject, setSelectedProject] = useState<string>('');
 
   // Verificar se os dados estão disponíveis
@@ -118,8 +129,9 @@ export default function DowntimeCharts({ projetos = [], distribuicaoCategorias =
                 stroke="white"
                 strokeWidth="2"
                 className="hover:opacity-80 transition-opacity cursor-pointer"
-                title={`${categoria.nome}: ${categoria.valor} (${percentage.toFixed(1)}%)`}
-              />
+              >
+                <title>{`${categoria.nome}: ${categoria.valor} (${percentage.toFixed(1)}%)`}</title>
+              </path>
             );
           })}
         </svg>

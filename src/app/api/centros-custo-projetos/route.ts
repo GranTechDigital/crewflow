@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
 // GET - Listar centros de custo com filtros
@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
     const ativo = searchParams.get('ativo');
     const search = searchParams.get('search');
 
-    const where: any = {};
+    const where: Record<string, unknown> = {};
 
     if (projeto) {
       where.projeto = projeto;
@@ -31,46 +31,23 @@ export async function GET(request: NextRequest) {
 
     if (search) {
       where.OR = [
-        { cc: { contains: search, mode: 'insensitive' } },
-        { nomeCc: { contains: search, mode: 'insensitive' } },
-        { projeto: { contains: search, mode: 'insensitive' } },
-        { grupo1: { contains: search, mode: 'insensitive' } },
-        { grupo2: { contains: search, mode: 'insensitive' } }
+        { centroCusto: { contains: search, mode: 'insensitive' } },
+        { nomeCentroCusto: { contains: search, mode: 'insensitive' } }
       ];
     }
 
     const centrosCusto = await prisma.centroCustoProjeto.findMany({
       where,
-      orderBy: { cc: 'asc' }
+      orderBy: { centroCusto: 'asc' }
     });
 
-    // Buscar valores únicos para filtros
-    const projetos = await prisma.centroCustoProjeto.findMany({
-      select: { projeto: true },
-      distinct: ['projeto'],
-      orderBy: { projeto: 'asc' }
-    });
+    // Buscar valores únicos para filtros - removido pois não existem esses campos no modelo
+    const response = {
+      data: centrosCusto,
+      total: centrosCusto.length
+    };
 
-    const grupos1 = await prisma.centroCustoProjeto.findMany({
-      select: { grupo1: true },
-      distinct: ['grupo1'],
-      orderBy: { grupo1: 'asc' }
-    });
-
-    const grupos2 = await prisma.centroCustoProjeto.findMany({
-      select: { grupo2: true },
-      distinct: ['grupo2'],
-      orderBy: { grupo2: 'asc' }
-    });
-
-    return NextResponse.json({
-      centrosCusto,
-      filtros: {
-        projetos: projetos.map(p => p.projeto),
-        grupos1: grupos1.map(g => g.grupo1),
-        grupos2: grupos2.map(g => g.grupo2)
-      }
-    });
+    return NextResponse.json(response);
 
   } catch (error) {
     console.error('Erro ao buscar centros de custo:', error);
@@ -85,34 +62,30 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { cc, ccProjeto, nomeCc, ccNome, projeto, grupo1, grupo2, ativo = true } = body;
+    const { cc, nomeCc, projetoId, ativo = true } = body;
 
-    if (!cc || !nomeCc) {
+    if (!cc || !nomeCc || !projetoId) {
       return NextResponse.json(
-        { error: 'CC e Nome CC são obrigatórios' },
+        { error: 'CC, Nome CC e Projeto ID são obrigatórios' },
         { status: 400 }
       );
     }
 
     const centroCusto = await prisma.centroCustoProjeto.create({
       data: {
-        cc,
-        ccProjeto: ccProjeto || cc,
-        nomeCc,
-        ccNome: ccNome || `${cc} | ${nomeCc}`,
-        projeto: projeto || '',
-        grupo1: grupo1 || '',
-        grupo2: grupo2 || '',
+        centroCusto: cc,
+        nomeCentroCusto: nomeCc,
+        projetoId: parseInt(projetoId),
         ativo
       }
     });
 
     return NextResponse.json(centroCusto, { status: 201 });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Erro ao criar centro de custo:', error);
     
-    if (error.code === 'P2002') {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
       return NextResponse.json(
         { error: 'CC já existe' },
         { status: 409 }

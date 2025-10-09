@@ -8,7 +8,6 @@ import {
   AcademicCapIcon,
   ChevronLeftIcon,
   PlusIcon,
-  PencilIcon,
   TrashIcon,
   MagnifyingGlassIcon,
   XMarkIcon,
@@ -70,7 +69,10 @@ interface ApiResponse {
 
 export default function ContratoDetalhePage() {
   return (
-    <ProtectedRoute requiredPermissions={ROUTE_PROTECTION.MATRIZ_TREINAMENTO}>
+    <ProtectedRoute 
+      requiredPermissions={ROUTE_PROTECTION.MATRIZ_TREINAMENTO.requiredPermissions}
+      requiredEquipe={ROUTE_PROTECTION.MATRIZ_TREINAMENTO.requiredEquipe}
+    >
       <ContratoDetalheContent />
     </ProtectedRoute>
   );
@@ -95,20 +97,10 @@ function ContratoDetalheContent() {
   const [showAddFuncaoModal, setShowAddFuncaoModal] = useState(false);
   const [modalLoading, setModalLoading] = useState(false);
   const [selectedFuncao, setSelectedFuncao] = useState<number | null>(null);
-  const [formData, setFormData] = useState({
-    treinamentoId: '',
-    tipoObrigatoriedade: ''
-  });
-  const [treinamentosSelecionados, setTreinamentosSelecionados] = useState<number[]>([]);
-  const [tipoObrigatoriedadeGlobal, setTipoObrigatoriedadeGlobal] = useState('');
   const [funcoesSelecionadas, setFuncoesSelecionadas] = useState<number[]>([]);
-  const [treinamentosPorFuncao, setTreinamentosPorFuncao] = useState<{[funcaoId: number]: {treinamentoId: number, tipoObrigatoriedade: string}[]}>({});
-  const [etapaModal, setEtapaModal] = useState<'funcoes' | 'treinamentos'>('funcoes');
-  
   // Estados para filtros e busca
   const [buscaFuncao, setBuscaFuncao] = useState('');
-  const [buscaTreinamento, setBuscaTreinamento] = useState('');
-  const [funcaoAtiva, setFuncaoAtiva] = useState<number | null>(null);
+
   const [filtroRegime, setFiltroRegime] = useState('');
 
   useEffect(() => {
@@ -165,12 +157,8 @@ function ContratoDetalheContent() {
   const closeFuncaoModal = () => {
     setShowAddFuncaoModal(false);
     setFuncoesSelecionadas([]);
-    setTreinamentosPorFuncao({});
-    setEtapaModal('funcoes');
     setModalLoading(false);
     setBuscaFuncao('');
-    setBuscaTreinamento('');
-    setFuncaoAtiva(null);
     setFiltroRegime('');
   };
 
@@ -179,10 +167,6 @@ function ContratoDetalheContent() {
     if (funcoesSelecionadas.length === 0) return;
 
     try {
-      // Separar funções novas das existentes
-      const funcoesExistentes = funcoesSelecionadas.filter(id => 
-        funcoes.some(f => f.id === id)
-      );
       const funcoesNovas = funcoesSelecionadas.filter(id => 
         !funcoes.some(f => f.id === id)
       );
@@ -304,115 +288,16 @@ function ContratoDetalheContent() {
 
   // Função para alternar seleção de função
   const handleFuncaoToggle = (funcaoId: string) => {
+    const funcaoIdNum = parseInt(funcaoId);
     setFuncoesSelecionadas(prev => {
-      if (prev.includes(funcaoId)) {
+      if (prev.includes(funcaoIdNum)) {
         // Remove a função e seus treinamentos
-        setTreinamentosPorFuncao(prevTreinamentos => {
-          const newTreinamentos = { ...prevTreinamentos };
-          delete newTreinamentos[funcaoId];
-          return newTreinamentos;
-        });
-        return prev.filter(id => id !== funcaoId);
+        return prev.filter(id => id !== funcaoIdNum);
       } else {
         // Adiciona a função
-        return [...prev, funcaoId];
+        return [...prev, funcaoIdNum];
       }
     });
-  };
-
-  // Função para alternar seleção de treinamento
-  const handleTreinamentoToggle = (funcaoId: string, treinamentoId: string, tipoObrigatoriedade: string) => {
-    setTreinamentosPorFuncao(prev => {
-      const funcaoTreinamentos = prev[funcaoId] || [];
-      
-      if (tipoObrigatoriedade === '') {
-        // Remove o treinamento
-        return {
-          ...prev,
-          [funcaoId]: funcaoTreinamentos.filter(t => t.treinamentoId !== treinamentoId)
-        };
-      } else {
-        // Adiciona ou atualiza o treinamento
-        const existingIndex = funcaoTreinamentos.findIndex(t => t.treinamentoId === treinamentoId);
-        
-        if (existingIndex >= 0) {
-          // Atualiza tipo de obrigatoriedade
-          const newTreinamentos = [...funcaoTreinamentos];
-          newTreinamentos[existingIndex] = { treinamentoId, tipoObrigatoriedade };
-          return {
-            ...prev,
-            [funcaoId]: newTreinamentos
-          };
-        } else {
-          // Adiciona novo treinamento
-          return {
-            ...prev,
-            [funcaoId]: [...funcaoTreinamentos, { treinamentoId, tipoObrigatoriedade }]
-          };
-        }
-      }
-    });
-  };
-
-  // Função para prosseguir para a etapa de treinamentos
-  const prosseguirParaTreinamentos = () => {
-    setEtapaModal('treinamentos');
-  };
-
-  const handleFinalSubmit = async () => {
-    setModalLoading(true);
-
-    try {
-      const promises = [];
-      
-      // Para cada função selecionada, criar entradas na matriz para cada treinamento
-      for (const funcaoId of funcoesSelecionadas) {
-        const treinamentosFuncao = treinamentosPorFuncao[funcaoId] || [];
-        
-        for (const { treinamentoId, tipoObrigatoriedade } of treinamentosFuncao) {
-          promises.push(
-            fetch('/api/matriz-treinamento', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                contratoId: parseInt(contratoId!),
-                funcaoId,
-                treinamentoId,
-                tipoObrigatoriedade,
-              }),
-            })
-          );
-        }
-      }
-
-      const results = await Promise.all(promises);
-      const responses = await Promise.all(results.map(r => r.json()));
-      
-      const sucessos = responses.filter(r => r.success).length;
-      const erros = responses.filter(r => !r.success);
-
-      if (sucessos > 0) {
-        toast.success(`${sucessos} associação(ões) criada(s) com sucesso!`);
-      }
-      
-      if (erros.length > 0) {
-        console.error('Erros:', erros);
-        toast.error(`${erros.length} erro(s) ao criar associações`);
-      }
-
-      closeFuncaoModal();
-      // Recarregar os dados do contrato
-      if (contratoId) {
-        fetchContratoDetalhes(contratoId);
-      }
-    } catch (error) {
-      console.error('Erro ao criar associações:', error);
-      toast.error('Erro ao criar associações');
-    } finally {
-      setModalLoading(false);
-    }
   };
 
   const handleRemoveTreinamento = async (matrizId: number) => {
@@ -591,7 +476,7 @@ function ContratoDetalheContent() {
                                 <AcademicCapIcon className="h-5 w-5 text-gray-300" />
                                 <div>
                                   <h4 className="font-medium text-gray-500 italic">Função sem treinamento</h4>
-                                  <p className="text-sm text-gray-400">Clique em "Adicionar Treinamento" para configurar</p>
+                                  <p className="text-sm text-gray-400">Clique em [Adicionar Treinamento] para configurar</p>
                                 </div>
                               </div>
                               <div className="flex items-center space-x-3">
@@ -731,13 +616,13 @@ function ContratoDetalheContent() {
                                   ? 'border-green-500 bg-green-50'
                                   : 'border-gray-200 hover:border-gray-300'
                               }`}
-                              onClick={() => handleFuncaoToggle(funcao.id)}
+                              onClick={() => handleFuncaoToggle(funcao.id.toString())}
                             >
                               <div className="flex items-start space-x-2">
                                 <input
                                   type="checkbox"
                                   checked={funcoesSelecionadas.includes(funcao.id)}
-                                  onChange={() => {}} // Controlado pelo onClick do div
+                                  onChange={() => handleFuncaoToggle(funcao.id.toString())}
                                   className="h-3.5 w-3.5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mt-0.5"
                                 />
                                 <div className="flex-1 min-w-0">
@@ -816,7 +701,7 @@ function ContratoDetalheContent() {
                                   </div>
                                 </div>
                                 <button
-                                  onClick={() => handleFuncaoToggle(funcaoId)}
+                                  onClick={() => handleFuncaoToggle(funcaoId.toString())}
                                   className="ml-2 text-blue-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"
                                 >
                                   <XMarkIcon className="h-3.5 w-3.5" />

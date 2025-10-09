@@ -81,7 +81,7 @@ export async function POST(
     const idsExistentes = funcoesExistentes.map(f => f.id);
     const novasFuncoes = funcaoIds.filter(id => !idsExistentes.includes(parseInt(id)));
 
-    let resultado = {
+    const resultado = {
       adicionadas: 0,
       jaExistentes: idsExistentes.length,
       total: funcaoIds.length
@@ -102,9 +102,11 @@ export async function POST(
               tipoObrigatoriedade: 'N/A'
             }
           });
-        } catch (error: any) {
+        } catch (error: unknown) {
           // Se já existe, ignorar o erro (duplicata)
-          if (!error.message?.includes('Unique constraint')) {
+          if (error instanceof Error && error.message?.includes('Unique constraint')) {
+            // Ignorar erro de duplicata
+          } else {
             throw error;
           }
         }

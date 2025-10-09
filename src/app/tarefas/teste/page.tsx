@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import * as XLSX from "xlsx";
+import { utils, writeFile } from 'xlsx';
 import { toast } from "react-hot-toast";
 import { useAuth } from "@/app/hooks/useAuth";
 import {
@@ -12,7 +12,6 @@ import {
   CheckCircleIcon,
   ExclamationTriangleIcon,
   ExclamationCircleIcon,
-  ChevronRightIcon,
   DocumentArrowDownIcon,
   ChatBubbleLeftRightIcon,
   PencilIcon,
@@ -21,7 +20,6 @@ import {
   PlusIcon,
   EyeIcon,
 } from "@heroicons/react/24/outline";
-import ClipboardDocumentCheckIcon from "@heroicons/react/24/solid/ClipboardDocumentCheckIcon";
 
 interface Tarefa {
   id: string;
@@ -124,6 +122,7 @@ interface NovaTarefa {
   dataLimite: string;
   remanejamentoFuncionarioId: string;
   responsavel: string;
+  status: string;
 }
 
 export default function TarefasPage() {
@@ -322,7 +321,7 @@ export default function TarefasPage() {
       const tiposPorSetor: {
         [setor: string]: { tipo: string; descricao: string }[];
       } = {};
-      data.forEach((tarefa: any) => {
+      data.forEach((tarefa: { setor: string; tipo: string; descricao: string }) => {
         if (!tiposPorSetor[tarefa.setor]) {
           tiposPorSetor[tarefa.setor] = [];
         }
@@ -359,6 +358,7 @@ export default function TarefasPage() {
       dataLimite: "",
       remanejamentoFuncionarioId: "",
       responsavel: "RH",
+      status: "PENDENTE",
     });
   };
 
@@ -423,7 +423,7 @@ export default function TarefasPage() {
       return dataLimite < hoje;
     }).length;
 
-    return { total, pendentes, concluidas, atrasadas };
+    return { total, pendentes, emAndamento: 0, concluidas, atrasadas };
   };
 
   const exportarParaExcel = () => {
@@ -454,10 +454,10 @@ export default function TarefasPage() {
       "Setor Responsável": tarefa.responsavel,
     }));
 
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(dadosExcel);
-    XLSX.utils.book_append_sheet(wb, ws, "Tarefas");
-    XLSX.writeFile(wb, "Tarefas_Exportadas.xlsx");
+    const wb = utils.book_new();
+    const ws = utils.json_to_sheet(dadosExcel);
+    utils.book_append_sheet(wb, ws, "Tarefas");
+    writeFile(wb, "Tarefas_Exportadas.xlsx");
 
     toast.success("Tarefas exportadas com sucesso!");
   };
@@ -1430,10 +1430,15 @@ export default function TarefasPage() {
             funcao: f.funcionario.funcao,
           }))
       )
-      .reduce((acc: any[], curr) => {
+      .reduce((acc: Funcionario[], curr) => {
         // Verificar se já existe um funcionário com o mesmo ID
         if (!acc.some((f) => f.id === curr.id)) {
-          acc.push(curr);
+          acc.push({
+            ...curr,
+            status: (curr as Funcionario).status || "ATIVO",
+            statusPrestserv: (curr as Funcionario).statusPrestserv || "ATIVO",
+            emMigracao: (curr as Funcionario).emMigracao ?? false,
+          });
         }
         return acc;
       }, []);
@@ -2137,3 +2142,4 @@ export default function TarefasPage() {
     </div>
   );
 }
+

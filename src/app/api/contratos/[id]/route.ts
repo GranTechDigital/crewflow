@@ -5,10 +5,11 @@ import prisma from '@/lib/prisma'
 
 export async function PUT(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = Number(params.id)
+    const { id: idParam } = await params;
+    const id = Number(idParam)
     if (isNaN(id))
       return NextResponse.json({ error: 'ID inválido' }, { status: 400 })
 
@@ -53,10 +54,11 @@ export async function PUT(
 
 export async function DELETE(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = Number(params.id)
+    const { id: idParam } = await params;
+    const id = Number(idParam)
     if (isNaN(id))
       return NextResponse.json({ error: 'ID inválido' }, { status: 400 })
 

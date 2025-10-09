@@ -6,10 +6,11 @@ const prisma = new PrismaClient();
 // GET - Buscar função por ID
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = parseInt(params.id);
+    const { id: idParam } = await params;
+    const id = parseInt(idParam);
 
     if (isNaN(id)) {
       return NextResponse.json(
@@ -58,10 +59,11 @@ export async function GET(
 // PUT - Atualizar função
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = parseInt(params.id);
+    const { id: idParam } = await params;
+    const id = parseInt(idParam);
     const body = await request.json();
     const { funcao, regime } = body;
 
@@ -106,7 +108,7 @@ export async function PUT(
       where: {
         funcao: funcao.trim(),
         regime: regime.trim(),
-        NOT: { id: parseInt(id) },
+        NOT: { id: Number(id) },
       },
     });
 
@@ -153,10 +155,11 @@ export async function PUT(
 // DELETE - Excluir função
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = parseInt(params.id);
+    const { id: idParam } = await params;
+    const id = parseInt(idParam);
 
     if (isNaN(id)) {
       return NextResponse.json(

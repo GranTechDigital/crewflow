@@ -3,10 +3,11 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { equipeId } = await request.json();
-    const userId = parseInt(params.id);
+    const { id: idParam } = await params;
+    const userId = parseInt(idParam);
 
     if (!equipeId || !userId) {
       return NextResponse.json(

@@ -36,10 +36,11 @@ export async function DELETE(request: NextRequest) {
       message: "Dados de Uptime limpos com sucesso",
       registrosRemovidos: deletedCount.count,
     });
-  } catch (error: any) {
-    console.error("Erro ao limpar dados de Uptime:", error);
+  } catch (error: unknown) {
+    console.error("Erro ao limpar dados de uptime:", error);
+    const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
     return NextResponse.json(
-      { message: `Erro ao limpar dados: ${error.message}` },
+      { error: "Erro interno do servidor", details: errorMessage },
       { status: 500 }
     );
   }

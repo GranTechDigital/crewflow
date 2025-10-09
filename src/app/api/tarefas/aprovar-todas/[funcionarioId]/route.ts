@@ -4,10 +4,10 @@ import { prisma } from "@/lib/prisma";
 // POST - Aprovar todas as tarefas de um funcionário (para teste)
 export async function POST(
   request: NextRequest,
-  { params }: { params: { funcionarioId: string } }
+  { params }: { params: Promise<{ funcionarioId: string }> }
 ) {
   try {
-    const funcionarioId = params.funcionarioId;
+    const { funcionarioId } = await params;
 
     if (!funcionarioId) {
       return NextResponse.json(

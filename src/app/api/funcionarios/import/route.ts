@@ -38,20 +38,20 @@ export async function POST() {
     });
     console.log('Dados antigos removidos do banco (exceto administrador).');
 
-    const dadosParaInserir = dadosExternos.map((item: any) => ({
-      matricula: item.MATRICULA,
-      cpf: item.CPF,
-      nome: item.NOME,
-      funcao: item.FUNCAO,
-      rg: item.RG,
-      orgaoEmissor: item['ORGÃO_EMISSOR'],
-      uf: item.UF,
-      dataNascimento: item.DATA_NASCIMENTO ? parseDate(item.DATA_NASCIMENTO) : null,
-      email: item.EMAIL,
-      telefone: item.TELEFONE,
-      centroCusto: item.CENTRO_CUSTO,
-      departamento: item.DEPARTAMENTO,
-      status: item.STATUS,
+    const dadosParaInserir = dadosExternos.map((item: Record<string, unknown>) => ({
+      matricula: String(item.MATRICULA),
+      cpf: item.CPF ? String(item.CPF) : null,
+      nome: String(item.NOME),
+      funcao: item.FUNCAO ? String(item.FUNCAO) : null,
+      rg: item.RG ? String(item.RG) : null,
+      orgaoEmissor: item['ORGÃO_EMISSOR'] ? String(item['ORGÃO_EMISSOR']) : null,
+      uf: item.UF ? String(item.UF) : null,
+      dataNascimento: item.DATA_NASCIMENTO ? parseDate(String(item.DATA_NASCIMENTO)) : null,
+      email: item.EMAIL ? String(item.EMAIL) : null,
+      telefone: item.TELEFONE ? String(item.TELEFONE) : null,
+      centroCusto: item.CENTRO_CUSTO ? String(item.CENTRO_CUSTO) : null,
+      departamento: item.DEPARTAMENTO ? String(item.DEPARTAMENTO) : null,
+      status: item.STATUS ? String(item.STATUS) : null,
       criadoEm: now,
       excluidoEm: null,
     }));
