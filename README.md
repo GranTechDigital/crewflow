@@ -219,4 +219,4 @@ const permissoes = getPermissionsByTeam('Administração');
 4. **Confirmar** acesso apenas às páginas da equipe
 5. **Testar** redirecionamento para `/unauthorized`
 
-O sistema agora está **completamente centralizado** e **padronizado**! 🎉
+O sistema agora está **completamente centralizado** e **padronizado**! 🎉# CrewFlow - Deploy Automático Ativo!
