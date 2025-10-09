@@ -34,9 +34,14 @@ jobs:
     - name: 🚀 Deploy on server
       run: |
         ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
-          # Stop and remove old container
+          # Stop and remove old containers (both old and new names)
           docker stop crewflow-app-production 2>/dev/null || true
           docker rm crewflow-app-production 2>/dev/null || true
+          docker stop projetogran-app-fixed-final 2>/dev/null || true
+          docker rm projetogran-app-fixed-final 2>/dev/null || true
+          
+          # Kill any process using port 3001
+          fuser -k 3001/tcp 2>/dev/null || true
           
           # Start new container
           docker run -d --name crewflow-app-production -p 3001:3000 \
