@@ -20,10 +20,6 @@ jobs:
       run: |
         docker build -t crewflow-app:latest .
         
-    - name: 💾 Save Docker image
-      run: |
-        docker save crewflow-app:latest > crewflow-app.tar
-        
     - name: 🔑 Setup SSH
       run: |
         mkdir -p ~/.ssh
@@ -31,16 +27,13 @@ jobs:
         chmod 600 ~/.ssh/id_rsa
         ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
         
-    - name: 📤 Upload image to server
+    - name: 📤 Upload image to server (via pipe)
       run: |
-        scp -o StrictHostKeyChecking=no crewflow-app.tar root@${{ secrets.SERVER_HOST }}:/tmp/
+        docker save crewflow-app:latest | ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} "docker load"
         
     - name: 🚀 Deploy on server
       run: |
         ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
-          # Load new image
-          docker load < /tmp/crewflow-app.tar
-          
           # Stop and remove old container
           docker stop crewflow-app-production 2>/dev/null || true
           docker rm crewflow-app-production 2>/dev/null || true
@@ -52,9 +45,6 @@ jobs:
             -e NEXTAUTH_URL='http://localhost:3000' \
             -e NODE_ENV='development' \
             crewflow-app:latest
-          
-          # Clean up
-          rm /tmp/crewflow-app.tar
           
           # Wait for container to start
           sleep 10
