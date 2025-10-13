@@ -49,12 +49,12 @@ jobs:
           docker load < /tmp/projetogran-app.tar
           
           # Stop and remove old containers
-          docker-compose down 2>/dev/null || true
+          docker compose down 2>/dev/null || docker-compose down 2>/dev/null || true
           docker stop projetogran-app-fixed-final 2>/dev/null || true
           docker rm projetogran-app-fixed-final 2>/dev/null || true
           
-          # Start services with docker-compose
-          docker-compose up -d
+          # Start services with docker compose (new version)
+          docker compose up -d || docker-compose up -d
           
           # Clean up
           rm /tmp/projetogran-app.tar
@@ -63,12 +63,12 @@ jobs:
           sleep 15
           
           # Check if containers are running
-          if docker-compose ps | grep -q "Up"; then
+          if docker compose ps 2>/dev/null | grep -q "Up" || docker-compose ps 2>/dev/null | grep -q "Up"; then
             echo "✅ Services started successfully"
-            docker-compose ps
+            docker compose ps 2>/dev/null || docker-compose ps 2>/dev/null
           else
             echo "❌ Services failed to start"
-            docker-compose logs
+            docker compose logs 2>/dev/null || docker-compose logs 2>/dev/null
             exit 1
           fi
         EOF
@@ -83,11 +83,11 @@ jobs:
           sleep 10
           
           # Generate Prisma client and run migrations
-          docker-compose exec -T app npx prisma generate
-          docker-compose exec -T app npx prisma migrate deploy
+          docker compose exec -T app npx prisma generate 2>/dev/null || docker-compose exec -T app npx prisma generate
+          docker compose exec -T app npx prisma migrate deploy 2>/dev/null || docker-compose exec -T app npx prisma migrate deploy
           
           # Run seed if database is empty
-          if docker-compose exec -T app npx prisma db seed 2>/dev/null; then
+          if docker compose exec -T app npx prisma db seed 2>/dev/null || docker-compose exec -T app npx prisma db seed 2>/dev/null; then
             echo "✅ Database seeded successfully"
           else
             echo "ℹ️ Seed skipped (database already populated or error occurred)"
