@@ -35,11 +35,18 @@ jobs:
         
     - name: 📤 Upload image to server
       run: |
+        # Clean up any existing staging tar file first
+        ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} "rm -f /tmp/crewflow-app-staging.tar"
+        
+        # Upload new image
         scp -o StrictHostKeyChecking=no crewflow-app-staging.tar root@${{ secrets.SERVER_HOST }}:/tmp/
         
     - name: 🚀 Deploy to staging
       run: |
         ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
+          # Clean up Docker system before deployment
+          docker system prune -f
+          
           # Load new image
           docker load < /tmp/crewflow-app-staging.tar
           

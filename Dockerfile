@@ -23,12 +23,12 @@ RUN npx prisma generate
 # Build da aplicação
 RUN npm run build
 
-# Expor porta
-EXPOSE 3000
+# Expor porta 3001 para produção web
+EXPOSE 3001
 
-# Definir variável de ambiente
-ENV PORT=3000
+# Definir variáveis de ambiente para servidor web
+ENV PORT=3001
 ENV NODE_ENV=production
 
-# Comando para iniciar a aplicação
+# Comando para iniciar o servidor web Next.js
 CMD ["npm", "start"]

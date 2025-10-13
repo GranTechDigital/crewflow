@@ -16,7 +16,7 @@ interface AuthContextType {
   usuario: Usuario | null
   loading: boolean
   login: (matricula: string, senha: string) => Promise<boolean>
-  logout: () => void
+  logout: () => Promise<void>
   checkAuth: () => Promise<void>
 }
 
@@ -84,10 +84,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const logout = () => {
-    setUsuario(null);
-    fetch('/api/auth/logout', { method: 'POST' });
-    router.push('/login');
+  const logout = async () => {
+    try {
+      setUsuario(null);
+      
+      // Aguardar a resposta da API de logout
+      await fetch('/api/auth/logout', { 
+        method: 'POST',
+        credentials: 'include' // Garantir que os cookies sejam enviados
+      });
+      
+      // Usar window.location para forçar navegação completa e limpar estado
+      window.location.href = '/login';
+    } catch (error) {
+      console.error('Erro no logout:', error);
+      // Mesmo com erro, redirecionar para login
+      window.location.href = '/login';
+    }
   }
 
   useEffect(() => {

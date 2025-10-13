@@ -120,18 +120,18 @@ export default function Sidebar() {
           label: "Upload da Planilha (Uptime)",
           href: "/uptime",
         },
-        {
-          label: "Upload do Downtime",
-          href: "/downtime",
-        },
-        {
-          label: "Upload de Período",
-          href: "/periodo",
-        },
-        {
-          label: "Business Intelligence",
-          href: "/prestserv/bi",
-        },
+        // {
+        //   label: "Upload do Downtime",
+        //   href: "/downtime",
+        // },
+        // {
+        //   label: "Upload de Período",
+        //   href: "/periodo",
+        // },
+        // {
+        //   label: "Business Intelligence",
+        //   href: "/prestserv/bi",
+        // },
         {
           label: "Matriz de Treinamento",
           href: "/matriz-treinamento/contratos",
