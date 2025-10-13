@@ -48,13 +48,54 @@ jobs:
           # Load new image
           docker load < /tmp/projetogran-app.tar
           
-          # Stop and remove old containers
-          docker compose down 2>/dev/null || docker-compose down 2>/dev/null || true
-          docker stop projetogran-app-fixed-final 2>/dev/null || true
-          docker rm projetogran-app-fixed-final 2>/dev/null || true
+          # Stop and remove old containers using docker directly
+          docker stop $(docker ps -aq --filter "name=projetogran") 2>/dev/null || true
+          docker rm $(docker ps -aq --filter "name=projetogran") 2>/dev/null || true
+          docker stop $(docker ps -aq --filter "name=postgres-prod") 2>/dev/null || true
+          docker rm $(docker ps -aq --filter "name=postgres-prod") 2>/dev/null || true
+          docker stop $(docker ps -aq --filter "name=pgadmin") 2>/dev/null || true
+          docker rm $(docker ps -aq --filter "name=pgadmin") 2>/dev/null || true
           
-          # Start services with docker compose (new version)
-          docker compose up -d || docker-compose up -d
+          # Create network if it doesn't exist
+          docker network create projetogran_crewflow-network 2>/dev/null || true
+          
+          # Start PostgreSQL first
+          docker run -d \
+            --name postgres-prod \
+            --network projetogran_crewflow-network \
+            -e POSTGRES_DB=crewflow_production \
+            -e POSTGRES_USER=crewflow_user \
+            -e POSTGRES_PASSWORD=crewflow_production_2024 \
+            -p 5434:5432 \
+            -v postgres_data:/var/lib/postgresql/data \
+            --restart unless-stopped \
+            postgres:15
+          
+          # Wait for PostgreSQL to be ready
+          sleep 10
+          
+          # Start the application
+          docker run -d \
+            --name crewflow-app-production \
+            --network projetogran_crewflow-network \
+            -e DATABASE_URL="postgresql://crewflow_user:crewflow_production_2024@postgres-prod:5432/crewflow_production" \
+            -e JWT_SECRET=crewflow-jwt-secret-key-2024 \
+            -e NEXTAUTH_URL=http://localhost:3000 \
+            -e NODE_ENV=production \
+            -p 3001:3000 \
+            --restart unless-stopped \
+            projetogran-app:latest
+          
+          # Start pgAdmin
+          docker run -d \
+            --name pgadmin-production \
+            --network projetogran_crewflow-network \
+            -e PGADMIN_DEFAULT_EMAIL=admin@crewflow.com \
+            -e PGADMIN_DEFAULT_PASSWORD=admin123 \
+            -p 5050:80 \
+            -v pgadmin_data:/var/lib/pgadmin \
+            --restart unless-stopped \
+            dpage/pgadmin4:latest
           
           # Clean up
           rm /tmp/projetogran-app.tar
@@ -63,12 +104,15 @@ jobs:
           sleep 15
           
           # Check if containers are running
-          if docker compose ps 2>/dev/null | grep -q "Up" || docker-compose ps 2>/dev/null | grep -q "Up"; then
+          if docker ps | grep -E "(crewflow-app-production|postgres-prod|pgadmin-production)" | wc -l | grep -q "3"; then
             echo "✅ Services started successfully"
-            docker compose ps 2>/dev/null || docker-compose ps 2>/dev/null
+            docker ps | grep -E "(crewflow-app-production|postgres-prod|pgadmin-production)"
           else
             echo "❌ Services failed to start"
-            docker compose logs 2>/dev/null || docker-compose logs 2>/dev/null
+            docker ps
+            docker logs crewflow-app-production 2>/dev/null || true
+            docker logs postgres-prod 2>/dev/null || true
+            docker logs pgadmin-production 2>/dev/null || true
             exit 1
           fi
         EOF
@@ -83,11 +127,11 @@ jobs:
           sleep 10
           
           # Generate Prisma client and run migrations
-          docker compose exec -T app npx prisma generate 2>/dev/null || docker-compose exec -T app npx prisma generate
-          docker compose exec -T app npx prisma migrate deploy 2>/dev/null || docker-compose exec -T app npx prisma migrate deploy
+          docker exec crewflow-app-production npx prisma generate
+          docker exec crewflow-app-production npx prisma migrate deploy
           
           # Run seed if database is empty
-          if docker compose exec -T app npx prisma db seed 2>/dev/null || docker-compose exec -T app npx prisma db seed 2>/dev/null; then
+          if docker exec crewflow-app-production npx prisma db seed 2>/dev/null; then
             echo "✅ Database seeded successfully"
           else
             echo "ℹ️ Seed skipped (database already populated or error occurred)"
