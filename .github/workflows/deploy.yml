@@ -1,4 +1,4 @@
-name: Deploy CrewFlow to Server
+name: Deploy to Production Server
 
 on:
   push:
@@ -18,7 +18,11 @@ jobs:
       
     - name: 🔧 Build Docker image
       run: |
-        docker build -t crewflow-app:latest .
+        docker build -t projetogran-app:latest .
+        
+    - name: 💾 Save Docker image
+      run: |
+        docker save projetogran-app:latest > projetogran-app.tar
         
     - name: 🔑 Setup SSH
       run: |
@@ -27,51 +31,66 @@ jobs:
         chmod 600 ~/.ssh/id_rsa
         ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
         
-    - name: 📤 Upload image to server (via pipe)
+    - name: 📤 Upload files to server
       run: |
-        docker save crewflow-app:latest | ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} "docker load"
+        # Create directory if it doesn't exist
+        ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} "mkdir -p /opt/projetogran"
+        
+        # Upload files
+        scp -o StrictHostKeyChecking=no projetogran-app.tar root@${{ secrets.SERVER_HOST }}:/tmp/
+        scp -o StrictHostKeyChecking=no docker-compose.yml root@${{ secrets.SERVER_HOST }}:/opt/projetogran/
         
     - name: 🚀 Deploy on server
       run: |
         ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
-          # Stop and remove old containers (both old and new names)
-          docker stop crewflow-app-production 2>/dev/null || true
-          docker rm crewflow-app-production 2>/dev/null || true
+          cd /opt/projetogran
+          
+          # Load new image
+          docker load < /tmp/projetogran-app.tar
+          
+          # Stop and remove old containers
+          docker-compose down 2>/dev/null || true
           docker stop projetogran-app-fixed-final 2>/dev/null || true
           docker rm projetogran-app-fixed-final 2>/dev/null || true
           
-          # Kill any process using port 3001
-          fuser -k 3001/tcp 2>/dev/null || true
+          # Start services with docker-compose
+          docker-compose up -d
           
-          # Start new container
-          docker run -d --name crewflow-app-production -p 3001:3000 \
-            -e DATABASE_URL='file:./dev.db' \
-            -e JWT_SECRET='crewflow-jwt-secret-key-2024' \
-            -e NEXTAUTH_URL='http://localhost:3000' \
-            -e NODE_ENV='development' \
-            crewflow-app:latest
+          # Clean up
+          rm /tmp/projetogran-app.tar
           
-          # Wait for container to start
-          sleep 10
+          # Wait for services to start
+          sleep 15
           
-          # Check if container is running
-          if docker ps | grep -q crewflow-app-production; then
-            echo "✅ Container started successfully"
+          # Check if containers are running
+          if docker-compose ps | grep -q "Up"; then
+            echo "✅ Services started successfully"
+            docker-compose ps
           else
-            echo "❌ Container failed to start"
-            docker logs crewflow-app-production
+            echo "❌ Services failed to start"
+            docker-compose logs
             exit 1
           fi
         EOF
         
-    - name: 🌱 Run seed (optional)
+    - name: 🗄️ Setup Database
       run: |
         ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
-          # Check if database is empty (optional seed)
-          if docker exec crewflow-app-production npx prisma db seed --preview-feature 2>/dev/null; then
-            echo "✅ Seed executed successfully"
+          cd /opt/projetogran
+          
+          # Wait for PostgreSQL to be ready
+          echo "⏳ Waiting for PostgreSQL to be ready..."
+          sleep 10
+          
+          # Generate Prisma client and run migrations
+          docker-compose exec -T app npx prisma generate
+          docker-compose exec -T app npx prisma migrate deploy
+          
+          # Run seed if database is empty
+          if docker-compose exec -T app npx prisma db seed 2>/dev/null; then
+            echo "✅ Database seeded successfully"
           else
-            echo "ℹ️ Seed skipped (database already populated)"
+            echo "ℹ️ Seed skipped (database already populated or error occurred)"
           fi
         EOF
         
@@ -79,4 +98,7 @@ jobs:
       run: |
         echo "🚀 Deployment completed successfully!"
         echo "🌐 Application available at: http://${{ secrets.SERVER_HOST }}:3001"
-        echo "🔐 Login: ADMIN001 / admin123"
+        echo "🗄️ PostgreSQL running on port 5434 with persistent volume"
+        echo "🔧 pgAdmin4 available at: http://${{ secrets.SERVER_HOST }}:5050"
+        echo "📧 pgAdmin Login: admin@crewflow.com / admin123"
+        echo "🔐 App Login: ADMIN001 / admin123"
