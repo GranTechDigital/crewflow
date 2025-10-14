@@ -4,6 +4,112 @@ Sistema de gestão desenvolvido em Next.js para controle de funcionários, reman
 
 🔄 **Deploy Automático Ativo** - Última atualização: $(date)
 
+## 📚 Documentação de Infraestrutura e Deploy
+
+### 🏗️ Arquitetura do Sistema
+
+O sistema utiliza uma arquitetura baseada em containers Docker com os seguintes componentes:
+
+| Componente | Nome do Container | Porta | Descrição |
+|------------|-------------------|-------|-----------|
+| Aplicação | `crewflow-app-production` | 3001:3000 | Aplicação Next.js principal |
+| Banco de Dados | `postgres-prod` | 5434:5432 | PostgreSQL para ambiente de produção |
+| Interface BD | `pgadmin-production` | 5050:80 | pgAdmin para gerenciamento do banco |
+
+### 🌐 Ambientes
+
+| Ambiente | URL | Descrição |
+|----------|-----|-----------|
+| Produção | http://46.202.146.234:3001 | Ambiente de produção |
+| Staging | Local | Ambiente de testes com PostgreSQL local |
+| Desenvolvimento | Local | Ambiente de desenvolvimento com SQLite |
+
+### 🚀 Processo de Deploy
+
+#### Deploy Automático (GitHub Actions)
+
+O deploy é realizado automaticamente pelo GitHub Actions quando há um push para a branch `main`:
+
+1. Constrói a imagem Docker `crewflow-app:latest`
+2. Salva a imagem como `crewflow-app.tar`
+3. Envia os arquivos para o servidor via SSH
+4. Para e remove os containers existentes
+5. Inicia os novos containers com a versão atualizada
+
+#### Configuração da Rede Docker
+
+```bash
+# Rede utilizada pelos containers
+docker network create projetogran_crewflow-network
+```
+
+#### Variáveis de Ambiente de Produção
+
+```env
+# Banco de dados
+DATABASE_URL="postgresql://crewflow_user:crewflow_production_2024@postgres-prod:5432/crewflow_production"
+
+# JWT Secret
+JWT_SECRET="crewflow-jwt-secret-key-2024"
+
+# URL da aplicação
+NEXTAUTH_URL="http://localhost:3000"
+
+# Ambiente
+NODE_ENV="production"
+```
+
+### 🛠️ Scripts de Manutenção
+
+#### Deploy Rápido (Emergencial)
+
+O script `deploy-quick.bat` pode ser usado para fazer um deploy rápido em caso de emergência:
+
+```bash
+# Execução do script de deploy rápido
+./deploy-quick.bat
+```
+
+> ⚠️ **Atenção**: Use apenas em situações de emergência. O método recomendado é o deploy via GitHub Actions.
+
+#### Inicialização do PostgreSQL Local (Staging)
+
+Para iniciar o PostgreSQL local para testes:
+
+```bash
+# Iniciar PostgreSQL para ambiente de staging
+./start-postgres.bat
+```
+
+### 📋 Checklist de Verificação de Deploy
+
+Após um deploy, verifique:
+
+1. ✅ Aplicação acessível em http://46.202.146.234:3001
+2. ✅ Banco de dados PostgreSQL rodando na porta 5434
+3. ✅ pgAdmin acessível em http://46.202.146.234:5050
+4. ✅ Todos os containers na mesma rede Docker `projetogran_crewflow-network`
+5. ✅ Logs da aplicação sem erros
+
+### 🔄 Histórico de Versões da Infraestrutura
+
+| Data | Versão | Descrição |
+|------|--------|-----------|
+| 2024-05-XX | 1.0 | Configuração inicial com SQLite |
+| 2024-05-XX | 1.1 | Migração para PostgreSQL |
+| 2024-05-XX | 1.2 | Padronização dos nomes dos containers |
+| 2024-05-XX | 1.3 | Correção do workflow de deploy automático |
+
+### 🔍 Solução de Problemas Comuns
+
+| Problema | Possível Causa | Solução |
+|----------|----------------|---------|
+| Site não acessível | Container da aplicação parado | Verificar status com `docker ps` e reiniciar se necessário |
+| Erro de conexão com banco | PostgreSQL não iniciado ou credenciais incorretas | Verificar status do container `postgres-prod` e configurações de ambiente |
+| Falha no deploy automático | Inconsistência nos nomes dos arquivos/containers | Verificar logs do GitHub Actions e corrigir o workflow |
+| Dados não persistindo | Volume do PostgreSQL não configurado | Verificar se o volume `postgres_data` está mapeado corretamente |
+| pgAdmin inacessível | Container não iniciado ou porta incorreta | Verificar status do container `pgadmin-production` e mapeamento de porta |
+
 ## 🚀 Tecnologias Utilizadas
 
 - **Next.js 14** - Framework React
