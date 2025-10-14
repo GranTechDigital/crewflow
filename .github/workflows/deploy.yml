@@ -43,6 +43,9 @@ jobs:
     - name: 🚀 Deploy on server
       run: |
         ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << EOF
+          set -e
+          echo "📊 Disk usage before deploy:" 
+          df -h
           cd /opt/projetogran
           
           # Load new image
@@ -99,6 +102,8 @@ jobs:
           
           # Clean up
           rm /tmp/crewflow-app-${{ github.sha }}.tar
+          echo "📊 Disk usage after image load:" 
+          df -h
           
           # Wait for services to start
           sleep 15
