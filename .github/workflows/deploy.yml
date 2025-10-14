@@ -81,6 +81,11 @@ jobs:
           sleep 10
           
           # Start the application
+          APP_TAG=${{ github.sha }}
+          if ! docker image inspect crewflow-app:${APP_TAG} > /dev/null 2>&1; then
+            echo "⚠️ Image tag ${APP_TAG} not found, falling back to latest"
+            APP_TAG=latest
+          fi
           docker run -d \
             --name crewflow-app-production \
             --network projetogran_crewflow-network \
@@ -90,7 +95,7 @@ jobs:
             -e NODE_ENV=production \
             -p 3001:3001 \
             --restart unless-stopped \
-            crewflow-app:${{ github.sha }}
+            crewflow-app:${APP_TAG}
           
           # Start pgAdmin
           docker run -d \
