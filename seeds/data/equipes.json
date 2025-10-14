@@ -1,5 +1,9 @@
 [
   {
+    "nome": "Administração",
+    "descricao": "Administração geral do sistema"
+  },
+  {
     "nome": "RH",
     "descricao": "Recursos Humanos - Gestão de pessoal e processos administrativos"
   },
@@ -18,9 +22,5 @@
   {
     "nome": "Planejamento",
     "descricao": "Planejamento estratégico e gestão de contratos"
-  },
-  {
-    "nome": "Administração",
-    "descricao": "Administração geral do sistema"
   }
 ]
