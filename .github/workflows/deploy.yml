@@ -18,11 +18,11 @@ jobs:
       
     - name: 🔧 Build Docker image
       run: |
-        docker build -t crewflow-app:latest .
+        docker build -t crewflow-app:${{ github.sha }} -t crewflow-app:latest .
         
     - name: 💾 Save Docker image
       run: |
-        docker save crewflow-app:latest > crewflow-app.tar
+        docker save crewflow-app:${{ github.sha }} > crewflow-app-${{ github.sha }}.tar
         
     - name: 🔑 Setup SSH
       run: |
@@ -37,16 +37,16 @@ jobs:
         ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} "mkdir -p /opt/projetogran"
         
         # Upload files
-        scp -o StrictHostKeyChecking=no crewflow-app.tar root@${{ secrets.SERVER_HOST }}:/tmp/
+        scp -o StrictHostKeyChecking=no crewflow-app-${{ github.sha }}.tar root@${{ secrets.SERVER_HOST }}:/tmp/
         scp -o StrictHostKeyChecking=no docker-compose.yml root@${{ secrets.SERVER_HOST }}:/opt/projetogran/
         
     - name: 🚀 Deploy on server
       run: |
-        ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
+        ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << EOF
           cd /opt/projetogran
           
           # Load new image
-          docker load < /tmp/crewflow-app.tar
+          docker load < /tmp/crewflow-app-${{ github.sha }}.tar
           
           # Stop and remove old containers using docker directly
           docker stop $(docker ps -aq --filter "name=crewflow-app-production") 2>/dev/null || true
@@ -84,7 +84,7 @@ jobs:
             -e NODE_ENV=production \
             -p 3001:3001 \
             --restart unless-stopped \
-            crewflow-app:latest
+            crewflow-app:${{ github.sha }}
           
           # Start pgAdmin
           docker run -d \
@@ -98,7 +98,7 @@ jobs:
             dpage/pgadmin4:latest
           
           # Clean up
-          rm /tmp/crewflow-app.tar
+          rm /tmp/crewflow-app-${{ github.sha }}.tar
           
           # Wait for services to start
           sleep 15
@@ -107,6 +107,9 @@ jobs:
           if docker ps | grep -E "(crewflow-app-production|postgres-prod|pgadmin-production)" | wc -l | grep -q "3"; then
             echo "✅ Services started successfully"
             docker ps | grep -E "(crewflow-app-production|postgres-prod|pgadmin-production)"
+            echo "🔎 Image details:"
+            docker images | grep crewflow-app
+            docker inspect crewflow-app-production --format 'container image: {{.Image}}'
           else
             echo "❌ Services failed to start"
             docker ps
