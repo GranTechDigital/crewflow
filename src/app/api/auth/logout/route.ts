@@ -36,10 +36,10 @@ export async function POST(request: NextRequest) {
     // Remover o cookie de autenticação com múltiplas estratégias
     console.log('🚪 LOGOUT API - Removendo cookie auth-token...');
     
-    // Estratégia 1: Definir como vazio com maxAge 0
+    // Estratégia 1: Definir como vazio com maxAge 0 (sem Secure para ambientes HTTP)
     response.cookies.set('auth-token', '', {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: false,
       sameSite: 'lax',
       maxAge: 0,
       path: '/',
@@ -49,10 +49,10 @@ export async function POST(request: NextRequest) {
     // Estratégia 2: Deletar explicitamente
     response.cookies.delete('auth-token');
     
-    // Estratégia 3: Definir com data muito antiga
+    // Estratégia 3: Definir com data muito antiga (sem Secure para ambientes HTTP)
     response.cookies.set('auth-token', 'deleted', {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: false,
       sameSite: 'lax',
       maxAge: -1,
       path: '/',
