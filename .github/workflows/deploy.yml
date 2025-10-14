@@ -78,9 +78,9 @@ jobs:
           docker run -d \
             --name crewflow-app-production \
             --network projetogran_crewflow-network \
-            -e DATABASE_URL="postgresql://crewflow_user:crewflow_production_2024@postgres-prod:5432/crewflow_production" \
+            -e DATABASE_URL="postgresql://crewflow_user:crewflow_production_2024@postgres-prod:5432/crewflow_production?schema=public" \
             -e JWT_SECRET=crewflow-jwt-secret-key-2024 \
-            -e NEXTAUTH_URL=http://localhost:3000 \
+            -e NEXTAUTH_URL=http://46.202.146.234:3001 \
             -e NODE_ENV=production \
             -p 3001:3000 \
             --restart unless-stopped \

@@ -5,15 +5,52 @@ services:
     ports:
       - "3001:3000"
     environment:
-      - DATABASE_URL=postgresql://crewflow_user:crewflow_production_2024@postgres-prod:5432/crewflow_production
+      - DATABASE_URL=postgresql://crewflow_user:crewflow_production_2024@postgres-prod:5432/crewflow_production?schema=public
       - JWT_SECRET=crewflow-jwt-secret-key-2024
-      - NEXTAUTH_URL=http://localhost:3000
+      - NEXTAUTH_URL=http://46.202.146.234:3001
       - NODE_ENV=production
     container_name: crewflow-app-production
     restart: unless-stopped
     networks:
       - projetogran_crewflow-network
+    depends_on:
+      - postgres-prod
+
+  postgres-prod:
+    image: postgres:15
+    container_name: postgres-prod
+    environment:
+      - POSTGRES_DB=crewflow_production
+      - POSTGRES_USER=crewflow_user
+      - POSTGRES_PASSWORD=crewflow_production_2024
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - projetogran_crewflow-network
+
+  pgadmin-production:
+    image: dpage/pgadmin4:latest
+    container_name: pgadmin-production
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@crewflow.com
+      - PGADMIN_DEFAULT_PASSWORD=admin123
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    restart: unless-stopped
+    networks:
+      - projetogran_crewflow-network
+    depends_on:
+      - postgres-prod
 
 networks:
   projetogran_crewflow-network:
     external: true
+
+volumes:
+  postgres_data:
+  pgadmin_data:
