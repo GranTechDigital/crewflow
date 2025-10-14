@@ -30,7 +30,7 @@ jobs:
     - name: 🚚 Stream Docker image to server
       run: |
         # Stream the docker image directly to the server to avoid storing large tar files remotely
-        docker save crewflow-app:${{ github.sha }} | gzip | ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} "gunzip | docker load"
+        docker save crewflow-app:${{ github.sha }} crewflow-app:latest | gzip | ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} "gunzip | docker load"
         
     - name: 📤 Upload files to server
       run: |
