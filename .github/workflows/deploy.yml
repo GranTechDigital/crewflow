@@ -48,57 +48,23 @@ jobs:
           # Load new image
           docker load < /tmp/crewflow-app.tar
           
-          # Stop and remove old containers using docker directly
+          # Stop and remove old container
           docker stop $(docker ps -aq --filter "name=crewflow-app-production") 2>/dev/null || true
           docker rm $(docker ps -aq --filter "name=crewflow-app-production") 2>/dev/null || true
-          docker stop $(docker ps -aq --filter "name=postgres-prod") 2>/dev/null || true
-          docker rm $(docker ps -aq --filter "name=postgres-prod") 2>/dev/null || true
-          docker stop $(docker ps -aq --filter "name=pgadmin-production") 2>/dev/null || true
-          docker rm $(docker ps -aq --filter "name=pgadmin-production") 2>/dev/null || true
-          
-          # Create network if it doesn't exist
-          docker network create projetogran_crewflow-network 2>/dev/null || true
-          
-          # Start PostgreSQL first
-          docker run -d \
-            --name postgres-prod \
-            --network projetogran_crewflow-network \
-            -e POSTGRES_DB=crewflow_production \
-            -e POSTGRES_USER=crewflow_user \
-            -e POSTGRES_PASSWORD=crewflow_production_2024 \
-            -p 5434:5432 \
-            -v postgres_data:/var/lib/postgresql/data \
-            --restart unless-stopped \
-            postgres:15
-          
-          # Wait for PostgreSQL to be ready
-          sleep 10
           
           # Start the application
           docker run -d \
             --name crewflow-app-production \
-            --network projetogran_crewflow-network \
-            -e DATABASE_URL="postgresql://crewflow_user:crewflow_production_2024@postgres-prod:5432/crewflow_production" \
-            -e JWT_SECRET=crewflow-jwt-secret-key-2024 \
-            -e NEXTAUTH_URL=http://localhost:3000 \
-            -e NODE_ENV=production \
+            -e DATABASE_URL='file:./dev.db' \
+            -e JWT_SECRET='crewflow-jwt-secret-key-2024' \
+            -e NEXTAUTH_URL='http://localhost:3000' \
+            -e NODE_ENV='development' \
             -p 3001:3000 \
             --restart unless-stopped \
             crewflow-app:latest
           
-          # Start pgAdmin
-          docker run -d \
-            --name pgadmin-production \
-            --network projetogran_crewflow-network \
-            -e PGADMIN_DEFAULT_EMAIL=admin@crewflow.com \
-            -e PGADMIN_DEFAULT_PASSWORD=admin123 \
-            -p 5050:80 \
-            -v pgadmin_data:/var/lib/pgadmin \
-            --restart unless-stopped \
-            dpage/pgadmin4:latest
-          
           # Clean up
-          rm /tmp/projetogran-app.tar
+          rm /tmp/crewflow-app.tar
           
           # Wait for services to start
           sleep 15
