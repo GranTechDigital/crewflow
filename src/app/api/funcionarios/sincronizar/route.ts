@@ -132,7 +132,7 @@ export async function POST() {
       if (func.statusPrestserv === null || func.statusPrestserv === undefined) {
         paraAtualizar.push({
           matricula: func.matricula,
-          status: func.status, // Mantém o status atual
+          status: func.status || 'ATIVO', // Mantém o status atual ou usa 'ATIVO' se for null
           statusPrestserv: 'SEM_CADASTRO', // Define o statusPrestserv como SEM_CADASTRO
           atualizadoEm: now,
           excluidoEm: null,
