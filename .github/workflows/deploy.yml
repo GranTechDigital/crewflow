@@ -49,12 +49,12 @@ jobs:
           docker load < /tmp/projetogran-app.tar
           
           # Stop and remove old containers using docker directly
-          docker stop $(docker ps -aq --filter "name=projetogran") 2>/dev/null || true
-          docker rm $(docker ps -aq --filter "name=projetogran") 2>/dev/null || true
+          docker stop $(docker ps -aq --filter "name=crewflow-app-production") 2>/dev/null || true
+          docker rm $(docker ps -aq --filter "name=crewflow-app-production") 2>/dev/null || true
           docker stop $(docker ps -aq --filter "name=postgres-prod") 2>/dev/null || true
           docker rm $(docker ps -aq --filter "name=postgres-prod") 2>/dev/null || true
-          docker stop $(docker ps -aq --filter "name=pgadmin") 2>/dev/null || true
-          docker rm $(docker ps -aq --filter "name=pgadmin") 2>/dev/null || true
+          docker stop $(docker ps -aq --filter "name=pgadmin-production") 2>/dev/null || true
+          docker rm $(docker ps -aq --filter "name=pgadmin-production") 2>/dev/null || true
           
           # Create network if it doesn't exist
           docker network create projetogran_crewflow-network 2>/dev/null || true
