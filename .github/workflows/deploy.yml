@@ -46,6 +46,8 @@ jobs:
           set -e
           echo "📊 Disk usage before deploy:" 
           df -h
+          echo "🧹 Pruning unused Docker data to free space"
+          docker system prune -af || true
           cd /opt/projetogran
           
           # Load new image
