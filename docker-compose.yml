@@ -1,13 +1,19 @@
 version: '3.8'
 services:
   app:
-    build: .
+    image: crewflow-app:latest
     ports:
       - "3001:3000"
     environment:
-      - DATABASE_URL=file:./dev.db
+      - DATABASE_URL=postgresql://crewflow_user:crewflow_production_2024@postgres-prod:5432/crewflow_production
       - JWT_SECRET=crewflow-jwt-secret-key-2024
       - NEXTAUTH_URL=http://localhost:3000
-      - NODE_ENV=development
+      - NODE_ENV=production
     container_name: crewflow-app-production
     restart: unless-stopped
+    networks:
+      - projetogran_crewflow-network
+
+networks:
+  projetogran_crewflow-network:
+    external: true
