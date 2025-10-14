@@ -20,12 +20,9 @@ export async function POST(request: NextRequest) {
     console.log('🚪 LOGOUT API - Token final usado:', token ? 'SIM' : 'NÃO');
     console.log('🚪 LOGOUT API - Todos os cookies:', request.cookies.getAll().map(c => `${c.name}=${c.value}`));
     
+    // Mesmo sem token, seguir com a remoção de cookies para garantir logout
     if (!token) {
-      console.log('🚪 LOGOUT API - ERRO: Nenhum token encontrado!');
-      return NextResponse.json({
-        success: false,
-        message: 'Token não encontrado para logout'
-      }, { status: 401 });
+      console.log('🚪 LOGOUT API - Aviso: Nenhum token encontrado, prosseguindo para limpar cookies');
     }
     
     const response = NextResponse.json({
