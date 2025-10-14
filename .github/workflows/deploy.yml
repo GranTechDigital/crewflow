@@ -33,6 +33,8 @@ jobs:
           df -h
           echo "🧮 Docker system df before prune:"
           docker system df || true
+          echo "🧼 Cleaning /tmp to free ephemeral space"
+          rm -rf /tmp/* || true
           echo "🧹 Pruning unused Docker data to free space"
           docker system prune -af || true
           echo "📊 Disk usage after prune:"
