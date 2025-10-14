@@ -1,9 +1,7 @@
 name: Deploy to Production Server
 
 on:
-  push:
-    branches: [ main, master ]
-  workflow_dispatch: # Permite execução manual
+  workflow_dispatch: # Executa apenas manualmente para evitar falhas em pushes
 
 jobs:
   deploy:
@@ -26,6 +24,22 @@ jobs:
         echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
         chmod 600 ~/.ssh/id_rsa
         ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+    - name: 🧹 Prepare server disk before image load
+      run: |
+        ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
+          set -e
+          echo "📊 Disk usage before prune:"
+          df -h
+          echo "🧮 Docker system df before prune:"
+          docker system df || true
+          echo "🧹 Pruning unused Docker data to free space"
+          docker system prune -af || true
+          echo "📊 Disk usage after prune:"
+          df -h
+          echo "🧮 Docker system df after prune:"
+          docker system df || true
+        EOF
         
     - name: 🚚 Stream Docker image to server
       run: |
