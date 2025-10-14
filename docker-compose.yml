@@ -3,7 +3,7 @@ services:
   app:
     image: crewflow-app:latest
     ports:
-      - "3001:3000"
+      - "3001:3001"
     environment:
       - DATABASE_URL=postgresql://crewflow_user:crewflow_production_2024@postgres-prod:5432/crewflow_production?schema=public
       - JWT_SECRET=crewflow-jwt-secret-key-2024
