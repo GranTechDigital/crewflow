@@ -191,7 +191,7 @@ export default function Sidebar() {
         { label: "Sincronizar Lista de Funcionários", href: "/funcionarios" },
         { label: "Criar Contratos", href: "/planejamento/contratos" },
         { label: "Gerenciar Status", href: "/status" },
-        { label: "Centros de Custo - Projetos", href: "/centros-custo-projetos" },
+        //{ label: "Centros de Custo - Projetos", href: "/centros-custo-projetos" },
       ],
       permission: PERMISSIONS.ACCESS_ADMIN,
     },
