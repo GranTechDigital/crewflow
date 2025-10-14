@@ -116,6 +116,7 @@ export async function POST() {
     const paraAtualizar: Array<{
       matricula: string;
       status: string;
+      statusPrestserv?: string;
       atualizadoEm: Date;
       excluidoEm?: Date | null;
     }> = [];
@@ -126,6 +127,18 @@ export async function POST() {
 
       const statusApi = String(dadosApi.STATUS);
       const statusBanco = func.status;
+
+      // Verificar se o funcionário precisa ter o statusPrestserv atualizado para SEM_CADASTRO
+      if (func.statusPrestserv === null || func.statusPrestserv === undefined) {
+        paraAtualizar.push({
+          matricula: func.matricula,
+          status: func.status, // Mantém o status atual
+          statusPrestserv: 'SEM_CADASTRO', // Define o statusPrestserv como SEM_CADASTRO
+          atualizadoEm: now,
+          excluidoEm: null,
+        });
+        return; // Continua para o próximo funcionário
+      }
 
       // Se status é diferente e não é "DEMITIDO" (que já tratamos)
       if (statusBanco !== statusApi && statusApi !== 'DEMITIDO') {
@@ -155,6 +168,7 @@ export async function POST() {
         where: { matricula: f.matricula },
         data: {
           status: f.status,
+          statusPrestserv: f.statusPrestserv, // Incluir statusPrestserv se estiver definido
           atualizadoEm: f.atualizadoEm,
           excluidoEm: f.excluidoEm,
         },
