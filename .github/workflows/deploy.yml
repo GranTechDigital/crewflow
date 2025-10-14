@@ -20,17 +20,17 @@ jobs:
       run: |
         docker build -t crewflow-app:${{ github.sha }} -t crewflow-app:latest .
         
-    - name: 🚚 Stream Docker image to server
-      run: |
-        # Stream the docker image directly to the server to avoid storing large tar files remotely
-        docker save crewflow-app:${{ github.sha }} | gzip | ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} "gunzip | docker load"
-        
     - name: 🔑 Setup SSH
       run: |
         mkdir -p ~/.ssh
         echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
         chmod 600 ~/.ssh/id_rsa
         ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+        
+    - name: 🚚 Stream Docker image to server
+      run: |
+        # Stream the docker image directly to the server to avoid storing large tar files remotely
+        docker save crewflow-app:${{ github.sha }} | gzip | ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} "gunzip | docker load"
         
     - name: 📤 Upload files to server
       run: |
