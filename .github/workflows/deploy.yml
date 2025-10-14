@@ -18,11 +18,11 @@ jobs:
       
     - name: 🔧 Build Docker image
       run: |
-        docker build -t projetogran-app:latest .
+        docker build -t crewflow-app:latest .
         
     - name: 💾 Save Docker image
       run: |
-        docker save projetogran-app:latest > projetogran-app.tar
+        docker save crewflow-app:latest > crewflow-app.tar
         
     - name: 🔑 Setup SSH
       run: |
@@ -84,7 +84,7 @@ jobs:
             -e NODE_ENV=production \
             -p 3001:3000 \
             --restart unless-stopped \
-            projetogran-app:latest
+            crewflow-app:latest
           
           # Start pgAdmin
           docker run -d \
