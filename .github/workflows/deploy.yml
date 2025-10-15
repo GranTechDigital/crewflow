@@ -84,43 +84,26 @@ jobs:
               docker tag crewflow-app:"$SRC_TAG" crewflow-app:${{ github.sha }} || true
             fi
 
-            docker stop $(docker ps -aq --filter "name=crewflow-app-production") 2>/dev/null || true
-            docker rm $(docker ps -aq --filter "name=crewflow-app-production") 2>/dev/null || true
-
+            # Ensure network exists
             docker network create projetogran_crewflow-network 2>/dev/null || true
 
-            APP_TAG_GH=${{ github.sha }}
-            # Sanitize possible CR/LF or spaces from GH SHA
-            APP_TAG_GH=$(echo "$APP_TAG_GH" | tr -d '\r' | tr -d '[:space:]')
-            # Default to latest to avoid empty tag
-            APP_TAG=latest
-            if [ -n "$APP_TAG_GH" ] && docker image inspect "crewflow-app:${APP_TAG_GH}" > /dev/null 2>&1; then
-              APP_TAG="$APP_TAG_GH"
-            elif docker image inspect "crewflow-app:latest" > /dev/null 2>&1; then
-              APP_TAG=latest
-            else
-              # Fallback: first available tag for crewflow-app (excluding <none>)
-              APP_TAG_FALLBACK=$(docker image ls crewflow-app --format '{{.Tag}}' | grep -v '^<none>$' | head -n1)
-              APP_TAG_FALLBACK=$(echo "$APP_TAG_FALLBACK" | tr -d '\r' | tr -d '[:space:]')
-              if [ -n "$APP_TAG_FALLBACK" ]; then
-                APP_TAG="$APP_TAG_FALLBACK"
-              else
-                echo "❌ No valid tag found for crewflow-app. Available images:"
-                docker image ls crewflow-app || docker images | grep '^crewflow-app' || true
-                exit 1
-              fi
+            # Stop and remove existing production container safely (avoid empty args)
+            CID=$(docker ps -aq --filter "name=crewflow-app-production" | tr -d '\r' | tr -d '[:space:]')
+            if [ -n "$CID" ]; then
+              echo "🛑 Stopping existing container crewflow-app-production ($CID)"
+              docker stop "$CID" || true
+              docker rm "$CID" || true
             fi
-            echo "🚀 Using image tag: $APP_TAG"
-            docker run -d \
-              --name crewflow-app-production \
-              --network projetogran_crewflow-network \
-              -e DATABASE_URL="postgresql://crewflow_user:crewflow_production_2024@postgres-prod:5432/crewflow_production?schema=public" \
-              -e JWT_SECRET=crewflow-jwt-secret-key-2024 \
-              -e NEXTAUTH_URL=http://${{ secrets.SERVER_HOST }}:3001 \
-              -e NODE_ENV=production \
-              -p 3001:3001 \
-              --restart unless-stopped \
-              crewflow-app:${APP_TAG}
+
+            # Free port 3001 if occupied by any container
+            BUSY_CIDS=$(docker ps --format '{{.ID}} {{.Ports}}' | awk '/0.0.0.0:3001->/ {print $1}')
+            if [ -n "$BUSY_CIDS" ]; then
+              echo "⚠️ Port 3001 in use; stopping containers: $BUSY_CIDS"
+              docker stop $BUSY_CIDS || true
+            fi
+
+            # Bring up production stack via compose (app, postgres and pgadmin)
+            docker compose -f docker-compose.yml up -d
 
             echo "📊 Disk usage after image load:" 
             df -h
@@ -132,7 +115,7 @@ jobs:
               docker ps | grep "crewflow-app-production"
               echo "🔎 Image details:"
               docker images | grep crewflow-app
-              docker inspect crewflow-app-production --format 'container image: {{.Image}}'
+              docker inspect crewflow-app-production --format 'container image: {{.Image}}' || true
             else
               echo "❌ App container failed to start"
               docker ps
