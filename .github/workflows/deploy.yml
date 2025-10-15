@@ -64,6 +64,13 @@ jobs:
             echo "🔎 Image details after load:"
             docker images | grep crewflow-app || true
 
+            # Ensure the loaded image has predictable tags (latest and current SHA)
+            SRC_TAG=$(docker image ls crewflow-app | awk 'NR>1 && $2 != "<none>" {print $2; exit}')
+            if [ -n "$SRC_TAG" ]; then
+              docker tag crewflow-app:"$SRC_TAG" crewflow-app:latest || true
+              docker tag crewflow-app:"$SRC_TAG" crewflow-app:${{ github.sha }} || true
+            fi
+
             docker stop $(docker ps -aq --filter "name=crewflow-app-production") 2>/dev/null || true
             docker rm $(docker ps -aq --filter "name=crewflow-app-production") 2>/dev/null || true
 
@@ -77,13 +84,14 @@ jobs:
               if docker image inspect "crewflow-app:latest" > /dev/null 2>&1; then
                 APP_TAG=latest
               else
-                APP_TAG_FALLBACK=$(docker image ls crewflow-app --format '{{.Tag}}' | grep -v '<none>' | head -n1)
+                # Fallback: first available tag for crewflow-app (excluding <none>)
+                APP_TAG_FALLBACK=$(docker image ls crewflow-app | awk 'NR>1 && $2 != "<none>" {print $2; exit}')
                 APP_TAG_FALLBACK=$(echo "$APP_TAG_FALLBACK" | tr -d '\r' | tr -d '[:space:]')
                 if [ -n "$APP_TAG_FALLBACK" ]; then
                   APP_TAG=$APP_TAG_FALLBACK
                 else
                   echo "❌ No valid tag found for crewflow-app. Available images:"
-                  docker images | grep crewflow-app || true
+                  docker image ls crewflow-app || docker images | grep '^crewflow-app' || true
                   exit 1
                 fi
               fi
