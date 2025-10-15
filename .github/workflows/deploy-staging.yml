@@ -18,13 +18,16 @@ jobs:
     - name: 🐳 Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
       
-    - name: 🔧 Build Docker image
-      run: |
-        docker build -t crewflow-app:staging .
-        
-    - name: 💾 Save Docker image
-      run: |
-        docker save crewflow-app:staging > crewflow-app-staging.tar
+    - name: 🔧 Build Docker image (cache enabled)
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        tags: |
+          crewflow-app:staging
+          crewflow-app:staging-${{ github.sha }}
+        load: true
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
         
     - name: 🔑 Setup SSH
       run: |
@@ -33,76 +36,129 @@ jobs:
         chmod 600 ~/.ssh/id_rsa
         ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
         
-    - name: 📤 Upload image to server
-      run: |
-        # Clean up any existing staging tar file first
-        ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} "rm -f /tmp/crewflow-app-staging.tar"
-        
-        # Upload new image
-        scp -o StrictHostKeyChecking=no crewflow-app-staging.tar root@${{ secrets.SERVER_HOST }}:/tmp/
-        
-        # Ensure application directory exists and upload staging Postgres compose
-        ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} "mkdir -p /opt/projetogran"
-        scp -o StrictHostKeyChecking=no docker-compose.staging-postgres.yml root@${{ secrets.SERVER_HOST }}:/opt/projetogran/
-        
-    - name: 🚀 Deploy to staging
+    - name: 🧹 Prepare server before image load (no prune)
       run: |
         ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
           set -e
-          # Clean up Docker system before deployment
-          docker system prune -f || true
-
-          # Load new image
-          docker load < /tmp/crewflow-app-staging.tar
-
-          # Ensure Postgres staging is up via compose
-          cd /opt/projetogran
-          docker compose -f docker-compose.staging-postgres.yml up -d
-
-          # Stop and remove old staging container
-          docker stop crewflow-app-staging 2>/dev/null || true
-          docker rm crewflow-app-staging 2>/dev/null || true
-
-          # Start new staging container (different port, correct internal port)
-          docker run -d --name crewflow-app-staging \
-            --network app-network \
-            -p 3002:3001 \
-            -e DATABASE_URL='postgresql://postgres:senha_segura_aqui@postgres-staging:5432/projetogran?schema=public' \
-            -e JWT_SECRET='crewflow-jwt-secret-staging-2024' \
-            -e NEXTAUTH_URL='http://${{ secrets.SERVER_HOST }}:3002' \
-            -e NODE_ENV='production' \
-            crewflow-app:staging
-
-          # Clean up
-          rm /tmp/crewflow-app-staging.tar
-
-          # Wait for container to start
-          sleep 10
-
-          # Check if container is running
-          if docker ps | grep -q crewflow-app-staging; then
-            echo "✅ Staging container started successfully"
-          else
-            echo "❌ Staging container failed to start"
-            docker logs crewflow-app-staging
-            exit 1
-          fi
-
-          # Setup Prisma inside container
-          docker exec crewflow-app-staging npx prisma generate || true
-          docker exec crewflow-app-staging npx prisma migrate deploy || true
+          echo "📊 Disk usage before image load:"
+          df -h
+          echo "🧮 Docker system df (before):"
+          docker system df || true
+          echo "🧼 Cleaning /tmp to free ephemeral space"
+          rm -rf /tmp/* || true
+          echo "ℹ️ Skipping Docker prune (enough disk space)"
+          echo "📊 Disk usage after cleanup (no prune):"
+          df -h
+          echo "🧮 Docker system df (after):"
+          docker system df || true
         EOF
         
-    - name: 🧪 Run tests (optional)
+    - name: 🚚 Stream Docker image to server
+      run: |
+        docker save crewflow-app:staging crewflow-app:staging-${{ github.sha }} | gzip -1 | ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} "gunzip | docker load"
+
+    - name: 📤 Upload files to server
+      run: |
+        ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} "mkdir -p /opt/projetogran"
+        scp -o StrictHostKeyChecking=no docker-compose.staging.yml root@${{ secrets.SERVER_HOST }}:/opt/projetogran/
+
+    - name: 🔍 Detect prisma changes
+      id: changes
+      uses: dorny/paths-filter@v3
+      with:
+        filters: |
+          prisma:
+            - 'prisma/**'
+        
+    - name: 🚀 Deploy to staging
+      run: |
+        # Use quoted heredoc to avoid local variable expansion
+        ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
+          set -e
+          echo "📊 Disk usage before deploy:"
+          df -h
+          cd /opt/projetogran
+
+          echo "🔎 Image details after load:"
+          docker images | grep crewflow-app || true
+
+          # Ensure predictable tags (staging and staging-SHA)
+          SRC_TAG=$(docker image ls crewflow-app --format '{{.Tag}}' | grep -E '^staging(-[0-9a-f]+)?$' | head -n1)
+          if [ -n "$SRC_TAG" ]; then
+            docker tag crewflow-app:"$SRC_TAG" crewflow-app:staging || true
+            docker tag crewflow-app:"$SRC_TAG" crewflow-app:staging-${{ github.sha }} || true
+          fi
+
+          # Ensure network exists
+          docker network create projetogran_crewflow-network 2>/dev/null || true
+
+          # Stop and remove existing staging container
+          docker stop $(docker ps -aq --filter "name=crewflow-app-staging") 2>/dev/null || true
+          docker rm $(docker ps -aq --filter "name=crewflow-app-staging") 2>/dev/null || true
+
+          # Bring up staging stack via compose
+          docker compose -f docker-compose.staging.yml up -d
+
+          echo "📊 Disk usage after compose up:"
+          df -h
+
+          sleep 5
+
+          if docker ps | grep -q "crewflow-app-staging"; then
+            echo "✅ Staging app container started successfully"
+            docker ps | grep "crewflow-app-staging"
+          else
+            echo "❌ Staging app container failed to start"
+            docker ps
+            docker logs crewflow-app-staging 2>/dev/null || true
+            exit 1
+          fi
+        EOF
+        
+    - name: 🗄️ Setup Database (only on prisma changes)
+      if: steps.changes.outputs.prisma == 'true'
       run: |
         ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
-          # Basic health check using logout endpoint
-          sleep 5
-          if curl -s -o /dev/null -w "%{http_code}" -X POST http://localhost:3002/api/auth/logout | grep -q "200"; then
-            echo "✅ Logout endpoint responded with 200"
+          cd /opt/projetogran
+
+          echo "⏳ Waiting for PostgreSQL (staging) to be ready..."
+          sleep 10
+
+          docker exec crewflow-app-staging npx prisma migrate deploy
+
+          if docker exec crewflow-app-staging npx prisma db seed 2>/dev/null; then
+            echo "✅ Staging database seeded successfully"
           else
-            echo "⚠️ Logout health check failed (verify container logs)"
-            docker logs crewflow-app-staging || true
+            echo "ℹ️ Seed skipped (database already populated or error occurred)"
+          fi
+        EOF
+
+    - name: "🔎 Health check: staging app responds (login route)"
+      run: |
+        ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
+          set -e
+          echo "🔎 Checking /login endpoint on staging..."
+          if command -v curl >/dev/null 2>&1; then
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3002/login)
+            echo "HTTP status: $STATUS"
+            case "$STATUS" in
+              200|302|307|308)
+                echo "✅ Staging app responding on /login"
+                ;;
+              *)
+                echo "❌ Unexpected status on /login: $STATUS"
+                exit 1
+                ;;
+            esac
+          else
+            STATUS=$(wget --server-response -q -O - http://localhost:3002/login 2>&1 | awk '/^  HTTP/{print $2}' | tail -n1)
+            echo "HTTP status: $STATUS"
+            if [ "$STATUS" = "200" ] || [ "$STATUS" = "302" ] || [ "$STATUS" = "307" ] || [ "$STATUS" = "308" ]; then
+              echo "✅ Staging app responding on /login"
+            else
+              echo "❌ Unexpected status on /login: $STATUS"
+              exit 1
+            fi
           fi
         EOF
         

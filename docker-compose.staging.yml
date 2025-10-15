@@ -1,0 +1,56 @@
+version: '3.8'
+services:
+  app-staging:
+    image: crewflow-app:staging
+    ports:
+      - "3002:3001"
+    environment:
+      - DATABASE_URL=postgresql://crewflow_user:crewflow_staging_2024@postgres-staging:5432/crewflow_staging?schema=public
+      - JWT_SECRET=crewflow-jwt-secret-staging-2024
+      - NEXTAUTH_URL=http://46.202.146.234:3002
+      - NODE_ENV=production
+    container_name: crewflow-app-staging
+    restart: unless-stopped
+    networks:
+      - projetogran_crewflow-network
+    depends_on:
+      - postgres-staging
+
+  postgres-staging:
+    image: postgres:15
+    container_name: postgres-staging
+    environment:
+      - POSTGRES_DB=crewflow_staging
+      - POSTGRES_USER=crewflow_user
+      - POSTGRES_PASSWORD=crewflow_staging_2024
+    ports:
+      - "5435:5432"
+    volumes:
+      - postgres_data_staging:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - projetogran_crewflow-network
+
+  pgadmin-staging:
+    image: dpage/pgadmin4:latest
+    container_name: pgadmin-staging
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@crewflow.com
+      - PGADMIN_DEFAULT_PASSWORD=admin123
+    ports:
+      - "5051:80"
+    volumes:
+      - pgadmin_data_staging:/var/lib/pgadmin
+    restart: unless-stopped
+    networks:
+      - projetogran_crewflow-network
+    depends_on:
+      - postgres-staging
+
+networks:
+  projetogran_crewflow-network:
+    external: true
+
+volumes:
+  postgres_data_staging:
+  pgadmin_data_staging:
