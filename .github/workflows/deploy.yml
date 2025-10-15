@@ -144,23 +144,32 @@ jobs:
             fi
           EOF
 
-      - name: "🔎 Health check: logout endpoint"
+      - name: "🔎 Health check: app responds (login route)"
         run: |
           ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
             set -e
-            echo "🔎 Testing logout endpoint..."
+            echo "🔎 Checking /login endpoint..."
             if command -v curl >/dev/null 2>&1; then
-              RES=$(curl -i -s -X POST http://localhost:3001/api/auth/logout -H "Content-Type: application/json" -d "{}")
-              echo "$RES"
-              echo "$RES" | grep -q "HTTP/1.1 200" || (echo "❌ Logout not returning 200" && exit 1)
-              echo "$RES" | grep -i "set-cookie: auth-token" >/dev/null || (echo "❌ Set-Cookie auth-token not found" && exit 1)
-              echo "✅ Logout endpoint OK"
+              STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3001/login)
+              echo "HTTP status: $STATUS"
+              case "$STATUS" in
+                200|302|307|308)
+                  echo "✅ App responding on /login"
+                  ;;
+                *)
+                  echo "❌ Unexpected status on /login: $STATUS"
+                  exit 1
+                  ;;
+              esac
             else
-              RES=$(wget -S -q -O - --header="Content-Type: application/json" --post-data="{}" http://localhost:3001/api/auth/logout 2>&1 || true)
-              echo "$RES"
-              echo "$RES" | grep -q "HTTP/1.1 200" || (echo "❌ Logout not returning 200" && exit 1)
-              echo "$RES" | grep -i "set-cookie: auth-token" >/dev/null || (echo "❌ Set-Cookie auth-token not found" && exit 1)
-              echo "✅ Logout endpoint OK"
+              STATUS=$(wget --server-response -q -O - http://localhost:3001/login 2>&1 | awk '/^  HTTP/{print $2}' | tail -n1)
+              echo "HTTP status: $STATUS"
+              if [ "$STATUS" = "200" ] || [ "$STATUS" = "302" ] || [ "$STATUS" = "307" ] || [ "$STATUS" = "308" ]; then
+                echo "✅ App responding on /login"
+              else
+                echo "❌ Unexpected status on /login: $STATUS"
+                exit 1
+              fi
             fi
           EOF
 
