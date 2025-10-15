@@ -378,3 +378,36 @@ const permissoes = getPermissionsByTeam('Administração');
 5. **Testar** redirecionamento para `/unauthorized`
 
 O sistema agora está **completamente centralizado** e **padronizado**! 🎉# CrewFlow - Deploy Automático Ativo!
+## Acesso aos Ambientes
+
+### Staging
+- URL do App: `http://46.202.146.234:3002`
+- Login do App: `ADMIN001` / `admin123`
+- URL do pgAdmin: `http://46.202.146.234:5051`
+- Login do pgAdmin: `admin@crewflow.com` / `admin123`
+- PostgreSQL (externo): `postgresql://crewflow_user:crewflow_staging_2024@46.202.146.234:5435/crewflow_staging?schema=public`
+- Registro no pgAdmin (dentro do container):
+  - Nome: `CrewFlow Staging`
+  - Hostname/address: `postgres-staging`
+  - Port: `5432`
+  - Maintenance DB: `crewflow_staging`
+  - Username: `crewflow_user`
+  - Password: `crewflow_staging_2024`
+
+### Produção
+- URL do App: `http://46.202.146.234:3001`
+- URL do pgAdmin: `http://46.202.146.234:5050`
+- Login do pgAdmin: `admin@crewflow.com` / `admin123`
+- PostgreSQL (externo): `postgresql://crewflow_user:crewflow_production_2024@46.202.146.234:5434/crewflow_production?schema=public`
+- Registro no pgAdmin (dentro do container):
+  - Nome: `CrewFlow Produção`
+  - Hostname/address: `postgres-prod`
+  - Port: `5432`
+  - Maintenance DB: `crewflow_production`
+  - Username: `crewflow_user`
+  - Password: `crewflow_production_2024`
+
+Notas
+- As credenciais padrão do pgAdmin e do usuário ADMIN do app são provisionadas nos workflows de deploy/reset e no seed (`prisma/seed-complete.cjs`).
+- Se o login do app falhar em staging, rode o workflow "Deploy CrewFlow to Staging" novamente (ele garante `ADMIN001 / admin123`) ou o workflow "Reset Staging Database" com confirmação `RESET`.
+- As portas e variáveis de ambiente estão definidas em `docker-compose.staging.yml` e `docker-compose.yml`.
