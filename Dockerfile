@@ -14,11 +14,11 @@ COPY prisma ./prisma/
 # Instalar dependências
 RUN npm ci
 
+# Gerar cliente Prisma antes de copiar todo o código para maximizar cache
+RUN npx prisma generate
+
 # Copiar código fonte
 COPY . .
-
-# Gerar cliente Prisma
-RUN npx prisma generate
 
 # Build da aplicação
 RUN npm run build
