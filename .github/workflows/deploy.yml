@@ -73,28 +73,12 @@ jobs:
           # Stop and remove old containers using docker directly
           docker stop $(docker ps -aq --filter "name=crewflow-app-production") 2>/dev/null || true
           docker rm $(docker ps -aq --filter "name=crewflow-app-production") 2>/dev/null || true
-          docker stop $(docker ps -aq --filter "name=postgres-prod") 2>/dev/null || true
-          docker rm $(docker ps -aq --filter "name=postgres-prod") 2>/dev/null || true
-          docker stop $(docker ps -aq --filter "name=pgadmin-production") 2>/dev/null || true
-          docker rm $(docker ps -aq --filter "name=pgadmin-production") 2>/dev/null || true
+          # Preserve existing database and pgAdmin containers
           
           # Create network if it doesn't exist
           docker network create projetogran_crewflow-network 2>/dev/null || true
           
-          # Start PostgreSQL first
-          docker run -d \
-            --name postgres-prod \
-            --network projetogran_crewflow-network \
-            -e POSTGRES_DB=crewflow_production \
-            -e POSTGRES_USER=crewflow_user \
-            -e POSTGRES_PASSWORD=crewflow_production_2024 \
-            -p 5434:5432 \
-            -v postgres_data:/var/lib/postgresql/data \
-            --restart unless-stopped \
-            postgres:15
-          
-          # Wait for PostgreSQL to be ready
-          sleep 10
+          # PostgreSQL already running (preserved), proceed to app start
           
           # Start the application
           APP_TAG=${{ github.sha }}
@@ -113,37 +97,26 @@ jobs:
             --restart unless-stopped \
             crewflow-app:${APP_TAG}
           
-          # Start pgAdmin
-          docker run -d \
-            --name pgadmin-production \
-            --network projetogran_crewflow-network \
-            -e PGADMIN_DEFAULT_EMAIL=admin@crewflow.com \
-            -e PGADMIN_DEFAULT_PASSWORD=admin123 \
-            -p 5050:80 \
-            -v pgadmin_data:/var/lib/pgadmin \
-            --restart unless-stopped \
-            dpage/pgadmin4:latest
+          # pgAdmin preserved
           
           # No remote tar to clean up when streaming
           echo "📊 Disk usage after image load:" 
           df -h
           
           # Wait for services to start
-          sleep 15
+          sleep 10
           
-          # Check if containers are running
-          if docker ps | grep -E "(crewflow-app-production|postgres-prod|pgadmin-production)" | wc -l | grep -q "3"; then
-            echo "✅ Services started successfully"
-            docker ps | grep -E "(crewflow-app-production|postgres-prod|pgadmin-production)"
+          # Check if app container is running
+          if docker ps | grep -q "crewflow-app-production"; then
+            echo "✅ App container started successfully"
+            docker ps | grep "crewflow-app-production"
             echo "🔎 Image details:"
             docker images | grep crewflow-app
             docker inspect crewflow-app-production --format 'container image: {{.Image}}'
           else
-            echo "❌ Services failed to start"
+            echo "❌ App container failed to start"
             docker ps
             docker logs crewflow-app-production 2>/dev/null || true
-            docker logs postgres-prod 2>/dev/null || true
-            docker logs pgadmin-production 2>/dev/null || true
             exit 1
           fi
         EOF
@@ -166,6 +139,26 @@ jobs:
             echo "✅ Database seeded successfully"
           else
             echo "ℹ️ Seed skipped (database already populated or error occurred)"
+          fi
+        EOF
+
+    - name: 🔎 Health check: logout endpoint
+      run: |
+        ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
+          set -e
+          echo "🔎 Testing logout endpoint..."
+          if command -v curl >/dev/null 2>&1; then
+            RES=$(curl -i -s -X POST http://localhost:3001/api/auth/logout -H "Content-Type: application/json" -d "{}")
+            echo "$RES"
+            echo "$RES" | grep -q "HTTP/1.1 200" || (echo "❌ Logout not returning 200" && exit 1)
+            echo "$RES" | grep -i "set-cookie: auth-token" >/dev/null || (echo "❌ Set-Cookie auth-token not found" && exit 1)
+            echo "✅ Logout endpoint OK"
+          else
+            RES=$(wget -S -q -O - --header="Content-Type: application/json" --post-data="{}" http://localhost:3001/api/auth/logout 2>&1 || true)
+            echo "$RES"
+            echo "$RES" | grep -q "HTTP/1.1 200" || (echo "❌ Logout not returning 200" && exit 1)
+            echo "$RES" | grep -i "set-cookie: auth-token" >/dev/null || (echo "❌ Set-Cookie auth-token not found" && exit 1)
+            echo "✅ Logout endpoint OK"
           fi
         EOF
         
