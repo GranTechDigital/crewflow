@@ -50,7 +50,14 @@ jobs:
             fi
 
             echo "🛑 Bringing down staging stack..."
-            docker compose -f docker-compose.staging.yml down || true
+            if docker compose version >/dev/null 2>&1; then
+              COMPOSE_CMD="docker compose"
+              $COMPOSE_CMD -f docker-compose.staging.yml down || true
+            else
+              echo "ℹ️ Using containerized docker-compose (v1.29.2) fallback for 'down'"
+              COMPOSE_RUN="docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /opt/projetogran:/workdir -w /workdir docker/compose:1.29.2"
+              $COMPOSE_RUN -f docker-compose.staging.yml down || true
+            fi
 
             echo "🛡️ Safety check: do NOT touch production volume"
             if docker volume inspect postgres_data >/dev/null 2>&1; then
@@ -65,7 +72,14 @@ jobs:
             fi
 
             echo "🚀 Recreating staging stack..."
-            docker compose -f docker-compose.staging.yml up -d
+            if docker compose version >/dev/null 2>&1; then
+              COMPOSE_CMD="docker compose"
+              $COMPOSE_CMD -f docker-compose.staging.yml up -d
+            else
+              echo "ℹ️ Using containerized docker-compose (v1.29.2) fallback for 'up'"
+              COMPOSE_RUN="docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /opt/projetogran:/workdir -w /workdir docker/compose:1.29.2"
+              $COMPOSE_RUN -f docker-compose.staging.yml up -d
+            fi
 
             echo "⏳ Waiting for PostgreSQL (staging) to be ready..."
             sleep 10

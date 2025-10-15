@@ -108,18 +108,17 @@ jobs:
             docker stop $BUSY_CIDS || true
           fi
 
-          # Determine compose command (docker compose v2 or docker-compose v1)
+          # Prefer Compose v2 plugin; if unavailable, use containerized Compose v1 (avoids Python ssl_version mismatch)
           if docker compose version >/dev/null 2>&1; then
             COMPOSE_CMD="docker compose"
-          elif docker-compose version >/dev/null 2>&1; then
-            COMPOSE_CMD="docker-compose"
+            # Bring up staging stack via compose v2
+            $COMPOSE_CMD -f docker-compose.staging.yml up -d
           else
-            echo "❌ Docker Compose not found (neither 'docker compose' nor 'docker-compose')."
-            exit 1
+            echo "ℹ️ Using containerized docker-compose (v1.29.2) fallback"
+            COMPOSE_RUN="docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /opt/projetogran:/workdir -w /workdir docker/compose:1.29.2"
+            # Bring up staging stack via containerized compose v1
+            $COMPOSE_RUN -f docker-compose.staging.yml up -d
           fi
-
-          # Bring up staging stack via compose
-          $COMPOSE_CMD -f docker-compose.staging.yml up -d
 
           echo "📊 Disk usage after compose up:"
           df -h
