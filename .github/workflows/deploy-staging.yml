@@ -136,6 +136,32 @@ jobs:
           fi
         EOF
         
+    - name: 🛠️ Ensure staging database exists
+      run: |
+        ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
+          set -e
+          cd /opt/projetogran
+
+          echo "⏳ Waiting for PostgreSQL service (container) to be ready..."
+          # Wait for Postgres to accept connections on default DB
+          for i in {1..30}; do
+            if docker exec postgres-staging pg_isready -U postgres -d postgres >/dev/null 2>&1; then
+              echo "✅ PostgreSQL is accepting connections"
+              break
+            fi
+            echo "⏳ Waiting ($i/30)..."
+            sleep 2
+          done
+
+          echo "🔍 Checking existence of database: crewflow_staging"
+          if ! docker exec postgres-staging psql -U postgres -tAc "SELECT 1 FROM pg_database WHERE datname='crewflow_staging'" | grep -q 1; then
+            echo "🆕 Creating database crewflow_staging owned by crewflow_user"
+            docker exec postgres-staging psql -U postgres -c "CREATE DATABASE crewflow_staging OWNER crewflow_user;"
+          else
+            echo "✅ Database crewflow_staging already exists"
+          fi
+        EOF
+
     - name: 🗄️ Setup Database (migrate + seed)
       run: |
         ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
@@ -164,19 +190,6 @@ jobs:
           else
             echo "❌ Staging app container not running; cannot ensure admin user"
           fi
-        EOF
-
-    - name: 📋 Prisma Status + List Tables
-      run: |
-        ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
-          set -e
-          cd /opt/projetogran
-
-          echo "🔎 Prisma migrate status (staging):"
-          docker exec crewflow-app-staging npx prisma migrate status || true
-
-          echo "📚 Public tables in crewflow_staging:"
-          docker exec postgres-staging psql -U crewflow_user -d crewflow_staging -c "SELECT table_name FROM information_schema.tables WHERE table_schema='public' ORDER BY table_name;" || true
         EOF
 
     - name: "🔎 Health check: staging app responds (login route)"
