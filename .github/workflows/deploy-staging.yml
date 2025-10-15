@@ -136,8 +136,7 @@ jobs:
           fi
         EOF
         
-    - name: 🗄️ Setup Database (only on prisma changes)
-      if: steps.changes.outputs.prisma == 'true'
+    - name: 🗄️ Setup Database (migrate + seed)
       run: |
         ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
           cd /opt/projetogran
@@ -151,6 +150,19 @@ jobs:
             echo "✅ Staging database seeded successfully"
           else
             echo "ℹ️ Seed skipped (database already populated or error occurred)"
+          fi
+        EOF
+
+    - name: 🔐 Ensure Admin Credentials (ADMIN001 / admin123)
+      run: |
+        ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
+          cd /opt/projetogran
+          echo "🔐 Ensuring admin user credentials..."
+          # Run admin creation/update script inside the app container
+          if docker ps | grep -q "crewflow-app-staging"; then
+            docker exec crewflow-app-staging node /app/create-admin-user.js || true
+          else
+            echo "❌ Staging app container not running; cannot ensure admin user"
           fi
         EOF
 
