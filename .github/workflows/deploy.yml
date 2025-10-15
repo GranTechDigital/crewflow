@@ -24,21 +24,20 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
 
-      - name: 🧹 Prepare server disk before image load
+      - name: 🧹 Prepare server before image load (no prune)
         run: |
           ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
             set -e
-            echo "📊 Disk usage before prune:"
+            echo "📊 Disk usage before image load:"
             df -h
-            echo "🧮 Docker system df before prune:"
+            echo "🧮 Docker system df (before):"
             docker system df || true
             echo "🧼 Cleaning /tmp to free ephemeral space"
             rm -rf /tmp/* || true
-            echo "🧹 Pruning unused Docker data to free space"
-            docker system prune -af || true
-            echo "📊 Disk usage after prune:"
+            echo "ℹ️ Skipping Docker prune (enough disk space)"
+            echo "📊 Disk usage after cleanup (no prune):"
             df -h
-            echo "🧮 Docker system df after prune:"
+            echo "🧮 Docker system df (after):"
             docker system df || true
           EOF
 
@@ -63,7 +62,7 @@ jobs:
             docker images | grep crewflow-app || true
 
             # Ensure the loaded image has predictable tags (latest and current SHA)
-            SRC_TAG=$(docker image ls crewflow-app | awk 'NR>1 && $2 != "<none>" {print $2; exit}')
+            SRC_TAG=$(docker image ls crewflow-app --format '{{.Tag}}' | grep -v '^<none>$' | head -n1)
             if [ -n "$SRC_TAG" ]; then
               docker tag crewflow-app:"$SRC_TAG" crewflow-app:latest || true
               docker tag crewflow-app:"$SRC_TAG" crewflow-app:${{ github.sha }} || true
@@ -74,24 +73,25 @@ jobs:
 
             docker network create projetogran_crewflow-network 2>/dev/null || true
 
-            APP_TAG=${{ github.sha }}
-            # Sanitize possible CR/LF or spaces from tag
-            APP_TAG=$(echo "$APP_TAG" | tr -d '\r' | tr -d '[:space:]')
-            if [ -z "$APP_TAG" ] || ! docker image inspect "crewflow-app:${APP_TAG}" > /dev/null 2>&1; then
-              echo "⚠️ Image tag '${APP_TAG:-<empty>}' not found; trying 'latest' and other tags"
-              if docker image inspect "crewflow-app:latest" > /dev/null 2>&1; then
-                APP_TAG=latest
+            APP_TAG_GH=${{ github.sha }}
+            # Sanitize possible CR/LF or spaces from GH SHA
+            APP_TAG_GH=$(echo "$APP_TAG_GH" | tr -d '\r' | tr -d '[:space:]')
+            # Default to latest to avoid empty tag
+            APP_TAG=latest
+            if [ -n "$APP_TAG_GH" ] && docker image inspect "crewflow-app:${APP_TAG_GH}" > /dev/null 2>&1; then
+              APP_TAG="$APP_TAG_GH"
+            elif docker image inspect "crewflow-app:latest" > /dev/null 2>&1; then
+              APP_TAG=latest
+            else
+              # Fallback: first available tag for crewflow-app (excluding <none>)
+              APP_TAG_FALLBACK=$(docker image ls crewflow-app --format '{{.Tag}}' | grep -v '^<none>$' | head -n1)
+              APP_TAG_FALLBACK=$(echo "$APP_TAG_FALLBACK" | tr -d '\r' | tr -d '[:space:]')
+              if [ -n "$APP_TAG_FALLBACK" ]; then
+                APP_TAG="$APP_TAG_FALLBACK"
               else
-                # Fallback: first available tag for crewflow-app (excluding <none>)
-                APP_TAG_FALLBACK=$(docker image ls crewflow-app | awk 'NR>1 && $2 != "<none>" {print $2; exit}')
-                APP_TAG_FALLBACK=$(echo "$APP_TAG_FALLBACK" | tr -d '\r' | tr -d '[:space:]')
-                if [ -n "$APP_TAG_FALLBACK" ]; then
-                  APP_TAG=$APP_TAG_FALLBACK
-                else
-                  echo "❌ No valid tag found for crewflow-app. Available images:"
-                  docker image ls crewflow-app || docker images | grep '^crewflow-app' || true
-                  exit 1
-                fi
+                echo "❌ No valid tag found for crewflow-app. Available images:"
+                docker image ls crewflow-app || docker images | grep '^crewflow-app' || true
+                exit 1
               fi
             fi
             echo "🚀 Using image tag: $APP_TAG"
