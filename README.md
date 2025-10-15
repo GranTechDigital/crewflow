@@ -21,7 +21,7 @@ O sistema utiliza uma arquitetura baseada em containers Docker com os seguintes 
 | Ambiente | URL | Descrição |
 |----------|-----|-----------|
 | Produção | http://46.202.146.234:3001 | Ambiente de produção |
-| Staging | Local | Ambiente de testes com PostgreSQL local |
+| Staging | http://46.202.146.234:3002 | Ambiente de homologação espelhado da produção (PostgreSQL separado, resetável) |
 | Desenvolvimento | Local | Ambiente de desenvolvimento com SQLite |
 
 ### 🚀 Processo de Deploy
@@ -35,6 +35,44 @@ O deploy é realizado automaticamente pelo GitHub Actions quando há um push par
 3. Envia os arquivos para o servidor via SSH
 4. Para e remove os containers existentes
 5. Inicia os novos containers com a versão atualizada
+
+#### Staging (espelho de produção)
+
+- Deploy manual ou por push nas branches `develop`/`staging`.
+- Workflow: "Deploy CrewFlow to Staging" (habilitado para `workflow_dispatch`).
+- Stack via Compose: `docker-compose.staging.yml` com:
+  - App (`crewflow-app-staging`) em `3002:3001`, imagem `crewflow-app:staging`.
+  - Postgres 15 (`postgres-staging`) em `5435:5432`, DB `crewflow_staging`.
+  - pgAdmin (`pgadmin-staging`) em `5051:80`.
+- Rede externa compartilhada: `projetogran_crewflow-network`.
+- Volumes persistentes e separados:
+  - Produção: `postgres_data`
+  - Staging: `postgres_data_staging`
+
+#### Health Checks
+
+- Produção: `GET http://localhost:3001/login` deve retornar `200/302/307/308`.
+- Staging: `GET http://localhost:3002/login` deve retornar `200/302/307/308`.
+
+#### Runbook de Staging
+
+- Disparar deploy de staging:
+  - Manual: Acesse GitHub → Actions → "Deploy CrewFlow to Staging" → "Run workflow".
+  - Ou via push: faça push para `develop` ou `staging`.
+- Verificar containers (no servidor):
+  - `docker ps --filter name=crewflow-app-staging`
+  - `docker ps --filter name=postgres-staging`
+- Verificar volumes:
+  - `docker volume ls | grep postgres_data` (deve listar `postgres_data` e `postgres_data_staging`)
+- Resetar somente o app (preserva dados):
+  - `docker compose -f /opt/projetogran/docker-compose.staging.yml up -d --force-recreate app-staging`
+- Resetar o banco de staging (APAGA dados do staging, não toca produção):
+  - `docker compose -f /opt/projetogran/docker-compose.staging.yml down`
+  - `docker volume rm postgres_data_staging`
+  - `docker compose -f /opt/projetogran/docker-compose.staging.yml up -d`
+- Acessos:
+  - App staging: `http://46.202.146.234:3002/login`
+  - pgAdmin staging: `http://46.202.146.234:5051` (login `admin@crewflow.com` / `admin123`)
 
 #### Configuração da Rede Docker
 

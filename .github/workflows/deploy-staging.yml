@@ -1,6 +1,7 @@
 name: Deploy CrewFlow to Staging
 
 on:
+  workflow_dispatch: {}
   push:
     branches: [ develop, staging ]
   pull_request:
