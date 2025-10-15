@@ -41,33 +41,44 @@ jobs:
         # Upload new image
         scp -o StrictHostKeyChecking=no crewflow-app-staging.tar root@${{ secrets.SERVER_HOST }}:/tmp/
         
+        # Ensure application directory exists and upload staging Postgres compose
+        ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} "mkdir -p /opt/projetogran"
+        scp -o StrictHostKeyChecking=no docker-compose.staging-postgres.yml root@${{ secrets.SERVER_HOST }}:/opt/projetogran/
+        
     - name: 🚀 Deploy to staging
       run: |
         ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
+          set -e
           # Clean up Docker system before deployment
-          docker system prune -f
-          
+          docker system prune -f || true
+
           # Load new image
           docker load < /tmp/crewflow-app-staging.tar
-          
+
+          # Ensure Postgres staging is up via compose
+          cd /opt/projetogran
+          docker compose -f docker-compose.staging-postgres.yml up -d
+
           # Stop and remove old staging container
           docker stop crewflow-app-staging 2>/dev/null || true
           docker rm crewflow-app-staging 2>/dev/null || true
-          
-          # Start new staging container (different port)
-          docker run -d --name crewflow-app-staging -p 3002:3000 \
-            -e DATABASE_URL='file:./dev-staging.db' \
+
+          # Start new staging container (different port, correct internal port)
+          docker run -d --name crewflow-app-staging \
+            --network app-network \
+            -p 3002:3001 \
+            -e DATABASE_URL='postgresql://postgres:senha_segura_aqui@postgres-staging:5432/projetogran?schema=public' \
             -e JWT_SECRET='crewflow-jwt-secret-staging-2024' \
-            -e NEXTAUTH_URL='http://localhost:3000' \
-            -e NODE_ENV='development' \
+            -e NEXTAUTH_URL='http://${{ secrets.SERVER_HOST }}:3002' \
+            -e NODE_ENV='production' \
             crewflow-app:staging
-          
+
           # Clean up
           rm /tmp/crewflow-app-staging.tar
-          
+
           # Wait for container to start
           sleep 10
-          
+
           # Check if container is running
           if docker ps | grep -q crewflow-app-staging; then
             echo "✅ Staging container started successfully"
@@ -76,17 +87,22 @@ jobs:
             docker logs crewflow-app-staging
             exit 1
           fi
+
+          # Setup Prisma inside container
+          docker exec crewflow-app-staging npx prisma generate || true
+          docker exec crewflow-app-staging npx prisma migrate deploy || true
         EOF
         
     - name: 🧪 Run tests (optional)
       run: |
         ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
-          # Basic health check
+          # Basic health check using logout endpoint
           sleep 5
-          if curl -f http://localhost:3002/api/health 2>/dev/null; then
-            echo "✅ Health check passed"
+          if curl -s -o /dev/null -w "%{http_code}" -X POST http://localhost:3002/api/auth/logout | grep -q "200"; then
+            echo "✅ Logout endpoint responded with 200"
           else
-            echo "⚠️ Health check failed (normal if no health endpoint)"
+            echo "⚠️ Logout health check failed (verify container logs)"
+            docker logs crewflow-app-staging || true
           fi
         EOF
         

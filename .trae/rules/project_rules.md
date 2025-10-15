@@ -39,6 +39,7 @@
   </referencias>
 
   <principios>
+  <regra>Extremamente importante usar o MCP Context7 para manter o código atualizado com o que há de mais moderno</regra>
     <regra>Responda sempre em português claro e objetivo.</regra>
     <regra>Opte por soluções simples e diretas.</regra>
     <regra>Elimine duplicações e reutilize código existente.</regra>

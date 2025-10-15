@@ -91,7 +91,7 @@ jobs:
             --network projetogran_crewflow-network \
             -e DATABASE_URL="postgresql://crewflow_user:crewflow_production_2024@postgres-prod:5432/crewflow_production?schema=public" \
             -e JWT_SECRET=crewflow-jwt-secret-key-2024 \
-            -e NEXTAUTH_URL=http://46.202.146.234:3001 \
+            -e NEXTAUTH_URL=http://${{ secrets.SERVER_HOST }}:3001 \
             -e NODE_ENV=production \
             -p 3001:3001 \
             --restart unless-stopped \

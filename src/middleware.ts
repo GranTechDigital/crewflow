@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server'
 import { jwtVerify } from 'jose'
 
 const publicRoutes = ['/login', '/unauthorized', '/api/auth/login']
-const publicApiRoutes = ['/api/auth/login', '/api/auth/register', '/api/auth/logout', '/api/periodo/upload', '/api/periodo/dashboard-projetos-simples', '/api/dados/sincronizar-funcoes']
+const publicApiRoutes = ['/api/auth/login', '/api/auth/register', '/api/periodo/upload', '/api/periodo/dashboard-projetos-simples', '/api/dados/sincronizar-funcoes']
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl

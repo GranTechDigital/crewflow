@@ -29,7 +29,7 @@ export const syncWithRetry = async (options: SyncOptions = {}): Promise<SyncResu
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), timeout);
 
-      const response = await fetch('/api/dados/sincronizar', {
+      const response = await fetch('/api/funcionarios/sincronizar', {
         method: 'POST',
         signal: controller.signal,
         headers: {

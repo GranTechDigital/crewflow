@@ -32,7 +32,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(true);
       console.log('Checking auth...');
 
-      const response = await fetch('/api/auth/verify');
+      const response = await fetch('/api/auth/verify', {
+        method: 'GET',
+        credentials: 'include',
+        cache: 'no-store',
+      });
 
       console.log('Auth response status:', response.status);
       if (response.ok) {
@@ -86,6 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     try {
+      setLoading(true);
       console.log("Cookies antes do logout:", document.cookie);
       
       // Solução direta: limpar o cookie no cliente
@@ -95,7 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         await fetch("/api/auth/logout", {
           method: "POST",
-          credentials: "same-origin",
+          credentials: "include",
         });
       } catch (e) {
         console.log("Erro na API de logout, mas continuando com logout local:", e);
@@ -111,8 +116,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.removeItem('auth-token');
         sessionStorage.clear();
       }
-      
-      // Redirecionar para a página de login
+
+      // Redirecionar para a página de login (navegação completa)
       window.location.replace("/login");
     } catch (error) {
       console.error("Erro ao fazer logout:", error);
@@ -120,6 +125,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Mesmo com erro, tentar limpar o estado e redirecionar
       setUsuario(null);
       window.location.replace("/login");
+    } finally {
+      setLoading(false);
     }
   }
 

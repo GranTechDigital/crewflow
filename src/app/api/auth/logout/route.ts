@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { jwtVerify } from 'jose';
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,9 +21,25 @@ export async function POST(request: NextRequest) {
     console.log('🚪 LOGOUT API - Token final usado:', token ? 'SIM' : 'NÃO');
     console.log('🚪 LOGOUT API - Todos os cookies:', request.cookies.getAll().map(c => `${c.name}=${c.value}`));
     
-    // Mesmo sem token, seguir com a remoção de cookies para garantir logout
+    // Exigir token presente (usuário deve estar autenticado para realizar logout)
     if (!token) {
-      console.log('🚪 LOGOUT API - Aviso: Nenhum token encontrado, prosseguindo para limpar cookies');
+      console.log('🚪 LOGOUT API - Nenhum token encontrado, bloqueando logout');
+      return NextResponse.json(
+        { error: 'Token de autenticação necessário' },
+        { status: 401 }
+      );
+    }
+
+    // Validar token (defesa adicional contra requests malformados)
+    try {
+      const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret');
+      await jwtVerify(token, secret);
+    } catch (e) {
+      console.log('🚪 LOGOUT API - Token inválido no logout');
+      return NextResponse.json(
+        { error: 'Token de autenticação inválido' },
+        { status: 401 }
+      );
     }
     
     const response = NextResponse.json({
@@ -30,39 +47,28 @@ export async function POST(request: NextRequest) {
       message: 'Logout realizado com sucesso'
     });
 
-    // Remover o cookie de autenticação com múltiplas estratégias
+    // Remover o cookie de autenticação de forma consistente
     console.log('🚪 LOGOUT API - Removendo cookie auth-token...');
-    
-    // Estratégia 1: Definir como vazio com maxAge 0 (sem Secure para ambientes HTTP)
+
+    // Definir como vazio e expirar imediatamente
     response.cookies.set('auth-token', '', {
       httpOnly: true,
       secure: false,
       sameSite: 'lax',
-      maxAge: 0,
       path: '/',
+      maxAge: 0,
       expires: new Date(0)
     });
-    
-    // Estratégia 2: Deletar explicitamente
+
+    // Deletar explicitamente
     response.cookies.delete('auth-token');
-    
-    // Estratégia 3: Definir com data muito antiga (sem Secure para ambientes HTTP)
-    response.cookies.set('auth-token', 'deleted', {
-      httpOnly: true,
-      secure: false,
-      sameSite: 'lax',
-      maxAge: -1,
-      path: '/',
-      expires: new Date('1970-01-01')
-    });
 
     // Adicionar headers para evitar cache
     response.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
     response.headers.set('Pragma', 'no-cache');
     response.headers.set('Expires', '0');
     
-    // Header adicional para forçar limpeza de cookies
-    response.headers.set('Clear-Site-Data', '"cookies"');
+    // Clear-Site-Data não é suportado em origens inseguras (HTTP); omitido aqui
 
     console.log('🚪 LOGOUT API - Todas as estratégias de remoção aplicadas');
     return response;
