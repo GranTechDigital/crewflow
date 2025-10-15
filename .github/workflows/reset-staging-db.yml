@@ -1,7 +1,12 @@
 name: Reset Staging Database
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Digite RESET para confirmar o reset do banco de staging"
+        required: true
+        type: string
 
 jobs:
   reset-staging-db:
@@ -10,6 +15,14 @@ jobs:
     steps:
       - name: 📥 Checkout code
         uses: actions/checkout@v4
+
+      - name: 🔒 Validate confirmation input
+        run: |
+          if [ "${{ github.event.inputs.confirm }}" != "RESET" ]; then
+            echo "::error::Confirmação inválida. Digite 'RESET' para continuar."
+            exit 1
+          fi
+          echo "✅ Confirmação recebida: RESET"
 
       - name: 🔑 Setup SSH
         run: |

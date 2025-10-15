@@ -84,6 +84,7 @@ O deploy é realizado automaticamente pelo GitHub Actions quando há um push par
   - Executa health check em `/login` (200/302/307/308).
 - Como executar:
   - GitHub → Actions → "Reset Staging Database" → Run workflow.
+  - Digite `RESET` no campo de confirmação para prosseguir.
 
 #### Configuração da Rede Docker
 
