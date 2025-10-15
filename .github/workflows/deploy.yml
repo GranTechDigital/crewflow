@@ -70,10 +70,25 @@ jobs:
             docker network create projetogran_crewflow-network 2>/dev/null || true
 
             APP_TAG=${{ github.sha }}
-            if ! docker image inspect crewflow-app:${APP_TAG} > /dev/null 2>&1; then
-              echo "⚠️ Image tag ${APP_TAG} not found, falling back to latest"
-              APP_TAG=latest
+            # Sanitize possible CR/LF or spaces from tag
+            APP_TAG=$(echo "$APP_TAG" | tr -d '\r' | tr -d '[:space:]')
+            if [ -z "$APP_TAG" ] || ! docker image inspect "crewflow-app:${APP_TAG}" > /dev/null 2>&1; then
+              echo "⚠️ Image tag '${APP_TAG:-<empty>}' not found; trying 'latest' and other tags"
+              if docker image inspect "crewflow-app:latest" > /dev/null 2>&1; then
+                APP_TAG=latest
+              else
+                APP_TAG_FALLBACK=$(docker image ls crewflow-app --format '{{.Tag}}' | grep -v '<none>' | head -n1)
+                APP_TAG_FALLBACK=$(echo "$APP_TAG_FALLBACK" | tr -d '\r' | tr -d '[:space:]')
+                if [ -n "$APP_TAG_FALLBACK" ]; then
+                  APP_TAG=$APP_TAG_FALLBACK
+                else
+                  echo "❌ No valid tag found for crewflow-app. Available images:"
+                  docker images | grep crewflow-app || true
+                  exit 1
+                fi
+              fi
             fi
+            echo "🚀 Using image tag: $APP_TAG"
             docker run -d \
               --name crewflow-app-production \
               --network projetogran_crewflow-network \
