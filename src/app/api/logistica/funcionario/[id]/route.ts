@@ -430,8 +430,9 @@ export async function PATCH(
 
     // Validação: só pode submeter se todas as tarefas estiverem concluídas
     if (statusPrestserv === "EM VALIDAÇÃO") {
+      // Considerar tarefa concluída tanto "CONCLUIDO" quanto "CONCLUIDA"
       const tarefasPendentes = remanejamentoFuncionario.tarefas.filter(
-        (tarefa) => tarefa.status !== "SUBMETER RASCUNHO"
+        (tarefa) => tarefa.status !== "CONCLUIDO" && tarefa.status !== "CONCLUIDA"
       );
       if (tarefasPendentes.length > 0) {
         return NextResponse.json(
