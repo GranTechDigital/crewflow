@@ -1,4 +1,4 @@
-name: Deploy to Production Server
+name: Deploy CrewFlow to Server
 
 on:
   workflow_dispatch: # Executa apenas manualmente para evitar falhas em pushes
