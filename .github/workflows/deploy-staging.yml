@@ -93,12 +93,33 @@ jobs:
           # Ensure network exists
           docker network create projetogran_crewflow-network 2>/dev/null || true
 
-          # Stop and remove existing staging container
-          docker stop $(docker ps -aq --filter "name=crewflow-app-staging") 2>/dev/null || true
-          docker rm $(docker ps -aq --filter "name=crewflow-app-staging") 2>/dev/null || true
+          # Stop and remove existing staging container safely
+          CID=$(docker ps -aq --filter "name=crewflow-app-staging" | tr -d '\r' | tr -d '[:space:]')
+          if [ -n "$CID" ]; then
+            echo "🛑 Stopping existing container crewflow-app-staging ($CID)"
+            docker stop "$CID" || true
+            docker rm "$CID" || true
+          fi
+
+          # Free port 3002 if occupied by any container
+          BUSY_CIDS=$(docker ps --format '{{.ID}} {{.Ports}}' | awk '/0.0.0.0:3002->/ {print $1}')
+          if [ -n "$BUSY_CIDS" ]; then
+            echo "⚠️ Port 3002 in use; stopping containers: $BUSY_CIDS"
+            docker stop $BUSY_CIDS || true
+          fi
+
+          # Determine compose command (docker compose v2 or docker-compose v1)
+          if docker compose version >/dev/null 2>&1; then
+            COMPOSE_CMD="docker compose"
+          elif docker-compose version >/dev/null 2>&1; then
+            COMPOSE_CMD="docker-compose"
+          else
+            echo "❌ Docker Compose not found (neither 'docker compose' nor 'docker-compose')."
+            exit 1
+          fi
 
           # Bring up staging stack via compose
-          docker compose -f docker-compose.staging.yml up -d
+          $COMPOSE_CMD -f docker-compose.staging.yml up -d
 
           echo "📊 Disk usage after compose up:"
           df -h
