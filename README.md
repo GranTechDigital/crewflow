@@ -74,6 +74,17 @@ O deploy é realizado automaticamente pelo GitHub Actions quando há um push par
   - App staging: `http://46.202.146.234:3002/login`
   - pgAdmin staging: `http://46.202.146.234:5051` (login `admin@crewflow.com` / `admin123`)
 
+#### Reset de Staging via Actions (manual)
+
+- Workflow: "Reset Staging Database" (manual, protegido).
+- O que faz:
+  - Derruba a stack de staging.
+  - Remove apenas o volume `postgres_data_staging` (NUNCA remove `postgres_data`).
+  - Sobe a stack novamente e roda `prisma migrate deploy` e `prisma db seed` no app.
+  - Executa health check em `/login` (200/302/307/308).
+- Como executar:
+  - GitHub → Actions → "Reset Staging Database" → Run workflow.
+
 #### Configuração da Rede Docker
 
 ```bash

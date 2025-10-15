@@ -1,0 +1,97 @@
+name: Reset Staging Database
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  reset-staging-db:
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔑 Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: 🧹 Reset staging database volume (safe)
+        run: |
+          # Use quoted heredoc to avoid local variable expansion
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
+            set -e
+            echo "📍 Host: $(hostname)"
+            echo "📂 Checking volumes before reset..."
+            docker volume ls || true
+
+            # Ensure network exists
+            docker network create projetogran_crewflow-network 2>/dev/null || true
+
+            cd /opt/projetogran
+            if [ ! -f docker-compose.staging.yml ]; then
+              echo "❌ docker-compose.staging.yml not found in /opt/projetogran"
+              exit 1
+            fi
+
+            echo "🛑 Bringing down staging stack..."
+            docker compose -f docker-compose.staging.yml down || true
+
+            echo "🛡️ Safety check: do NOT touch production volume"
+            if docker volume inspect postgres_data >/dev/null 2>&1; then
+              echo "ℹ️ Production volume 'postgres_data' exists (will NOT be removed)"
+            fi
+
+            echo "🗑️ Removing staging DB volume 'postgres_data_staging'"
+            if docker volume inspect postgres_data_staging >/dev/null 2>&1; then
+              docker volume rm postgres_data_staging
+            else
+              echo "ℹ️ Volume 'postgres_data_staging' not found (nothing to remove)"
+            fi
+
+            echo "🚀 Recreating staging stack..."
+            docker compose -f docker-compose.staging.yml up -d
+
+            echo "⏳ Waiting for PostgreSQL (staging) to be ready..."
+            sleep 10
+
+            echo "🧭 Running Prisma migrations and seed on staging app..."
+            if docker ps | grep -q "crewflow-app-staging"; then
+              docker exec crewflow-app-staging npx prisma migrate deploy || true
+              if docker exec crewflow-app-staging npx prisma db seed 2>/dev/null; then
+                echo "✅ Staging database seeded successfully"
+              else
+                echo "ℹ️ Seed skipped (database already populated or error occurred)"
+              fi
+            else
+              echo "❌ Staging app container not running"
+              docker ps
+              exit 1
+            fi
+
+            echo "🔎 Checking volumes after reset..."
+            docker volume ls || true
+
+            echo "🔎 Health check on staging /login..."
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3002/login || echo "000")
+            echo "HTTP status: $STATUS"
+            case "$STATUS" in
+              200|302|307|308)
+                echo "✅ Staging app responding on /login"
+                ;;
+              *)
+                echo "❌ Unexpected status on /login: $STATUS"
+                docker logs crewflow-app-staging 2>/dev/null || true
+                exit 1
+                ;;
+            esac
+          EOF
+
+      - name: 🎉 Reset complete
+        run: |
+          echo "🚀 Staging DB reset completed successfully!"
+          echo "🌐 Staging app: http://${{ secrets.SERVER_HOST }}:3002/login"
+          echo "🗄️ Staging Postgres port: 5435"
+          echo "🧰 Staging pgAdmin: http://${{ secrets.SERVER_HOST }}:5051"
