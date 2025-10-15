@@ -1,0 +1,85 @@
+name: Audit Staging Database
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Ação: check | migrate | seed | ensure-admin | full"
+        required: false
+        default: "full"
+        type: string
+
+jobs:
+  audit-staging-db:
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔑 Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: 🔎 Audit / Repair staging DB
+        run: |
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
+            set -e
+            cd /opt/projetogran
+
+            ACTION="${{ github.event.inputs.action }}"
+            [ -z "$ACTION" ] && ACTION="full"
+            echo "▶ Action: $ACTION"
+
+            echo "🐳 Containers:"
+            docker ps || true
+
+            echo "🔎 Prisma migrate status:"
+            if docker ps | grep -q "crewflow-app-staging"; then
+              docker exec crewflow-app-staging npx prisma migrate status || true
+            else
+              echo "❌ App container not running; cannot check prisma status"
+            fi
+
+            if [ "$ACTION" = "migrate" ] || [ "$ACTION" = "full" ]; then
+              echo "🚚 Applying migrations (deploy)"
+              docker exec crewflow-app-staging npx prisma migrate deploy || true
+            fi
+
+            echo "📚 List public tables:"
+            docker exec postgres-staging psql -U crewflow_user -d crewflow_staging -c "SELECT table_name FROM information_schema.tables WHERE table_schema='public' ORDER BY table_name;" || true
+
+            if [ "$ACTION" = "seed" ] || [ "$ACTION" = "full" ]; then
+              echo "🌱 Seeding database"
+              if docker exec crewflow-app-staging npx prisma db seed 2>/dev/null; then
+                echo "✅ Seed complete"
+              else
+                echo "ℹ️ Seed skipped or failed"
+              fi
+            fi
+
+            if [ "$ACTION" = "ensure-admin" ] || [ "$ACTION" = "full" ]; then
+              echo "🔐 Ensuring admin credentials (ADMIN001 / admin123)"
+              docker exec crewflow-app-staging node /app/create-admin-user.js || true
+            fi
+
+            echo "🔎 Health check: /login"
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3002/login || echo "000")
+            echo "HTTP status: $STATUS"
+            case "$STATUS" in
+              200|302|307|308)
+                echo "✅ Staging app responding"
+                ;;
+              *)
+                echo "❌ Unexpected status on /login: $STATUS"
+                docker logs crewflow-app-staging 2>/dev/null || true
+                ;;
+            esac
+          EOF
+
+      - name: 🎉 Audit complete
+        run: |
+          echo "✅ Staging DB audit finished. Check logs above for details."

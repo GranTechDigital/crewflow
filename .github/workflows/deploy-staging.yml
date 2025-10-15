@@ -166,6 +166,19 @@ jobs:
           fi
         EOF
 
+    - name: 📋 Prisma Status + List Tables
+      run: |
+        ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
+          set -e
+          cd /opt/projetogran
+
+          echo "🔎 Prisma migrate status (staging):"
+          docker exec crewflow-app-staging npx prisma migrate status || true
+
+          echo "📚 Public tables in crewflow_staging:"
+          docker exec postgres-staging psql -U crewflow_user -d crewflow_staging -c "SELECT table_name FROM information_schema.tables WHERE table_schema='public' ORDER BY table_name;" || true
+        EOF
+
     - name: "🔎 Health check: staging app responds (login route)"
       run: |
         ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
