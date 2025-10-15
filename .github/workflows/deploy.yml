@@ -52,7 +52,8 @@ jobs:
 
       - name: 🚀 Deploy on server
         run: |
-          ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << EOF
+          # Use quoted heredoc to prevent local shell from expanding remote variables like $APP_TAG
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
             set -e
             echo "📊 Disk usage before deploy:" 
             df -h
