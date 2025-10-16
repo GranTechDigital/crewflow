@@ -1,4 +1,5 @@
 name: Seed Fill Matriz
+run-name: ${{ inputs.run_name || format('Seed Fill Matriz — {0} — {1}', inputs.target, github.ref_name) }}
 
 on:
   workflow_dispatch:
@@ -14,6 +15,10 @@ on:
         default: staging
       custom_database_url:
         description: 'DATABASE_URL para modo custom (opcional)'
+        type: string
+        required: false
+      run_name:
+        description: 'Nome do run (opcional) — deixe vazio para usar ambiente/branch'
         type: string
         required: false
 

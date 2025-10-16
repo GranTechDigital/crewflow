@@ -321,6 +321,31 @@ function ContratoDetalheContent() {
     }
   };
 
+  const handleRemoveFuncao = async (funcaoId: number) => {
+    if (!contrato?.id) return;
+    if (!confirm('Tem certeza que deseja excluir esta função e todos os seus treinamentos?')) return;
+
+    try {
+      const response = await fetch(`/api/matriz-treinamento/contratos/${contrato.id}/funcoes`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ funcaoIds: [funcaoId] })
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        setExpandedFuncao(null);
+        await fetchContratoDetalhes();
+      } else {
+        alert(data.error || 'Erro ao remover função');
+      }
+    } catch (error) {
+      console.error('Erro ao remover função:', error);
+      alert('Erro ao remover função');
+    }
+  };
+
   const filteredFuncoes = funcoes.filter(funcao =>
     funcao.funcao.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -437,6 +462,16 @@ function ContratoDetalheContent() {
                     >
                       <PlusIcon className="h-5 w-5" />
                     </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemoveFuncao(funcao.id);
+                      }}
+                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                      title="Excluir função e todos os treinamentos"
+                    >
+                      <TrashIcon className="h-5 w-5" />
+                    </button>
                   </div>
                 </div>
               </div>
@@ -488,9 +523,9 @@ function ContratoDetalheContent() {
                                   Adicionar Treinamento
                                 </button>
                                 <button
-                                  onClick={() => handleRemoveTreinamento(item.id)}
+                                  onClick={() => handleRemoveFuncao(funcao.id)}
                                   className="p-1 text-red-600 hover:bg-red-50 rounded"
-                                  title="Remover função"
+                                  title="Excluir função"
                                 >
                                   <TrashIcon className="h-4 w-4" />
                                 </button>

@@ -38,6 +38,7 @@ export const TEAM_PERMISSIONS: { [key: string]: string[] } = {
   'Logística': [
     PERMISSIONS.ACCESS_FUNCIONARIOS,
     PERMISSIONS.ACCESS_LOGISTICA,
+    PERMISSIONS.ACCESS_PREST_SERV,
   ],
   'Planejamento': [
     PERMISSIONS.ACCESS_FUNCIONARIOS,

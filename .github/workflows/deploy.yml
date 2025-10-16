@@ -1,7 +1,13 @@
 name: Deploy to Production Server
+run-name: ${{ inputs.run_name || github.event.head_commit.message || format('Deploy {0} by {1}', github.ref_name, github.actor) }}
 
 on:
   workflow_dispatch: # Executa apenas manualmente para evitar falhas em pushes
+    inputs:
+      run_name:
+        description: 'Nome do run (opcional) — deixe vazio para usar branch/autor'
+        type: string
+        required: false
 
 jobs:
   deploy:

@@ -21,6 +21,13 @@ export default function ProtectedRoute({
   const { hasAnyPermission } = usePermissions();
   const router = useRouter();
 
+  const normalize = (str: string) =>
+    str
+      .trim()
+      .toUpperCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+
   useEffect(() => {
     if (!loading) {
       // Se não há usuário, redirecionar para login
@@ -35,10 +42,14 @@ export default function ProtectedRoute({
         return;
       }
 
-      // Verificar equipe se especificada
-      if (requiredEquipe.length > 0 && !requiredEquipe.includes(usuario.equipe)) {
+      // Verificar equipe se especificada (comparação normalizada, case/acentos-insensível)
+      if (requiredEquipe.length > 0) {
+        const equipesNormalizadas = requiredEquipe.map(normalize);
+        const usuarioEquipeNormalizada = normalize(usuario.equipe);
+        if (!equipesNormalizadas.includes(usuarioEquipeNormalizada)) {
         router.push('/unauthorized');
         return;
+        }
       }
     }
   }, [usuario, loading, requiredPermissions, requiredEquipe, hasAnyPermission, router]);
@@ -78,8 +89,11 @@ export default function ProtectedRoute({
     );
   }
 
-  // Verificar equipe
-  if (requiredEquipe.length > 0 && !requiredEquipe.includes(usuario.equipe)) {
+  // Verificar equipe (comparação normalizada)
+  if (requiredEquipe.length > 0) {
+    const equipesNormalizadas = requiredEquipe.map(normalize);
+    const usuarioEquipeNormalizada = normalize(usuario.equipe);
+    if (!equipesNormalizadas.includes(usuarioEquipeNormalizada)) {
     return fallback || (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -94,8 +108,9 @@ export default function ProtectedRoute({
         </div>
       </div>
     );
+    }
   }
 
   // Se passou por todas as verificações, renderizar o conteúdo
   return <>{children}</>;
-} 
+}

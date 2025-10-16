@@ -1,12 +1,13 @@
 // app/page.tsx
 import Link from 'next/link';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import { ROUTE_PROTECTION } from '@/lib/permissions';
 
 export default function Home() {
   return (
     <ProtectedRoute 
-      requiredEquipe={['LOGISTICA', 'PRESTSERV', 'Administração']}
-      requiredPermissions={['admin', 'canAccessPrestServ']}
+      requiredEquipe={ROUTE_PROTECTION.PRESTSERV.requiredEquipe}
+      requiredPermissions={ROUTE_PROTECTION.PRESTSERV.requiredPermissions}
     >
       <HomeContent />
     </ProtectedRoute>
@@ -51,7 +52,7 @@ function HomeContent() {
 
           {/* Remanejamentos */}
           <Link
-            href="/prestserb/remanejamentos"
+            href="/prestserv/remanejamentos"
             className="block bg-white rounded-lg shadow hover:shadow-md transition-shadow p-6 border-l-4 border-green-500"
           >
             <div className="flex items-center mb-4">

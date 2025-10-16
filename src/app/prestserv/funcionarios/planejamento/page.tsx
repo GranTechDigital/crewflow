@@ -86,12 +86,12 @@ interface FuncionarioTableData {
 
 export default function FuncionariosPage() {
   return (
-    // <ProtectedRoute
-    //   requiredEquipe={ROUTE_PROTECTION.PRESTSERV.requiredEquipe}
-    //   requiredPermissions={ROUTE_PROTECTION.PRESTSERV.requiredPermissions}
-    // >
-    <FuncionariosPageContent />
-    // </ProtectedRoute>
+    <ProtectedRoute
+      requiredEquipe={ROUTE_PROTECTION.PLANEJAMENTO.requiredEquipe}
+      requiredPermissions={ROUTE_PROTECTION.PLANEJAMENTO.requiredPermissions}
+    >
+      <FuncionariosPageContent />
+    </ProtectedRoute>
   );
 }
 
@@ -644,7 +644,14 @@ function FuncionariosPageContent() {
     } else if (prestservStatus === "PENDENTE") {
       options.push("CRIADO");
     } else if (prestservStatus === "CRIADO") {
-      options.push("INVALIDADO");
+      // Mostrar opção de correção (INVALIDADO) apenas se houver alguma tarefa concluída
+      if (funcionario.tarefasConcluidas > 0) {
+        options.push("INVALIDADO");
+      }
+      // Se todas as tarefas foram concluídas (SUBMETER RASCUNHO), permitir avançar para EM VALIDAÇÃO
+      if (statusTarefas === "SUBMETER RASCUNHO") {
+        options.push("EM VALIDAÇÃO");
+      }
     } else if (prestservStatus === "EM VALIDAÇÃO") {
       options.push("VALIDADO");
       options.push("INVALIDADO");
