@@ -73,7 +73,8 @@ export default function ModalTreinamentos({
   const funcaoAtual = funcoes.find(f => f.id === selectedFuncao);
 
   const handleSelect = (treinamento: Treinamento) => {
-    setSelecionados(prev => [...prev, { ...treinamento, tipoObrigatoriedade: 'OB' }]);
+    // Padrão atualizado: 'AP' (Necessário/Obrigatório)
+    setSelecionados(prev => [...prev, { ...treinamento, tipoObrigatoriedade: 'AP' }]);
   };
 
   const handleRemove = (treinamentoId: number) => {

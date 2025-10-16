@@ -1,0 +1,58 @@
+name: Seed Fill Matriz
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Ambiente alvo para executar o seed (staging, production ou custom)'
+        type: choice
+        required: true
+        options:
+          - staging
+          - production
+          - custom
+        default: staging
+      custom_database_url:
+        description: 'DATABASE_URL para modo custom (opcional)'
+        type: string
+        required: false
+
+jobs:
+  run-seed:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Configure DATABASE_URL
+        run: |
+          if [ "${{ inputs.target }}" = "staging" ]; then
+            echo "DATABASE_URL=${{ secrets.DATABASE_URL_STAGING }}" >> $GITHUB_ENV
+          elif [ "${{ inputs.target }}" = "production" ]; then
+            echo "DATABASE_URL=${{ secrets.DATABASE_URL_PRODUCTION }}" >> $GITHUB_ENV
+          elif [ "${{ inputs.target }}" = "custom" ]; then
+            if [ -n "${{ inputs.custom_database_url }}" ]; then
+              echo "DATABASE_URL=${{ inputs.custom_database_url }}" >> $GITHUB_ENV
+            else
+              echo "❌ custom_database_url não fornecido"; exit 1
+            fi
+          else
+            echo "❌ target inválido"; exit 1
+          fi
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: Run seed-fill-matriz
+        env:
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+        run: node prisma/seed-fill-matriz.cjs

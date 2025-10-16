@@ -181,8 +181,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const tiposValidos = ['OB', 'AP', 'RC', 'AD'];
-    if (!tiposValidos.includes(tipoObrigatoriedade)) {
+    // Normalização para compatibilidade com códigos antigos (OB/RC/AD)
+    const legacyMap: Record<string, string> = { OB: 'AP', RC: 'C', AD: 'SD' };
+    const tipoNormalizado = legacyMap[tipoObrigatoriedade] || tipoObrigatoriedade;
+
+    const tiposValidos = ['RA', 'AP', 'C', 'SD', 'N/A'];
+    if (!tiposValidos.includes(tipoNormalizado)) {
       return NextResponse.json(
         { success: false, message: 'Tipo de obrigatoriedade inválido' },
         { status: 400 }
@@ -260,7 +264,7 @@ export async function POST(request: NextRequest) {
         },
         data: {
           treinamentoId: parseInt(treinamentoId),
-          tipoObrigatoriedade,
+          tipoObrigatoriedade: tipoNormalizado,
         },
         include: {
           contrato: {
@@ -296,7 +300,7 @@ export async function POST(request: NextRequest) {
           contratoId: parseInt(contratoId),
           funcaoId: parseInt(funcaoId),
           treinamentoId: parseInt(treinamentoId),
-          tipoObrigatoriedade,
+          tipoObrigatoriedade: tipoNormalizado,
         },
         include: {
           contrato: {

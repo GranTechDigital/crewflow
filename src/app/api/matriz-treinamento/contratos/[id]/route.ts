@@ -95,12 +95,13 @@ export async function GET(
       }
     });
 
-    // Tipos de obrigatoriedade
+    // Tipos de obrigatoriedade (padronizados)
     const tiposObrigatoriedade = [
-      { value: 'OB', label: 'Obrigatório' },
-      { value: 'AP', label: 'Aplicável' },
-      { value: 'RC', label: 'Recomendado' },
-      { value: 'AD', label: 'Adicional' }
+      { value: 'RA', label: 'REQUISITO INICIAL OU ADMISSIONAL' },
+      { value: 'AP', label: 'NECESSÁRIO / OBRIGATÓRIO' },
+      { value: 'C', label: 'COMPLEMENTAR - APÓS O CADASTRO' },
+      { value: 'SD', label: 'SOLICITAÇÃO OU DEMANDA' },
+      { value: 'N/A', label: 'NÃO APLICÁVEL' },
     ];
 
     return NextResponse.json({
