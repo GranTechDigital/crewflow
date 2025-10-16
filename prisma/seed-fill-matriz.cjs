@@ -78,9 +78,9 @@ async function main() {
     );
   }
 
-  console.log("\n🎯 Resumo do preenchimento:
-  - Tentadas: " + totalTentados + " combinações
-  - Inseridas: " + totalInseridos + " novas linhas (duplicatas ignoradas)");
+  console.log(`\n🎯 Resumo do preenchimento:
+  - Tentadas: ${totalTentados} combinações
+  - Inseridas: ${totalInseridos} novas linhas (duplicatas ignoradas)`);
 
   console.log("\n📌 Observação: todas as combinações foram marcadas como tipo 'AP' (Necessário/Obrigatório).\nVocê poderá ajustar posteriormente para 'RA', 'C', 'SD' ou 'N/A' conforme necessário.");
 }
