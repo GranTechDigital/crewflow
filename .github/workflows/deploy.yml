@@ -4,6 +4,10 @@ run-name: ${{ inputs.run_name || github.event.head_commit.message || format('Dep
 on:
   push:
     branches: [ main ]
+    paths:
+      - 'src/**'
+      - 'Dockerfile'
+      - 'docker-compose.yml'
   workflow_dispatch:
     inputs:
       run_name:
