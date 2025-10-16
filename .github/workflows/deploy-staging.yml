@@ -1,5 +1,5 @@
 name: Deploy CrewFlow to Staging
-run-name: "Staging: ${{ github.event.head_commit.message || github.ref_name }}"
+run-name: "Staging: ${{ github.event_name == 'pull_request' && github.event.pull_request.title || github.event.head_commit.message || github.ref_name }}"
 
 on:
   push:
