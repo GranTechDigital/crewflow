@@ -59,11 +59,6 @@ export async function POST(request: NextRequest) {
       data: { ultimoLogin: new Date() }
     });
 
-    // Parâmetros de expiração configuráveis
-    const tokenExpiration = process.env.JWT_EXPIRATION || '30d'; // padrão: 30 dias
-    const cookieMaxAge = parseInt(process.env.JWT_COOKIE_MAX_AGE || String(30 * 24 * 60 * 60), 10); // padrão: 30 dias em segundos
-    const cookieSecure = process.env.NODE_ENV === 'production';
-
     // Gerar token JWT usando jose
     const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret');
     console.log('DEBUG - Gerando token com dados:', JSON.stringify({
@@ -86,7 +81,7 @@ export async function POST(request: NextRequest) {
       equipeId: funcionario.usuario.equipeId
     })
       .setProtectedHeader({ alg: 'HS256' })
-      .setExpirationTime(tokenExpiration)
+      .setExpirationTime('8h')
       .sign(secret);
 
     const response = NextResponse.json({
@@ -105,10 +100,9 @@ export async function POST(request: NextRequest) {
     // Definir cookie com o token
     response.cookies.set('auth-token', token, {
       httpOnly: true,
-      secure: cookieSecure, // true em produção
+      secure: false, // Desabilitado para permitir HTTP em desenvolvimento
       sameSite: 'lax',
-      path: '/',
-      maxAge: cookieMaxAge
+      maxAge: 8 * 60 * 60 // 8 horas
     });
 
     return response;
