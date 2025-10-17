@@ -8,7 +8,7 @@ const prisma = new PrismaClient();
 
 export async function POST(request: NextRequest) {
   try {
-    const { matricula, senha, rememberMe } = await request.json();
+    const { matricula, senha } = await request.json();
 
     if (!matricula || !senha) {
       return NextResponse.json(
@@ -59,14 +59,9 @@ export async function POST(request: NextRequest) {
       data: { ultimoLogin: new Date() }
     });
 
-    // Parâmetros de expiração configuráveis (14 dias padrão, 30 dias com 'Manter conectado')
-    const isRemember = !!rememberMe;
-    const tokenExpiration = isRemember
-      ? (process.env.JWT_EXPIRATION_REMEMBER || '30d')
-      : (process.env.JWT_EXPIRATION || '14d');
-    const cookieMaxAge = isRemember
-      ? parseInt(process.env.JWT_COOKIE_MAX_AGE_REMEMBER || String(30 * 24 * 60 * 60), 10)
-      : parseInt(process.env.JWT_COOKIE_MAX_AGE || String(14 * 24 * 60 * 60), 10);
+    // Parâmetros de expiração configuráveis
+    const tokenExpiration = process.env.JWT_EXPIRATION || '30d'; // padrão: 30 dias
+    const cookieMaxAge = parseInt(process.env.JWT_COOKIE_MAX_AGE || String(30 * 24 * 60 * 60), 10); // padrão: 30 dias em segundos
     const cookieSecure = process.env.NODE_ENV === 'production';
 
     // Gerar token JWT usando jose
@@ -88,8 +83,7 @@ export async function POST(request: NextRequest) {
       matricula: funcionario.matricula,
       nome: funcionario.nome,
       equipe: funcionario.usuario.equipe.nome,
-      equipeId: funcionario.usuario.equipeId,
-      remember: isRemember
+      equipeId: funcionario.usuario.equipeId
     })
       .setProtectedHeader({ alg: 'HS256' })
       .setExpirationTime(tokenExpiration)

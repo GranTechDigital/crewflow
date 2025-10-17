@@ -15,7 +15,7 @@ export interface Usuario {
 interface AuthContextType {
   usuario: Usuario | null
   loading: boolean
-  login: (matricula: string, senha: string, rememberMe?: boolean) => Promise<boolean>
+  login: (matricula: string, senha: string) => Promise<boolean>
   logout: () => Promise<void>
   checkAuth: () => Promise<void>
 }
@@ -55,7 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const login = async (matricula: string, senha: string, rememberMe: boolean = false): Promise<boolean> => {
+  const login = async (matricula: string, senha: string): Promise<boolean> => {
     try {
       setLoading(true);
       const response = await fetch('/api/auth/login', {
@@ -63,7 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ matricula, senha, rememberMe }),
+        body: JSON.stringify({ matricula, senha }),
       });
 
       if (response.ok) {

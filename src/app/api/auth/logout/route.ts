@@ -50,12 +50,10 @@ export async function POST(request: NextRequest) {
     // Remover o cookie de autenticação de forma consistente
     console.log('🚪 LOGOUT API - Removendo cookie auth-token...');
 
-    const cookieSecure = process.env.NODE_ENV === 'production';
-
     // Definir como vazio e expirar imediatamente
     response.cookies.set('auth-token', '', {
       httpOnly: true,
-      secure: cookieSecure,
+      secure: false,
       sameSite: 'lax',
       path: '/',
       maxAge: 0,

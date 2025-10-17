@@ -10,7 +10,6 @@ export default function LoginPage() {
   const [senha, setSenha] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [rememberMe, setRememberMe] = useState(true);
   const { login, usuario, loading: authLoading } = useAuth();
   const router = useRouter();
 
@@ -52,7 +51,7 @@ export default function LoginPage() {
     setError('');
 
     try {
-      const success = await login(matricula, senha, rememberMe);
+      const success = await login(matricula, senha);
       
       if (!success) {
         setError('Credenciais inválidas. Verifique sua matrícula e senha.');
@@ -129,21 +128,6 @@ export default function LoginPage() {
                 placeholder="Digite sua senha"
                 disabled={loading}
               />
-            </div>
-
-            <div className="flex items-center">
-              <input
-                id="rememberMe"
-                name="rememberMe"
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-                className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                disabled={loading}
-              />
-              <label htmlFor="rememberMe" className="ml-2 block text-sm text-gray-700">
-                Manter conectado
-              </label>
             </div>
 
             <button
