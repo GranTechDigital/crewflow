@@ -14,11 +14,11 @@ services:
       - postgres-data:/var/lib/postgresql/data
       - ./postgres-init:/docker-entrypoint-initdb.d
     networks:
-      - app-network
+      - projetogran_crewflow-network
 
 networks:
-  app-network:
-    driver: bridge
+  projetogran_crewflow-network:
+    external: true
 
 volumes:
   postgres-data:

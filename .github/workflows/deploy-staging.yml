@@ -58,6 +58,7 @@ jobs:
 
           # Ensure Postgres staging is up via compose
           cd /opt/projetogran
+          docker network create projetogran_crewflow-network 2>/dev/null || true
           docker compose -f docker-compose.staging-postgres.yml up -d
 
           # Stop and remove old staging container
@@ -66,7 +67,7 @@ jobs:
 
           # Start new staging container (different port, correct internal port)
           docker run -d --name crewflow-app-staging \
-            --network app-network \
+            --network projetogran_crewflow-network \
             -p 3002:3001 \
             -e DATABASE_URL='postgresql://postgres:senha_segura_aqui@postgres-staging:5432/projetogran?schema=public' \
             -e JWT_SECRET='crewflow-jwt-secret-staging-2024' \
