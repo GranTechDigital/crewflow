@@ -103,6 +103,9 @@ function ContratoDetalheContent() {
 
   const [filtroRegime, setFiltroRegime] = useState('');
 
+  // Estado para salvar atualização de obrigatoriedade por item
+  const [savingObrigatoriedadeId, setSavingObrigatoriedadeId] = useState<number | null>(null);
+
   useEffect(() => {
     if (contratoId) {
       fetchContratoDetalhes();
@@ -141,6 +144,28 @@ function ContratoDetalheContent() {
       console.error('Erro ao buscar detalhes do contrato:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Atualizar tipo de obrigatoriedade de um item da matriz
+  const handleChangeObrigatoriedade = async (matrizId: number, novoTipo: string) => {
+    try {
+      setSavingObrigatoriedadeId(matrizId);
+      const resp = await fetch(`/api/matriz-treinamento/${matrizId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tipoObrigatoriedade: novoTipo })
+      });
+      const result = await resp.json();
+      if (!resp.ok || !result.success) {
+        throw new Error(result.message || 'Erro ao atualizar obrigatoriedade');
+      }
+      await fetchContratoDetalhes();
+    } catch (err) {
+      console.error('Falha ao atualizar obrigatoriedade:', err);
+      alert(err instanceof Error ? err.message : 'Falha ao atualizar obrigatoriedade');
+    } finally {
+      setSavingObrigatoriedadeId(null);
     }
   };
 
@@ -497,6 +522,20 @@ function ContratoDetalheContent() {
                                 <span className={`px-2 py-1 rounded-full text-xs font-medium ${getTipoObrigatoriedadeColor(item.tipoObrigatoriedade)}`}>
                                   {getTipoObrigatoriedadeLabel(item.tipoObrigatoriedade)}
                                 </span>
+                                {/* Editor simples de obrigatoriedade */}
+                                <select
+                                  value={item.tipoObrigatoriedade}
+                                  onChange={(e) => handleChangeObrigatoriedade(item.id, e.target.value)}
+                                  disabled={savingObrigatoriedadeId === item.id}
+                                  className="text-xs border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                  title="Editar obrigatoriedade"
+                                >
+                                  {tiposObrigatoriedade.map((tipo) => (
+                                    <option key={tipo.value} value={tipo.value}>
+                                      {tipo.label}
+                                    </option>
+                                  ))}
+                                </select>
                                 <button
                                   onClick={() => handleRemoveTreinamento(item.id)}
                                   className="p-1 text-red-600 hover:bg-red-50 rounded"
