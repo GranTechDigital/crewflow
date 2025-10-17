@@ -155,6 +155,20 @@ export async function GET() {
         r.statusTarefas === "ATENDER TAREFAS"
     ).length;
 
+    // Totais adicionais compatíveis com o dashboard
+    const funcionariosAptos =
+      funcionariosPorStatusTarefas.find(
+        (item) => item.statusTarefas === "CONCLUIDO"
+      )?._count.id || 0;
+    const funcionariosSubmetidos =
+      funcionariosPorStatusPrestserv.find(
+        (item) => item.statusPrestserv === "SUBMETIDO"
+      )?._count.id || 0;
+    const funcionariosAprovados =
+      funcionariosPorStatusPrestserv.find(
+        (item) => item.statusPrestserv === "APROVADO"
+      )?._count.id || 0;
+
     // Funcionários que precisam de atenção (prontos para submissão ou rejeitados)
     const funcionariosAtencao = remanejamentos
       .filter(
@@ -219,17 +233,19 @@ export async function GET() {
 
     // Transformar dados de status para formato mais adequado para gráficos
     const funcionariosPorStatusTarefaFormatado: { [key: string]: number } = {};
+    const funcionariosPorStatusTarefaArray: { status: string; count: number }[] = [];
     funcionariosPorStatusTarefas.forEach((item: GroupByStatusTarefas) => {
-      funcionariosPorStatusTarefaFormatado[
-        item.statusTarefas || "Não definido"
-      ] = item._count.id;
+      const status = item.statusTarefas || "Não definido";
+      funcionariosPorStatusTarefaFormatado[status] = item._count.id;
+      funcionariosPorStatusTarefaArray.push({ status, count: item._count.id });
     });
 
     const funcionariosPorStatusPrestservFormatado: { [key: string]: number } = {};
+    const funcionariosPorStatusPrestservArray: { status: string; count: number }[] = [];
     funcionariosPorStatusPrestserv.forEach((item: GroupByStatusPrestserv) => {
-      funcionariosPorStatusPrestservFormatado[
-        item.statusPrestserv || "Não definido"
-      ] = item._count.id;
+      const status = item.statusPrestserv || "Não definido";
+      funcionariosPorStatusPrestservFormatado[status] = item._count.id;
+      funcionariosPorStatusPrestservArray.push({ status, count: item._count.id });
     });
 
     const funcionariosPorResponsavelFormatado: { [key: string]: number } = {};
@@ -294,18 +310,137 @@ export async function GET() {
       pendenciasPorSetor[setor]++;
     });
 
+    // =========================
+    // SLAs solicitados
+    // =========================
+    // 1) Tempo total da solicitação: da criação até conclusão (se não cancelada)
+    const solicitacoesConcluidas = await prisma.solicitacaoRemanejamento.findMany({
+      where: {
+        // Considera concluídas (dataConclusao definida) e não canceladas
+        dataConclusao: { not: null },
+        status: { not: "CANCELADO" },
+      },
+      select: {
+        id: true,
+        dataSolicitacao: true,
+        dataConclusao: true,
+      },
+    });
+
+    const diffInDays = (a: Date, b: Date) => {
+      const ms = b.getTime() - a.getTime();
+      return ms / (1000 * 60 * 60 * 24);
+    };
+    const diffInHours = (a: Date, b: Date) => {
+      const ms = b.getTime() - a.getTime();
+      return ms / (1000 * 60 * 60);
+    };
+
+    const temposSolicitacoesDias = solicitacoesConcluidas
+      .map((s) => diffInDays(new Date(s.dataSolicitacao), new Date(s.dataConclusao!)))
+      .filter((v) => Number.isFinite(v) && v >= 0);
+
+    const slaTempoMedioSolicitacaoDias = temposSolicitacoesDias.length
+      ? temposSolicitacoesDias.reduce((acc, v) => acc + v, 0) / temposSolicitacoesDias.length
+      : 0;
+
+    const temposSolicitacoesHoras = solicitacoesConcluidas
+      .map((s) => diffInHours(new Date(s.dataSolicitacao), new Date(s.dataConclusao!)))
+      .filter((v) => Number.isFinite(v) && v >= 0);
+
+    const slaTempoMedioSolicitacaoHoras = temposSolicitacoesHoras.length
+      ? temposSolicitacoesHoras.reduce((acc, v) => acc + v, 0) / temposSolicitacoesHoras.length
+      : 0;
+
+    // 2) Tempo por setores: média de duração por setor considerando tempo de correção
+    const tarefasConcluidasPorSetor = await prisma.tarefaRemanejamento.findMany({
+      where: {
+        dataConclusao: { not: null },
+      },
+      select: {
+        responsavel: true,
+        dataCriacao: true,
+        dataConclusao: true,
+      },
+    });
+
+    const tempoPorSetorAcumulado: Record<string, { somaDias: number; somaHoras: number; qtd: number }> = {};
+    tarefasConcluidasPorSetor.forEach((t) => {
+      const setor = t.responsavel || "Não definido";
+      const dias = diffInDays(new Date(t.dataCriacao), new Date(t.dataConclusao!));
+      const horas = diffInHours(new Date(t.dataCriacao), new Date(t.dataConclusao!));
+      if (!Number.isFinite(dias) || dias < 0) return;
+      if (!tempoPorSetorAcumulado[setor]) tempoPorSetorAcumulado[setor] = { somaDias: 0, somaHoras: 0, qtd: 0 };
+      tempoPorSetorAcumulado[setor].somaDias += dias;
+      if (Number.isFinite(horas) && horas >= 0) tempoPorSetorAcumulado[setor].somaHoras += horas;
+      tempoPorSetorAcumulado[setor].qtd += 1;
+    });
+
+    const slaTempoMedioPorSetorDias: Record<string, number> = {};
+    const slaTempoMedioPorSetorHoras: Record<string, number> = {};
+    Object.keys(tempoPorSetorAcumulado).forEach((setor) => {
+      const { somaDias, somaHoras, qtd } = tempoPorSetorAcumulado[setor];
+      slaTempoMedioPorSetorDias[setor] = qtd ? somaDias / qtd : 0;
+      slaTempoMedioPorSetorHoras[setor] = qtd ? somaHoras / qtd : 0;
+    });
+
+    // 3) Tempo de aprovação da logística: diferença entre dataSubmetido e dataResposta
+    const prestservAvaliacoes = await prisma.remanejamentoFuncionario.findMany({
+      where: {
+        dataSubmetido: { not: null },
+        dataResposta: { not: null },
+      },
+      select: {
+        dataSubmetido: true,
+        dataResposta: true,
+      },
+    });
+
+    // diffInHours já definido acima
+
+    const temposAprovacaoHoras = prestservAvaliacoes
+      .map((r) => diffInHours(new Date(r.dataSubmetido!), new Date(r.dataResposta!)))
+      .filter((v) => Number.isFinite(v) && v >= 0);
+
+    const slaLogisticaTempoMedioAprovacaoHoras = temposAprovacaoHoras.length
+      ? temposAprovacaoHoras.reduce((acc, v) => acc + v, 0) / temposAprovacaoHoras.length
+      : 0;
+
+    // 4) Volumetria de correções por treinamento/documento (tarefas reprovadas)
+    const historicoReprovacoes = await prisma.historicoRemanejamento.findMany({
+      where: {
+        entidade: "TAREFA",
+        campoAlterado: "status",
+        valorNovo: "REPROVADO",
+      },
+      select: {
+        tarefa: {
+          select: { tipo: true },
+        },
+      },
+    });
+
+    const volumetriaCorrecoesPorTipo: Record<string, number> = {};
+    historicoReprovacoes.forEach((h) => {
+      const tipo = h.tarefa?.tipo || "Não definido";
+      volumetriaCorrecoesPorTipo[tipo] = (volumetriaCorrecoesPorTipo[tipo] || 0) + 1;
+    });
+
     // Dados completos para o dashboard
     const response = {
       totalSolicitacoes,
       totalFuncionarios,
       funcionariosPendentes,
+      funcionariosAptos,
+      funcionariosSubmetidos,
+      funcionariosAprovados,
       funcionariosRejeitados,
       funcionariosPendentesAprovacao,
       funcionariosValidados,
       funcionariosCancelados,
       funcionariosEmProcesso,
-      funcionariosPorStatusTarefa: funcionariosPorStatusTarefaFormatado,
-      funcionariosPorStatusPrestserv: funcionariosPorStatusPrestservFormatado,
+      funcionariosPorStatusTarefa: funcionariosPorStatusTarefaArray,
+      funcionariosPorStatusPrestserv: funcionariosPorStatusPrestservArray,
       funcionariosPorResponsavel: funcionariosPorResponsavelFormatado,
       solicitacoesPorTipo: solicitacoesPorTipoFormatado,
       solicitacoesPorOrigemDestino: solicitacoesPorOrigemDestinoFormatado,
@@ -326,6 +461,13 @@ export async function GET() {
         },
       })),
       solicitacoesPorMes,
+      // SLAs
+      slaTempoMedioSolicitacaoDias,
+      slaTempoMedioSolicitacaoHoras,
+      slaTempoMedioPorSetorDias,
+      slaTempoMedioPorSetorHoras,
+      slaLogisticaTempoMedioAprovacaoHoras,
+      volumetriaCorrecoesPorTipo,
     };
 
     return NextResponse.json(response);

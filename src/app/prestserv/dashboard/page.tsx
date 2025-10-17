@@ -154,6 +154,21 @@ export default function DashboardPrestserv() {
     return <div>Nenhum dado encontrado</div>;
   }
 
+  // Fallbacks robustos: garantir que os dados de status sejam arrays
+  const funcionariosPorStatusTarefaArr: { status: string; count: number }[] = Array.isArray((dashboardData as any).funcionariosPorStatusTarefa)
+    ? (dashboardData as any).funcionariosPorStatusTarefa
+    : Object.entries(((dashboardData as any).funcionariosPorStatusTarefa || {})).map(([status, count]) => ({
+        status,
+        count: typeof count === 'number' ? count : Number(count) || 0,
+      }));
+
+  const funcionariosPorStatusPrestservArr: { status: string; count: number }[] = Array.isArray((dashboardData as any).funcionariosPorStatusPrestserv)
+    ? (dashboardData as any).funcionariosPorStatusPrestserv
+    : Object.entries(((dashboardData as any).funcionariosPorStatusPrestserv || {})).map(([status, count]) => ({
+        status,
+        count: typeof count === 'number' ? count : Number(count) || 0,
+      }));
+
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
@@ -318,7 +333,7 @@ export default function DashboardPrestserv() {
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-bold text-gray-800">📋 Status das Tarefas</h2>
                 <div className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
-                  {dashboardData.funcionariosPorStatusTarefa.reduce((acc, item) => acc + item.count, 0)} total
+                  {funcionariosPorStatusTarefaArr.reduce((acc, item) => acc + item.count, 0)} total
                 </div>
               </div>
             </div>
@@ -326,9 +341,9 @@ export default function DashboardPrestserv() {
               <div className="h-72">
                 <Doughnut
                   data={{
-                    labels: dashboardData.funcionariosPorStatusTarefa.map(item => item.status),
+                    labels: funcionariosPorStatusTarefaArr.map(item => item.status),
                     datasets: [{
-                      data: dashboardData.funcionariosPorStatusTarefa.map(item => item.count),
+                      data: funcionariosPorStatusTarefaArr.map(item => item.count),
                       backgroundColor: [
                         '#3B82F6', // blue
                         '#10B981', // green
@@ -394,7 +409,7 @@ export default function DashboardPrestserv() {
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-bold text-gray-800">👥 Status do Prestserv</h2>
                 <div className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
-                  {dashboardData.funcionariosPorStatusPrestserv.reduce((acc, item) => acc + item.count, 0)} funcionários
+                  {funcionariosPorStatusPrestservArr.reduce((acc, item) => acc + item.count, 0)} funcionários
                 </div>
               </div>
             </div>
@@ -402,10 +417,10 @@ export default function DashboardPrestserv() {
               <div className="h-72">
                 <Bar
                   data={{
-                    labels: dashboardData.funcionariosPorStatusPrestserv.map(item => item.status.replace('_', ' ')),
+                    labels: funcionariosPorStatusPrestservArr.map(item => item.status.replace('_', ' ')),
                     datasets: [{
                       label: 'Funcionários',
-                      data: dashboardData.funcionariosPorStatusPrestserv.map(item => item.count),
+                      data: funcionariosPorStatusPrestservArr.map(item => item.count),
                       backgroundColor: [
                         'rgba(59, 130, 246, 0.8)',
                         'rgba(16, 185, 129, 0.8)',
@@ -572,6 +587,114 @@ export default function DashboardPrestserv() {
                     }
                   }}
                 />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* SLAs (Horas) */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-8">
+          {/* Card: Tempo médio da solicitação (h) */}
+          <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-xl shadow-lg p-6 border border-indigo-200 hover:shadow-xl transition-all duration-300">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-indigo-600 mb-1">Tempo médio da solicitação</p>
+                <p className="text-3xl font-bold text-indigo-900">
+                  {typeof dashboardData.slaTempoMedioSolicitacaoHoras === 'number'
+                    ? dashboardData.slaTempoMedioSolicitacaoHoras.toFixed(1)
+                    : '—'}
+                </p>
+                <p className="text-xs text-indigo-500 mt-1">⏱ Horas corridas (criação → conclusão)</p>
+              </div>
+              <div className="p-3 bg-indigo-500 rounded-full">
+                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          {/* Card: Tempo médio de aprovação (h) */}
+          <div className="bg-gradient-to-br from-pink-50 to-pink-100 rounded-xl shadow-lg p-6 border border-pink-200 hover:shadow-xl transition-all duration-300">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-pink-600 mb-1">Tempo médio de aprovação (Prestserv)</p>
+                <p className="text-3xl font-bold text-pink-900">
+                  {typeof dashboardData.slaLogisticaTempoMedioAprovacaoHoras === 'number'
+                    ? dashboardData.slaLogisticaTempoMedioAprovacaoHoras.toFixed(1)
+                    : '—'}
+                </p>
+                <p className="text-xs text-pink-500 mt-1">🧾 Horas corridas (submetido → resposta)</p>
+              </div>
+              <div className="p-3 bg-pink-500 rounded-full">
+                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          {/* Gráfico: Tempo médio por setor (h) */}
+          <div className="bg-white rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition-all duration-300">
+            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-gray-800">⏳ Tempo médio por setor (h)</h2>
+              <div className="px-3 py-1 bg-gray-100 text-gray-800 rounded-full text-sm font-medium">SLA</div>
+            </div>
+            <div className="p-6">
+              <div className="h-72">
+                {dashboardData.slaTempoMedioPorSetorHoras && Object.keys(dashboardData.slaTempoMedioPorSetorHoras).length > 0 ? (
+                  <Bar
+                    data={{
+                      labels: Object.keys(dashboardData.slaTempoMedioPorSetorHoras).map((setor) =>
+                        setor === 'LOGISTICA' ? 'Logística' : setor
+                      ),
+                      datasets: [
+                        {
+                          label: 'Horas',
+                          data: Object.keys(dashboardData.slaTempoMedioPorSetorHoras).map(
+                            (setor) => dashboardData.slaTempoMedioPorSetorHoras![setor] ?? 0
+                          ),
+                          backgroundColor: 'rgba(59, 130, 246, 0.8)',
+                          borderColor: '#3B82F6',
+                          borderWidth: 2,
+                          borderRadius: 8,
+                          borderSkipped: false,
+                          hoverBackgroundColor: '#3B82F6',
+                        },
+                      ],
+                    }}
+                    options={{
+                      responsive: true,
+                      maintainAspectRatio: false,
+                      plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                          titleColor: '#ffffff',
+                          bodyColor: '#ffffff',
+                          borderColor: '#ffffff',
+                          borderWidth: 1,
+                        },
+                      },
+                      scales: {
+                        y: {
+                          beginAtZero: true,
+                          ticks: { font: { weight: 'bold' } },
+                          grid: { color: 'rgba(0, 0, 0, 0.1)' },
+                        },
+                        x: {
+                          ticks: { font: { weight: 'bold' } },
+                          grid: { display: false },
+                        },
+                      },
+                      animation: { duration: 2000, easing: 'easeInOutQuart' },
+                    }}
+                  />
+                ) : (
+                  <div className="h-full flex items-center justify-center">
+                    <p className="text-gray-500">Nenhum dado de SLA por setor disponível</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>

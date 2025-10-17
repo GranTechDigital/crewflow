@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
@@ -15,24 +15,29 @@ export async function GET() {
       },
     });
 
-    // Buscar apenas o UptimeSheet mais recente por matrícula usando GROUP BY
-    const uptimeSheets = await prisma.$queryRaw`
-      SELECT 
-        u1.matricula,
-        u1.status
-      FROM UptimeSheet u1
-      INNER JOIN (
-        SELECT matricula, MAX(createdAt) as max_created
-        FROM UptimeSheet
-        GROUP BY matricula
-      ) u2 ON u1.matricula = u2.matricula AND u1.createdAt = u2.max_created
-    ` as Array<{ matricula: string; status: string }>;
-
-    // Criar um mapa de UptimeSheets por matrícula
-    const uptimeSheetsMap = new Map<string, typeof uptimeSheets[0]>();
-    uptimeSheets.forEach((sheet: typeof uptimeSheets[0]) => {
-      uptimeSheetsMap.set(sheet.matricula, sheet);
+    // Buscar o UptimeSheet mais recente por matrícula com Prisma (evita problemas de case no SQL)
+    const matriculas = funcionarios.map(f => f.matricula);
+    const uptimeSheetsAll = await prisma.uptimeSheet.findMany({
+      where: {
+        matricula: { in: matriculas },
+      },
+      select: {
+        matricula: true,
+        status: true,
+        createdAt: true,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
     });
+
+    // Criar um mapa com o registro mais recente por matrícula
+    const uptimeSheetsMap = new Map<string, { matricula: string; status: string | null }>();
+    for (const sheet of uptimeSheetsAll) {
+      if (!uptimeSheetsMap.has(sheet.matricula)) {
+        uptimeSheetsMap.set(sheet.matricula, { matricula: sheet.matricula, status: sheet.status ?? null });
+      }
+    }
 
     // Processar dados para os gráficos
     

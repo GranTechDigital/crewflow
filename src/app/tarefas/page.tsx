@@ -117,6 +117,7 @@ export default function TarefasPage() {
   const [filtroStatus, setFiltroStatus] = useState("");
   const [filtroPrioridade, setFiltroPrioridade] = useState("");
   const [filtroSetor, setFiltroSetor] = useState("");
+  const [filtroContrato, setFiltroContrato] = useState("");
 
   // Refs para evitar re-renderizações
   const filtroNomeRef = useRef<HTMLInputElement>(null);
@@ -219,7 +220,7 @@ export default function TarefasPage() {
 
   useEffect(() => {
     setPaginaAtual(1);
-  }, [filtroNome, filtroStatus, filtroPrioridade, filtroSetor]);
+  }, [filtroNome, filtroStatus, filtroPrioridade, filtroSetor, filtroContrato]);
 
   // Trabalhar diretamente com dados hierárquicos da API
   const [solicitacoes, setSolicitacoes] = useState<SolicitacaoRemanejamento[]>(
@@ -363,6 +364,14 @@ export default function TarefasPage() {
             .includes(filtroNome.toLowerCase());
 
           if (!matchNome) return;
+
+          // Filtro por contrato (origem ou destino)
+          const matchContrato =
+            !filtroContrato ||
+            solicitacao.contratoOrigemId?.toString() === filtroContrato ||
+            solicitacao.contratoDestinoId?.toString() === filtroContrato;
+
+          if (!matchContrato) return;
 
           // Filtrar tarefas dentro do remanejamento
           const tarefasFiltradas =
@@ -1034,7 +1043,29 @@ export default function TarefasPage() {
   // Componente para o filtro de tarefas
   const FiltroTarefas = () => {
     // Determinar o número de colunas com base na presença do filtro de setor
-    const numColunas = setorAtual ? 3 : 4;
+    const numColunas = setorAtual ? 4 : 5;
+
+    // Contratos disponíveis (origem/destino) para seleção
+    const contratosOptions = React.useMemo(() => {
+      const map = new Map<number, { id: number; numero: string; nome: string }>();
+      solicitacoes.forEach((s) => {
+        if (s.contratoOrigem) {
+          map.set(s.contratoOrigem.id, {
+            id: s.contratoOrigem.id,
+            numero: s.contratoOrigem.numero,
+            nome: s.contratoOrigem.nome,
+          });
+        }
+        if (s.contratoDestino) {
+          map.set(s.contratoDestino.id, {
+            id: s.contratoDestino.id,
+            numero: s.contratoDestino.numero,
+            nome: s.contratoDestino.nome,
+          });
+        }
+      });
+      return Array.from(map.values()).sort((a, b) => a.numero.localeCompare(b.numero));
+    }, [solicitacoes]);
 
     return (
       <div className="bg-white border-slate-400 border-1 p-5 rounded-lg shadow-lg mb-6">
@@ -1051,6 +1082,7 @@ export default function TarefasPage() {
               setFiltroStatus("");
               setFiltroPrioridade("");
               setFiltroSetor("");
+              setFiltroContrato("");
               setPaginaAtual(1);
             }}
           >
@@ -1089,6 +1121,22 @@ export default function TarefasPage() {
               <option value="MEDIA">Média</option>
               <option value="ALTA">Alta</option>
               <option value="URGENTE">Urgente</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-800 mb-2">
+              Contrato
+            </label>
+            <select
+              className="w-full h-12 rounded-md border-slate-800 bg-slate-100 text-slate-500 shadow-sm focus:border-slate-500 focus:ring-slate-500"
+              value={filtroContrato}
+              onChange={(e) => setFiltroContrato(e.target.value)}
+            >
+              <option value="">Todos</option>
+              {contratosOptions.map((c) => (
+                <option key={c.id} value={c.id.toString()}>{`${c.numero} — ${c.nome}`}</option>
+              ))}
             </select>
           </div>
 

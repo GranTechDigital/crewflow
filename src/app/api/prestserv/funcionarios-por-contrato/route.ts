@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient, Prisma } from '@prisma/client';
 
 const prisma = new PrismaClient();
@@ -6,12 +6,12 @@ const prisma = new PrismaClient();
 // Type definitions for better type safety
 interface UptimeSheetData {
   matricula: string;
-  status: string;
-  dataInicio: Date;
-  dataFim: Date;
-  totalDiasPeriodo: number;
-  embarcacao: string;
-  observacoes: string;
+  status?: string | null;
+  dataInicio?: Date | null;
+  dataFim?: Date | null;
+  totalDiasPeriodo?: number | null;
+  embarcacao?: string | null;
+  observacoes?: string | null;
   periodoInicial?: Date | null;
   periodoFinal?: Date | null;
 }
@@ -207,31 +207,44 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    // Buscar apenas o UptimeSheet mais recente por matrícula usando GROUP BY
-    const uptimeSheets = await prisma.$queryRaw`
-      SELECT 
-        u1.matricula,
-        u1.status,
-        u1.dataInicio,
-        u1.dataFim,
-        u1.totalDiasPeriodo,
-        u1.embarcacao,
-        u1.observacoes,
-        u1.periodoInicial,
-        u1.periodoFinal
-      FROM UptimeSheet u1
-      INNER JOIN (
-        SELECT matricula, MAX(createdAt) as max_created
-        FROM UptimeSheet
-        GROUP BY matricula
-      ) u2 ON u1.matricula = u2.matricula AND u1.createdAt = u2.max_created
-    ` as UptimeSheetData[];
+    // Buscar UptimeSheet mais recente por matrícula usando Prisma e reduzir em memória
+    const matriculasSet = new Set(todosFuncionarios.map((f) => f.matricula));
+    const matriculas = Array.from(matriculasSet);
 
-    // Criar um mapa de UptimeSheets por matrícula
-    const uptimeSheetsMap = new Map<string, UptimeSheetData>();
-    uptimeSheets.forEach((sheet: UptimeSheetData) => {
-      uptimeSheetsMap.set(sheet.matricula, sheet);
+    const uptimeSheetsAll = await prisma.uptimeSheet.findMany({
+      where: { matricula: { in: matriculas } },
+      select: {
+        matricula: true,
+        status: true,
+        dataInicio: true,
+        dataFim: true,
+        totalDiasPeriodo: true,
+        embarcacao: true,
+        observacoes: true,
+        periodoInicial: true,
+        periodoFinal: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
     });
+
+    // Criar um mapa de UptimeSheets mais recentes por matrícula
+    const uptimeSheetsMap = new Map<string, UptimeSheetData>();
+    for (const sheet of uptimeSheetsAll) {
+      if (!uptimeSheetsMap.has(sheet.matricula)) {
+        uptimeSheetsMap.set(sheet.matricula, {
+          matricula: sheet.matricula,
+          status: sheet.status,
+          dataInicio: sheet.dataInicio,
+          dataFim: sheet.dataFim,
+          totalDiasPeriodo: sheet.totalDiasPeriodo,
+          embarcacao: sheet.embarcacao,
+          observacoes: sheet.observacoes,
+          periodoInicial: sheet.periodoInicial,
+          periodoFinal: sheet.periodoFinal,
+        });
+      }
+    }
 
     // Agrupar funcionários por contrato atual (não de destino)
     const contratoMap = new Map<string, ContratoData>();

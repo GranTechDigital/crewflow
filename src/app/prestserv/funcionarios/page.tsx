@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
@@ -2361,6 +2361,186 @@ function FuncionariosPageContent() {
                     </div>
                   )
                 )}
+              </div>
+
+              {/* SLAs - Resumo */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-white-300 p-5 rounded-lg shadow-lg border border-slate-400">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-slate-500">Tempo médio da solicitação (dias)</p>
+                      <p className="text-2xl font-semibold text-sky-500">
+                        {Number(dashboardData.slaTempoMedioSolicitacaoDias || 0).toFixed(1)}
+                      </p>
+                    </div>
+                    <div className="p-2 rounded-md">
+                      <svg className="w-10 h-10 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-white-300 p-5 rounded-lg shadow-lg border border-slate-400">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-slate-500">Tempo médio de aprovação da logística (horas)</p>
+                      <p className="text-2xl font-semibold text-sky-500">
+                        {Number(dashboardData.slaLogisticaTempoMedioAprovacaoHoras || 0).toFixed(1)}
+                      </p>
+                    </div>
+                    <div className="p-2 rounded-md">
+                      <svg className="w-10 h-10 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 3h18M9 7h6M4 7h3m7 10l-3 3m0 0l-3-3m3 3V10" />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* SLAs - Gráficos */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Tempo médio por setor (dias) */}
+                <div className="bg-white-300 rounded-lg shadow-lg border border-slate-400">
+                  <div className="p-5 border-b border-slate-500">
+                    <h2 className="text-lg font-medium text-slate-500">Tempo médio por setor (dias)</h2>
+                  </div>
+                  <div className="p-6">
+                    <div className="h-80">
+                      {dashboardData.slaTempoMedioPorSetorDias &&
+                      Object.keys(dashboardData.slaTempoMedioPorSetorDias).length > 0 ? (
+                        <Bar
+                          data={{
+                            labels: Object.keys(dashboardData.slaTempoMedioPorSetorDias),
+                            datasets: [
+                              {
+                                label: "Dias (média)",
+                                data: Object.values(dashboardData.slaTempoMedioPorSetorDias).map((v: any) => Number(v || 0).toFixed ? Number(v) : v),
+                                backgroundColor: "rgba(14, 165, 233, 0.7)",
+                                borderColor: "#0EA5E9",
+                                borderWidth: 1,
+                                borderRadius: 4,
+                                borderSkipped: false,
+                              },
+                            ],
+                          }}
+                          options={{
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                              legend: { display: false },
+                              tooltip: {
+                                backgroundColor: "rgba(15, 23, 42, 0.8)",
+                                titleColor: "#ffffff",
+                                bodyColor: "#ffffff",
+                                bodyFont: { family: '"Inter", sans-serif' },
+                                padding: 12,
+                                cornerRadius: 4,
+                              },
+                              datalabels: {
+                                anchor: "end",
+                                align: "top",
+                                formatter: (value: number) => Number(value).toFixed(1),
+                                font: { weight: "bold", size: 11 },
+                                color: "#475569",
+                              },
+                            },
+                            scales: {
+                              y: {
+                                beginAtZero: true,
+                                ticks: {
+                                  font: { family: '"Inter", sans-serif', size: 11 },
+                                  color: "#64748B",
+                                },
+                                grid: { color: "rgba(226, 232, 240, 0.6)" },
+                              },
+                              x: {
+                                ticks: { font: { family: '"Inter", sans-serif', size: 11 }, color: "#64748B" },
+                                grid: { display: false },
+                              },
+                            },
+                            animation: { duration: 1000 },
+                          }}
+                        />
+                      ) : (
+                        <div className="h-full flex items-center justify-center">
+                          <p className="text-gray-500">Nenhum dado disponível com os filtros atuais</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Volumetria de correções por treinamento/documento */}
+                <div className="bg-white-300 rounded-lg shadow-lg border border-slate-400">
+                  <div className="p-5 border-b border-slate-500">
+                    <h2 className="text-lg font-medium text-slate-500">Correções por treinamento/documento</h2>
+                  </div>
+                  <div className="p-6">
+                    <div className="h-80">
+                      {dashboardData.volumetriaCorrecoesPorTipo &&
+                      Object.keys(dashboardData.volumetriaCorrecoesPorTipo).length > 0 ? (
+                        <Bar
+                          data={{
+                            labels: Object.keys(dashboardData.volumetriaCorrecoesPorTipo),
+                            datasets: [
+                              {
+                                label: "Reprovações",
+                                data: Object.values(dashboardData.volumetriaCorrecoesPorTipo),
+                                backgroundColor: "rgba(239, 68, 68, 0.7)", // red-500
+                                borderColor: "#EF4444",
+                                borderWidth: 1,
+                                borderRadius: 4,
+                                borderSkipped: false,
+                              },
+                            ],
+                          }}
+                          options={{
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                              legend: { display: false },
+                              tooltip: {
+                                backgroundColor: "rgba(15, 23, 42, 0.8)",
+                                titleColor: "#ffffff",
+                                bodyColor: "#ffffff",
+                                bodyFont: { family: '"Inter", sans-serif' },
+                                padding: 12,
+                                cornerRadius: 4,
+                              },
+                              datalabels: {
+                                anchor: "end",
+                                align: "top",
+                                formatter: (value: number) => value,
+                                font: { weight: "bold", size: 11 },
+                                color: "#475569",
+                              },
+                            },
+                            scales: {
+                              y: {
+                                beginAtZero: true,
+                                ticks: {
+                                  stepSize: 1,
+                                  font: { family: '"Inter", sans-serif', size: 11 },
+                                  color: "#64748B",
+                                },
+                                grid: { color: "rgba(226, 232, 240, 0.6)" },
+                              },
+                              x: {
+                                ticks: { font: { family: '"Inter", sans-serif', size: 11 }, color: "#64748B" },
+                                grid: { display: false },
+                              },
+                            },
+                            animation: { duration: 1000 },
+                          }}
+                        />
+                      ) : (
+                        <div className="h-full flex items-center justify-center">
+                          <p className="text-gray-500">Nenhum dado disponível com os filtros atuais</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {/* Gráficos e Estatísticas - Design Elegante */}

@@ -177,6 +177,14 @@ export interface DashboardRemanejamento {
   pendenciasPorSetor?: Record<string, number>;
   funcionariosPorResponsavel?: Record<string, number>;
   solicitacoesPorMes?: number[];
+
+  // SLAs (novos campos)
+  slaTempoMedioSolicitacaoDias?: number;
+  slaTempoMedioSolicitacaoHoras?: number;
+  slaTempoMedioPorSetorDias?: Record<string, number>;
+  slaTempoMedioPorSetorHoras?: Record<string, number>;
+  slaLogisticaTempoMedioAprovacaoHoras?: number;
+  volumetriaCorrecoesPorTipo?: Record<string, number>;
 }
 
 // Tipos para filtros
