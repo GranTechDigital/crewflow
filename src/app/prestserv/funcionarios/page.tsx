@@ -2329,7 +2329,7 @@ function FuncionariosPageContent() {
             <div className="space-y-8 max-w-7xl mx-auto">
               {/* Cards de Resumo - Design Minimalista */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
-                {dashboardData.funcionariosPorStatusTarefa.map(({ status, count }, index) => (
+                {dashboardData.funcionariosPorStatusTarefa.map(({ status, count }: { status: string; count: number }, index) => (
                     <div
                       key={index}
                       className="bg-white-300 p-5 rounded-lg shadow-lg min-h-[120px] flex items-center border-1 border-slate-400"
