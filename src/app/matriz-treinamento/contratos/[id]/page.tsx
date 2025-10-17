@@ -521,7 +521,7 @@ function ContratoDetalheContent() {
 
                   {funcao.matrizTreinamento.some((item) => item.treinamento) ? (
                     <div className="overflow-x-auto">
-                      <table className="min-w-full text-xs border border-gray-200 rounded">
+                      <table className="min-w-full text-xs border-4 border-red-500 rounded">
                         <thead className="bg-gray-100">
                           <tr>
                             <th className="px-3 py-2 text-left font-medium text-gray-600">Treinamento</th>
