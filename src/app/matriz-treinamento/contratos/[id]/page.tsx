@@ -505,87 +505,101 @@ function ContratoDetalheContent() {
 
               {expandedFuncao === funcao.id && (
                 <div className="border-t border-gray-200 p-6">
-                  {funcao.matrizTreinamento.length > 0 ? (
-                    <div className="space-y-3">
-                      {funcao.matrizTreinamento.map((item) => (
-                        <div key={item.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                          {item.treinamento ? (
-                            <>
-                              <div className="flex items-center space-x-3">
-                                <AcademicCapIcon className="h-5 w-5 text-gray-400" />
-                                <div>
-                                  <h4 className="font-medium text-gray-900">{item.treinamento.treinamento}</h4>
-                                  <p className="text-sm text-gray-500">
-                                    {item.treinamento.cargaHoraria}h - Validade: {item.treinamento.validadeValor} {item.treinamento.validadeUnidade}
-                                  </p>
-                                </div>
-                              </div>
-                              <div className="flex items-center space-x-3">
-                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${getTipoObrigatoriedadeColor(item.tipoObrigatoriedade)}`}>
-                                  {getTipoObrigatoriedadeLabel(item.tipoObrigatoriedade)}
-                                </span>
-                                {/* Editor simples de obrigatoriedade */}
-                                <select
-                                  value={item.tipoObrigatoriedade}
-                                  onChange={(e) => handleChangeObrigatoriedade(item.id, e.target.value)}
-                                  disabled={savingObrigatoriedadeId === item.id}
-                                  className="text-xs border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                  title="Editar obrigatoriedade"
-                                >
-                                  {tiposObrigatoriedade.map((tipo) => (
-                                    <option key={tipo.value} value={tipo.value}>
-                                      {tipo.label}
-                                    </option>
-                                  ))}
-                                </select>
-                                <button
-                                  onClick={() => handleRemoveTreinamento(item.id)}
-                                  className="p-1 text-red-600 hover:bg-red-50 rounded"
-                                  title="Remover treinamento"
-                                >
-                                  <TrashIcon className="h-4 w-4" />
-                                </button>
-                              </div>
-                            </>
-                          ) : (
-                            <>
-                              <div className="flex items-center space-x-3">
-                                <AcademicCapIcon className="h-5 w-5 text-gray-300" />
-                                <div>
-                                  <h4 className="font-medium text-gray-500 italic">Função sem treinamento</h4>
-                                  <p className="text-sm text-gray-400">Clique em [Adicionar Treinamento] para configurar</p>
-                                </div>
-                              </div>
-                              <div className="flex items-center space-x-3">
-                                <button
-                                  onClick={() => openModal(funcao.id)}
-                                  className="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700"
-                                >
-                                  Adicionar Treinamento
-                                </button>
-                                <button
-                                  onClick={() => handleRemoveFuncao(funcao.id)}
-                                  className="p-1 text-red-600 hover:bg-red-50 rounded"
-                                  title="Excluir função"
-                                >
-                                  <TrashIcon className="h-4 w-4" />
-                                </button>
-                              </div>
-                            </>
+                  {/* Filtro local de treinamentos */}
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="relative w-full max-w-md">
+                      <MagnifyingGlassIcon className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <input
+                        type="text"
+                        placeholder="Buscar treinamento..."
+                        value={buscaTreinamento}
+                        onChange={(e) => setBuscaTreinamento(e.target.value)}
+                        className="w-full pl-7 pr-3 py-1.5 text-xs border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </div>
+                  </div>
+
+                  {funcao.matrizTreinamento.some((item) => item.treinamento) ? (
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full text-xs border border-gray-200 rounded">
+                        <thead className="bg-gray-100">
+                          <tr>
+                            <th className="px-3 py-2 text-left font-medium text-gray-600">Treinamento</th>
+                            <th className="px-3 py-2 text-left font-medium text-gray-600">Carga Horária</th>
+                            <th className="px-3 py-2 text-left font-medium text-gray-600">Validade</th>
+                            <th className="px-3 py-2 text-left font-medium text-gray-600">Obrigatoriedade</th>
+                            <th className="px-3 py-2 text-right font-medium text-gray-600">Ações</th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {funcao.matrizTreinamento
+                            .filter((item) => item.treinamento && item.treinamento.treinamento.toLowerCase().includes(buscaTreinamento.toLowerCase()))
+                            .map((item) => (
+                              <tr key={item.id} className="hover:bg-gray-50">
+                                <td className="px-3 py-2">
+                                  <div className="font-medium text-gray-900 truncate max-w-[320px]">{item.treinamento!.treinamento}</div>
+                                </td>
+                                <td className="px-3 py-2 text-gray-900">{item.treinamento!.cargaHoraria}h</td>
+                                <td className="px-3 py-2 text-gray-900">{item.treinamento!.validadeValor} {item.treinamento!.validadeUnidade}</td>
+                                <td className="px-3 py-2">
+                                  <select
+                                    value={item.tipoObrigatoriedade}
+                                    onChange={(e) => handleChangeObrigatoriedade(item.id, e.target.value)}
+                                    disabled={savingObrigatoriedadeId === item.id}
+                                    className="text-xs border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    title="Editar obrigatoriedade"
+                                  >
+                                    {tiposObrigatoriedade.map((tipo) => (
+                                      <option key={tipo.value} value={tipo.value}>
+                                        {tipo.label}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </td>
+                                <td className="px-3 py-2 text-right">
+                                  <button
+                                    onClick={() => handleRemoveTreinamento(item.id)}
+                                    className="p-1 text-red-600 hover:bg-red-50 rounded"
+                                    title="Remover treinamento"
+                                  >
+                                    <TrashIcon className="h-4 w-4" />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+
+                          {funcao.matrizTreinamento.filter((item) => item.treinamento && item.treinamento.treinamento.toLowerCase().includes(buscaTreinamento.toLowerCase())).length === 0 && (
+                            <tr>
+                              <td colSpan={5} className="px-3 py-3 text-center text-gray-500">Nenhum treinamento encontrado para este filtro</td>
+                            </tr>
                           )}
-                        </div>
-                      ))}
+                        </tbody>
+                      </table>
                     </div>
                   ) : (
-                    <div className="text-center py-8">
-                      <AcademicCapIcon className="mx-auto h-8 w-8 text-gray-400" />
-                      <p className="mt-2 text-sm text-gray-500">Nenhum treinamento cadastrado para esta função</p>
-                      <button
-                        onClick={() => openModal(funcao.id)}
-                        className="mt-2 text-blue-600 hover:text-blue-700 text-sm"
-                      >
-                        Adicionar primeiro treinamento
-                      </button>
+                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                      <div className="flex items-center space-x-3">
+                        <AcademicCapIcon className="h-5 w-5 text-gray-300" />
+                        <div>
+                          <h4 className="font-medium text-gray-500 italic">Função sem treinamento</h4>
+                          <p className="text-sm text-gray-400">Clique em [Adicionar Treinamento] para configurar</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-3">
+                        <button
+                          onClick={() => openModal(funcao.id)}
+                          className="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700"
+                        >
+                          Adicionar Treinamento
+                        </button>
+                        <button
+                          onClick={() => handleRemoveFuncao(funcao.id)}
+                          className="p-1 text-red-600 hover:bg-red-50 rounded"
+                          title="Excluir função"
+                        >
+                          <TrashIcon className="h-4 w-4" />
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
