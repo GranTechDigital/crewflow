@@ -2329,17 +2329,16 @@ function FuncionariosPageContent() {
             <div className="space-y-8 max-w-7xl mx-auto">
               {/* Cards de Resumo - Design Minimalista */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
-                {Object.entries(dashboardData.funcionariosPorStatusTarefa).map(
-                  ([status, valor], index) => (
+                {dashboardData.funcionariosPorStatusTarefa.map(({ status, count }, index) => (
                     <div
                       key={index}
                       className="bg-white-300 p-5 rounded-lg shadow-lg min-h-[120px] flex items-center border-1 border-slate-400"
                     >
                       <div className="flex items-center justify-between w-full">
                         <div>
-                          <p className="text-sm text-slate-500">{status}</p>
+                          <p className="text-sm text-slate-500">{getStatusLabel(String(status))}</p>
                           <p className="text-2xl font-semibold text-sky-400">
-                            {String(valor)}
+                            {Number(count)}
                           </p>
                         </div>
                         {/* <div className="p-2 rounded-md">
@@ -2368,9 +2367,9 @@ function FuncionariosPageContent() {
                 <div className="bg-white-300 p-5 rounded-lg shadow-lg border border-slate-400">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm text-slate-500">Tempo médio da solicitação (dias)</p>
+                      <p className="text-sm text-slate-500">Tempo médio da solicitação (horas)</p>
                       <p className="text-2xl font-semibold text-sky-500">
-                        {Number(dashboardData.slaTempoMedioSolicitacaoDias || 0).toFixed(1)}
+                        {Number(dashboardData.slaTempoMedioSolicitacaoHoras || 0).toFixed(1)}
                       </p>
                     </div>
                     <div className="p-2 rounded-md">
@@ -2402,19 +2401,19 @@ function FuncionariosPageContent() {
                 {/* Tempo médio por setor (dias) */}
                 <div className="bg-white-300 rounded-lg shadow-lg border border-slate-400">
                   <div className="p-5 border-b border-slate-500">
-                    <h2 className="text-lg font-medium text-slate-500">Tempo médio por setor (dias)</h2>
+                    <h2 className="text-lg font-medium text-slate-500">Tempo médio por setor (horas)</h2>
                   </div>
                   <div className="p-6">
                     <div className="h-80">
-                      {dashboardData.slaTempoMedioPorSetorDias &&
-                      Object.keys(dashboardData.slaTempoMedioPorSetorDias).length > 0 ? (
+                      {dashboardData.slaTempoMedioPorSetorHoras &&
+                      Object.keys(dashboardData.slaTempoMedioPorSetorHoras).length > 0 ? (
                         <Bar
                           data={{
-                            labels: Object.keys(dashboardData.slaTempoMedioPorSetorDias),
+                            labels: Object.keys(dashboardData.slaTempoMedioPorSetorHoras),
                             datasets: [
                               {
-                                label: "Dias (média)",
-                                data: Object.values(dashboardData.slaTempoMedioPorSetorDias).map((v: any) => {
+                                label: "Horas (média)",
+                                data: Object.values(dashboardData.slaTempoMedioPorSetorHoras).map((v: any) => {
                                   const n = Number(v);
                                   return Number.isNaN(n) ? 0 : n;
                                 }),
@@ -2558,17 +2557,16 @@ function FuncionariosPageContent() {
                   <div className="p-6">
                     <div className="h-80">
                       {dashboardData.funcionariosPorStatusTarefa &&
-                      Object.keys(dashboardData.funcionariosPorStatusTarefa)
-                        .length > 0 ? (
+                      dashboardData.funcionariosPorStatusTarefa.length > 0 ? (
                         <Doughnut
                           data={{
-                            labels: Object.keys(
-                              dashboardData.funcionariosPorStatusTarefa
+                            labels: dashboardData.funcionariosPorStatusTarefa.map((s: any) =>
+                              getStatusLabel(String(s.status))
                             ),
                             datasets: [
                               {
-                                data: Object.values(
-                                  dashboardData.funcionariosPorStatusTarefa
+                                data: dashboardData.funcionariosPorStatusTarefa.map((s: any) =>
+                                  Number(s.count)
                                 ),
                                 backgroundColor: [
                                   "#94A3B8", // slate-400
@@ -2677,18 +2675,17 @@ function FuncionariosPageContent() {
                   <div className="p-6">
                     <div className="h-80">
                       {dashboardData.funcionariosPorStatusPrestserv &&
-                      Object.keys(dashboardData.funcionariosPorStatusPrestserv)
-                        .length > 0 ? (
+                      dashboardData.funcionariosPorStatusPrestserv.length > 0 ? (
                         <Bar
                           data={{
-                            labels: Object.keys(
-                              dashboardData.funcionariosPorStatusPrestserv
-                            ).map((status) => status.replace("_", " ")),
+                            labels: dashboardData.funcionariosPorStatusPrestserv.map((s: any) =>
+                              (s.status || "Não definido").replace("_", " ")
+                            ),
                             datasets: [
                               {
                                 label: "Funcionários",
-                                data: Object.values(
-                                  dashboardData.funcionariosPorStatusPrestserv
+                                data: dashboardData.funcionariosPorStatusPrestserv.map((s: any) =>
+                                  Number(s.count)
                                 ),
                                 backgroundColor: [
                                   "rgba(14, 165, 233, 0.7)", // sky-500
