@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import jwt from 'jsonwebtoken';
+import { jwtVerify } from 'jose';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
@@ -16,15 +16,16 @@ export async function getUserFromRequest(request: NextRequest) {
       return null;
     }
 
-    // Verificar e decodificar o token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret') as any;
+    // Verificar e decodificar o token com jose
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret');
+    const { payload: decoded } = await jwtVerify(token, secret);
     
     // Debug para verificar o conteúdo do token
     console.log('DEBUG - Token decodificado:', JSON.stringify(decoded, null, 2));
 
     // Buscar dados atualizados do usuário
     // Verificar se temos userId ou id no token
-    const userId = decoded.userId || decoded.id;
+    const userId = (decoded as any).userId || (decoded as any).id;
     
     if (!userId) {
       console.log('DEBUG - ID do usuário não encontrado no token');

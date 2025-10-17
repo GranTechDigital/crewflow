@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import jwt from 'jsonwebtoken';
+import { jwtVerify } from 'jose';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
@@ -15,12 +15,14 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Verificar e decodificar o token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret') as any;
+    // Verificar e decodificar o token com jose
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret');
+    const { payload: decoded } = await jwtVerify(token, secret);
+    const userId = (decoded as any).userId || (decoded as any).id;
 
     // Buscar dados atualizados do usuário
     const usuario = await prisma.usuario.findUnique({
-      where: { id: decoded.userId },
+      where: { id: userId },
       include: {
         funcionario: true,
         equipe: true
