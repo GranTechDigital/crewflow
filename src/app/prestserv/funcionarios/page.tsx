@@ -2414,7 +2414,10 @@ function FuncionariosPageContent() {
                             datasets: [
                               {
                                 label: "Dias (média)",
-                                data: Object.values(dashboardData.slaTempoMedioPorSetorDias).map((v: any) => Number(v || 0).toFixed ? Number(v) : v),
+                                data: Object.values(dashboardData.slaTempoMedioPorSetorDias).map((v: any) => {
+                                  const n = Number(v);
+                                  return Number.isNaN(n) ? 0 : n;
+                                }),
                                 backgroundColor: "rgba(14, 165, 233, 0.7)",
                                 borderColor: "#0EA5E9",
                                 borderWidth: 1,
