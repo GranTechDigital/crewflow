@@ -105,6 +105,8 @@ function ContratoDetalheContent() {
 
   // Estado para salvar atualização de obrigatoriedade por item
   const [savingObrigatoriedadeId, setSavingObrigatoriedadeId] = useState<number | null>(null);
+  // Filtro de treinamentos dentro da função expandida
+  const [buscaTreinamento, setBuscaTreinamento] = useState('');
 
   useEffect(() => {
     if (contratoId) {
@@ -463,7 +465,7 @@ function ContratoDetalheContent() {
             <div key={funcao.id} className="bg-white rounded-lg shadow-sm border border-gray-200">
               <div 
                 className="p-6 cursor-pointer hover:bg-gray-50"
-                onClick={() => setExpandedFuncao(expandedFuncao === funcao.id ? null : funcao.id)}
+                onClick={() => { setExpandedFuncao(expandedFuncao === funcao.id ? null : funcao.id); setBuscaTreinamento(''); }}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
