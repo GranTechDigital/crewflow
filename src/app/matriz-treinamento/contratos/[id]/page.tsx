@@ -107,6 +107,7 @@ function ContratoDetalheContent() {
   const [savingObrigatoriedadeId, setSavingObrigatoriedadeId] = useState<number | null>(null);
   // Filtro de treinamentos dentro da função expandida
   const [buscaTreinamento, setBuscaTreinamento] = useState('');
+  const [filtroObrigatoriedade, setFiltroObrigatoriedade] = useState('');
 
   useEffect(() => {
     if (contratoId) {
@@ -465,7 +466,7 @@ function ContratoDetalheContent() {
             <div key={funcao.id} className="bg-white rounded-lg shadow-sm border border-gray-200">
               <div 
                 className="p-6 cursor-pointer hover:bg-gray-50"
-                onClick={() => { setExpandedFuncao(expandedFuncao === funcao.id ? null : funcao.id); setBuscaTreinamento(''); }}
+                onClick={() => { setExpandedFuncao(expandedFuncao === funcao.id ? null : funcao.id); setBuscaTreinamento(''); setFiltroObrigatoriedade(''); }}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
@@ -517,11 +518,22 @@ function ContratoDetalheContent() {
                         className="w-full pl-7 pr-3 py-1.5 text-xs border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       />
                     </div>
+                    <select
+                      value={filtroObrigatoriedade}
+                      onChange={(e) => setFiltroObrigatoriedade(e.target.value)}
+                      className="px-2 py-1.5 text-xs border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      title="Filtrar por obrigatoriedade"
+                    >
+                      <option value="">Todas</option>
+                      {tiposObrigatoriedade.map((tipo) => (
+                        <option key={tipo.value} value={tipo.value}>{tipo.label}</option>
+                      ))}
+                    </select>
                   </div>
 
                   {funcao.matrizTreinamento.some((item) => item.treinamento) ? (
                     <div className="overflow-x-auto">
-                      <table className="min-w-full text-xs border-4 border-red-500 rounded">
+                      <table className="min-w-full text-xs border-2 border-blue-900 rounded">
                         <thead className="bg-gray-100">
                           <tr>
                             <th className="px-3 py-2 text-left font-medium text-gray-600">Treinamento</th>
@@ -533,7 +545,7 @@ function ContratoDetalheContent() {
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
                           {funcao.matrizTreinamento
-                            .filter((item) => item.treinamento && item.treinamento.treinamento.toLowerCase().includes(buscaTreinamento.toLowerCase()))
+                            .filter((item) => item.treinamento && item.treinamento.treinamento.toLowerCase().includes(buscaTreinamento.toLowerCase()) && (filtroObrigatoriedade === '' || item.tipoObrigatoriedade === filtroObrigatoriedade))
                             .map((item) => (
                               <tr key={item.id} className="hover:bg-gray-50">
                                 <td className="px-3 py-2">
@@ -568,7 +580,7 @@ function ContratoDetalheContent() {
                               </tr>
                             ))}
 
-                          {funcao.matrizTreinamento.filter((item) => item.treinamento && item.treinamento.treinamento.toLowerCase().includes(buscaTreinamento.toLowerCase())).length === 0 && (
+                          {funcao.matrizTreinamento.filter((item) => item.treinamento && item.treinamento.treinamento.toLowerCase().includes(buscaTreinamento.toLowerCase()) && (filtroObrigatoriedade === '' || item.tipoObrigatoriedade === filtroObrigatoriedade)).length === 0 && (
                             <tr>
                               <td colSpan={5} className="px-3 py-3 text-center text-gray-500">Nenhum treinamento encontrado para este filtro</td>
                             </tr>
