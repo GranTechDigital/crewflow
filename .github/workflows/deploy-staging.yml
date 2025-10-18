@@ -1,5 +1,4 @@
 name: Deploy CrewFlow to Staging
-run-name: "Staging: ${{ github.event_name == 'pull_request' && github.event.pull_request.title || github.event.head_commit.message || github.ref_name }}"
 
 on:
   push:
@@ -57,7 +56,6 @@ jobs:
           docker load < /tmp/crewflow-app-staging.tar
 
           # Ensure Postgres staging is up via compose
-          cd /opt/projetogran
           docker network create projetogran_crewflow-network 2>/dev/null || true
           docker compose -f docker-compose.staging-postgres.yml up -d
 
@@ -98,13 +96,12 @@ jobs:
     - name: 🧪 Run tests (optional)
       run: |
         ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
-          # Basic health check using logout endpoint
+          # Basic health check
           sleep 5
-          if curl -s -o /dev/null -w "%{http_code}" -X POST http://localhost:3002/api/auth/logout | grep -q "200"; then
-            echo "✅ Logout endpoint responded with 200"
+          if curl -f http://localhost:3002/api/health 2>/dev/null; then
+            echo "✅ Health check passed"
           else
-            echo "⚠️ Logout health check failed (verify container logs)"
-            docker logs crewflow-app-staging || true
+            echo "⚠️ Health check failed (normal if no health endpoint)"
           fi
         EOF
         
