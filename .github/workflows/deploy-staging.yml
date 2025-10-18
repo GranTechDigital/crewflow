@@ -57,7 +57,15 @@ jobs:
 
           # Ensure Postgres staging is up via compose
           docker network create projetogran_crewflow-network 2>/dev/null || true
-          docker compose -f docker-compose.staging-postgres.yml up -d
+          if docker compose version >/dev/null 2>&1; then
+            docker compose -f docker-compose.staging-postgres.yml up -d
+          elif command -v docker-compose >/dev/null 2>&1; then
+            docker-compose -f docker-compose.staging-postgres.yml up -d
+          else
+            echo "❌ Docker Compose not found on server"
+            docker version || true
+            exit 125
+          fi
 
           # Stop and remove old staging container
           docker stop crewflow-app-staging 2>/dev/null || true
