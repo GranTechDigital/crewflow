@@ -1740,11 +1740,11 @@ export default function TarefasPage() {
                                                       }
                                                     >
                                                       <ChatBubbleLeftRightIcon className="h-4 w-4" />
-                                                      {tarefa.observacoes && (
-                                                          <span className="absolute -top-2 -right-2 bg-blue-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
-                                                            1
-                                                          </span>
-                                                        )}
+                                                      {Array.isArray((tarefa as any).observacoesTarefa) && (tarefa as any).observacoesTarefa.length > 0 && (
+                                                        <span className="absolute -top-2 -right-2 bg-blue-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
+                                                          {(tarefa as any).observacoesTarefa.length}
+                                                        </span>
+                                                      )}
                                                     </button>
                                                   </div>
                                                 </td>
