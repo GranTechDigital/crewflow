@@ -1,0 +1,72 @@
+name: Cleanup Docker resources on wweb
+
+on:
+  workflow_dispatch:
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🔑 Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: 🔎 Inspect current Docker resources
+        run: |
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
+            set -e
+            echo "\n📦 Containers (all):"
+            docker ps -a --format "table {{.Names}}\t{{.Image}}\t{{.Status}}"
+            echo "\n🖼️  Images:"
+            docker images --format "table {{.Repository}}:{{.Tag}}\t{{.ID}}\t{{.Size}}"
+            echo "\n📚 Volumes:"
+            docker volume ls
+            echo "\n🌐 Networks:"
+            docker network ls
+          EOF
+
+      - name: 🧹 Cleanup unused containers/images/volumes/networks (keep staging + production)
+        run: |
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
+            set -e
+            echo "\n🧹 Removing non-whitelisted containers..."
+            docker ps -a --format '{{.Names}}' | grep -v -E '^(crewflow-app-production|postgres-prod|pgadmin-production|crewflow-app-staging|postgres-staging|pgadmin-staging)$' | xargs -r docker rm -f || true
+
+            echo "\n🧼 Pruning unused resources (stopped containers, networks, build cache)..."
+            docker system prune -f || true
+
+            echo "\n🧽 Removing non-whitelisted images (may skip in-use images)..."
+            # Keep only core images for staging/production; remove the rest
+            docker images --format '{{.Repository}}:{{.Tag}} {{.ID}}' | \
+              grep -v -E '^(crewflow-app:latest|crewflow-app:staging|postgres:14|postgres:15|dpage/pgadmin4:latest) ' | \
+              awk '{print $2}' | xargs -r docker image rm -f || true
+
+            echo "\n🪣 Pruning dangling images..."
+            docker image prune -f || true
+
+            echo "\n📚 Removing non-whitelisted volumes (preserve staging + production data)..."
+            # Preserve volumes from our project; remove others
+            docker volume ls -q | grep -v -E '^(projetogran_pgadmin-staging-data|projetogran_postgres-data|projetogran_pgadmin_data|projetogran_postgres_data)$' | xargs -r docker volume rm || true
+
+            echo "\n🌐 Removing unused networks except shared network..."
+            docker network ls -q | grep -v -E '^(projetogran_crewflow-network)$' | xargs -r docker network rm || true
+
+            echo "\n✅ Cleanup complete."
+          EOF
+
+      - name: 📋 Post-cleanup report
+        run: |
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
+            set -e
+            echo "\n📦 Containers after cleanup:"
+            docker ps -a --format "table {{.Names}}\t{{.Image}}\t{{.Status}}"
+            echo "\n🖼️  Images after cleanup:"
+            docker images --format "table {{.Repository}}:{{.Tag}}\t{{.ID}}\t{{.Size}}"
+            echo "\n📚 Volumes after cleanup:"
+            docker volume ls
+            echo "\n🌐 Networks after cleanup:"
+            docker network ls
+          EOF
