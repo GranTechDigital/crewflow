@@ -48,6 +48,33 @@ export async function PUT(
       );
     }
 
+    // Regra D+30: data de vencimento deve ser >= hoje + 30 dias (exceto RH)
+    if (tarefaAtual.responsavel !== "RH" && dataVencimento) {
+      const parseYYYYMMDDToUTC = (s: string) => {
+        const [y, m, d] = s.split("-").map(Number);
+        return Date.UTC(y, m - 1, d);
+      };
+      const today = new Date();
+      const minLocal = new Date(
+        today.getFullYear(),
+        today.getMonth(),
+        today.getDate()
+      );
+      minLocal.setDate(minLocal.getDate() + 30);
+      const minUTC = Date.UTC(
+        minLocal.getFullYear(),
+        minLocal.getMonth(),
+        minLocal.getDate()
+      );
+      const selectedUTC = parseYYYYMMDDToUTC(dataVencimento);
+      if (selectedUTC < minUTC) {
+        return NextResponse.json(
+          { error: "Data de vencimento deve ser pelo menos 30 dias após hoje." },
+          { status: 400 }
+        );
+      }
+    }
+
     // Preparar dados para atualização
     const updateData: {
       status: string;

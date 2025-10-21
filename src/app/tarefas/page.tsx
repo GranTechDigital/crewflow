@@ -674,6 +674,32 @@ export default function TarefasPage() {
       toast.error("Informe a data de vencimento para concluir a tarefa.");
       return;
     }
+    // Regra D+30: data de vencimento deve ser >= hoje + 30 dias (exceto RH)
+    if (tarefaSelecionada.responsavel !== "RH" && dataVencimento) {
+      const parseYYYYMMDDToUTC = (s: string) => {
+        const [y, m, d] = s.split("-").map(Number);
+        return Date.UTC(y, m - 1, d);
+      };
+      const today = new Date();
+      const minLocal = new Date(
+        today.getFullYear(),
+        today.getMonth(),
+        today.getDate()
+      );
+      minLocal.setDate(minLocal.getDate() + 30);
+      const minUTC = Date.UTC(
+        minLocal.getFullYear(),
+        minLocal.getMonth(),
+        minLocal.getDate()
+      );
+      const selectedUTC = parseYYYYMMDDToUTC(dataVencimento);
+      if (selectedUTC < minUTC) {
+        toast.error(
+          "A data de vencimento deve ser pelo menos 30 dias a partir de hoje."
+        );
+        return;
+      }
+    }
 
     try {
       setConcluindoTarefa(true);
@@ -2601,7 +2627,7 @@ export default function TarefasPage() {
                     htmlFor="dataVencimento"
                     className="block text-xs font-medium text-gray-700 mb-2"
                   >
-                    Data de Vencimento (Obrigatória)
+                    Data de Vencimento (Obrigatória - mínimo D+30)
                   </label>
                   <input
                     type="date"
@@ -2609,8 +2635,19 @@ export default function TarefasPage() {
                     value={dataVencimento}
                     onChange={(e) => setDataVencimento(e.target.value)}
                     required
+                    min={(function () {
+                      const d = new Date();
+                      d.setDate(d.getDate() + 30);
+                      const y = d.getFullYear();
+                      const m = String(d.getMonth() + 1).padStart(2, "0");
+                      const day = String(d.getDate()).padStart(2, "0");
+                      return `${y}-${m}-${day}`;
+                    })()}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
+                  <p className="text-[10px] text-gray-500 mt-1">
+                    Regra: escolha uma data ao menos 30 dias após hoje.
+                  </p>
                 </div>
               )}
             </div>

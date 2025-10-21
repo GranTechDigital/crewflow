@@ -228,9 +228,9 @@ function FuncionariosDemitidosContent() {
                 Voltar
               </Link>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Funcionários Demitidos</h1>
+                <h1 className="text-2xl font-bold text-gray-900">Funcionários Desligados</h1>
                 <p className="text-gray-600 mt-1">
-                  Lista de funcionários com status [Folha Demitido]
+                  Lista de funcionários com status [Folha Desligado]
                 </p>
               </div>
             </div>
@@ -343,8 +343,8 @@ function FuncionariosDemitidosContent() {
                             </div>
                           ) : dados.length === 0 ? (
                             <div>
-                              <p className="text-lg font-medium mb-2">Nenhum funcionário demitido encontrado</p>
-                              <p className="text-sm">Não há funcionários com status [folha demitido] no sistema.</p>
+                              <p className="text-lg font-medium mb-2">Nenhum funcionário desligado encontrado</p>
+                              <p className="text-sm">Não há funcionários com status [folha desligado] no sistema.</p>
                             </div>
                           ) : (
                             <div>

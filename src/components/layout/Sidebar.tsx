@@ -113,7 +113,7 @@ export default function Sidebar() {
           href: "/prestserv/funcionarios-por-contrato",
         },
         {
-          label: "Demitidos",
+          label: "Desligados",
           href: "/funcionarios/demitidos",
         },
         {
