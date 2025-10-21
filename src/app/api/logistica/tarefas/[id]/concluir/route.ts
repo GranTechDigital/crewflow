@@ -40,6 +40,14 @@ export async function PUT(
       );
     }
 
+    // Regra de negócio: data de vencimento obrigatória exceto para RH
+    if (tarefaAtual.responsavel !== "RH" && !dataVencimento) {
+      return NextResponse.json(
+        { error: "Data de vencimento é obrigatória para concluir a tarefa (exceto RH)." },
+        { status: 400 }
+      );
+    }
+
     // Preparar dados para atualização
     const updateData: {
       status: string;

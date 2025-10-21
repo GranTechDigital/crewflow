@@ -665,6 +665,12 @@ export default function TarefasPage() {
   const concluirTarefa = async () => {
     if (!tarefaSelecionada) return;
 
+    // Validar data de vencimento obrigatória exceto para RH
+    if (tarefaSelecionada.responsavel !== "RH" && !dataVencimento) {
+      toast.error("Informe a data de vencimento para concluir a tarefa.");
+      return;
+    }
+
     try {
       setConcluindoTarefa(true);
       const response = await fetch(
@@ -2578,13 +2584,14 @@ export default function TarefasPage() {
                     htmlFor="dataVencimento"
                     className="block text-xs font-medium text-gray-700 mb-2"
                   >
-                    Data de Vencimento (Opcional)
+                    Data de Vencimento (Obrigatória)
                   </label>
                   <input
                     type="date"
                     id="dataVencimento"
                     value={dataVencimento}
                     onChange={(e) => setDataVencimento(e.target.value)}
+                    required
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
