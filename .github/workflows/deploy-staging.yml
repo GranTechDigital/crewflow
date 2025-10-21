@@ -60,12 +60,38 @@ jobs:
           cd /opt/projetogran
           if docker compose version >/dev/null 2>&1; then
             docker compose -f /opt/projetogran/docker-compose.staging-postgres.yml up -d
-          elif command -v docker-compose >/dev/null 2>&1; then
-            docker-compose -f /opt/projetogran/docker-compose.staging-postgres.yml up -d
           else
-            echo "❌ Docker Compose not found on server"
-            docker version || true
-            exit 125
+            echo "ℹ️ Docker Compose v2 not found. Installing plugin..."
+            ARCH=$(uname -m)
+            COMPOSE_URL=""
+            if [ "$ARCH" = "x86_64" ]; then
+              COMPOSE_URL="https://github.com/docker/compose/releases/download/v2.27.0/docker-compose-linux-x86_64"
+            elif [ "$ARCH" = "aarch64" ]; then
+              COMPOSE_URL="https://github.com/docker/compose/releases/download/v2.27.0/docker-compose-linux-aarch64"
+            elif [ "$ARCH" = "armv7l" ]; then
+              COMPOSE_URL="https://github.com/docker/compose/releases/download/v2.27.0/docker-compose-linux-armv7"
+            else
+              echo "❌ Unsupported architecture: $ARCH"
+              uname -a || true
+              exit 125
+            fi
+            mkdir -p ~/.docker/cli-plugins
+            if command -v curl >/dev/null 2>&1; then
+              curl -fsSL "$COMPOSE_URL" -o ~/.docker/cli-plugins/docker-compose
+            elif command -v wget >/dev/null 2>&1; then
+              wget -qO ~/.docker/cli-plugins/docker-compose "$COMPOSE_URL"
+            else
+              echo "❌ Neither curl nor wget is available to download Docker Compose."
+              exit 125
+            fi
+            chmod +x ~/.docker/cli-plugins/docker-compose
+            if docker compose version >/dev/null 2>&1; then
+              echo "✅ Docker Compose v2 installed."
+            else
+              echo "❌ Failed to install Docker Compose v2."
+              exit 125
+            fi
+            docker compose -f /opt/projetogran/docker-compose.staging-postgres.yml up -d
           fi
 
           # Stop and remove old staging container
