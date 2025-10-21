@@ -59,6 +59,10 @@ export async function POST(request: NextRequest) {
       data: { ultimoLogin: new Date() }
     });
 
+    // Valores seguros para equipe (podem ser nulos no banco)
+    const equipeNome = funcionario.usuario.equipe?.nome ?? 'Sem equipe';
+    const equipeId = funcionario.usuario.equipeId ?? null;
+
     // Gerar token JWT usando jose
     const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret');
     console.log('DEBUG - Gerando token com dados:', JSON.stringify({
@@ -67,8 +71,8 @@ export async function POST(request: NextRequest) {
       funcionarioId: funcionario.id,
       matricula: funcionario.matricula,
       nome: funcionario.nome,
-      equipe: funcionario.usuario.equipe.nome,
-      equipeId: funcionario.usuario.equipeId
+      equipe: equipeNome,
+      equipeId: equipeId
     }));
     
     const token = await new SignJWT({
@@ -77,8 +81,8 @@ export async function POST(request: NextRequest) {
       funcionarioId: funcionario.id,
       matricula: funcionario.matricula,
       nome: funcionario.nome,
-      equipe: funcionario.usuario.equipe.nome,
-      equipeId: funcionario.usuario.equipeId
+      equipe: equipeNome,
+      equipeId: equipeId
     })
       .setProtectedHeader({ alg: 'HS256' })
       .setExpirationTime('8h')
@@ -92,8 +96,8 @@ export async function POST(request: NextRequest) {
         matricula: funcionario.matricula,
         nome: funcionario.nome,
         email: funcionario.email,
-        equipe: funcionario.usuario.equipe.nome,
-        equipeId: funcionario.usuario.equipeId
+        equipe: equipeNome,
+        equipeId: equipeId
       }
     });
 

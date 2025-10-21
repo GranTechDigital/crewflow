@@ -15,9 +15,26 @@ services:
     networks:
       - projetogran_crewflow-network
 
+  pgadmin-staging:
+    image: dpage/pgadmin4:latest
+    container_name: pgadmin-staging
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@crewflow.com
+      - PGADMIN_DEFAULT_PASSWORD=admin123
+    ports:
+      - "5051:80"
+    volumes:
+      - pgadmin-staging-data:/var/lib/pgadmin
+    restart: unless-stopped
+    networks:
+      - projetogran_crewflow-network
+    depends_on:
+      - postgres-staging
+
 networks:
   projetogran_crewflow-network:
     external: true
 
 volumes:
   postgres-data:
+  pgadmin-staging-data:
