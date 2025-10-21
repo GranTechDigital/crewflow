@@ -72,6 +72,7 @@ interface ProgressoGeral {
   pendentes: number;
   emAndamento: number;
   concluidas: number;
+  reprovadas: number;
   atrasadas: number;
 }
 
@@ -449,6 +450,9 @@ export default function TarefasPage() {
     const concluidas = todasTarefas.filter(
       (t) => t.status === "CONCLUIDO" || t.status === "CONCLUIDA"
     ).length;
+    const reprovadas = todasTarefas.filter(
+      (t) => t.status === "REPROVADO"
+    ).length;
 
     // Calcular tarefas atrasadas (pendentes ou em andamento com data limite no passado)
     const hoje = new Date();
@@ -466,7 +470,7 @@ export default function TarefasPage() {
       return dataLimite < hoje;
     }).length;
 
-    return { total, pendentes, emAndamento, concluidas, atrasadas };
+    return { total, pendentes, emAndamento, concluidas, reprovadas, atrasadas };
   };
 
   const getTarefasFiltradas = () => {
@@ -998,7 +1002,7 @@ export default function TarefasPage() {
     const progresso = getProgressoGeral();
 
     return (
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <div className="bg-linear-to-r from-gray-100 to-slate-100 p-5 rounded-lg shadow-lg min-h-[120px] flex items-center border-1 border-slate-400">
           <div className="flex items-center justify-between w-full">
             <div>
@@ -1032,6 +1036,19 @@ export default function TarefasPage() {
             <CheckCircleIcon className="h-12 w-12 text-slate-400" />
           </div>
         </div>
+
+        <div className="bg-linear-to-r from-gray-100 to-slate-100 p-5 rounded-lg shadow-lg min-h-[120px] flex items-center border-1 border-slate-400">
+          <div className="flex items-center justify-between w-full">
+            <div>
+              <p className="text-xs text-slate-300">Reprovadas</p>
+              <p className="text-2xl font-semibold text-sky-300">
+                {progresso.reprovadas}
+              </p>
+            </div>
+            <ExclamationCircleIcon className="h-12 w-12 text-slate-400" />
+          </div>
+        </div>
+
         <div className="bg-linear-to-r from-gray-100 to-slate-100 p-5 rounded-lg shadow-lg min-h-[120px] flex items-center border-1 border-slate-400">
           <div className="flex items-center justify-between w-full">
             <div>
