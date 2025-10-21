@@ -153,8 +153,7 @@ jobs:
             fi
           EOF
 
-      - name: 🗄️ Setup Database (only on prisma changes)
-        if: steps.changes.outputs.prisma == 'true'
+      - name: 🗄️ Setup Database (run every deploy)
         run: |
           ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
             cd /opt/projetogran
