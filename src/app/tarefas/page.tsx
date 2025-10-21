@@ -774,6 +774,11 @@ export default function TarefasPage() {
 
       const data = await response.json();
       setObservacoes(data);
+      // Atualizar contador agregado para refletir imediatamente no badge
+      setObservacoesCountMap((prev) => ({
+        ...prev,
+        [tarefaId]: Array.isArray(data) ? data.length : 0,
+      }));
     } catch (error) {
       console.error("Erro ao buscar observações:", error);
       toast.error("Erro ao carregar observações");
@@ -791,8 +796,7 @@ export default function TarefasPage() {
         setObservacoesCountMap({});
         return;
       }
-      const params = encodeURIComponent(ids.join(','));
-      const resp = await fetch(`/api/logistica/tarefas/observacoes/count?ids=${params}`);
+      const resp = await fetch(`/api/logistica/tarefas/observacoes/count?ids=${ids.join(',')}`);
       if (!resp.ok) {
         console.warn('Falha ao buscar contagem de observações');
         return;
