@@ -22,7 +22,7 @@ O sistema utiliza uma arquitetura baseada em containers Docker com os seguintes 
 |----------|-----|-----------|
 | Produção | http://46.202.146.234:3001 | Ambiente de produção |
 | Staging | Local | Ambiente de testes com PostgreSQL local |
-| Desenvolvimento | Local | Ambiente de desenvolvimento com SQLite |
+| Desenvolvimento | Local | Ambiente de desenvolvimento com PostgreSQL |
 
 ### 🚀 Processo de Deploy
 
@@ -95,7 +95,7 @@ Após um deploy, verifique:
 
 | Data | Versão | Descrição |
 |------|--------|-----------|
-| 2024-05-XX | 1.0 | Configuração inicial com SQLite |
+| 2024-05-XX | 1.0 | Configuração inicial |
 | 2024-05-XX | 1.1 | Migração para PostgreSQL |
 | 2024-05-XX | 1.2 | Padronização dos nomes dos containers |
 | 2024-05-XX | 1.3 | Correção do workflow de deploy automático |
@@ -115,7 +115,7 @@ Após um deploy, verifique:
 - **Next.js 14** - Framework React
 - **TypeScript** - Linguagem de programação
 - **Prisma** - ORM para banco de dados
-- **SQLite** - Banco de dados
+- **PostgreSQL** - Banco de dados
 - **Tailwind CSS** - Framework CSS
 - **JWT** - Autenticação
 - **Lucide React** - Ícones
@@ -147,7 +147,7 @@ pnpm install
 Crie um arquivo `.env` na raiz do projeto:
 ```env
 # Banco de dados
-DATABASE_URL="file:./dev.db"
+DATABASE_URL="postgresql://postgres:senha_segura_aqui@localhost:5432/projetogran?schema=public"
 
 # JWT Secret (altere para um valor seguro em produção)
 JWT_SECRET="seu-jwt-secret-aqui"
