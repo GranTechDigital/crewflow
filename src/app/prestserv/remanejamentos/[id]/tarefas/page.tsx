@@ -83,6 +83,7 @@ function TarefasFuncionarioContent() {
   const [observacoesTarefa, setObservacoesTarefa] = useState<{
     [key: string]: ObservacaoTarefa[];
   }>({});
+  const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>({});
   const [mostrarObservacoesTarefa, setMostrarObservacoesTarefa] = useState<
     string | null
   >(null);
@@ -107,6 +108,27 @@ function TarefasFuncionarioContent() {
   useEffect(() => {
     fetchFuncionario();
   }, [funcionarioId]);
+
+  // Buscar contagem de observações para todas as tarefas visíveis
+  useEffect(() => {
+    const fetchCounts = async () => {
+      if (funcionario?.tarefas && funcionario.tarefas.length > 0) {
+        const ids = funcionario.tarefas.map((t) => t.id).join(',');
+        try {
+          const resp = await fetch(`/api/logistica/tarefas/observacoes/count?ids=${encodeURIComponent(ids)}`);
+          if (!resp.ok) throw new Error('Erro ao contar observações');
+          const data = await resp.json();
+          setObservacoesCount(data || {});
+        } catch (err) {
+          console.error('Erro ao contar observações:', err);
+          setObservacoesCount({});
+        }
+      } else {
+        setObservacoesCount({});
+      }
+    };
+    fetchCounts();
+  }, [funcionario]);
 
   const fetchFuncionario = async () => {
     try {
@@ -269,6 +291,10 @@ function TarefasFuncionarioContent() {
       }
       const observacoes = await response.json();
       setObservacoesTarefa((prev) => ({ ...prev, [tarefaId]: observacoes }));
+      setObservacoesCount((prev) => ({
+        ...prev,
+        [tarefaId]: Array.isArray(observacoes) ? observacoes.length : 0,
+      }));
     } catch (err) {
       showToast(
         err instanceof Error ? err.message : "Erro desconhecido",
@@ -843,16 +869,11 @@ function TarefasFuncionarioContent() {
                       >
                         <ChatBubbleLeftRightIcon className="w-4 h-4 mr-1" />
                         Observações
-                        {observacoesTarefa[tarefa.id] && (
-                          <span className="ml-1 px-1.5 py-0.5 text-xs bg-blue-800 rounded-full">
-                            {observacoesTarefa[tarefa.id].length}
-                          </span>
-                        )}
-                        {!observacoesTarefa[tarefa.id] && (
-                          <span className="ml-1 px-1.5 py-0.5 text-xs bg-gray-500 rounded-full">
-                            0
-                          </span>
-                        )}
+                        <span
+                          className={`ml-1 px-1.5 py-0.5 text-xs rounded-full ${((observacoesCount[tarefa.id] ?? 0) > 0) ? 'bg-blue-800' : 'bg-gray-500'}`}
+                        >
+                          {observacoesCount[tarefa.id] ?? 0}
+                        </span>
                       </button>
                       {tarefa.status !== "CONCLUIDO" && (
                         <button
