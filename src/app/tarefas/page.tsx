@@ -164,6 +164,8 @@ export default function TarefasPage() {
   const [carregandoObservacoes, setCarregandoObservacoes] = useState(false);
   const [novaObservacao, setNovaObservacao] = useState("");
   const [adicionandoObservacao, setAdicionandoObservacao] = useState(false);
+  // Mapa de contagem de observações por tarefa
+  const [observacoesCountMap, setObservacoesCountMap] = useState<Record<string, number>>({});
 
   const [funcionariosExpandidos, setFuncionariosExpandidos] = useState<
     Set<string>
@@ -779,6 +781,34 @@ export default function TarefasPage() {
       setCarregandoObservacoes(false);
     }
   };
+
+  // Buscar contagem de observações para as tarefas filtradas
+  const atualizarContagemObservacoes = useCallback(async () => {
+    try {
+      const tarefasFiltradas = getTarefasFiltradas();
+      const ids = tarefasFiltradas.map((t) => t.id);
+      if (ids.length === 0) {
+        setObservacoesCountMap({});
+        return;
+      }
+      const params = encodeURIComponent(ids.join(','));
+      const resp = await fetch(`/api/logistica/tarefas/observacoes/count?ids=${params}`);
+      if (!resp.ok) {
+        console.warn('Falha ao buscar contagem de observações');
+        return;
+      }
+      const data = await resp.json();
+      setObservacoesCountMap(data || {});
+    } catch (e) {
+      console.error('Erro ao atualizar contagem de observações:', e);
+    }
+  }, []);
+
+  useEffect(() => {
+    // Atualiza contagem quando dados ou filtros mudam
+    atualizarContagemObservacoes();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [solicitacoes, filtroNome, filtroStatus, filtroPrioridade, filtroSetor, filtroContrato, setorAtual]);
 
   const adicionarObservacao = async () => {
     if (!tarefaSelecionada || !novaObservacao.trim()) {
@@ -1740,9 +1770,9 @@ export default function TarefasPage() {
                                                       }
                                                     >
                                                       <ChatBubbleLeftRightIcon className="h-4 w-4" />
-                                                      {Array.isArray((tarefa as any).observacoesTarefa) && (tarefa as any).observacoesTarefa.length > 0 && (
+                                                      {observacoesCountMap[tarefa.id] > 0 && (
                                                         <span className="absolute -top-2 -right-2 bg-blue-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
-                                                          {(tarefa as any).observacoesTarefa.length}
+                                                          {observacoesCountMap[tarefa.id]}
                                                         </span>
                                                       )}
                                                     </button>
