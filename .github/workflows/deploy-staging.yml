@@ -59,6 +59,7 @@ jobs:
           docker network create projetogran_crewflow-network 2>/dev/null || true
           cd /opt/projetogran
           if docker compose version >/dev/null 2>&1; then
+            docker compose -f /opt/projetogran/docker-compose.staging-postgres.yml down || true
             docker compose -f /opt/projetogran/docker-compose.staging-postgres.yml up -d
           else
             echo "ℹ️ Docker Compose v2 not found. Installing plugin..."
@@ -91,6 +92,7 @@ jobs:
               echo "❌ Failed to install Docker Compose v2."
               exit 125
             fi
+            docker compose -f /opt/projetogran/docker-compose.staging-postgres.yml down || true
             docker compose -f /opt/projetogran/docker-compose.staging-postgres.yml up -d
           fi
 
