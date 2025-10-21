@@ -58,6 +58,7 @@ jobs:
           # Ensure Postgres staging is up via compose
           docker network create projetogran_crewflow-network 2>/dev/null || true
           cd /opt/projetogran
+          docker rm -f postgres-staging 2>/dev/null || true
           if docker compose version >/dev/null 2>&1; then
             docker compose -f /opt/projetogran/docker-compose.staging-postgres.yml down || true
             docker compose -f /opt/projetogran/docker-compose.staging-postgres.yml up -d
