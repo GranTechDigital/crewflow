@@ -1372,7 +1372,7 @@ useEffect(() => {
                     return (
                       <React.Fragment key={chaveGrupo}>
                         <tr
-                          className={`hover:bg-gray-50 group ${bordaClasses}`}
+                          className={`hover:bg-gray-50 group ${bordaClasses} cursor-pointer`}
                           onClick={(e) => {
                             const target = e.target as HTMLElement;
                             if (target && (target.closest('button') || target.closest('a') || target.closest('input') || target.closest('[data-no-expand]'))) {
@@ -1381,12 +1381,22 @@ useEffect(() => {
                             toggleExpandirFuncionario(chaveGrupo);
                           }}
                         >
-                          <td className="px-6 py-4 whitespace-nowrap">
+                          <td
+                            className="px-6 py-4 whitespace-nowrap"
+                            onClick={(e) => {
+                              const target = e.target as HTMLElement;
+                              if (target && (target.closest('button') || target.closest('a') || target.closest('input') || target.closest('[data-no-expand]'))) {
+                                return;
+                              }
+                              toggleExpandirFuncionario(chaveGrupo);
+                            }}
+                          >
                             <div className="flex items-center space-x-3">
                               <button
-                                onClick={() =>
-                                  toggleExpandirFuncionario(chaveGrupo)
-                                }
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleExpandirFuncionario(chaveGrupo);
+                                }}
                                 className="text-gray-500 hover:text-gray-700"
                               >
                                 <ChevronRightIcon
