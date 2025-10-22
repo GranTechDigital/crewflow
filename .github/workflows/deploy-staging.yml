@@ -62,9 +62,18 @@ jobs:
           docker system prune -f || true
 
           # Login to GHCR and pull latest staging image
-          echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${{ secrets.GHCR_USERNAME }}" --password-stdin
-          docker pull ghcr.io/${{ steps.repo.outputs.repo_lc }}:staging
-           docker tag ghcr.io/${{ steps.repo.outputs.repo_lc }}:staging crewflow-app:staging
+          GHCR_USER="${{ secrets.GHCR_USERNAME }}"
+          GHCR_PASS="${{ secrets.GHCR_TOKEN }}"
+          if [ -n "$GHCR_USER" ] && [ -n "$GHCR_PASS" ]; then
+            echo "$GHCR_PASS" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+          else
+            echo "⚠️ GHCR credentials not provided; attempting anonymous pull (requires public package)."
+          fi
+          if ! docker pull ghcr.io/${{ steps.repo.outputs.repo_lc }}:staging; then
+            echo "❌ Failed to pull image from GHCR. Ensure the package is public or set GHCR_USERNAME and GHCR_TOKEN (read:packages)."
+            exit 1
+          fi
+          docker tag ghcr.io/${{ steps.repo.outputs.repo_lc }}:staging crewflow-app:staging
 
           # Ensure Postgres staging is up via compose
           docker network create projetogran_crewflow-network 2>/dev/null || true
