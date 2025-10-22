@@ -1373,6 +1373,13 @@ useEffect(() => {
                       <React.Fragment key={chaveGrupo}>
                         <tr
                           className={`hover:bg-gray-50 group ${bordaClasses}`}
+                          onClick={(e) => {
+                            const target = e.target as HTMLElement;
+                            if (target && (target.closest('button') || target.closest('a') || target.closest('input') || target.closest('[data-no-expand]'))) {
+                              return;
+                            }
+                            toggleExpandirFuncionario(chaveGrupo);
+                          }}
                         >
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center space-x-3">
