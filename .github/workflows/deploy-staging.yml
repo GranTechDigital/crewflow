@@ -10,9 +10,6 @@ jobs:
   deploy-staging:
     runs-on: ubuntu-latest
     environment: staging
-    permissions:
-      contents: read
-      packages: write
     
     steps:
     - name: 📥 Checkout code
@@ -20,26 +17,14 @@ jobs:
       
     - name: 🐳 Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
-
-    - name: 🔤 Normalize repo to lowercase (GHCR)
-      id: repo
-      run: echo "repo_lc=${GITHUB_REPOSITORY,,}" >> $GITHUB_OUTPUT
-
-    - name: 🔐 Login to GHCR
-      uses: docker/login-action@v3
-      with:
-        registry: ghcr.io
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: 🔧 Build and push image to GHCR
-      uses: docker/build-push-action@v6
-      with:
-        context: .
-        push: true
-        tags: ghcr.io/${{ steps.repo.outputs.repo_lc }}:staging,ghcr.io/${{ steps.repo.outputs.repo_lc }}:${{ github.sha }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+      
+    - name: 🔧 Build Docker image
+      run: |
+        docker build --no-cache -t crewflow-app:staging .
+        
+    - name: 💾 Save Docker image
+      run: |
+        docker save crewflow-app:staging > crewflow-app-staging.tar
         
     - name: 🔑 Setup SSH
       run: |
@@ -48,8 +33,14 @@ jobs:
         chmod 600 ~/.ssh/id_rsa
         ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
         
-    - name: 📤 Prepare server (compose files)
+    - name: 📤 Upload image to server
       run: |
+        # Clean up any existing staging tar file first
+        ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} "rm -f /tmp/crewflow-app-staging.tar"
+        
+        # Upload new image
+        scp -o StrictHostKeyChecking=no crewflow-app-staging.tar root@${{ secrets.SERVER_HOST }}:/tmp/
+        
         # Ensure application directory exists and upload staging Postgres compose
         ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} "mkdir -p /opt/projetogran"
         scp -o StrictHostKeyChecking=no docker-compose.staging-postgres.yml root@${{ secrets.SERVER_HOST }}:/opt/projetogran/
@@ -61,19 +52,8 @@ jobs:
           # Clean up Docker system before deployment
           docker system prune -f || true
 
-          # Login to GHCR and pull latest staging image
-          GHCR_USER="${{ secrets.GHCR_USERNAME }}"
-          GHCR_PASS="${{ secrets.GHCR_TOKEN }}"
-          if [ -n "$GHCR_USER" ] && [ -n "$GHCR_PASS" ]; then
-            echo "$GHCR_PASS" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
-          else
-            echo "⚠️ GHCR credentials not provided; attempting anonymous pull (requires public package)."
-          fi
-          if ! docker pull ghcr.io/${{ steps.repo.outputs.repo_lc }}:staging; then
-            echo "❌ Failed to pull image from GHCR. Ensure the package is public or set GHCR_USERNAME and GHCR_TOKEN (read:packages)."
-            exit 1
-          fi
-          docker tag ghcr.io/${{ steps.repo.outputs.repo_lc }}:staging crewflow-app:staging
+          # Load new image
+          docker load < /tmp/crewflow-app-staging.tar
 
           # Ensure Postgres staging is up via compose
           docker network create projetogran_crewflow-network 2>/dev/null || true
@@ -133,7 +113,7 @@ jobs:
             crewflow-app:staging
 
           # Clean up
-          echo "GHCR image pulled; no local tar to clean."
+          rm /tmp/crewflow-app-staging.tar
 
           # Wait for container to start
           sleep 10
