@@ -523,14 +523,34 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
     toast.success("Tarefas exportadas com sucesso!");
   };
 
-  // Função para expandir/contrair funcionários
+  // Função para carregar contagem de observações sob demanda para as tarefas do grupo
+  const carregarObservacoesCountParaGrupo = async (tarefas: TarefaRemanejamento[]) => {
+    const ids = Array.from(new Set((tarefas || []).map((t) => t.id)));
+    if (ids.length === 0) return;
+    try {
+      const qs = encodeURIComponent(ids.join(","));
+      const resp = await fetch(`/api/logistica/tarefas/observacoes/count?ids=${qs}`);
+      if (!resp.ok) throw new Error("Erro ao contar observações");
+      const data = await resp.json();
+      const normalized = Object.fromEntries(
+        Object.entries(data || {}).map(([k, v]) => [String(k), v as number])
+      );
+      setObservacoesCount((prev) => ({ ...prev, ...normalized }));
+    } catch (err) {
+      console.error("Erro ao contar observações:", err);
+    }
+  };
 
-  const toggleExpandirFuncionario = (chaveGrupo: string) => {
+  // Função para expandir/contrair funcionários
+  const toggleExpandirFuncionario = async (chaveGrupo: string, tarefas: TarefaRemanejamento[]) => {
     const novoExpandido = new Set(funcionariosExpandidos);
-    if (novoExpandido.has(chaveGrupo)) {
+    const isExpanded = novoExpandido.has(chaveGrupo);
+    if (isExpanded) {
       novoExpandido.delete(chaveGrupo);
     } else {
       novoExpandido.add(chaveGrupo);
+      // Carregar contagem de observações apenas ao expandir
+      carregarObservacoesCountParaGrupo(tarefas);
     }
     setFuncionariosExpandidos(novoExpandido);
   };
@@ -1251,28 +1271,7 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
     const fim = inicio + itensPorPaginaFuncionarios;
     const remanejamentosPaginados = remanejamentosComTarefas.slice(inicio, fim);
 
-// Buscar contagem de observações para tarefas visíveis
-useEffect(() => {
-  const ids = Array.from(
-    new Set(
-      remanejamentosPaginados.flatMap((r: any) => (r.tarefas || []).map((t: any) => t.id))
-    )
-  );
-  if (ids.length > 0) {
-    const qs = encodeURIComponent(ids.join(","));
-    fetch(`/api/logistica/tarefas/observacoes/count?ids=${qs}`)
-      .then((resp) => (resp.ok ? resp.json() : Promise.reject(new Error("Erro ao contar observações"))))
-      .then((data) => {
-        const normalized = Object.fromEntries(
-          Object.entries(data || {}).map(([k, v]) => [String(k), v as number])
-        );
-        setObservacoesCount((prev) => ({ ...prev, ...normalized }));
-      })
-      .catch((err) => {
-        console.error("Erro ao contar observações:", err);
-      });
-  }
-}, [remanejamentosPaginados]);
+// Contagem de observações será carregada sob demanda ao expandir uma linha
 
     if (loading) {
       return <div className="text-center py-10">Carregando tarefas...</div>;
@@ -1372,13 +1371,13 @@ useEffect(() => {
                     return (
                       <React.Fragment key={chaveGrupo}>
                         <tr
-                          className={`hover:bg-gray-50 group ${bordaClasses} cursor-pointer`}
+                          className={`group ${bordaClasses} cursor-pointer ${expandido ? 'bg-slate-50' : 'hover:bg-gray-50'}`}
                           onClick={(e) => {
                             const target = e.target as HTMLElement;
                             if (target && (target.closest('button') || target.closest('a') || target.closest('input') || target.closest('[data-no-expand]'))) {
                               return;
                             }
-                            toggleExpandirFuncionario(chaveGrupo);
+                            toggleExpandirFuncionario(chaveGrupo, tarefas);
                           }}
                         >
                           <td
@@ -1388,7 +1387,7 @@ useEffect(() => {
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  toggleExpandirFuncionario(chaveGrupo);
+                                  toggleExpandirFuncionario(chaveGrupo, tarefas);
                                 }}
                                 className="text-gray-500 hover:text-gray-700"
                               >
