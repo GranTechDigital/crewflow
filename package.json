@@ -16,7 +16,16 @@
     "seed": "npx prisma db seed",
     "seed:complete": "node prisma/seed-complete.cjs",
     "seed:essential": "node prisma/seed-complete.cjs",
-    "init": "node scripts/init-project.cjs"
+    "init": "node scripts/init-project.cjs",
+    "producao-like": "docker-compose -f docker-compose.local.yml up -d app-local",
+    "producao-like:rebuild": "docker build -t crewflow-app:latest . && docker-compose -f docker-compose.local.yml up -d --force-recreate --no-deps app-local",
+    "dev:docker": "docker-compose -f docker-compose.local.yml up -d app-dev",
+    "compose:down": "docker-compose -f docker-compose.local.yml down",
+    "logs:dev": "docker logs -f crewflow-app-dev",
+    "logs:producao-like": "docker logs -f crewflow-app-local",
+    "open": "powershell -Command Start-Process 'http://localhost:3000'",
+    "prisma:dev": "docker exec crewflow-app-dev npx prisma migrate dev",
+    "prisma:prod": "docker exec crewflow-app-local npx prisma migrate deploy"
   },
   "prisma": {
     "seed": "node prisma/seed-complete.cjs"

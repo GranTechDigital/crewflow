@@ -168,7 +168,11 @@ export default function NovoRemanejamentoPage() {
 
   // Funções de manipulação
   const adicionarFuncionario = (funcionario: FuncionarioSelecionado) => {
-    setFuncionariosSelecionados(prev => [...prev, { ...funcionario, selecionado: true }]);
+    setFuncionariosSelecionados(prev => {
+      return prev.some(f => f.id === funcionario.id)
+        ? prev
+        : [...prev, { ...funcionario, selecionado: true }];
+    });
   };
 
   const removerFuncionario = (funcionarioId: number) => {
@@ -177,10 +181,13 @@ export default function NovoRemanejamentoPage() {
 
   const adicionarTodosDaFuncao = (funcao: string) => {
     const funcionariosDaFuncao = funcionariosDisponiveis.filter(f => f.funcao === funcao);
-    setFuncionariosSelecionados(prev => [
-      ...prev,
-      ...funcionariosDaFuncao.map(f => ({ ...f, selecionado: true }))
-    ]);
+    setFuncionariosSelecionados(prev => {
+      const existingIds = new Set(prev.map(f => f.id));
+      const toAdd = funcionariosDaFuncao
+        .filter(f => !existingIds.has(Number(f.id)))
+        .map(f => ({ ...f, selecionado: true }));
+      return [...prev, ...toAdd];
+    });
   };
 
   // Resumo para confirmação

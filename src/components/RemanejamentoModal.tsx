@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from "react";
 import {
   XMarkIcon,
   ArrowRightIcon,
@@ -13,9 +13,13 @@ import {
   CheckCircleIcon,
   ChevronDownIcon,
   ChevronUpDownIcon,
-  ArrowLongRightIcon
-} from '@heroicons/react/24/outline';
-import { FuncionarioSelecionado, NovoRemanejamento, ResumoRemanejamento } from '@/types/remanejamento';
+  ArrowLongRightIcon,
+} from "@heroicons/react/24/outline";
+import {
+  FuncionarioSelecionado,
+  NovoRemanejamento,
+  ResumoRemanejamento,
+} from "@/types/remanejamento";
 
 interface Contrato {
   id: number;
@@ -53,34 +57,44 @@ export default function RemanejamentoModal({
   funcionarios,
   contratoSelecionado,
   centroCustoSelecionado,
-  onSubmit
+  onSubmit,
 }: RemanejamentoModalProps) {
   // Estados principais
-  const [funcionariosSelecionados, setFuncionariosSelecionados] = useState<FuncionarioSelecionado[]>([]);
-  const [contratoOrigem, setContratoOrigem] = useState<Contrato | null>(contratoSelecionado || null);
-  const [centroCustoOrigem, setCentroCustoOrigem] = useState(centroCustoSelecionado || '');
+  const [funcionariosSelecionados, setFuncionariosSelecionados] = useState<
+    FuncionarioSelecionado[]
+  >([]);
+  const [contratoOrigem, setContratoOrigem] = useState<Contrato | null>(
+    contratoSelecionado || null
+  );
+  const [centroCustoOrigem, setCentroCustoOrigem] = useState(
+    centroCustoSelecionado || ""
+  );
   const [contratoDestino, setContratoDestino] = useState<Contrato | null>(null);
-  const [centroCustoDestino, setCentroCustoDestino] = useState('');
-  const [justificativa, setJustificativa] = useState('');
-  const [prioridade, setPrioridade] = useState<'baixa' | 'media' | 'alta' | 'urgente'>('media');
+  const [centroCustoDestino, setCentroCustoDestino] = useState("");
+  const [justificativa, setJustificativa] = useState("");
+  const [prioridade, setPrioridade] = useState<
+    "baixa" | "media" | "alta" | "urgente"
+  >("media");
   const [loading, setLoading] = useState(false);
-  
+
   // Estados de filtros
-  const [filtroFuncao, setFiltroFuncao] = useState('');
-  const [buscaNome, setBuscaNome] = useState('');
-  const [etapaAtual, setEtapaAtual] = useState<'selecao' | 'confirmacao'>('selecao');
+  const [filtroFuncao, setFiltroFuncao] = useState("");
+  const [buscaNome, setBuscaNome] = useState("");
+  const [etapaAtual, setEtapaAtual] = useState<"selecao" | "confirmacao">(
+    "selecao"
+  );
 
   // Reset modal quando abrir/fechar
   useEffect(() => {
     if (isOpen) {
       setContratoOrigem(contratoSelecionado || null);
-      setCentroCustoOrigem(centroCustoSelecionado || '');
+      setCentroCustoOrigem(centroCustoSelecionado || "");
       setFuncionariosSelecionados([]);
       setContratoDestino(null);
-      setCentroCustoDestino('');
-      setJustificativa('');
-      setPrioridade('media');
-      setEtapaAtual('selecao');
+      setCentroCustoDestino("");
+      setJustificativa("");
+      setPrioridade("media");
+      setEtapaAtual("selecao");
     }
   }, [isOpen, contratoSelecionado, centroCustoSelecionado]);
 
@@ -90,7 +104,12 @@ export default function RemanejamentoModal({
       if (!acc[contrato.id]) {
         acc[contrato.id] = {
           ...contrato,
-          centros: new Set(contrato.centroDeCusto.split(',').map(c => c.trim()).filter(c => c !== ''))
+          centros: new Set(
+            contrato.centroDeCusto
+              .split(",")
+              .map((c) => c.trim())
+              .filter((c) => c !== "")
+          ),
         };
       }
       return acc;
@@ -101,80 +120,105 @@ export default function RemanejamentoModal({
   // Funcionários disponíveis (origem)
   const funcionariosDisponiveis = useMemo(() => {
     return funcionarios
-      .filter(f => {
+      .filter((f) => {
         // Filtro por contrato de origem
         if (contratoOrigem) {
           const centrosDoContrato = Array.from(contratoOrigem.centros || []);
           if (!centrosDoContrato.includes(f.centroCusto)) return false;
         }
         // Filtro por centro de custo específico
-        if (centroCustoOrigem && f.centroCusto !== centroCustoOrigem) return false;
+        if (centroCustoOrigem && f.centroCusto !== centroCustoOrigem)
+          return false;
         // Filtro por função
         if (filtroFuncao && f.funcao !== filtroFuncao) return false;
         // Filtro por nome
-        if (buscaNome && !f.nome.toLowerCase().includes(buscaNome.toLowerCase())) return false;
+        if (
+          buscaNome &&
+          !f.nome.toLowerCase().includes(buscaNome.toLowerCase())
+        )
+          return false;
         // Não mostrar funcionários já selecionados
-        if (funcionariosSelecionados.some(fs => fs.id === parseInt(f.id))) return false;
+        if (funcionariosSelecionados.some((fs) => fs.id === parseInt(f.id)))
+          return false;
         return true;
       })
-      .map(f => ({
+      .map((f) => ({
         id: parseInt(f.id),
         nome: f.nome,
         matricula: f.id,
         funcao: f.funcao || null,
         centroCusto: f.centroCusto || null,
-        selecionado: false
+        selecionado: false,
       }));
-  }, [funcionarios, contratoOrigem, centroCustoOrigem, filtroFuncao, buscaNome, funcionariosSelecionados]);
+  }, [
+    funcionarios,
+    contratoOrigem,
+    centroCustoOrigem,
+    filtroFuncao,
+    buscaNome,
+    funcionariosSelecionados,
+  ]);
 
   // Funções disponíveis para filtro
   const funcoesDisponiveis = useMemo(() => {
-    const funcionariosFiltrados = contratoOrigem || centroCustoOrigem
-      ? funcionarios.filter(f => {
-          if (contratoOrigem) {
-            const centrosDoContrato = Array.from(contratoOrigem.centros || []);
-            return centrosDoContrato.includes(f.centroCusto);
-          }
-          return f.centroCusto === centroCustoOrigem;
-        })
-      : funcionarios;
-    return [...new Set(funcionariosFiltrados.map(f => f.funcao).filter(Boolean))];
+    const funcionariosFiltrados =
+      contratoOrigem || centroCustoOrigem
+        ? funcionarios.filter((f) => {
+            if (contratoOrigem) {
+              const centrosDoContrato = Array.from(
+                contratoOrigem.centros || []
+              );
+              return centrosDoContrato.includes(f.centroCusto);
+            }
+            return f.centroCusto === centroCustoOrigem;
+          })
+        : funcionarios;
+    return [
+      ...new Set(funcionariosFiltrados.map((f) => f.funcao).filter(Boolean)),
+    ];
   }, [funcionarios, contratoOrigem, centroCustoOrigem]);
 
   // Centros de custo disponíveis
   const centrosCustoOrigem = useMemo(() => {
-    return contratoOrigem
-      ? Array.from(contratoOrigem.centros || [])
-      : [];
+    return contratoOrigem ? Array.from(contratoOrigem.centros || []) : [];
   }, [contratoOrigem]);
 
   const centrosCustoDestino = useMemo(() => {
-    return contratoDestino
-      ? Array.from(contratoDestino.centros || [])
-      : [];
+    return contratoDestino ? Array.from(contratoDestino.centros || []) : [];
   }, [contratoDestino]);
 
   // Funções de manipulação
   const adicionarFuncionario = (funcionario: FuncionarioSelecionado) => {
-    setFuncionariosSelecionados(prev => [...prev, { ...funcionario, selecionado: true }]);
+    setFuncionariosSelecionados((prev) => {
+      return prev.some((f) => f.id === funcionario.id)
+        ? prev
+        : [...prev, { ...funcionario, selecionado: true }];
+    });
   };
 
   const removerFuncionario = (funcionarioId: number) => {
-    setFuncionariosSelecionados(prev => prev.filter(f => f.id !== funcionarioId));
+    setFuncionariosSelecionados((prev) =>
+      prev.filter((f) => f.id !== funcionarioId)
+    );
   };
 
   const adicionarTodosDaFuncao = (funcao: string) => {
-    const funcionariosDaFuncao = funcionariosDisponiveis.filter(f => f.funcao === funcao);
-    setFuncionariosSelecionados(prev => [
-      ...prev,
-      ...funcionariosDaFuncao.map(f => ({ ...f, selecionado: true }))
-    ]);
+    const funcionariosDaFuncao = funcionariosDisponiveis.filter(
+      (f) => f.funcao === funcao
+    );
+    setFuncionariosSelecionados((prev) => {
+      const existingIds = new Set(prev.map((f) => f.id));
+      const toAdd = funcionariosDaFuncao
+        .filter((f) => !existingIds.has(Number(f.id)))
+        .map((f) => ({ ...f, selecionado: true }));
+      return [...prev, ...toAdd];
+    });
   };
 
   // Resumo para confirmação
   const getResumo = (): ResumoRemanejamento => {
     const porFuncao = funcionariosSelecionados.reduce((acc, f) => {
-      const funcao = f.funcao || 'Sem função';
+      const funcao = f.funcao || "Sem função";
       acc[funcao] = (acc[funcao] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
@@ -184,45 +228,45 @@ export default function RemanejamentoModal({
       porFuncao,
       origem: {
         contrato: contratoOrigem?.nome,
-        centroCusto: centroCustoOrigem
+        centroCusto: centroCustoOrigem,
       },
       destino: {
         contrato: contratoDestino?.nome,
-        centroCusto: centroCustoDestino
-      }
+        centroCusto: centroCustoDestino,
+      },
     };
   };
 
   // Submissão
   const handleSubmit = async () => {
     if (funcionariosSelecionados.length === 0) {
-      alert('Selecione pelo menos um funcionário');
+      alert("Selecione pelo menos um funcionário");
       return;
     }
 
     if (!centroCustoDestino) {
-      alert('Selecione o centro de custo de destino');
+      alert("Selecione o centro de custo de destino");
       return;
     }
 
     setLoading(true);
     try {
       const remanejamento: NovoRemanejamento = {
-        funcionarioIds: funcionariosSelecionados.map(f => f.id),
+        funcionarioIds: funcionariosSelecionados.map((f) => f.id),
         contratoOrigemId: contratoOrigem?.id,
         centroCustoOrigem,
         contratoDestinoId: contratoDestino?.id,
         centroCustoDestino,
         justificativa,
         prioridade,
-        solicitadoPor: 'Usuário Atual'
+        solicitadoPor: "Usuário Atual",
       };
 
       await onSubmit(remanejamento);
       onClose();
     } catch (error) {
-      console.error('Erro ao criar remanejamento:', error);
-      alert('Erro ao criar solicitação de remanejamento');
+      console.error("Erro ao criar remanejamento:", error);
+      alert("Erro ao criar solicitação de remanejamento");
     } finally {
       setLoading(false);
     }
@@ -238,7 +282,9 @@ export default function RemanejamentoModal({
           <div className="flex items-center gap-3">
             <UserGroupIcon className="h-6 w-6 text-blue-600" />
             <h2 className="text-xl font-semibold text-gray-900">
-              {etapaAtual === 'selecao' ? 'Selecionar Funcionários' : 'Confirmar Remanejamento'}
+              {etapaAtual === "selecao"
+                ? "Selecionar Funcionários"
+                : "Confirmar Remanejamento"}
             </h2>
           </div>
           <button
@@ -255,20 +301,23 @@ export default function RemanejamentoModal({
             <div className="flex items-center gap-2">
               <BuildingOfficeIcon className="h-4 w-4 text-blue-600" />
               <span className="font-medium text-blue-900">
-                {contratoOrigem?.nome || 'Origem'} → {centroCustoOrigem || 'Centro não selecionado'}
+                {contratoOrigem?.nome || "Origem"} →{" "}
+                {centroCustoOrigem || "Centro não selecionado"}
               </span>
             </div>
             <ArrowLongRightIcon className="h-5 w-5 text-blue-600" />
             <div className="flex items-center gap-2">
               <BuildingOfficeIcon className="h-4 w-4 text-green-600" />
               <span className="font-medium text-green-900">
-                {contratoDestino?.nome || 'Destino'} → {centroCustoDestino || 'Centro não selecionado'}
+                {contratoDestino?.nome || "Destino"} →{" "}
+                {centroCustoDestino || "Centro não selecionado"}
               </span>
             </div>
             {funcionariosSelecionados.length > 0 && (
               <div className="ml-4 bg-blue-100 px-3 py-1 rounded-full">
                 <span className="text-blue-800 font-medium">
-                  {funcionariosSelecionados.length} funcionário{funcionariosSelecionados.length !== 1 ? 's' : ''}
+                  {funcionariosSelecionados.length} funcionário
+                  {funcionariosSelecionados.length !== 1 ? "s" : ""}
                 </span>
               </div>
             )}
@@ -277,7 +326,7 @@ export default function RemanejamentoModal({
 
         {/* Conteúdo Principal */}
         <div className="p-6 overflow-y-auto max-h-[calc(95vh-200px)]">
-          {etapaAtual === 'selecao' ? (
+          {etapaAtual === "selecao" ? (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full">
               {/* Painel Esquerdo - Origem */}
               <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
@@ -295,17 +344,23 @@ export default function RemanejamentoModal({
                       Contrato de Origem
                     </label>
                     <select
-                      value={contratoOrigem?.id || ''}
+                      value={contratoOrigem?.id || ""}
                       onChange={(e) => {
-                        const contrato = contratosUnicos.find(c => c.id.toString() === e.target.value) || null;
+                        const contrato =
+                          contratosUnicos.find(
+                            (c) => c.id.toString() === e.target.value
+                          ) || null;
                         setContratoOrigem(contrato);
-                        setCentroCustoOrigem('');
+                        setCentroCustoOrigem("");
                       }}
                       className="w-full px-3 py-2 border border-blue-300 rounded-md focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="">Selecione um contrato</option>
                       {contratosUnicos.map((contrato) => (
-                        <option key={contrato.id} value={contrato.id.toString()}>
+                        <option
+                          key={contrato.id}
+                          value={contrato.id.toString()}
+                        >
                           {contrato.nome} - {contrato.cliente}
                         </option>
                       ))}
@@ -370,19 +425,28 @@ export default function RemanejamentoModal({
                 {/* Lista de Funcionários Disponíveis */}
                 <div className="border border-blue-200 rounded-md bg-white max-h-80 overflow-y-auto">
                   <div className="p-3 border-b border-blue-200 bg-blue-100">
-                    <h4 className="text-sm font-medium text-blue-900">Funcionários Disponíveis</h4>
+                    <h4 className="text-sm font-medium text-blue-900">
+                      Funcionários Disponíveis
+                    </h4>
                     <p className="text-xs text-blue-700 mt-1">
-                      {funcionariosDisponiveis.length} funcionário{funcionariosDisponiveis.length !== 1 ? 's' : ''} encontrado{funcionariosDisponiveis.length !== 1 ? 's' : ''}
+                      {funcionariosDisponiveis.length} funcionário
+                      {funcionariosDisponiveis.length !== 1 ? "s" : ""}{" "}
+                      encontrado
+                      {funcionariosDisponiveis.length !== 1 ? "s" : ""}
                     </p>
                   </div>
                   <div className="divide-y divide-gray-200">
                     {funcionariosDisponiveis.length === 0 ? (
                       <div className="p-4 text-center text-gray-500 text-sm">
-                        Nenhum funcionário disponível com os filtros selecionados
+                        Nenhum funcionário disponível com os filtros
+                        selecionados
                       </div>
                     ) : (
                       funcionariosDisponiveis.map((funcionario) => (
-                        <div key={funcionario.id} className="p-3 hover:bg-gray-50 flex items-center justify-between">
+                        <div
+                          key={funcionario.id}
+                          className="p-3 hover:bg-gray-50 flex items-center justify-between"
+                        >
                           <div className="flex-1">
                             <div className="text-sm font-medium text-gray-900">
                               {funcionario.nome}
@@ -403,7 +467,9 @@ export default function RemanejamentoModal({
                             </button>
                             {funcionario.funcao && (
                               <button
-                                onClick={() => adicionarTodosDaFuncao(funcionario.funcao!)}
+                                onClick={() =>
+                                  adicionarTodosDaFuncao(funcionario.funcao!)
+                                }
                                 className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs hover:bg-blue-200 transition-colors"
                                 title={`Adicionar todos os ${funcionario.funcao}`}
                               >
@@ -434,17 +500,23 @@ export default function RemanejamentoModal({
                       Contrato de Destino
                     </label>
                     <select
-                      value={contratoDestino?.id || ''}
+                      value={contratoDestino?.id || ""}
                       onChange={(e) => {
-                        const contrato = contratosUnicos.find(c => c.id.toString() === e.target.value) || null;
+                        const contrato =
+                          contratosUnicos.find(
+                            (c) => c.id.toString() === e.target.value
+                          ) || null;
                         setContratoDestino(contrato);
-                        setCentroCustoDestino('');
+                        setCentroCustoDestino("");
                       }}
                       className="w-full px-3 py-2 border border-green-300 rounded-md focus:ring-2 focus:ring-green-500"
                     >
                       <option value="">Selecione um contrato</option>
                       {contratosUnicos.map((contrato) => (
-                        <option key={contrato.id} value={contrato.id.toString()}>
+                        <option
+                          key={contrato.id}
+                          value={contrato.id.toString()}
+                        >
                           {contrato.nome} - {contrato.cliente}
                         </option>
                       ))}
@@ -474,9 +546,14 @@ export default function RemanejamentoModal({
                 {/* Lista de Funcionários Selecionados */}
                 <div className="border border-green-200 rounded-md bg-white max-h-80 overflow-y-auto">
                   <div className="p-3 border-b border-green-200 bg-green-100">
-                    <h4 className="text-sm font-medium text-green-900">Funcionários Selecionados</h4>
+                    <h4 className="text-sm font-medium text-green-900">
+                      Funcionários Selecionados
+                    </h4>
                     <p className="text-xs text-green-700 mt-1">
-                      {funcionariosSelecionados.length} funcionário{funcionariosSelecionados.length !== 1 ? 's' : ''} selecionado{funcionariosSelecionados.length !== 1 ? 's' : ''}
+                      {funcionariosSelecionados.length} funcionário
+                      {funcionariosSelecionados.length !== 1 ? "s" : ""}{" "}
+                      selecionado
+                      {funcionariosSelecionados.length !== 1 ? "s" : ""}
                     </p>
                   </div>
                   <div className="divide-y divide-gray-200">
@@ -486,7 +563,10 @@ export default function RemanejamentoModal({
                       </div>
                     ) : (
                       funcionariosSelecionados.map((funcionario) => (
-                        <div key={funcionario.id} className="p-3 hover:bg-gray-50 flex items-center justify-between">
+                        <div
+                          key={funcionario.id}
+                          className="p-3 hover:bg-gray-50 flex items-center justify-between"
+                        >
                           <div className="flex-1">
                             <div className="text-sm font-medium text-gray-900">
                               {funcionario.nome}
@@ -517,10 +597,13 @@ export default function RemanejamentoModal({
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                 <div className="flex items-center gap-2 mb-2">
                   <ExclamationTriangleIcon className="h-5 w-5 text-yellow-600" />
-                  <h3 className="font-medium text-yellow-800">Confirmar Remanejamento</h3>
+                  <h3 className="font-medium text-yellow-800">
+                    Confirmar Remanejamento
+                  </h3>
                 </div>
                 <p className="text-sm text-yellow-700">
-                  Revise as informações antes de enviar a solicitação de remanejamento.
+                  Revise as informações antes de enviar a solicitação de
+                  remanejamento.
                 </p>
               </div>
 
@@ -529,20 +612,24 @@ export default function RemanejamentoModal({
                 <div className="bg-blue-50 p-4 rounded-lg">
                   <h4 className="font-medium text-blue-900 mb-3">Origem</h4>
                   <p className="text-sm text-blue-800">
-                    <strong>Contrato:</strong> {contratoOrigem?.nome || 'Não especificado'}
+                    <strong>Contrato:</strong>{" "}
+                    {contratoOrigem?.nome || "Não especificado"}
                   </p>
                   <p className="text-sm text-blue-800">
-                    <strong>Centro de Custo:</strong> {centroCustoOrigem || 'Não especificado'}
+                    <strong>Centro de Custo:</strong>{" "}
+                    {centroCustoOrigem || "Não especificado"}
                   </p>
                 </div>
 
                 <div className="bg-green-50 p-4 rounded-lg">
                   <h4 className="font-medium text-green-900 mb-3">Destino</h4>
                   <p className="text-sm text-green-800">
-                    <strong>Contrato:</strong> {contratoDestino?.nome || 'Não especificado'}
+                    <strong>Contrato:</strong>{" "}
+                    {contratoDestino?.nome || "Não especificado"}
                   </p>
                   <p className="text-sm text-green-800">
-                    <strong>Centro de Custo:</strong> {centroCustoDestino || 'Não especificado'}
+                    <strong>Centro de Custo:</strong>{" "}
+                    {centroCustoDestino || "Não especificado"}
                   </p>
                 </div>
               </div>
@@ -553,12 +640,19 @@ export default function RemanejamentoModal({
                   Funcionários Selecionados ({funcionariosSelecionados.length})
                 </h4>
                 <div className="bg-gray-50 p-4 rounded-lg">
-                  {Object.entries(getResumo().porFuncao).map(([funcao, quantidade]) => (
-                    <div key={funcao} className="flex justify-between items-center py-1">
-                      <span className="text-sm text-gray-700">{funcao}</span>
-                      <span className="text-sm font-medium text-gray-900">{quantidade}</span>
-                    </div>
-                  ))}
+                  {Object.entries(getResumo().porFuncao).map(
+                    ([funcao, quantidade]) => (
+                      <div
+                        key={funcao}
+                        className="flex justify-between items-center py-1"
+                      >
+                        <span className="text-sm text-gray-700">{funcao}</span>
+                        <span className="text-sm font-medium text-gray-900">
+                          {quantidade}
+                        </span>
+                      </div>
+                    )
+                  )}
                 </div>
               </div>
 
@@ -570,7 +664,11 @@ export default function RemanejamentoModal({
                   </label>
                   <select
                     value={prioridade}
-                    onChange={(e) => setPrioridade(e.target.value as 'baixa' | 'media' | 'alta' | 'urgente')}
+                    onChange={(e) =>
+                      setPrioridade(
+                        e.target.value as "baixa" | "media" | "alta" | "urgente"
+                      )
+                    }
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="baixa">Baixa</option>
@@ -608,19 +706,21 @@ export default function RemanejamentoModal({
           </div>
 
           <div className="flex items-center gap-3">
-            {etapaAtual === 'confirmacao' && (
+            {etapaAtual === "confirmacao" && (
               <button
-                onClick={() => setEtapaAtual('selecao')}
+                onClick={() => setEtapaAtual("selecao")}
                 className="px-4 py-2 text-blue-700 bg-blue-100 border border-blue-300 rounded-md hover:bg-blue-200 transition-colors"
               >
                 Voltar
               </button>
             )}
-            
-            {etapaAtual === 'selecao' ? (
+
+            {etapaAtual === "selecao" ? (
               <button
-                onClick={() => setEtapaAtual('confirmacao')}
-                disabled={funcionariosSelecionados.length === 0 || !centroCustoDestino}
+                onClick={() => setEtapaAtual("confirmacao")}
+                disabled={
+                  funcionariosSelecionados.length === 0 || !centroCustoDestino
+                }
                 className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
               >
                 Continuar

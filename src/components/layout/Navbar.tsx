@@ -9,10 +9,10 @@ export default function Navbar() {
   const { usuario, logout } = useAuth();
 
   const handleLogout = async () => {
-    console.log('🚪 NAVBAR - Botão de logout clicado');
+    // console.log('🚪 NAVBAR - Botão de logout clicado');
     try {
       await logout();
-      console.log('🚪 NAVBAR - Logout concluído');
+      // console.log('🚪 NAVBAR - Logout concluído');
     } catch (error) {
       console.error('🚪 NAVBAR - Erro no logout:', error);
     }

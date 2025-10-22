@@ -245,7 +245,11 @@ export default function NovoRemanejamentoLogisticaPage() {
       // Simula um pequeno delay para dar feedback visual ao usuário
       await new Promise(resolve => setTimeout(resolve, 300));
       
-      setFuncionariosSelecionados(prev => [...prev, funcionario]);
+      setFuncionariosSelecionados(prev => (
+        prev.some(f => f.id === funcionario.id)
+          ? prev
+          : [...prev, funcionario]
+      ));
       
       // Para remanejamentos entre contratos ou desligamentos, definir automaticamente o contrato de origem
       if ((tipoRemanejamento === 'entre_contratos' || tipoRemanejamento === 'desligamento') && !contratoOrigem) {
@@ -747,7 +751,8 @@ export default function NovoRemanejamentoLogisticaPage() {
                     ? "Selecione os funcionários novos para alocar"
                     : tipoRemanejamento === "entre_contratos"
                     ? "Selecione os funcionários para remanejamento"
-                    : "Selecione os funcionários para desligamento"}
+                    : "Selecione os funcionários para desligamento"
+                  }
                 </h2>
               </div>
 
@@ -773,10 +778,7 @@ export default function NovoRemanejamentoLogisticaPage() {
                   )}
 
                 {/* Filtros */}
-                <div
-                  className="m
-                b-6 grid grid-cols-1 md:grid-cols-4 gap-4"
-                >
+                <div className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Buscar por nome
@@ -971,8 +973,8 @@ export default function NovoRemanejamentoLogisticaPage() {
                               </button>
                             </div>
                           </div>
-                        ))
-                      )}
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </div>

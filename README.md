@@ -81,7 +81,90 @@ Para iniciar o PostgreSQL local para testes:
 ./start-postgres.bat
 ```
 
-### 📋 Checklist de Verificação de Deploy
+### Desenvolvimento Local com Docker
+
+Você pode rodar a aplicação localmente de dois modos, sem impactar staging ou produção:
+
+1) Modo produção-like (app-local, Next.js com `next start`)
+- Uso: valida build, cookies, middleware e autenticação como em produção.
+- Como subir:
+```bash
+# sobe somente o app-local (usa a imagem crewflow-app:latest)
+docker-compose -f docker-compose.local.yml up -d app-local
+```
+- Quando mudar código, precisa rebuildar a imagem e recriar o contêiner:
+```bash
+docker build -t crewflow-app:latest .
+docker-compose -f docker-compose.local.yml up -d --force-recreate --no-deps app-local
+```
+- Não precisa rebuild para rodar migrações ou seeds:
+```bash
+docker exec crewflow-app-local npx prisma migrate deploy
+docker exec crewflow-app-local npm run seed
+```
+
+2) Modo desenvolvimento com hot-reload (app-dev, Next.js com `npm run dev`)
+- Uso: editar código e ver mudanças instantaneamente, sem rebuild.
+- Como subir:
+```bash
+# garanta que o postgres-staging esteja ativo
+# depois suba o serviço de desenvolvimento
+docker-compose -f docker-compose.local.yml up -d app-dev
+```
+- A aplicação ficará acessível em http://localhost:3000 e atualizará ao salvar arquivos.
+- Para evitar conflitos de porta, rode SOMENTE um dos serviços (app-local OU app-dev) por vez:
+```bash
+# parar tudo do compose local
+docker-compose -f docker-compose.local.yml down
+# subir o modo desejado
+# app-local (produção-like):
+docker-compose -f docker-compose.local.yml up -d app-local
+# app-dev (hot-reload):
+docker-compose -f docker-compose.local.yml up -d app-dev
+```
+
+Notas importantes:
+- Ambos os serviços reutilizam a rede externa `projetogran_crewflow-network` e o container `postgres-staging` já existente.
+- Não há impacto em staging/produção: nada muda nos arquivos `docker-compose.staging.yml` ou de produção.
+- No Windows/Docker Desktop, `CHOKIDAR_USEPOLLING=true` está habilitado no app-dev para o watch funcionar corretamente.
+- Se o `schema.prisma` mudar, o Prisma Client precisa ser gerado. No app-dev isso ocorre automaticamente via `npx prisma generate`; no app-local, o generate roda no `docker build`.
+
+#### Comandos rápidos (Windows)
+- Desenvolvimento (hot-reload):
+  - start-app-dev.bat
+- Produção-like:
+  - start-app-local.bat
+- Rebuild da imagem e restart do produção-like:
+  - rebuild-app-local.bat
+- Abrir o app no navegador:
+  - open-app.bat
+
+Dicas:
+- Você pode executar os .bat clicando duas vezes no Explorer ou pelo terminal com:
+  - cmd /c start-app-dev.bat
+  - cmd /c start-app-local.bat
+- Rode apenas um serviço por vez para evitar conflito na porta 3000.
+
+#### Comandos npm (atalhos oficiais)
+- Alternar para produção-like:
+  - npm run producao-like
+- Alternar para desenvolvimento com Docker (hot-reload):
+  - npm run dev:docker
+- Rebuild da imagem e recriar produção-like:
+  - npm run producao-like:rebuild
+- Derrubar tudo do compose local:
+  - npm run compose:down
+- Ver logs:
+  - npm run logs:dev
+  - npm run logs:producao-like
+- Abrir o app no navegador:
+  - npm run open
+- Prisma (opcionais):
+  - npm run prisma:dev
+  - npm run prisma:prod
+ 
+ 
+ ### 📋 Checklist de Verificação de Deploy
 
 Após um deploy, verifique:
 
