@@ -72,7 +72,6 @@ interface ProgressoGeral {
   pendentes: number;
   emAndamento: number;
   concluidas: number;
-  reprovadas: number;
   atrasadas: number;
 }
 
@@ -160,12 +159,12 @@ export default function TarefasPage() {
 
   // Estados para o modal de observações
   const [mostrarModalObservacoes, setMostrarModalObservacoes] = useState(false);
-  const [observacoes, setObservacoes] = useState<Observacao[]>([]);
-  const [carregandoObservacoes, setCarregandoObservacoes] = useState(false);
-  const [novaObservacao, setNovaObservacao] = useState("");
-  const [adicionandoObservacao, setAdicionandoObservacao] = useState(false);
-  // Mapa de contagem de observações por tarefa
-  const [observacoesCountMap, setObservacoesCountMap] = useState<Record<string, number>>({});
+const [observacoes, setObservacoes] = useState<Observacao[]>([]);
+const [carregandoObservacoes, setCarregandoObservacoes] = useState(false);
+const [novaObservacao, setNovaObservacao] = useState("");
+const [adicionandoObservacao, setAdicionandoObservacao] = useState(false);
+// Mapa de contagem de observações por tarefa
+const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>({});
 
   const [funcionariosExpandidos, setFuncionariosExpandidos] = useState<
     Set<string>
@@ -452,9 +451,6 @@ export default function TarefasPage() {
     const concluidas = todasTarefas.filter(
       (t) => t.status === "CONCLUIDO" || t.status === "CONCLUIDA"
     ).length;
-    const reprovadas = todasTarefas.filter(
-      (t) => t.status === "REPROVADO"
-    ).length;
 
     // Calcular tarefas atrasadas (pendentes ou em andamento com data limite no passado)
     const hoje = new Date();
@@ -472,7 +468,7 @@ export default function TarefasPage() {
       return dataLimite < hoje;
     }).length;
 
-    return { total, pendentes, emAndamento, concluidas, reprovadas, atrasadas };
+    return { total, pendentes, emAndamento, concluidas, atrasadas };
   };
 
   const getTarefasFiltradas = () => {
@@ -671,38 +667,6 @@ export default function TarefasPage() {
   const concluirTarefa = async () => {
     if (!tarefaSelecionada) return;
 
-    // Validar data de vencimento obrigatória exceto para RH
-    if (tarefaSelecionada.responsavel !== "RH" && !dataVencimento) {
-      toast.error("Informe a data de vencimento para concluir a tarefa.");
-      return;
-    }
-    // Regra D+30: data de vencimento deve ser >= hoje + 30 dias (exceto RH)
-    if (tarefaSelecionada.responsavel !== "RH" && dataVencimento) {
-      const parseYYYYMMDDToUTC = (s: string) => {
-        const [y, m, d] = s.split("-").map(Number);
-        return Date.UTC(y, m - 1, d);
-      };
-      const today = new Date();
-      const minLocal = new Date(
-        today.getFullYear(),
-        today.getMonth(),
-        today.getDate()
-      );
-      minLocal.setDate(minLocal.getDate() + 30);
-      const minUTC = Date.UTC(
-        minLocal.getFullYear(),
-        minLocal.getMonth(),
-        minLocal.getDate()
-      );
-      const selectedUTC = parseYYYYMMDDToUTC(dataVencimento);
-      if (selectedUTC < minUTC) {
-        toast.error(
-          "A data de vencimento deve ser pelo menos 30 dias a partir de hoje."
-        );
-        return;
-      }
-    }
-
     try {
       setConcluindoTarefa(true);
       const response = await fetch(
@@ -774,11 +738,6 @@ export default function TarefasPage() {
 
       const data = await response.json();
       setObservacoes(data);
-      // Atualizar contador agregado para refletir imediatamente no badge
-      setObservacoesCountMap((prev) => ({
-        ...prev,
-        [tarefaId]: Array.isArray(data) ? data.length : 0,
-      }));
     } catch (error) {
       console.error("Erro ao buscar observações:", error);
       toast.error("Erro ao carregar observações");
@@ -786,33 +745,6 @@ export default function TarefasPage() {
       setCarregandoObservacoes(false);
     }
   };
-
-  // Buscar contagem de observações para as tarefas filtradas
-  const atualizarContagemObservacoes = useCallback(async () => {
-    try {
-      const tarefasFiltradas = getTarefasFiltradas();
-      const ids = tarefasFiltradas.map((t) => t.id);
-      if (ids.length === 0) {
-        setObservacoesCountMap({});
-        return;
-      }
-      const resp = await fetch(`/api/logistica/tarefas/observacoes/count?ids=${ids.join(',')}`);
-      if (!resp.ok) {
-        console.warn('Falha ao buscar contagem de observações');
-        return;
-      }
-      const data = await resp.json();
-      setObservacoesCountMap(data || {});
-    } catch (e) {
-      console.error('Erro ao atualizar contagem de observações:', e);
-    }
-  }, []);
-
-  useEffect(() => {
-    // Atualiza contagem quando dados ou filtros mudam
-    atualizarContagemObservacoes();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [solicitacoes, filtroNome, filtroStatus, filtroPrioridade, filtroSetor, filtroContrato, setorAtual]);
 
   const adicionarObservacao = async () => {
     if (!tarefaSelecionada || !novaObservacao.trim()) {
@@ -1062,7 +994,7 @@ export default function TarefasPage() {
     const progresso = getProgressoGeral();
 
     return (
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className="bg-linear-to-r from-gray-100 to-slate-100 p-5 rounded-lg shadow-lg min-h-[120px] flex items-center border-1 border-slate-400">
           <div className="flex items-center justify-between w-full">
             <div>
@@ -1096,19 +1028,6 @@ export default function TarefasPage() {
             <CheckCircleIcon className="h-12 w-12 text-slate-400" />
           </div>
         </div>
-
-        <div className="bg-linear-to-r from-gray-100 to-slate-100 p-5 rounded-lg shadow-lg min-h-[120px] flex items-center border-1 border-slate-400">
-          <div className="flex items-center justify-between w-full">
-            <div>
-              <p className="text-xs text-slate-300">Reprovadas</p>
-              <p className="text-2xl font-semibold text-sky-300">
-                {progresso.reprovadas}
-              </p>
-            </div>
-            <ExclamationCircleIcon className="h-12 w-12 text-slate-400" />
-          </div>
-        </div>
-
         <div className="bg-linear-to-r from-gray-100 to-slate-100 p-5 rounded-lg shadow-lg min-h-[120px] flex items-center border-1 border-slate-400">
           <div className="flex items-center justify-between w-full">
             <div>
@@ -1331,6 +1250,29 @@ export default function TarefasPage() {
     const inicio = (paginaAtualFuncionarios - 1) * itensPorPaginaFuncionarios;
     const fim = inicio + itensPorPaginaFuncionarios;
     const remanejamentosPaginados = remanejamentosComTarefas.slice(inicio, fim);
+
+// Buscar contagem de observações para tarefas visíveis
+useEffect(() => {
+  const ids = Array.from(
+    new Set(
+      remanejamentosPaginados.flatMap((r: any) => (r.tarefas || []).map((t: any) => t.id))
+    )
+  );
+  if (ids.length > 0) {
+    const qs = encodeURIComponent(ids.join(","));
+    fetch(`/api/logistica/tarefas/observacoes/count?ids=${qs}`)
+      .then((resp) => (resp.ok ? resp.json() : Promise.reject(new Error("Erro ao contar observações"))))
+      .then((data) => {
+        const normalized = Object.fromEntries(
+          Object.entries(data || {}).map(([k, v]) => [String(k), v as number])
+        );
+        setObservacoesCount((prev) => ({ ...prev, ...normalized }));
+      })
+      .catch((err) => {
+        console.error("Erro ao contar observações:", err);
+      });
+  }
+}, [remanejamentosPaginados]);
 
     if (loading) {
       return <div className="text-center py-10">Carregando tarefas...</div>;
@@ -1774,11 +1716,13 @@ export default function TarefasPage() {
                                                       }
                                                     >
                                                       <ChatBubbleLeftRightIcon className="h-4 w-4" />
-                                                      {observacoesCountMap[tarefa.id] > 0 && (
-                                                        <span className="absolute -top-2 -right-2 bg-blue-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
-                                                          {observacoesCountMap[tarefa.id]}
-                                                        </span>
-                                                      )}
+<span
+  className={`absolute -top-2 -right-2 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center ${
+    (observacoesCount as Record<string, number>)[tarefa.id] > 0 ? "bg-blue-500" : "bg-gray-400"
+  }`}
+>
+  {(observacoesCount as Record<string, number>)[tarefa.id] ?? 0}
+</span>
                                                     </button>
                                                   </div>
                                                 </td>
@@ -2661,27 +2605,15 @@ export default function TarefasPage() {
                     htmlFor="dataVencimento"
                     className="block text-xs font-medium text-gray-700 mb-2"
                   >
-                    Data de Vencimento (Obrigatória - mínimo D+30)
+                    Data de Vencimento (Opcional)
                   </label>
                   <input
                     type="date"
                     id="dataVencimento"
                     value={dataVencimento}
                     onChange={(e) => setDataVencimento(e.target.value)}
-                    required
-                    min={(function () {
-                      const d = new Date();
-                      d.setDate(d.getDate() + 30);
-                      const y = d.getFullYear();
-                      const m = String(d.getMonth() + 1).padStart(2, "0");
-                      const day = String(d.getDate()).padStart(2, "0");
-                      return `${y}-${m}-${day}`;
-                    })()}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
-                  <p className="text-[10px] text-gray-500 mt-1">
-                    Regra: escolha uma data ao menos 30 dias após hoje.
-                  </p>
                 </div>
               )}
             </div>
