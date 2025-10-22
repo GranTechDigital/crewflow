@@ -1383,13 +1383,6 @@ useEffect(() => {
                         >
                           <td
                             className="px-6 py-4 whitespace-nowrap"
-                            onClick={(e) => {
-                              const target = e.target as HTMLElement;
-                              if (target && (target.closest('button') || target.closest('a') || target.closest('input') || target.closest('[data-no-expand]'))) {
-                                return;
-                              }
-                              toggleExpandirFuncionario(chaveGrupo);
-                            }}
                           >
                             <div className="flex items-center space-x-3">
                               <button
