@@ -20,6 +20,8 @@
     "producao-like": "docker-compose -f docker-compose.local.yml up -d app-local",
     "producao-like:rebuild": "docker build -t crewflow-app:latest . && docker-compose -f docker-compose.local.yml up -d --force-recreate --no-deps app-local",
     "dev:docker": "docker-compose -f docker-compose.local.yml up -d app-dev",
+    "dev:docker:restart": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\" && docker-compose -f docker-compose.local.yml restart app-dev",
+    "dev:docker:recreate": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\" && docker-compose -f docker-compose.local.yml down --remove-orphans && docker-compose -f docker-compose.local.yml up -d --build --force-recreate",
     "compose:down": "docker-compose -f docker-compose.local.yml down",
     "logs:dev": "docker logs -f crewflow-app-dev",
     "logs:producao-like": "docker logs -f crewflow-app-local",

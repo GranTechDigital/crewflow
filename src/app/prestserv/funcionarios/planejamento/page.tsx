@@ -9,7 +9,7 @@ import {
   // StatusPrestserv,
   StatusTarefa,
 } from "@/types/remanejamento-funcionario";
-import { read, utils, write } from 'xlsx';
+
 import {
   EyeIcon,
   PlusIcon,
@@ -1015,7 +1015,7 @@ function FuncionariosPageContent() {
     setOrdenacao({ campo: "solicitacaoId", direcao: "asc" });
   };
 
-  const exportarParaExcel = () => {
+  const exportarParaExcel = async () => {
     const dadosParaExportar = funcionariosFiltrados.map((funcionario) => {
       // Função para determinar status do setor
       const getStatusSetor = (setor: string) => {
@@ -1054,11 +1054,12 @@ function FuncionariosPageContent() {
       };
     });
 
-    const ws = utils.json_to_sheet(dadosParaExportar);
-    const wb = utils.book_new();
-    utils.book_append_sheet(wb, ws, "Funcionários");
+    const XLSX = await import("xlsx");
+    const ws = XLSX.utils.json_to_sheet(dadosParaExportar);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Funcionários");
 
-    const excelBuffer = write(wb, { bookType: "xlsx", type: "array" });
+    const excelBuffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
     const data = new Blob([excelBuffer], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     });
@@ -3551,22 +3552,58 @@ function FuncionariosPageContent() {
                         />
                       </button>
 
-                      {/* Números das páginas */}
-                      {Array.from(
-                        { length: totalPaginas },
-                        (_, i) => i + 1
-                      ).map((numeroPagina) => (
-                        <button
-                          key={numeroPagina}
-                          onClick={() => setPaginaAtual(numeroPagina)}
-                          className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
-                            numeroPagina === paginaAtual
-                              ? "z-10 bg-blue-50 border-blue-500 text-blue-600"
-                              : "bg-white border-gray-300 text-gray-500 hover:bg-gray-50"
-                          }`}
-                        >
-                          {numeroPagina}
-                        </button>
+                      {/* Números das páginas - compactos com reticências */}
+                      {(() => {
+                        const delta = 1;
+                        const range: number[] = [];
+                        const result: (number | string)[] = [];
+                        let last: number | undefined;
+
+                        for (let i = 1; i <= totalPaginas; i++) {
+                          if (
+                            i === 1 ||
+                            i === totalPaginas ||
+                            (i >= paginaAtual - delta && i <= paginaAtual + delta)
+                          ) {
+                            range.push(i);
+                          }
+                        }
+
+                        for (const i of range) {
+                          if (last !== undefined) {
+                            if (i - last === 2) {
+                              result.push(last + 1);
+                            } else if (i - last > 2) {
+                              result.push("...");
+                            }
+                          }
+                          result.push(i);
+                          last = i;
+                        }
+
+                        return result;
+                      })().map((item, idx) => (
+                        typeof item === "string" ? (
+                          <span
+                            key={`ellipsis-${idx}`}
+                            className="relative inline-flex items-center px-2 py-1 text-xs text-gray-400 select-none"
+                          >
+                            …
+                          </span>
+                        ) : (
+                          <button
+                            key={item}
+                            onClick={() => setPaginaAtual(item)}
+                            className={`relative inline-flex items-center px-2 py-1 border text-xs font-medium ${
+                              item === paginaAtual
+                                ? "z-10 bg-blue-50 border-blue-500 text-blue-600"
+                                : "bg-white border-gray-300 text-gray-500 hover:bg-gray-50"
+                            }`}
+                            aria-label={`Ir para página ${item}`}
+                          >
+                            {item}
+                          </button>
+                        )
                       ))}
 
                       <button
