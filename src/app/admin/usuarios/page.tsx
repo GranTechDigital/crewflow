@@ -78,7 +78,7 @@ function UsuariosAdminContent() {
 
   const fetchUsuarios = async () => {
     try {
-      const response = await fetch('/api/usuarios');
+      const response = await fetch('/api/usuarios?limit=1000');
       const data = await response.json();
       if (data.success) {
         setUsuarios(data.usuarios);
