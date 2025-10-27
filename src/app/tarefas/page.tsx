@@ -119,6 +119,13 @@ export default function TarefasPage() {
   const [filtroPrioridade, setFiltroPrioridade] = useState("");
   const [filtroSetor, setFiltroSetor] = useState("");
   const [filtroContrato, setFiltroContrato] = useState("");
+  // Novo: filtros por data de vencimento (intervalo)
+  const [filtroDataInicio, setFiltroDataInicio] = useState("");
+  const [filtroDataFim, setFiltroDataFim] = useState("");
+  // Novos filtros: tipo e categoria de data limite, e ordenação por data limite
+  const [filtroTipo, setFiltroTipo] = useState("");
+  const [filtroDataCategoria, setFiltroDataCategoria] = useState<"" | "VENCIDOS" | "A_VENCER" | "NO_PRAZO" | "SEM_DATA">("");
+  const [ordenacaoDataLimite, setOrdenacaoDataLimite] = useState<"" | "asc" | "desc">("");
 
   // Refs para evitar re-renderizações
   const filtroNomeRef = useRef<HTMLInputElement>(null);
@@ -193,6 +200,8 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
   const [excluindoObservacao, setExcluindoObservacao] = useState(false);
   const [novaDataLimite, setNovaDataLimite] = useState("");
   const [justificativaDataLimite, setJustificativaDataLimite] = useState("");
+  const [erroNovaDataLimite, setErroNovaDataLimite] = useState<string>("");
+  const [erroJustificativaDataLimite, setErroJustificativaDataLimite] = useState<string>("");
   const [atualizandoDataLimite, setAtualizandoDataLimite] = useState(false);
   const [abaAtiva, setAbaAtiva] = useState<"observacoes" | "dataLimite">(
     "observacoes"
@@ -331,14 +340,6 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
     }
   };
 
-  const abrirFormTarefa = async () => {
-    setMostrarFormTarefa(true);
-    await Promise.all([
-      fetchFuncionariosRemanejamento(),
-      fetchTiposTarefaPadrao(),
-    ]);
-  };
-
   const fecharFormTarefa = () => {
     setMostrarFormTarefa(false);
     setSolicitacaoSelecionada(null);
@@ -394,7 +395,48 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
               const matchSetor =
                 !filtroSetor || tarefa.responsavel === filtroSetor;
 
-              return matchStatus && matchPrioridade && matchSetor;
+              // Novo: filtro por categoria de data limite (aplica apenas a PENDENTES)
+              let matchDataCategoria = true;
+              if (filtroDataCategoria) {
+                if (tarefa.status !== "PENDENTE") {
+                  matchDataCategoria = true;
+                } else {
+                  const hoje = new Date();
+                  hoje.setHours(0, 0, 0, 0);
+                  const dataLimiteDate = tarefa.dataLimite
+                    ? new Date(tarefa.dataLimite)
+                    : null;
+
+                  if (filtroDataCategoria === "SEM_DATA") {
+                    matchDataCategoria = !dataLimiteDate;
+                  } else if (!dataLimiteDate) {
+                    matchDataCategoria = false;
+                  } else {
+                    const diffDias = Math.floor(
+                      (dataLimiteDate.getTime() - hoje.getTime()) / 86400000
+                    );
+                    const limiteA_Vencer = 7; // próximos 7 dias
+                    if (filtroDataCategoria === "VENCIDOS") {
+                      matchDataCategoria = dataLimiteDate < hoje;
+                    } else if (filtroDataCategoria === "A_VENCER") {
+                      matchDataCategoria = diffDias >= 0 && diffDias <= limiteA_Vencer;
+                    } else if (filtroDataCategoria === "NO_PRAZO") {
+                      matchDataCategoria = diffDias > limiteA_Vencer;
+                    }
+                  }
+                }
+              }
+
+              // Novo: filtro por tipo
+              const matchTipo = !filtroTipo || tarefa.tipo === filtroTipo;
+
+              return (
+                matchStatus &&
+                matchPrioridade &&
+                matchSetor &&
+                matchDataCategoria &&
+                matchTipo
+              );
             }) || [];
 
           // Só incluir remanejamento se tem tarefas após filtro
@@ -572,9 +614,15 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
               !setorAtual || tarefa.responsavel === setorAtual
           ) || [];
 
-        // Ordenar tarefas (concluídas por último)
+        // Ordenar tarefas: por Data Limite quando selecionado; caso contrário, por status
         tarefasFiltradas.sort(
           (a: TarefaRemanejamento, b: TarefaRemanejamento) => {
+            if (ordenacaoDataLimite) {
+              const aTime = a.dataLimite ? new Date(a.dataLimite).getTime() : Number.POSITIVE_INFINITY;
+              const bTime = b.dataLimite ? new Date(b.dataLimite).getTime() : Number.POSITIVE_INFINITY;
+              const diff = aTime - bTime;
+              return ordenacaoDataLimite === "asc" ? diff : -diff;
+            }
             // Função para obter prioridade do status
             const getStatusPriority = (status: string) => {
               if (status === "REPROVADO") return 0; // Maior prioridade
@@ -674,17 +722,20 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
 
   // Estado para data de vencimento no modal de conclusão
   const [dataVencimento, setDataVencimento] = useState("");
+  const [erroDataVencimento, setErroDataVencimento] = useState<string>("");
 
   // Funções para o modal de conclusão de tarefa
   const abrirModalConcluir = (tarefa: TarefaRemanejamento) => {
     setTarefaSelecionada(tarefa);
     setDataVencimento(""); // Resetar a data de vencimento
+    setErroDataVencimento("");
     setMostrarModalConcluir(true);
   };
 
   const fecharModalConcluir = () => {
     setTarefaSelecionada(null);
     setDataVencimento("");
+    setErroDataVencimento("");
     setMostrarModalConcluir(false);
   };
 
@@ -692,6 +743,23 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
     if (!tarefaSelecionada) return;
 
     try {
+      // Validação local da data de vencimento (apenas se não for responsabilidade do RH)
+      if (tarefaSelecionada.responsavel !== "RH") {
+        if (!dataVencimento) {
+           setErroDataVencimento("Informe a data de vencimento.");
+           return;
+         }
+         const hoje = new Date();
+         const dt = new Date(`${dataVencimento}T00:00:00`);
+         const hojeDateOnly = new Date(`${hoje.toISOString().split("T")[0]}T00:00:00`);
+         const diffMs = dt.getTime() - hojeDateOnly.getTime();
+         const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+         if (diffDays < 30) {
+           setErroDataVencimento("A data deve ser pelo menos 30 dias após hoje.");
+           return;
+         }
+      }
+
       setConcluindoTarefa(true);
       const response = await fetch(
         `/api/logistica/tarefas/${tarefaSelecionada.id}/concluir`,
@@ -699,13 +767,16 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            dataVencimento: dataVencimento || null,
+            dataVencimento: tarefaSelecionada.responsavel !== "RH" ? (dataVencimento || null) : null,
           }),
         }
       );
 
       if (!response.ok) {
-        throw new Error("Erro ao concluir tarefa");
+        const errorData = await response.json().catch(() => null);
+        const msg = errorData?.error || "Erro ao concluir tarefa";
+        toast.error(msg);
+        throw new Error(msg);
       }
 
       toast.success("Tarefa concluída com sucesso!");
@@ -713,7 +784,12 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
       fetchTodasTarefas(); // Atualizar a lista de tarefas
     } catch (error) {
       console.error("Erro ao concluir tarefa:", error);
-      toast.error("Erro ao concluir tarefa");
+      // Evitar mensagem duplicada se já mostramos a do backend
+      if (error instanceof Error && error.message.startsWith("Data de vencimento")) {
+        // já mostrado
+      } else {
+        toast.error("Erro ao concluir tarefa");
+      }
     } finally {
       setConcluindoTarefa(false);
     }
@@ -723,8 +799,8 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
   const abrirModalObservacoes = async (tarefa: TarefaRemanejamento) => {
     setTarefaSelecionada(tarefa);
     setMostrarModalObservacoes(true);
-    // Definir a aba ativa como "observacoes" por padrão
-    setAbaAtiva("observacoes");
+    // Definir a aba ativa como "dataLimite" por padrão (ocultando Adicionar Observação por enquanto)
+    setAbaAtiva("dataLimite");
     // Inicializar a data limite atual (se existir)
     if (tarefa.dataLimite) {
       const dataFormatada = new Date(tarefa.dataLimite)
@@ -735,6 +811,8 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
       setNovaDataLimite("");
     }
     setJustificativaDataLimite("");
+    setErroNovaDataLimite("");
+    setErroJustificativaDataLimite("");
     await buscarObservacoes(tarefa.id);
   };
 
@@ -745,6 +823,8 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
     setNovaObservacao("");
     setNovaDataLimite("");
     setJustificativaDataLimite("");
+    setErroNovaDataLimite("");
+    setErroJustificativaDataLimite("");
     // Atualizar a lista de tarefas para refletir as mudanças nas observações
     fetchTodasTarefas();
   };
@@ -892,13 +972,26 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
   const atualizarDataLimite = async () => {
     if (!tarefaSelecionada) return;
 
+    // Reset erros
+    setErroNovaDataLimite("");
+    setErroJustificativaDataLimite("");
+
+    // Validar data mínima (hoje) e campo obrigatório
+    const hoje = new Date();
+    const pad = (n: number) => n.toString().padStart(2, "0");
+    const hojeStr = `${hoje.getFullYear()}-${pad(hoje.getMonth() + 1)}-${pad(hoje.getDate())}`;
+
     if (!novaDataLimite) {
-      toast.error("Selecione uma nova data limite");
+      setErroNovaDataLimite("Selecione a nova data limite.");
+      return;
+    }
+    if (novaDataLimite < hojeStr) {
+      setErroNovaDataLimite("A data limite não pode ser anterior à data atual.");
       return;
     }
 
     if (!justificativaDataLimite.trim()) {
-      toast.error("Informe uma justificativa para a alteração da data");
+      setErroJustificativaDataLimite("A justificativa é obrigatória.");
       return;
     }
 
@@ -1018,8 +1111,8 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
     const progresso = getProgressoGeral();
 
     return (
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-linear-to-r from-gray-100 to-slate-100 p-5 rounded-lg shadow-lg min-h-[120px] flex items-center border-1 border-slate-400">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
+        <div className="bg-linear-to-r from-gray-100 to-slate-100 p-4 rounded-lg shadow-lg min-h-[96px] flex items-center border-1 border-slate-400">
           <div className="flex items-center justify-between w-full">
             <div>
               <p className="text-xs text-slate-300">Pendentes</p>
@@ -1037,11 +1130,11 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
                 )}
               </p>
             </div>
-            <ClockIcon className="h-12 w-12 text-slate-400" />
+            <ClockIcon className="h-10 w-10 text-slate-400" />
           </div>
         </div>
 
-        <div className="bg-linear-to-r from-gray-100 to-slate-100 p-5 rounded-lg shadow-lg min-h-[120px] flex items-center border-1 border-slate-400">
+        <div className="bg-linear-to-r from-gray-100 to-slate-100 p-4 rounded-lg shadow-lg min-h-[96px] flex items-center border-1 border-slate-400">
           <div className="flex items-center justify-between w-full">
             <div>
               <p className="text-xs text-slate-300">Concluídas</p>
@@ -1049,11 +1142,11 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
                 {progresso.concluidas}
               </p>
             </div>
-            <CheckCircleIcon className="h-12 w-12 text-slate-400" />
+            <CheckCircleIcon className="h-10 w-10 text-slate-400" />
           </div>
         </div>
 
-        <div className="bg-linear-to-r from-gray-100 to-slate-100 p-5 rounded-lg shadow-lg min-h-[120px] flex items-center border-1 border-slate-400">
+        <div className="bg-linear-to-r from-gray-100 to-slate-100 p-4 rounded-lg shadow-lg min-h-[96px] flex items-center border-1 border-slate-400">
           <div className="flex items-center justify-between w-full">
             <div>
               <p className="text-xs text-slate-300">Reprovadas</p>
@@ -1061,11 +1154,11 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
                 {progresso.reprovadas}
               </p>
             </div>
-            <ExclamationCircleIcon className="h-12 w-12 text-red-400" />
+            <ExclamationCircleIcon className="h-10 w-10 text-red-400" />
           </div>
         </div>
 
-        <div className="bg-linear-to-r from-gray-100 to-slate-100 p-5 rounded-lg shadow-lg min-h-[120px] flex items-center border-1 border-slate-400">
+        <div className="bg-linear-to-r from-gray-100 to-slate-100 p-4 rounded-lg shadow-lg min-h-[96px] flex items-center border-1 border-slate-400">
           <div className="flex items-center justify-between w-full">
             <div>
               <p className="text-xs text-slate-300">Total</p>
@@ -1073,7 +1166,7 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
                 {progresso.total}
               </p>
             </div>
-            <UserGroupIcon className="h-12 w-12 text-slate-400" />
+            <UserGroupIcon className="h-10 w-10 text-slate-400" />
           </div>
         </div>
       </div>
@@ -1106,12 +1199,25 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
       return Array.from(map.values()).sort((a, b) => a.numero.localeCompare(b.numero));
     }, [solicitacoes]);
 
+    // Tipos de tarefas disponíveis (para filtro de Tipo)
+    const tiposOptions = React.useMemo(() => {
+      const set = new Set<string>();
+      solicitacoes.forEach((s) => {
+        s.funcionarios?.forEach((rem) => {
+          rem.tarefas?.forEach((t) => {
+            if (t.tipo) set.add(t.tipo);
+          });
+        });
+      });
+      return Array.from(set.values()).sort((a, b) => a.localeCompare(b));
+    }, [solicitacoes]);
+
     return (
-      <div className="bg-white border-slate-400 border-1 p-5 rounded-lg shadow-lg mb-6">
-        <div className="flex justify-between items-center mb-4">
+      <div className="bg-white border-slate-400 border-1 p-4 rounded-lg shadow-lg mb-4">
+        <div className="flex justify-between items-center mb-2">
           <h3 className="text-lg font-medium text-slate-800">Filtros</h3>
           <button
-            className="hover:bg-gray-200 text-gray-400 px-4 py-2 rounded-md transition-colors duration-200 flex items-center gap-2"
+            className="hover:bg-gray-200 text-gray-400 px-3 py-1.5 rounded-md transition-colors duration-200 flex items-center gap-2"
             onClick={() => {
               // Limpar todos os filtros
               if (filtroNomeRef.current) {
@@ -1122,6 +1228,13 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
               setFiltroPrioridade("");
               setFiltroSetor("");
               setFiltroContrato("");
+              // Limpar filtros antigos de intervalo
+              setFiltroDataInicio("");
+              setFiltroDataFim("");
+              // Limpar novos filtros
+              setFiltroTipo("");
+              setFiltroDataCategoria("");
+              setOrdenacaoDataLimite("");
               setPaginaAtual(1);
             }}
           >
@@ -1129,15 +1242,15 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
             Limpar Filtros
           </button>
         </div>
-        <div className={`grid grid-cols-1 md:grid-cols-${numColunas} gap-4`}>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
           <div>
-            <label className="block text-xs font-medium text-slate-800 mb-2">
-              Status
-            </label>
-            <select
-              className="w-full h-12 rounded-md border-slate-800 bg-slate-100 text-slate-500 shadow-sm focus:border-slate-300 focus:ring-slate-300"
-              value={filtroStatus}
-              onChange={(e) => setFiltroStatus(e.target.value)}
+            <label className="block text-xs font-medium text-slate-800 mb-1">
+               Status
+             </label>
+             <select
+               className="w-full h-9 rounded-md border-slate-800 bg-slate-100 text-slate-600 shadow-sm focus:border-slate-300 focus:ring-slate-300"
+               value={filtroStatus}
+               onChange={(e) => setFiltroStatus(e.target.value)}
             >
               <option value="">Todos</option>
               <option value="PENDENTE">Pendente</option>
@@ -1147,11 +1260,11 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-800 mb-2">
+            <label className="block text-xs font-medium text-slate-800 mb-1">
               Prioridade
             </label>
             <select
-              className="w-full h-12 rounded-md border-slate-800 bg-slate-100 text-slate-500 shadow-sm focus:border-slate-500 focus:ring-slate-500"
+              className="w-full h-9 rounded-md border-slate-800 bg-slate-100 text-slate-600 shadow-sm focus:border-slate-300 focus:ring-slate-300"
               value={filtroPrioridade}
               onChange={(e) => setFiltroPrioridade(e.target.value)}
             >
@@ -1164,11 +1277,11 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-800 mb-2">
+            <label className="block text-xs font-medium text-slate-800 mb-1">
               Contrato
             </label>
             <select
-              className="w-full h-12 rounded-md border-slate-800 bg-slate-100 text-slate-500 shadow-sm focus:border-slate-500 focus:ring-slate-500"
+              className="w-full h-9 rounded-md border-slate-800 bg-slate-100 text-slate-600 shadow-sm focus:border-slate-300 focus:ring-slate-300"
               value={filtroContrato}
               onChange={(e) => setFiltroContrato(e.target.value)}
             >
@@ -1182,11 +1295,11 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
           {/* Mostrar o filtro de setor apenas quando não estiver em uma rota específica de setor */}
           {!setorAtual && (
             <div>
-              <label className="block text-xs font-medium text-slate-800 mb-2">
+              <label className="block text-xs font-medium text-slate-800 mb-1">
                 Setor Responsável
               </label>
               <select
-                className="w-full h-12 rounded-md border-slate-800 bg-slate-100 text-slate-500 shadow-sm focus:border-slate-500 focus:ring-slate-500"
+                className="w-full h-9 rounded-md border-slate-800 bg-slate-100 text-slate-600 shadow-sm focus:border-slate-300 focus:ring-slate-300"
                 value={filtroSetor}
                 onChange={(e) => setFiltroSetor(e.target.value)}
               >
@@ -1197,14 +1310,32 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
               </select>
             </div>
           )}
+
+          {/* Novo: filtro por Tipo */}
           <div>
-            <label className="block text-xs font-medium text-slate-800 mb-2">
+            <label className="block text-xs font-medium text-slate-800 mb-1">
+              Tipo
+            </label>
+            <select
+              className="w-full h-9 rounded-md border-slate-800 bg-slate-100 text-slate-600 shadow-sm focus:border-slate-300 focus:ring-slate-300"
+              value={filtroTipo}
+              onChange={(e) => setFiltroTipo(e.target.value)}
+            >
+              <option value="">Todos</option>
+              {tiposOptions.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-800 mb-1">
               Nome do Funcionário
             </label>
             <div className="relative flex">
               <input
                 type="text"
-                className="pl-10 w-full h-12 rounded-l-md border-slate-500 bg-slate-100 text-slate-500 shadow-sm focus:border-slate-500 focus:ring-slate-500"
+                className="pl-8 w-full h-9 rounded-l-md border-slate-500 bg-slate-100 text-slate-600 shadow-sm focus:border-slate-300 focus:ring-slate-300"
                 placeholder="Buscar por nome..."
                 ref={filtroNomeRef}
                 defaultValue={filtroNome}
@@ -1215,22 +1346,40 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
                   }
                 }}
               />
+              <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
+                <MagnifyingGlassIcon className="h-4 w-4 text-slate-400" />
+              </div>
               <div className="flex">
                 <button
-                  className="bg-slate-500 hover:bg-slate-600 text-white px-4 rounded-r-md transition-colors duration-200"
+                  className="bg-slate-500 hover:bg-slate-600 text-white px-3 rounded-r-md transition-colors duration-200"
                   onClick={() => {
                     if (filtroNomeRef.current) {
                       setFiltroNome(filtroNomeRef.current.value);
                     }
                   }}
                 >
-                  <MagnifyingGlassIcon className="h-5 w-5" />
+                  <MagnifyingGlassIcon className="h-4 w-4" />
                 </button>
               </div>
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <MagnifyingGlassIcon className="h-5 w-5 text-slate-400" />
-              </div>
             </div>
+          </div>
+
+          {/* Filtro por Categoria de Data Limite */}
+          <div>
+            <label className="block text-xs font-medium text-slate-800 mb-1">
+              Data Limite
+            </label>
+            <select
+              className="w-full h-9 rounded-md border-slate-800 bg-slate-100 text-slate-600 shadow-sm focus:border-slate-300 focus:ring-slate-300"
+              value={filtroDataCategoria}
+              onChange={(e) => setFiltroDataCategoria(e.target.value as any)}
+            >
+              <option value="">Todas</option>
+              <option value="VENCIDOS">Vencidos</option>
+              <option value="A_VENCER">Próximo de vencer</option>
+              <option value="NO_PRAZO">No prazo</option>
+              <option value="SEM_DATA">Pendentes (sem data)</option>
+            </select>
           </div>
         </div>
       </div>
@@ -1505,7 +1654,24 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
                                             scope="col"
                                             className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider"
                                           >
-                                            Data Limite
+                                            <button
+                                              type="button"
+                                              className="inline-flex items-center gap-2 text-gray-700 hover:text-gray-900"
+                                              onClick={() =>
+                                                setOrdenacaoDataLimite((prev) =>
+                                                  prev === "asc" ? "desc" : prev === "desc" ? "" : "asc"
+                                                )
+                                              }
+                                            >
+                                              Data Limite
+                                              <span className="text-xs">
+                                                {ordenacaoDataLimite === "asc"
+                                                  ? "▲"
+                                                  : ordenacaoDataLimite === "desc"
+                                                  ? "▼"
+                                                  : ""}
+                                              </span>
+                                            </button>
                                           </th>
                                           {!setorAtual && (
                                             <th
@@ -2529,13 +2695,6 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
             <DocumentArrowDownIcon className="h-5 w-5 mr-2" />
             Exportar Excel
           </button>
-          <button
-            onClick={abrirFormTarefa}
-            className="flex items-center px-4 py-2 border border-slate-500 rounded-md shadow-sm text-xs font-bold bg-sky-500 text-slate-50 hover:bg-sky-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-500"
-          >
-            <PlusIcon className="h-5 w-5 mr-2" />
-            Nova Tarefa
-          </button>
         </div>
       </div>
 
@@ -2631,15 +2790,20 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
                     htmlFor="dataVencimento"
                     className="block text-xs font-medium text-gray-700 mb-2"
                   >
-                    Data de Vencimento (Opcional)
+                    Data de Vencimento
                   </label>
                   <input
                     type="date"
                     id="dataVencimento"
                     value={dataVencimento}
                     onChange={(e) => setDataVencimento(e.target.value)}
+                    required
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
+                  {erroDataVencimento && (
+                    <p className="text-xs text-red-600 mt-1">{erroDataVencimento}</p>
+                  )}
+                  <p className="text-[10px] text-gray-500 mt-1">Obrigatório para Treinamento e Medicina. Prazo mínimo d+30.</p>
                 </div>
               )}
             </div>
@@ -2710,16 +2874,7 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
             {/* Abas para Observações e Data Limite */}
             <div className="mb-6">
               <div className="flex border-b border-gray-200">
-                <button
-                  onClick={() => setAbaAtiva("observacoes")}
-                  className={`py-2 px-4 font-medium text-xs ${
-                    abaAtiva === "observacoes"
-                      ? "border-b-2 border-blue-500 text-blue-600"
-                      : "text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                  }`}
-                >
-                  Adicionar Observação
-                </button>
+                {/* Aba de 'Adicionar Observação' oculta temporariamente */}
                 <button
                   onClick={() => setAbaAtiva("dataLimite")}
                   className={`py-2 px-4 font-medium text-xs ${
@@ -2732,38 +2887,13 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
                 </button>
               </div>
 
-              {/* Conteúdo da aba de Observações */}
-              {abaAtiva === "observacoes" && (
-                <div className="mt-4">
-                  <h4 className="font-medium text-gray-700 mb-3">
-                    Adicionar Nova Observação
-                  </h4>
-                  <div className="space-y-3">
-                    <textarea
-                      value={novaObservacao}
-                      onChange={(e) => setNovaObservacao(e.target.value)}
-                      placeholder="Digite sua observação..."
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      rows={3}
-                    />
-                    <button
-                      onClick={adicionarObservacao}
-                      disabled={adicionandoObservacao}
-                      className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-blue-300"
-                    >
-                      {adicionandoObservacao
-                        ? "Adicionando..."
-                        : "Adicionar Observação"}
-                    </button>
-                  </div>
-                </div>
-              )}
+              {/* Conteúdo da aba de Observações oculto temporariamente */}
 
               {/* Conteúdo da aba de Data Limite */}
               {abaAtiva === "dataLimite" && (
                 <div className="mt-4 border border-gray-200 rounded-lg p-4">
                   <h4 className="font-medium text-gray-700 mb-3">
-                    Alterar Data Limite
+                    Adicionar Observaação
                   </h4>
                   <div className="space-y-3">
                     <div>
@@ -2776,6 +2906,9 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
                         onChange={(e) => setNovaDataLimite(e.target.value)}
                         className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
+                      {erroNovaDataLimite && (
+                        <p className="text-xs text-red-600 mt-1">{erroNovaDataLimite}</p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-gray-700 mb-1">
@@ -2790,6 +2923,9 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
                         className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         rows={2}
                       />
+                      {erroJustificativaDataLimite && (
+                        <p className="text-xs text-red-600 mt-1">{erroJustificativaDataLimite}</p>
+                      )}
                     </div>
                     <button
                       onClick={atualizarDataLimite}
@@ -2798,7 +2934,7 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
                     >
                       {atualizandoDataLimite
                         ? "Atualizando..."
-                        : "Atualizar Data Limite"}
+                        : "Atualizar"}
                     </button>
                   </div>
                 </div>

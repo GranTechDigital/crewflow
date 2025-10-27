@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 // Setores válidos para validação
@@ -69,6 +69,7 @@ async function gerarTarefasTreinamento(
         contratoId: contratoId,
         funcaoId: funcao.id,
         ativo: true,
+        tipoObrigatoriedade: 'AP',
       },
       include: {
         treinamento: true,
@@ -342,6 +343,36 @@ export async function POST(request: NextRequest) {
     } catch (statusError) {
       console.error("Erro ao atualizar status geral:", statusError);
       // Não falha a criação das tarefas se a atualização do status falhar
+    }
+
+    // Registrar evento de aprovação da solicitação para SLA ao entrar em ATENDER TAREFAS
+    try {
+      const solicitacaoId = remanejamentoFuncionario.solicitacaoId as number;
+      const jaAprovado = await prisma.eventoFluxoRemanejamento.findFirst({
+        where: {
+          entidadeTipo: "SOLICITACAO",
+          entidadeId: String(solicitacaoId),
+          tipoEvento: "APROVADO",
+        },
+      });
+
+      if (!jaAprovado) {
+        await registrarEvento({
+          entidadeTipo: "SOLICITACAO",
+          entidadeId: solicitacaoId,
+          tipoEvento: "APROVADO",
+          statusAnterior: "Pendente",
+          statusNovo: "Aprovado",
+          responsavel: (criadoPor as string) || "Sistema",
+          observacoes: "Aprovação implícita ao gerar tarefas padrão",
+          dadosAdicionais: {
+            setores: setoresValidos,
+            totalTarefas: tarefasCriadas.length,
+          },
+        });
+      }
+    } catch (eventoError) {
+      console.error("Erro ao registrar evento de aprovação (SLA):", eventoError);
     }
 
     // Registrar no histórico a criação das tarefas padrão
