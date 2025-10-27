@@ -198,27 +198,6 @@ async function atualizarStatusTarefasFuncionario(
       },
     });
 
-    // Registrar evento de SLA quando todas as tarefas são concluídas
-    if (todasConcluidas && statusAnterior !== "SUBMETER RASCUNHO") {
-      try {
-        await registrarEvento({
-          entidadeTipo: "REMANEJAMENTO_FUNCIONARIO",
-          entidadeId: remanejamentoFuncionarioId,
-          tipoEvento: "CONCLUIDO",
-          statusAnterior: statusAnterior || "ATENDER TAREFAS",
-          statusNovo: "SUBMETER RASCUNHO",
-          responsavel: "Sistema",
-          observacoes: `Todas as ${tarefas.length} tarefas foram concluídas`,
-          dadosAdicionais: {
-            totalTarefas: tarefas.length,
-            tarefasConcluidas: tarefas.filter(t => t.status === "CONCLUIDO").length,
-          },
-        });
-      } catch (eventoError) {
-        console.error("Erro ao registrar evento TAREFAS_CONCLUIDAS:", eventoError);
-      }
-    }
-
     // Registrar no histórico a mudança de status das tarefas
     try {
       await prisma.historicoRemanejamento.create({
