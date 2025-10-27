@@ -153,7 +153,13 @@ jobs:
           # Run seed to populate staging database (idempotent, but surface errors)
           echo "🌱 Running seed:complete on staging database..."
           docker exec crewflow-app-staging npm run seed:complete
-          
+
+          # Pós-deploy: executar limpeza de remanejamentos e cadastro de usuários extras
+          echo "🧹 Executando limpeza de remanejamentos (staging)..."
+          docker exec crewflow-app-staging npm run staging:cleanup-remanejamentos || true
+          echo "➕ Cadastrando funcionários extras (staging)..."
+          docker exec crewflow-app-staging npm run staging:add-funcionarios-extra || true
+
           # Verify tables exist
           echo "🔎 Verificando tabelas no banco..."
           docker exec postgres-staging psql -U postgres -d projetogran -c "\dt"
