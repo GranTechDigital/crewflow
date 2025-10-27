@@ -126,12 +126,11 @@ export async function PUT(
           campoAlterado: "status",
           valorAnterior: tarefaAtual.status,
           valorNovo: "CONCLUIDO",
-          usuarioResponsavel: "Sistema", // Pode ser melhorado para capturar o usuário real
+          usuarioResponsavel: "Sistema",
         },
       });
     } catch (historicoError) {
       console.error("Erro ao registrar histórico:", historicoError);
-      // Não falha a atualização se o histórico falhar
     }
 
     // Atualizar o status das tarefas do funcionário
@@ -187,6 +186,7 @@ async function atualizarStatusTarefasFuncionario(
     }
 
     // Atualizar o status das tarefas do funcionário
+    const statusAnterior = remanejamentoFuncionario.statusTarefas;
     await prisma.remanejamentoFuncionario.update({
       where: {
         id: remanejamentoFuncionarioId,
@@ -197,6 +197,27 @@ async function atualizarStatusTarefasFuncionario(
           : "ATENDER TAREFAS",
       },
     });
+
+    // Registrar evento de SLA quando todas as tarefas são concluídas
+    if (todasConcluidas && statusAnterior !== "SUBMETER RASCUNHO") {
+      try {
+        await registrarEvento({
+          entidadeTipo: "REMANEJAMENTO_FUNCIONARIO",
+          entidadeId: remanejamentoFuncionarioId,
+          tipoEvento: "CONCLUIDO",
+          statusAnterior: statusAnterior || "ATENDER TAREFAS",
+          statusNovo: "SUBMETER RASCUNHO",
+          responsavel: "Sistema",
+          observacoes: `Todas as ${tarefas.length} tarefas foram concluídas`,
+          dadosAdicionais: {
+            totalTarefas: tarefas.length,
+            tarefasConcluidas: tarefas.filter(t => t.status === "CONCLUIDO").length,
+          },
+        });
+      } catch (eventoError) {
+        console.error("Erro ao registrar evento TAREFAS_CONCLUIDAS:", eventoError);
+      }
+    }
 
     // Registrar no histórico a mudança de status das tarefas
     try {
