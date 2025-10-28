@@ -61,14 +61,14 @@ export async function PUT(
   try {
     const { id } = await params;
     // Obter o usuário autenticado
-    const { getUserFromRequest } = await import('@/utils/authUtils');
+    const { getUserFromRequest } = await import("@/utils/authUtils");
     const usuarioAutenticado = await getUserFromRequest(request);
     console.log("usuarioAutenticado");
     console.log(usuarioAutenticado);
-    
+
     // Não exigir autenticação para atualização de status
     // Usar 'Sistema' como nome do usuário se não estiver autenticado
-    
+
     const body = await request.json();
 
     const {
@@ -86,7 +86,13 @@ export async function PUT(
     } = body;
 
     // Validações - pelo menos um campo deve ser fornecido
-    if (!status && !observacoes && !dataConclusao && !dataLimite && !dataVencimento) {
+    if (
+      !status &&
+      !observacoes &&
+      !dataConclusao &&
+      !dataLimite &&
+      !dataVencimento
+    ) {
       return NextResponse.json(
         { error: "Pelo menos um campo deve ser fornecido para atualização" },
         { status: 400 }
@@ -119,10 +125,22 @@ export async function PUT(
     if (status !== undefined) updateData.status = status;
     if (observacoes !== undefined) updateData.observacoes = observacoes;
     if (dataLimite !== undefined) {
-      updateData.dataLimite = dataLimite ? new Date(dataLimite) : null;
+      // Tratar strings no formato YYYY-MM-DD para evitar deslocamento de timezone (-1 dia)
+      if (typeof dataLimite === "string" && /^\d{4}-\d{2}-\d{2}$/.test(dataLimite)) {
+        const [y, m, d] = dataLimite.split("-").map(Number);
+        // Armazenar como meio-dia UTC, garantindo estabilidade da data em diferentes timezones
+        updateData.dataLimite = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+      } else {
+        updateData.dataLimite = dataLimite ? new Date(dataLimite) : null;
+      }
     }
     if (dataVencimento !== undefined) {
-      updateData.dataVencimento = dataVencimento ? new Date(dataVencimento) : null;
+      if (typeof dataVencimento === "string" && /^\d{4}-\d{2}-\d{2}$/.test(dataVencimento)) {
+        const [y, m, d] = dataVencimento.split("-").map(Number);
+        updateData.dataVencimento = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+      } else {
+        updateData.dataVencimento = dataVencimento ? new Date(dataVencimento) : null;
+      }
     }
 
     // Se a tarefa está sendo marcada como concluída, adicionar data de conclusão
@@ -154,22 +172,22 @@ export async function PUT(
                 funcao: true,
               },
             },
-            solicitacao: true
+            solicitacao: true,
           },
         },
       },
     });
-    
+
     // Adicionar observação automática se o status foi alterado (exceto para REPROVADO)
-    if (status && status !== tarefaAtual.status && status !== 'REPROVADO') {
+    if (status && status !== tarefaAtual.status && status !== "REPROVADO") {
       // Criar uma observação automática sobre a mudança de status
       await prisma.observacaoTarefaRemanejamento.create({
         data: {
           tarefaId: id,
           texto: `Status alterado de "${tarefaAtual.status}" para "${status}".`,
-          criadoPor: usuarioAutenticado?.funcionario.nome || 'Sistema',
-          modificadoPor: usuarioAutenticado?.funcionario.nome || 'Sistema'
-        }
+          criadoPor: usuarioAutenticado?.funcionario.nome || "Sistema",
+          modificadoPor: usuarioAutenticado?.funcionario.nome || "Sistema",
+        },
       });
     }
 
