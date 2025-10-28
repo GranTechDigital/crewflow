@@ -43,7 +43,7 @@ jobs:
             echo "🔎 Sanity-check container e DB antes do dump..."
             docker ps --format '{{.Names}}' | grep -q '^postgres-staging$' || { echo '❌ Container postgres-staging não está em execução'; exit 1; }
             # Descobrir DB de trabalho: priorizar maior DB não-template; fallback para POSTGRES_DB
-            DB_NAME=$(docker exec postgres-staging bash -lc 'export PGPASSWORD="$POSTGRES_PASSWORD"; psql -U "$POSTGRES_USER" -d postgres -tAc "SELECT datname FROM pg_database WHERE datistemplate = false AND datname NOT IN (''postgres'') ORDER BY pg_database_size(datname) DESC LIMIT 1;" | tr -d "\r\n"')
+            DB_NAME=$(docker exec postgres-staging bash -lc 'export PGPASSWORD="$POSTGRES_PASSWORD"; psql -U "$POSTGRES_USER" -d postgres -tAc "SELECT datname FROM pg_database WHERE datistemplate = false AND datname NOT IN ('\''postgres'\'') ORDER BY pg_database_size(datname) DESC LIMIT 1;" | tr -d "\r\n"')
             if [ -z "$DB_NAME" ]; then
               DB_NAME=$(docker exec postgres-staging bash -lc 'echo -n "$POSTGRES_DB"')
             fi
@@ -133,7 +133,7 @@ jobs:
             docker rm crewflow-app-staging 2>/dev/null || true
 
             # Montar DATABASE_URL preferindo o maior DB existente (não-template); fallback para POSTGRES_DB
-            DB_NAME=$(docker exec postgres-staging bash -lc 'export PGPASSWORD="$POSTGRES_PASSWORD"; psql -U "$POSTGRES_USER" -d postgres -tAc "SELECT datname FROM pg_database WHERE datistemplate = false AND datname NOT IN (''postgres'') ORDER BY pg_database_size(datname) DESC LIMIT 1;" | tr -d "\r\n"')
+            DB_NAME=$(docker exec postgres-staging bash -lc 'export PGPASSWORD="$POSTGRES_PASSWORD"; psql -U "$POSTGRES_USER" -d postgres -tAc "SELECT datname FROM pg_database WHERE datistemplate = false AND datname NOT IN ('\''postgres'\'') ORDER BY pg_database_size(datname) DESC LIMIT 1;" | tr -d "\r\n"')
             if [ -z "$DB_NAME" ]; then
               DB_NAME=$(docker exec postgres-staging bash -lc 'echo -n "$POSTGRES_DB"')
             fi
@@ -204,9 +204,16 @@ jobs:
             # Apply Postgres migrations only
             docker exec crewflow-app-staging npx prisma migrate deploy
             
-            # Run seed to populate staging database (idempotent, but surface errors)
-            echo "🌱 Running seed:complete on staging database..."
+            # Conditionally run seed only if database is empty (avoid overwriting migrated data)
+          echo "🌱 Checking if database is empty to decide on seeding..."
+          HAS_TABLES=$(docker exec postgres-staging bash -lc 'export PGPASSWORD="$POSTGRES_PASSWORD"; psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='\''public'\'' AND table_type='\''BASE TABLE'\'';" | tr -d "\r\n" )
+          if [ -z "$HAS_TABLES" ]; then HAS_TABLES=0; fi
+          if [ "$HAS_TABLES" -eq 0 ]; then
+            echo "🌱 Database empty. Running seed:complete on staging database..."
             docker exec crewflow-app-staging npm run seed:complete
+          else
+            echo "ℹ️ Seed skipped: database has $HAS_TABLES table(s)."
+          fi
 
             # Pós-deploy: cadastrar funcionários extras (staging) – sem limpeza automática
             echo "➕ Cadastrando funcionários extras (staging)..."
