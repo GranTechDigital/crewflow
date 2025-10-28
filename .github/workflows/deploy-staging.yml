@@ -33,6 +33,28 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
 
+      - name: 💾 Backup banco de dados (staging) antes do deploy
+        run: |
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << EOF
+            set -e
+            mkdir -p /var/backups/projetogran/staging
+            TS=$(date -u +%Y%m%d_%H%M%S)
+            FILE="/var/backups/projetogran/staging/projetogran_${TS}.dump"
+            echo "🔎 Sanity-check container e DB antes do dump..."
+            docker ps --format '{{.Names}}' | grep -q '^postgres-staging$' || { echo '❌ Container postgres-staging não está em execução'; exit 1; }
+            docker exec postgres-staging psql -U postgres -d projetogran -tAc "SELECT current_database();" | grep -q '^projetogran$' || { echo '❌ Conexão ao DB projetogran falhou'; exit 1; }
+            echo "🔎 Realizando pg_dump (custom format) do banco 'projetogran'..."
+            # Stream do dump para o host, evitando dependência de diretórios no container
+            docker exec postgres-staging pg_dump -U postgres -d projetogran -Fc > "$FILE"
+            ls -lh "$FILE" || true
+            # Guard rail: validar arquivo gerado (não-vazio)
+            if [ ! -s "$FILE" ]; then
+              echo "❌ Backup vazio ou não encontrado: $FILE"; exit 1; fi
+            echo "✅ Backup criado: $FILE"
+            # Retenção opcional: manter apenas 30 backups mais recentes
+            ls -1t /var/backups/projetogran/staging/projetogran_*.dump | tail -n +31 | xargs -r rm -f
+          EOF
+
       - name: 📤 Upload image to server
         run: |
           # Clean up any existing staging tar file first
@@ -44,6 +66,8 @@ jobs:
           # Ensure application directory exists and upload staging Postgres compose
           ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} "mkdir -p /opt/projetogran"
           scp -o StrictHostKeyChecking=no docker-compose.staging-postgres.yml root@${{ secrets.SERVER_HOST }}:/opt/projetogran/
+          # Criar/atualizar .env do compose com Secrets (sem logar valores)
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} "printf '%s\n' 'POSTGRES_USER=postgres' 'POSTGRES_PASSWORD=${{ secrets.POSTGRES_STAGING_PASSWORD }}' 'POSTGRES_DB=projetogran' 'PGADMIN_DEFAULT_EMAIL=${{ secrets.PGADMIN_STAGING_EMAIL }}' 'PGADMIN_DEFAULT_PASSWORD=${{ secrets.PGADMIN_STAGING_PASSWORD }}' > /opt/projetogran/.env && chmod 600 /opt/projetogran/.env"
 
       - name: 🚀 Deploy to staging
         run: |
@@ -106,8 +130,8 @@ jobs:
             docker run -d --name crewflow-app-staging \
               --network projetogran_crewflow-network \
               -p 3002:3001 \
-              -e DATABASE_URL='postgresql://postgres:senha_segura_aqui@postgres-staging:5432/projetogran?schema=public' \
-              -e JWT_SECRET='crewflow-jwt-secret-staging-2024' \
+              -e DATABASE_URL='${{ secrets.STAGING_DATABASE_URL }}' \
+              -e JWT_SECRET='${{ secrets.JWT_SECRET_STAGING }}' \
               -e NEXTAUTH_URL='http://${{ secrets.SERVER_HOST }}:3002' \
               -e NODE_ENV='production' \
               -e CLEANUP_ADMIN_TOKEN='${{ secrets.CLEANUP_ADMIN_TOKEN }}' \
@@ -155,9 +179,7 @@ jobs:
             echo "🌱 Running seed:complete on staging database..."
             docker exec crewflow-app-staging npm run seed:complete
 
-            # Pós-deploy: executar limpeza de remanejamentos e cadastro de usuários extras
-            echo "🧹 Executando limpeza de remanejamentos (staging)..."
-            docker exec crewflow-app-staging npm run staging:cleanup-remanejamentos || true
+            # Pós-deploy: cadastrar funcionários extras (staging) – sem limpeza automática
             echo "➕ Cadastrando funcionários extras (staging)..."
             docker exec crewflow-app-staging npm run staging:add-funcionarios-extra || true
 

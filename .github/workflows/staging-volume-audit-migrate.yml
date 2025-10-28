@@ -1,0 +1,147 @@
+name: Staging Postgres Volume Audit/Migrate
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Modo de execução: audit (somente checa) ou migrate (migra com backup)'
+        type: choice
+        required: true
+        options:
+          - audit
+          - migrate
+        default: audit
+      confirm_env:
+        description: 'Confirmação de ambiente (digite exatamente: staging)'
+        type: string
+        required: true
+        default: staging
+      dry_run:
+        description: 'Dry run (true = não altera nada, apenas simula; false = aplica) — só tem efeito no modo migrate'
+        type: boolean
+        required: true
+        default: true
+
+jobs:
+  audit_migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🔑 Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: 🔎 Audit/Migrate staging volume
+        run: |
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
+            set -euo pipefail
+
+            if [ "${{ github.event.inputs.confirm_env }}" != "staging" ]; then
+              echo "❌ confirm_env inválido (use: staging)"; exit 1; fi
+
+            MODE="${{ github.event.inputs.mode }}"
+            DRY_RUN="${{ github.event.inputs.dry_run }}"
+
+            CONTAINER="postgres-staging"
+            TARGET_LOGICAL_NAME="postgres-staging-data"  # nome lógico do compose
+            TARGET_VOLUME_NAME="projetogran_${TARGET_LOGICAL_NAME}"  # nome físico do volume no Docker
+            DATA_MOUNT="/var/lib/postgresql/data"
+
+            echo "🔎 Detectando volume atual do container: $CONTAINER"
+            if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER}$"; then
+              CURRENT_VOLUME=$(docker inspect ${CONTAINER} --format '{{ range .Mounts }}{{ if eq .Destination "${DATA_MOUNT}" }}{{ .Name }}{{ end }}{{ end }}')
+            else
+              CURRENT_VOLUME=""
+            fi
+            echo "📦 Volume atual detectado: ${CURRENT_VOLUME:-<nenhum>}"
+            echo "🎯 Volume alvo padronizado: ${TARGET_VOLUME_NAME} (lógico: ${TARGET_LOGICAL_NAME})"
+
+            if [ -z "${CURRENT_VOLUME}" ]; then
+              echo "⚠️ Container ${CONTAINER} não existe ou não tem mount em ${DATA_MOUNT}. Tentando descobrir possíveis volumes..."
+              docker volume ls
+            fi
+
+            if [ "${CURRENT_VOLUME}" = "${TARGET_VOLUME_NAME}" ]; then
+              echo "✅ Já está padronizado usando ${TARGET_VOLUME_NAME}. Nada a fazer."
+              exit 0
+            fi
+
+            if [ "${MODE}" = "audit" ]; then
+              echo "ℹ️ Modo audit: diferença encontrada. Volume atual='${CURRENT_VOLUME}', alvo='${TARGET_VOLUME_NAME}'. Sem alterações."
+              exit 0
+            fi
+
+            echo "🛡️ Modo migrate: preparando backup antes de qualquer alteração..."
+            mkdir -p /var/backups/projetogran/staging
+            TS=$(date -u +%Y%m%d_%H%M%S)
+            FILE="/var/backups/projetogran/staging/projetogran_${TS}.dump"
+            if docker ps --format '{{.Names}}' | grep -q '^postgres-staging$'; then
+              echo "🔎 Sanity-check container e DB antes do dump..."
+              docker exec postgres-staging psql -U postgres -d projetogran -tAc "SELECT current_database();" | grep -q '^projetogran$' || { echo '❌ Conexão ao DB projetogran falhou'; exit 1; }
+              echo "💾 Criando backup (pg_dump -Fc) em $FILE"
+              docker exec postgres-staging pg_dump -U postgres -d projetogran -Fc > "$FILE"
+              ls -lh "$FILE" || true
+              if [ ! -s "$FILE" ]; then echo "❌ Backup vazio ou não encontrado: $FILE"; exit 1; fi
+              echo "✅ Backup criado: $FILE"
+            else
+              echo "⚠️ Container postgres-staging não está em execução; pulando backup via pg_dump."
+            fi
+
+            if [ "${DRY_RUN}" = "true" ]; then
+              echo "🧪 Dry run habilitado — nenhuma alteração será aplicada."
+              echo "👉 A migração faria: parar ${CONTAINER}, criar volume ${TARGET_VOLUME_NAME}, copiar dados de ${CURRENT_VOLUME} -> ${TARGET_VOLUME_NAME}, subir compose, validar DB."
+              exit 0
+            fi
+
+            echo "⏹️ Parando container ${CONTAINER} para copiar dados com consistência..."
+            docker stop ${CONTAINER} 2>/dev/null || true
+
+            echo "📦 Garantindo existência do volume alvo: ${TARGET_VOLUME_NAME}"
+            docker volume inspect ${TARGET_VOLUME_NAME} >/dev/null 2>&1 || docker volume create ${TARGET_VOLUME_NAME}
+
+            if [ -z "${CURRENT_VOLUME}" ]; then
+              echo "❌ Não foi possível determinar o volume atual para copiar. Abortando."
+              exit 1
+            fi
+
+            echo "📁 Copiando dados: ${CURRENT_VOLUME} -> ${TARGET_VOLUME_NAME}"
+            docker run --rm \
+              -v ${CURRENT_VOLUME}:/from \
+              -v ${TARGET_VOLUME_NAME}:/to \
+              alpine sh -c "set -e; cd /from && cp -a . /to"
+
+            echo "🔎 Validando cópia (arquivos essenciais)..."
+            docker run --rm -v ${TARGET_VOLUME_NAME}:/to alpine sh -lc "ls -al /to | head -n 50; [ -f /to/PG_VERSION ] || { echo '❌ Arquivo PG_VERSION não encontrado no volume alvo'; exit 1; }"
+
+            echo "🚀 Subindo Postgres de staging com compose e volume padronizado"
+            docker network create projetogran_crewflow-network 2>/dev/null || true
+            cd /opt/projetogran
+            if docker compose version >/dev/null 2>&1; then
+              docker compose -f docker-compose.staging-postgres.yml down || true
+              docker compose -f docker-compose.staging-postgres.yml up -d
+            else
+              echo "❌ Docker Compose v2 não encontrado (instale previamente)."; exit 125
+            fi
+
+            echo "⏳ Aguardando Postgres inicializar..."
+            sleep 8
+            docker ps | grep -q '^postgres-staging' || { echo '❌ postgres-staging não subiu'; docker ps -a; exit 1; }
+
+            echo "🧪 Testando conexão ao DB 'projetogran'"
+            docker exec postgres-staging psql -U postgres -d projetogran -tAc "SELECT current_database();" | grep -q '^projetogran$' || { echo '❌ Conexão ao DB projetogran falhou após migração'; exit 1; }
+
+            echo "🔎 Conferência de integridade mínima (ex.: contagem de tabelas Prisma)"
+            docker exec postgres-staging psql -U postgres -d projetogran -tAc "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public';" | awk '{print "Qtd. tabelas public:", $1}'
+
+            echo "✅ Migração concluída. Volume atual agora deve ser: ${TARGET_VOLUME_NAME}"
+            echo "ℹ️ Volume antigo preservado (${CURRENT_VOLUME}) para rollback manual, se necessário. Remova-o depois de validar tudo:"
+            echo "   docker volume rm ${CURRENT_VOLUME}"
+          EOF
+
+      - name: 📋 Resumo
+        run: |
+          echo "Modo: ${{ github.event.inputs.mode }}"
+          echo "Dry run: ${{ github.event.inputs.dry_run }}"
+          echo "Confirm env: ${{ github.event.inputs.confirm_env }}"

@@ -31,10 +31,10 @@ O sistema utiliza uma arquitetura baseada em containers Docker com os seguintes 
 O deploy é realizado automaticamente pelo GitHub Actions quando há um push para a branch `main`:
 
 1. Constrói a imagem Docker `crewflow-app:latest`
-2. Salva a imagem como `crewflow-app.tar`
-3. Envia os arquivos para o servidor via SSH
-4. Para e remove os containers existentes
-5. Inicia os novos containers com a versão atualizada
+2. Envia a imagem para o servidor via SSH e faz o `docker load`
+3. Faz backup do banco de dados (`pg_dump -Fc`) ANTES de iniciar o deploy
+4. Para e remove containers antigos e sobe a nova versão
+5. Aplica migrações do Prisma e executa seed idempotente
 
 #### Configuração da Rede Docker
 
@@ -43,20 +43,20 @@ O deploy é realizado automaticamente pelo GitHub Actions quando há um push par
 docker network create projetogran_crewflow-network
 ```
 
-#### Variáveis de Ambiente de Produção
+#### Variáveis de Ambiente e Segredos (Produção)
 
-```env
-# Banco de dados
-DATABASE_URL="postgresql://crewflow_user:crewflow_production_2024@postgres-prod:5432/crewflow_production"
+- A aplicação recebe segredos via GitHub Secrets, injetados no `docker run`:
+  - `PRODUCTION_DATABASE_URL`
+  - `JWT_SECRET_PRODUCTION`
+  - `SERVER_HOST`
+- O workflow gera/atualiza um arquivo `/opt/projetogran/.env` no servidor contendo SOMENTE credenciais do Postgres/pgAdmin utilizadas pelo `docker-compose.yml` (não pela aplicação):
+  - `POSTGRES_PROD_DB`, `POSTGRES_PROD_USER`, `POSTGRES_PROD_PASSWORD`
+  - `PGADMIN_PROD_EMAIL`, `PGADMIN_PROD_PASSWORD`
+- Não existem credenciais hardcoded no repositório.
 
-# JWT Secret
-JWT_SECRET="crewflow-jwt-secret-key-2024"
-
-# URL da aplicação
-NEXTAUTH_URL="http://localhost:3000"
-
-# Ambiente
-NODE_ENV="production"
+Exemplo de `DATABASE_URL` (apenas formato):
+```
+postgresql://<user>:<password>@<host>:<port>/<db>?schema=public
 ```
 
 ### 🛠️ Scripts de Manutenção
@@ -70,7 +70,7 @@ O script `deploy-quick.bat` pode ser usado para fazer um deploy rápido em caso 
 ./deploy-quick.bat
 ```
 
-> ⚠️ **Atenção**: Use apenas em situações de emergência. O método recomendado é o deploy via GitHub Actions.
+> ⚠️ Atenção: Use apenas em situações de emergência. O método recomendado é o deploy via GitHub Actions.
 
 #### Inicialização do PostgreSQL Local (Staging)
 
@@ -125,7 +125,7 @@ docker-compose -f docker-compose.local.yml up -d app-dev
 
 Notas importantes:
 - Ambos os serviços reutilizam a rede externa `projetogran_crewflow-network` e o container `postgres-staging` já existente.
-- Não há impacto em staging/produção: nada muda nos arquivos `docker-compose.staging.yml` ou de produção.
+- Mantemos apenas os compose essenciais: `docker-compose.yml` (produção) e `docker-compose.staging-postgres.yml` (staging).
 - No Windows/Docker Desktop, `CHOKIDAR_USEPOLLING=true` está habilitado no app-dev para o watch funcionar corretamente.
 - Se o `schema.prisma` mudar, o Prisma Client precisa ser gerado. No app-dev isso ocorre automaticamente via `npx prisma generate`; no app-local, o generate roda no `docker build`.
 
@@ -162,6 +162,8 @@ Dicas:
 - Prisma (opcionais):
   - npm run prisma:dev
   - npm run prisma:prod
+- Seed da Matriz (manual):
+  - npm run seed:matriz
  
  
  ### 📋 Checklist de Verificação de Deploy
@@ -182,6 +184,7 @@ Após um deploy, verifique:
 | 2024-05-XX | 1.1 | Migração para PostgreSQL |
 | 2024-05-XX | 1.2 | Padronização dos nomes dos containers |
 | 2024-05-XX | 1.3 | Correção do workflow de deploy automático |
+| 2025-10-XX | 1.4 | Externalização de segredos (staging e produção) e backup obrigatório antes do deploy |
 
 ### 🔍 Solução de Problemas Comuns
 
@@ -193,251 +196,21 @@ Após um deploy, verifique:
 | Dados não persistindo | Volume do PostgreSQL não configurado | Verificar se o volume `postgres_data` está mapeado corretamente |
 | pgAdmin inacessível | Container não iniciado ou porta incorreta | Verificar status do container `pgadmin-production` e mapeamento de porta |
 
-### 🧹 Limpeza de Remanejamentos (Staging)
+### 🧹 Limpeza de Remanejamentos (Staging) — Desativado
 
-A limpeza remove dados de remanejamentos e reseta `emMigracao` em funcionários. Use somente no ambiente de staging.
+A partir de agora, qualquer limpeza de dados deve ser feita manualmente via pgAdmin, tanto em produção quanto em staging. Antes de cada deploy realizado via GitHub Actions, um backup completo do banco é criado automaticamente:
 
-- O que é limpo:
-  - `ObservacaoTarefaRemanejamento`, `HistoricoRemanejamento`, `TarefaRemanejamento`, `RemanejamentoFuncionario`, `SolicitacaoRemanejamento`
-  - `Funcionario.emMigracao` é definido como `false`
+- Staging: `/var/backups/projetogran/staging/projetogran_YYYYMMDD_HHMMSS.dump`
+- Produção: `/var/backups/projetogran/producao/crewflow_production_YYYYMMDD_HHMMSS.dump`
 
-- Verificar antes (contagem de registros):
-  - `ssh root@46.202.146.234 "docker exec postgres-staging psql -U postgres -d projetogran -c \"SELECT 'ObservacaoTarefaRemanejamento' as tabela, COUNT(*) as total FROM public.\\\"ObservacaoTarefaRemanejamento\\\" UNION ALL SELECT 'HistoricoRemanejamento', COUNT(*) FROM public.\\\"HistoricoRemanejamento\\\" UNION ALL SELECT 'TarefaRemanejamento', COUNT(*) FROM public.\\\"TarefaRemanejamento\\\" UNION ALL SELECT 'RemanejamentoFuncionario', COUNT(*) FROM public.\\\"RemanejamentoFuncionario\\\" UNION ALL SELECT 'SolicitacaoRemanejamento', COUNT(*) FROM public.\\\"SolicitacaoRemanejamento\\\";\""`
+Não use scripts de limpeza pela aplicação; execute operações destrutivas apenas pelo pgAdmin com confirmação manual.
 
-- Executar limpeza via SSH (transação SQL):
-  - `ssh root@46.202.146.234 "docker exec postgres-staging psql -U postgres -d projetogran -c \"BEGIN; DELETE FROM public.\\\"ObservacaoTarefaRemanejamento\\\"; DELETE FROM public.\\\"HistoricoRemanejamento\\\"; DELETE FROM public.\\\"TarefaRemanejamento\\\"; DELETE FROM public.\\\"RemanejamentoFuncionario\\\"; DELETE FROM public.\\\"SolicitacaoRemanejamento\\\"; UPDATE public.\\\"Funcionario\\\" SET \\\"emMigracao\\\" = false WHERE \\\"emMigracao\\\" = true; COMMIT;\""` 
+### 🧱 Padronização de Volumes (Docker)
+- Staging: usar sempre os volumes `postgres-staging-data` e `pgadmin-staging-data` (compose: `docker-compose.staging-postgres.yml`).
+- Produção: manter volumes legados `postgres_data` e `pgadmin_data` até migração planejada com backup e janela de manutenção. Quando oportuno, aplicar a mesma estratégia de auditoria/migração utilizada em staging (com dry-run e backup antes).
+- Rede: `projetogran_crewflow-network` compartilhada entre app e banco em todos os ambientes.
+- Dica: valide volumes em uso no servidor com `docker inspect <container> | grep Source` antes de qualquer limpeza.
 
-- Executar via script no container da aplicação:
-  - Preferencial (CommonJS): `ssh root@46.202.146.234 "docker exec crewflow-app-staging node scripts/cleanup-remanejamentos.cjs"`
-  - Caso o container tenha apenas `.js` e o projeto esteja com `"type": "module"`, use o `.cjs` ou converta o script para ES Modules.
-
-- Verificar após a limpeza:
-  - `ssh root@46.202.146.234 "docker exec postgres-staging psql -U postgres -d projetogran -c \"SELECT 'ObservacaoTarefaRemanejamento' as tabela, COUNT(*) as total FROM public.\\\"ObservacaoTarefaRemanejamento\\\" UNION ALL SELECT 'HistoricoRemanejamento', COUNT(*) FROM public.\\\"HistoricoRemanejamento\\\" UNION ALL SELECT 'TarefaRemanejamento', COUNT(*) FROM public.\\\"TarefaRemanejamento\\\" UNION ALL SELECT 'RemanejamentoFuncionario', COUNT(*) FROM public.\\\"RemanejamentoFuncionario\\\" UNION ALL SELECT 'SolicitacaoRemanejamento', COUNT(*) FROM public.\\\"SolicitacaoRemanejamento\\\" UNION ALL SELECT 'Funcionarios em Migracao', COUNT(*) FROM public.\\\"Funcionario\\\" WHERE \\\"emMigracao\\\" = true;\""`
-  - UI: `http://46.202.146.234:3002/prestserv/remanejamentos` e `http://46.202.146.234:3002/prestserv/remanejamentos/tabela`
-
-- Alternativa via GitHub Actions:
-  - Workflow manual: "Cleanup Remanejamentos (Staging)" (`.github/workflows/cleanup-staging-remanejamentos.yml`)
-  - Acessar a aba Actions, selecionar o workflow e clicar em "Run workflow"
-
-- Observações importantes:
-  - Operação destrutiva. Confirme o ambiente (`staging`) e `DATABASE_URL` antes de executar.
-  - Se usar a rota HTTP administrativa (`POST /api/admin/cleanup-remanejamentos`), configure `CLEANUP_ADMIN_TOKEN` via segredo do GitHub e injete no container.
-
-## 🚀 Tecnologias Utilizadas
-
-- **Next.js 14** - Framework React
-- **TypeScript** - Linguagem de programação
-- **Prisma** - ORM para banco de dados
-- **PostgreSQL** - Banco de dados
-- **Tailwind CSS** - Framework CSS
-- **JWT** - Autenticação
-- **Lucide React** - Ícones
-
-## 📋 Pré-requisitos
-
-- Node.js 18+ instalado
-- npm, yarn, pnpm ou bun
-- Git
-
-## 🔧 Instalação e Configuração
-
-### 1. Clone o repositório
-```bash
-git clone https://github.com/GranTechDigital/crewflow.git
-cd crewflow
-```
-
-### 2. Instale as dependências
-```bash
-npm install
-# ou
-yarn install
-# ou
-pnpm install
-```
-
-### 3. Configure as variáveis de ambiente
-Crie um arquivo `.env` na raiz do projeto:
-```env
-# Banco de dados
-DATABASE_URL="postgresql://postgres:senha_segura_aqui@localhost:5432/projetogran?schema=public"
-
-# JWT Secret (altere para um valor seguro em produção)
-JWT_SECRET="seu-jwt-secret-aqui"
-
-# URL da aplicação
-NEXTAUTH_URL="http://localhost:3000"
-```
-
-### 4. Configure o banco de dados
-```bash
-# Gerar o cliente Prisma
-npx prisma generate
-
-# Executar as migrações
-npx prisma migrate dev
-
-# Popular o banco com dados iniciais
-npm run seed
-```
-
-### 5. Inicie o servidor de desenvolvimento
-```bash
-npm run dev
-# ou
-yarn dev
-# ou
-pnpm dev
-```
-
-Acesse [http://localhost:3000](http://localhost:3000) no seu navegador.
-
-## 🔐 Credenciais de Acesso
-
-### Usuário Administrador
-- **Matrícula:** `ADMIN001`
-- **Senha:** `admin123`
-- **Permissões:** Acesso total ao sistema
-
-## 📁 Estrutura do Projeto
-
-```
-# Sistema de Proteção de Rotas - Centralizado
-
-## 🔐 **Sistema Centralizado de Permissões**
-
-### **📁 Arquivo Central:**
-- **`src/lib/permissions.ts`** - Sistema centralizado de permissões
-
-### **🎯 Permissões Padronizadas:**
-
-#### **🔧 Permissões de Administração:**
-- `admin` - Acesso total ao sistema
-- `gerenciar_usuarios` - Gerenciar usuários
-- `gerenciar_equipes` - Gerenciar equipes
-
-#### **📋 Permissões de Acesso por Módulo:**
-- `canAccessFuncionarios` - Acesso a funcionários
-- `canAccessPrestServ` - Acesso ao Prestserv
-- `canAccessPlanejamento` - Acesso ao Planejamento
-- `canAccessLogistica` - Acesso à Logística
-- `canAccessAdmin` - Acesso à Administração
-- `canAccessRH` - Acesso ao RH
-- `canAccessTreinamento` - Acesso ao Treinamento
-- `canAccessMedicina` - Acesso à Medicina
-
-### **🏢 Mapeamento de Equipes:**
-
-```typescript
-TEAM_PERMISSIONS = {
-  'Administração': [
-    'admin', 'canAccessFuncionarios', 'canAccessPrestServ',
-    'canAccessPlanejamento', 'canAccessLogistica', 'canAccessAdmin',
-    'canAccessRH', 'canAccessTreinamento', 'canAccessMedicina',
-    'gerenciar_usuarios', 'gerenciar_equipes'
-  ],
-  'RH': ['canAccessFuncionarios', 'canAccessRH'],
-  'Treinamento': ['canAccessFuncionarios', 'canAccessTreinamento'],
-  'Medicina': ['canAccessFuncionarios', 'canAccessMedicina'],
-  'Logística': ['canAccessFuncionarios', 'canAccessLogistica', 'canAccessPrestServ'],
-  'Planejamento': ['canAccessFuncionarios', 'canAccessPlanejamento'],
-  'Prestserv': ['canAccessFuncionarios', 'canAccessPrestServ']
-}
-```
-
-### **🛡️ Proteção de Rotas Centralizada:**
-
-```typescript
-ROUTE_PROTECTION = {
-  ADMIN: {
-    requiredEquipe: ['Administração'],
-    requiredPermissions: ['admin', 'gerenciar_usuarios']
-  },
-  PRESTSERV: {
-    requiredEquipe: ['LOGISTICA', 'PRESTSERV', 'Administração'],
-    requiredPermissions: ['admin', 'canAccessPrestServ']
-  },
-  LOGISTICA: {
-    requiredEquipe: ['LOGISTICA', 'Administração'],
-    requiredPermissions: ['admin', 'canAccessLogistica']
-  },
-  PLANEJAMENTO: {
-    requiredEquipe: ['PLANEJAMENTO', 'Administração'],
-    requiredPermissions: ['admin', 'canAccessPlanejamento']
-  }
-}
-```
-
-### **📝 Como Usar:**
-
-#### **1. Proteção de Rotas:**
-```tsx
-import { ROUTE_PROTECTION } from '@/lib/permissions';
-
-<ProtectedRoute 
-  requiredEquipe={ROUTE_PROTECTION.PRESTSERV.requiredEquipe}
-  requiredPermissions={ROUTE_PROTECTION.PRESTSERV.requiredPermissions}
->
-  <MinhaPagina />
-</ProtectedRoute>
-```
-
-#### **2. Verificação de Permissões:**
-```tsx
-import { PERMISSIONS, hasFullAccess, hasModuleAccess } from '@/lib/permissions';
-
-// Verificar se é admin
-const isAdmin = hasFullAccess(usuario.permissoes);
-
-// Verificar acesso a módulo
-const canAccessPrestServ = hasModuleAccess(usuario.permissoes, PERMISSIONS.ACCESS_PREST_SERV);
-```
-
-#### **3. Obter Permissões por Equipe:**
-```tsx
-import { getPermissionsByTeam } from '@/lib/permissions';
-
-const permissoes = getPermissionsByTeam('Administração');
-```
-
-### **✅ Benefícios da Centralização:**
-
-1. **Consistência:** Todas as permissões definidas em um local
-2. **Manutenibilidade:** Mudanças em um lugar refletem em todo o sistema
-3. **Tipagem:** TypeScript garante uso correto das permissões
-4. **Padronização:** Nomes e estruturas consistentes
-5. **Escalabilidade:** Fácil adicionar novas permissões e equipes
-
-### **🔄 Migração Completa:**
-
-- ✅ **API de Verificação** - Usa sistema centralizado
-- ✅ **Sidebar** - Usa permissões centralizadas
-- ✅ **Páginas de Administração** - Usa ROUTE_PROTECTION
-- ✅ **Páginas do Prestserv** - Usa ROUTE_PROTECTION
-- ✅ **Páginas de Logística** - Usa ROUTE_PROTECTION
-- ✅ **Páginas de Planejamento** - Usa ROUTE_PROTECTION
-
-### **🎯 Padronização:**
-
-- **`admin`** = Acesso total (substitui `canAccessAdmin`)
-- **`canAccessX`** = Acesso específico ao módulo X
-- **`gerenciar_X`** = Permissão de gerenciamento específica
-
-### **📋 Próximos Passos:**
-
-1. **Remover** `canAccessAdmin` de todos os lugares
-2. **Usar** apenas `admin` para acesso total
-3. **Atualizar** documentação de equipes
-4. **Testar** todas as rotas com diferentes usuários
-
----
-
-## 🚀 **Como Testar:**
-
-1. **Login como Administrador** (`ADMIN001` / `admin123`)
-2. **Verificar** acesso a todas as páginas
-3. **Login como usuário específico** (RH, Logística, etc.)
-4. **Confirmar** acesso apenas às páginas da equipe
-5. **Testar** redirecionamento para `/unauthorized`
-
-O sistema agora está **completamente centralizado** e **padronizado**! 🎉# CrewFlow - Deploy Automático Ativo!
+### 🛡️ Guard Rails de Deploy e Backup
+- Backups obrigatórios e verificados: staging e produção realizam `pg_dump -Fc` com checagens de container, conexão ao DB e tamanho do arquivo (>0 bytes) antes do deploy.
+- Sem segredos hardcoded em compose/workflows; uso de Secrets e `.env` no servidor.

@@ -1,16 +1,16 @@
 version: '3.8'
 services:
   postgres-staging:
-    image: postgres:14
+    image: postgres:15
     container_name: postgres-staging
     restart: unless-stopped
 
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=senha_segura_aqui
-      - POSTGRES_DB=projetogran
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - postgres-staging-data:/var/lib/postgresql/data
       - ./postgres-init:/docker-entrypoint-initdb.d
     networks:
       - projetogran_crewflow-network
@@ -19,8 +19,8 @@ services:
     image: dpage/pgadmin4:latest
     container_name: pgadmin-staging
     environment:
-      - PGADMIN_DEFAULT_EMAIL=admin@crewflow.com
-      - PGADMIN_DEFAULT_PASSWORD=admin123
+      - PGADMIN_DEFAULT_EMAIL=${PGADMIN_DEFAULT_EMAIL}
+      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_DEFAULT_PASSWORD}
     ports:
       - "5051:80"
     volumes:
@@ -36,5 +36,5 @@ networks:
     external: true
 
 volumes:
-  postgres-data:
+  postgres-staging-data:
   pgadmin-staging-data:
