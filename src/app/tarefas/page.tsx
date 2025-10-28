@@ -1567,6 +1567,9 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
                                 <div className="text-[12px] font-medium text-gray-900">
                                   {funcionario.nome}
                                 </div>
+                                <div className="text-[11px] text-gray-500">
+                                  {funcionario.funcao || 'Função não informada'}
+                                </div>
                               </div>
                             </div>
                           </td>
