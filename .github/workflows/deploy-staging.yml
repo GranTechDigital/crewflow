@@ -49,9 +49,9 @@ jobs:
             fi
             DB_USER=$(docker exec postgres-staging bash -lc 'echo -n "$POSTGRES_USER"')
             echo "🔎 Validando conexão ao DB '${DB_NAME}'..."
-            docker exec postgres-staging bash -lc 'export PGPASSWORD="$POSTGRES_PASSWORD"; psql -U "$POSTGRES_USER" -d "$DB_NAME" -tAc "SELECT current_database();"' | grep -q "^${DB_NAME}$" || { echo "❌ Conexão ao DB ${DB_NAME} falhou"; exit 1; }
+            docker exec postgres-staging bash -lc "export PGPASSWORD=\"\$POSTGRES_PASSWORD\"; psql -U \"\$POSTGRES_USER\" -d \"$DB_NAME\" -tAc \"SELECT current_database();\"" | grep -q "^${DB_NAME}$" || { echo "❌ Conexão ao DB ${DB_NAME} falhou"; exit 1; }
             echo "🔎 Realizando pg_dump (custom format) do banco '${DB_NAME}'..."
-            docker exec postgres-staging bash -lc 'export PGPASSWORD="$POSTGRES_PASSWORD"; pg_dump -U "$POSTGRES_USER" -d "$DB_NAME" -Fc' > "$FILE"
+            docker exec postgres-staging bash -lc "export PGPASSWORD=\"\$POSTGRES_PASSWORD\"; pg_dump -U \"\$POSTGRES_USER\" -d \"$DB_NAME\" -Fc" > "$FILE"
             ls -lh "$FILE" || true
             # Guard rail: validar arquivo gerado (não-vazio)
             if [ ! -s "$FILE" ]; then
@@ -182,15 +182,15 @@ jobs:
 
             # Baseline check: mark init as applied only if DB already has migration table
             echo "🔎 Checking migration baseline in Postgres (_prisma_migrations)..."
-            MIG_TABLE_EXISTS=$(docker exec postgres-staging bash -lc 'export PGPASSWORD="$POSTGRES_PASSWORD"; psql -U "$POSTGRES_USER" -d "$DB_NAME" -tAc "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='\''public'\'' AND table_name='\''_prisma_migrations'\'');"')
+            MIG_TABLE_EXISTS=$(docker exec postgres-staging bash -lc "export PGPASSWORD=\"\$POSTGRES_PASSWORD\"; psql -U \"\$POSTGRES_USER\" -d \"$DB_NAME\" -tAc \"SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='_prisma_migrations');\"")
             # Se não tem _prisma_migrations mas já existem tabelas, marcar baseline como aplicada (não destruir dados)
-            HAS_TABLES=$(docker exec postgres-staging bash -lc 'export PGPASSWORD="$POSTGRES_PASSWORD"; psql -U "$POSTGRES_USER" -d "$DB_NAME" -tAc "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='\''public'\'' AND table_type='\''BASE TABLE'\'';"')
+            HAS_TABLES=$(docker exec postgres-staging bash -lc "export PGPASSWORD=\"\$POSTGRES_PASSWORD\"; psql -U \"\$POSTGRES_USER\" -d \"$DB_NAME\" -tAc \"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';\"")
             if [ "$MIG_TABLE_EXISTS" != "t" ] && [ "${HAS_TABLES:-0}" -gt 0 ]; then
               echo "ℹ️ Detected existing tables without _prisma_migrations. Marking baseline as applied."
               docker exec crewflow-app-staging npx prisma migrate resolve --applied "20251013111730_init" || true
             fi
             if [ "$MIG_TABLE_EXISTS" = "t" ]; then
-              INIT_APPLIED=$(docker exec postgres-staging bash -lc 'export PGPASSWORD="$POSTGRES_PASSWORD"; psql -U "$POSTGRES_USER" -d "$DB_NAME" -tAc "SELECT EXISTS (SELECT 1 FROM public._prisma_migrations WHERE migration_name = '\''20251013111730_init'\'');"')
+              INIT_APPLIED=$(docker exec postgres-staging bash -lc "export PGPASSWORD=\"\$POSTGRES_PASSWORD\"; psql -U \"\$POSTGRES_USER\" -d \"$DB_NAME\" -tAc \"SELECT EXISTS (SELECT 1 FROM public._prisma_migrations WHERE migration_name = '20251013111730_init');\"")
               if [ "$INIT_APPLIED" != "t" ]; then
                 echo "ℹ️ Marking baseline migration '20251013111730_init' as applied (existing DB)"
                 docker exec crewflow-app-staging npx prisma migrate resolve --applied "20251013111730_init" || true
@@ -206,7 +206,7 @@ jobs:
             
             # Conditionally run seed only if database is empty (avoid overwriting migrated data)
           echo "🌱 Checking if database is empty to decide on seeding..."
-          HAS_TABLES=$(docker exec postgres-staging bash -lc 'export PGPASSWORD="$POSTGRES_PASSWORD"; psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='\''public'\'' AND table_type='\''BASE TABLE'\'';" | tr -d "\r\n" )
+          HAS_TABLES=$(docker exec postgres-staging bash -lc "export PGPASSWORD=\"\$POSTGRES_PASSWORD\"; psql -U \"\$POSTGRES_USER\" -d \"$DB_NAME\" -tAc \"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';\" | tr -d \"\r\n\" )
           if [ -z "$HAS_TABLES" ]; then HAS_TABLES=0; fi
           if [ "$HAS_TABLES" -eq 0 ]; then
             echo "🌱 Database empty. Running seed:complete on staging database..."
@@ -221,7 +221,7 @@ jobs:
 
             # Verify tables exist
             echo "🔎 Verificando tabelas no banco..."
-            docker exec postgres-staging bash -lc 'export PGPASSWORD="$POSTGRES_PASSWORD"; psql -U "$POSTGRES_USER" -d "$DB_NAME" -c "\\dt"'
+            docker exec postgres-staging bash -lc "export PGPASSWORD=\"\$POSTGRES_PASSWORD\"; psql -U \"\$POSTGRES_USER\" -d \"$DB_NAME\" -c \"\\dt\""
           EOF
 
       - name: 🧪 Run tests (optional)
