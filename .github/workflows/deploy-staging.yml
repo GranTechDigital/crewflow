@@ -35,17 +35,20 @@ jobs:
 
       - name: 💾 Backup banco de dados (staging) antes do deploy
         run: |
-          ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << EOF
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
             set -e
             mkdir -p /var/backups/projetogran/staging
             TS=$(date -u +%Y%m%d_%H%M%S)
             FILE="/var/backups/projetogran/staging/projetogran_${TS}.dump"
             echo "🔎 Sanity-check container e DB antes do dump..."
             docker ps --format '{{.Names}}' | grep -q '^postgres-staging$' || { echo '❌ Container postgres-staging não está em execução'; exit 1; }
-            docker exec postgres-staging psql -U postgres -d projetogran -tAc "SELECT current_database();" | grep -q '^projetogran$' || { echo '❌ Conexão ao DB projetogran falhou'; exit 1; }
-            echo "🔎 Realizando pg_dump (custom format) do banco 'projetogran'..."
-            # Stream do dump para o host, evitando dependência de diretórios no container
-            docker exec postgres-staging pg_dump -U postgres -d projetogran -Fc > "$FILE"
+            # Ler variáveis internas do container para autenticação
+            DB_NAME=$(docker exec postgres-staging bash -lc 'echo -n "$POSTGRES_DB"')
+            DB_USER=$(docker exec postgres-staging bash -lc 'echo -n "$POSTGRES_USER"')
+            echo "🔎 Validando conexão ao DB '${DB_NAME}'..."
+            docker exec postgres-staging bash -lc 'export PGPASSWORD="$POSTGRES_PASSWORD"; psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "SELECT current_database();"' | grep -q "^${DB_NAME}$" || { echo "❌ Conexão ao DB ${DB_NAME} falhou"; exit 1; }
+            echo "🔎 Realizando pg_dump (custom format) do banco '${DB_NAME}'..."
+            docker exec postgres-staging bash -lc 'export PGPASSWORD="$POSTGRES_PASSWORD"; pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc' > "$FILE"
             ls -lh "$FILE" || true
             # Guard rail: validar arquivo gerado (não-vazio)
             if [ ! -s "$FILE" ]; then
@@ -55,7 +58,7 @@ jobs:
             ls -1t /var/backups/projetogran/staging/projetogran_*.dump | tail -n +31 | xargs -r rm -f
           EOF
 
-      - name: 📤 Upload image to server
+      - name: 📤 Upload image and compose to server
         run: |
           # Clean up any existing staging tar file first
           ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} "rm -f /tmp/crewflow-app-staging.tar"
@@ -66,8 +69,8 @@ jobs:
           # Ensure application directory exists and upload staging Postgres compose
           ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} "mkdir -p /opt/projetogran"
           scp -o StrictHostKeyChecking=no docker-compose.staging-postgres.yml root@${{ secrets.SERVER_HOST }}:/opt/projetogran/
-          # Criar/atualizar .env do compose com Secrets (sem logar valores)
-          ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} "printf '%s\n' 'POSTGRES_USER=postgres' 'POSTGRES_PASSWORD=${{ secrets.POSTGRES_STAGING_PASSWORD }}' 'POSTGRES_DB=projetogran' 'PGADMIN_DEFAULT_EMAIL=${{ secrets.PGADMIN_STAGING_EMAIL }}' 'PGADMIN_DEFAULT_PASSWORD=${{ secrets.PGADMIN_STAGING_PASSWORD }}' > /opt/projetogran/.env && chmod 600 /opt/projetogran/.env"
+          # Se .env não existir no servidor, criar com valores padrão seguros (staging)
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} "if [ ! -f /opt/projetogran/.env ]; then printf '%s\n' 'POSTGRES_USER=postgres' 'POSTGRES_PASSWORD=postgres' 'POSTGRES_DB=projetogran' 'PGADMIN_DEFAULT_EMAIL=admin-staging@crewflow.local' 'PGADMIN_DEFAULT_PASSWORD=admin123' > /opt/projetogran/.env && chmod 600 /opt/projetogran/.env; fi"
 
       - name: 🚀 Deploy to staging
         run: |
@@ -126,15 +129,29 @@ jobs:
             docker stop crewflow-app-staging 2>/dev/null || true
             docker rm crewflow-app-staging 2>/dev/null || true
 
+            # Montar DATABASE_URL lendo credenciais do container postgres-staging
+            DB_NAME=$(docker exec postgres-staging bash -lc 'echo -n "$POSTGRES_DB"')
+            DB_USER=$(docker exec postgres-staging bash -lc 'echo -n "$POSTGRES_USER"')
+            DB_PASS=$(docker exec postgres-staging bash -lc 'echo -n "$POSTGRES_PASSWORD"')
+            DATABASE_URL="postgresql://${DB_USER}:${DB_PASS}@postgres-staging:5432/${DB_NAME}?schema=public"
+            # Gerar JWT_SECRET e CLEANUP_ADMIN_TOKEN efêmeros
+            if command -v openssl >/dev/null 2>&1; then
+              JWT_SECRET=$(openssl rand -hex 32)
+              CLEANUP_ADMIN_TOKEN=$(openssl rand -hex 32)
+            else
+              JWT_SECRET=$(date +%s%N | sha256sum | cut -c1-64)
+              CLEANUP_ADMIN_TOKEN=$(date +%s%N | sha256sum | cut -c1-64)
+            fi
+
             # Start new staging container (different port, correct internal port)
             docker run -d --name crewflow-app-staging \
               --network projetogran_crewflow-network \
               -p 3002:3001 \
-              -e DATABASE_URL='${{ secrets.STAGING_DATABASE_URL }}' \
-              -e JWT_SECRET='${{ secrets.JWT_SECRET_STAGING }}' \
+              -e DATABASE_URL="$DATABASE_URL" \
+              -e JWT_SECRET="$JWT_SECRET" \
               -e NEXTAUTH_URL='http://${{ secrets.SERVER_HOST }}:3002' \
               -e NODE_ENV='production' \
-              -e CLEANUP_ADMIN_TOKEN='${{ secrets.CLEANUP_ADMIN_TOKEN }}' \
+              -e CLEANUP_ADMIN_TOKEN="$CLEANUP_ADMIN_TOKEN" \
               crewflow-app:staging
 
             # Clean up
@@ -159,9 +176,9 @@ jobs:
 
             # Baseline check: mark init as applied only if DB already has migration table
             echo "🔎 Checking migration baseline in Postgres (_prisma_migrations)..."
-            MIG_TABLE_EXISTS=$(docker exec postgres-staging psql -U postgres -d projetogran -tAc "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='_prisma_migrations');")
+            MIG_TABLE_EXISTS=$(docker exec postgres-staging bash -lc 'export PGPASSWORD="$POSTGRES_PASSWORD"; psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema=''public'' AND table_name=''_prisma_migrations'');"')
             if [ "$MIG_TABLE_EXISTS" = "t" ]; then
-              INIT_APPLIED=$(docker exec postgres-staging psql -U postgres -d projetogran -tAc "SELECT EXISTS (SELECT 1 FROM public._prisma_migrations WHERE migration_name = '20251013111730_init');")
+              INIT_APPLIED=$(docker exec postgres-staging bash -lc 'export PGPASSWORD="$POSTGRES_PASSWORD"; psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "SELECT EXISTS (SELECT 1 FROM public._prisma_migrations WHERE migration_name = ''20251013111730_init'');"')
               if [ "$INIT_APPLIED" != "t" ]; then
                 echo "ℹ️ Marking baseline migration '20251013111730_init' as applied (existing DB)"
                 docker exec crewflow-app-staging npx prisma migrate resolve --applied "20251013111730_init" || true
@@ -185,7 +202,7 @@ jobs:
 
             # Verify tables exist
             echo "🔎 Verificando tabelas no banco..."
-            docker exec postgres-staging psql -U postgres -d projetogran -c "\dt"
+            docker exec postgres-staging bash -lc 'export PGPASSWORD="$POSTGRES_PASSWORD"; psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "\\dt"'
           EOF
 
       - name: 🧪 Run tests (optional)
