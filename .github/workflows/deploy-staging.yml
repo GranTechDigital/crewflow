@@ -206,7 +206,7 @@ jobs:
             
             # Conditionally run seed only if database is empty (avoid overwriting migrated data)
           echo "🌱 Checking if database is empty to decide on seeding..."
-          HAS_TABLES=$(docker exec postgres-staging bash -lc "export PGPASSWORD=\"\$POSTGRES_PASSWORD\"; psql -U \"\$POSTGRES_USER\" -d \"$DB_NAME\" -tAc \"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';\" | tr -d \"\r\n\" )
+          HAS_TABLES=$(docker exec postgres-staging bash -lc "export PGPASSWORD=\"\$POSTGRES_PASSWORD\"; psql -U \"\$POSTGRES_USER\" -d \"$DB_NAME\" -tAc \"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';\" | tr -d '\r\n'")
           if [ -z "$HAS_TABLES" ]; then HAS_TABLES=0; fi
           if [ "$HAS_TABLES" -eq 0 ]; then
             echo "🌱 Database empty. Running seed:complete on staging database..."
