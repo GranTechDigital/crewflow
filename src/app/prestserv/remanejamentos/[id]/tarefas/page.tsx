@@ -257,12 +257,18 @@ function TarefasFuncionarioContent() {
 
   const editarDataLimiteTarefa = async (tarefaId: string) => {
     try {
+      const [y, m, d] = (novaDataLimite || "").split("-").map(Number);
+      const dataLimiteUtcNoonIso =
+        y && m && d
+          ? new Date(Date.UTC(y, m - 1, d, 12, 0, 0)).toISOString()
+          : null;
+
       const response = await fetch(`/api/logistica/tarefas/${tarefaId}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ dataLimite: novaDataLimite }),
+        body: JSON.stringify({ dataLimite: dataLimiteUtcNoonIso || novaDataLimite }),
       });
 
       if (!response.ok) {

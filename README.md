@@ -193,6 +193,36 @@ Após um deploy, verifique:
 | Dados não persistindo | Volume do PostgreSQL não configurado | Verificar se o volume `postgres_data` está mapeado corretamente |
 | pgAdmin inacessível | Container não iniciado ou porta incorreta | Verificar status do container `pgadmin-production` e mapeamento de porta |
 
+### 🧹 Limpeza de Remanejamentos (Staging)
+
+A limpeza remove dados de remanejamentos e reseta `emMigracao` em funcionários. Use somente no ambiente de staging.
+
+- O que é limpo:
+  - `ObservacaoTarefaRemanejamento`, `HistoricoRemanejamento`, `TarefaRemanejamento`, `RemanejamentoFuncionario`, `SolicitacaoRemanejamento`
+  - `Funcionario.emMigracao` é definido como `false`
+
+- Verificar antes (contagem de registros):
+  - `ssh root@46.202.146.234 "docker exec postgres-staging psql -U postgres -d projetogran -c \"SELECT 'ObservacaoTarefaRemanejamento' as tabela, COUNT(*) as total FROM public.\\\"ObservacaoTarefaRemanejamento\\\" UNION ALL SELECT 'HistoricoRemanejamento', COUNT(*) FROM public.\\\"HistoricoRemanejamento\\\" UNION ALL SELECT 'TarefaRemanejamento', COUNT(*) FROM public.\\\"TarefaRemanejamento\\\" UNION ALL SELECT 'RemanejamentoFuncionario', COUNT(*) FROM public.\\\"RemanejamentoFuncionario\\\" UNION ALL SELECT 'SolicitacaoRemanejamento', COUNT(*) FROM public.\\\"SolicitacaoRemanejamento\\\";\""`
+
+- Executar limpeza via SSH (transação SQL):
+  - `ssh root@46.202.146.234 "docker exec postgres-staging psql -U postgres -d projetogran -c \"BEGIN; DELETE FROM public.\\\"ObservacaoTarefaRemanejamento\\\"; DELETE FROM public.\\\"HistoricoRemanejamento\\\"; DELETE FROM public.\\\"TarefaRemanejamento\\\"; DELETE FROM public.\\\"RemanejamentoFuncionario\\\"; DELETE FROM public.\\\"SolicitacaoRemanejamento\\\"; UPDATE public.\\\"Funcionario\\\" SET \\\"emMigracao\\\" = false WHERE \\\"emMigracao\\\" = true; COMMIT;\""` 
+
+- Executar via script no container da aplicação:
+  - Preferencial (CommonJS): `ssh root@46.202.146.234 "docker exec crewflow-app-staging node scripts/cleanup-remanejamentos.cjs"`
+  - Caso o container tenha apenas `.js` e o projeto esteja com `"type": "module"`, use o `.cjs` ou converta o script para ES Modules.
+
+- Verificar após a limpeza:
+  - `ssh root@46.202.146.234 "docker exec postgres-staging psql -U postgres -d projetogran -c \"SELECT 'ObservacaoTarefaRemanejamento' as tabela, COUNT(*) as total FROM public.\\\"ObservacaoTarefaRemanejamento\\\" UNION ALL SELECT 'HistoricoRemanejamento', COUNT(*) FROM public.\\\"HistoricoRemanejamento\\\" UNION ALL SELECT 'TarefaRemanejamento', COUNT(*) FROM public.\\\"TarefaRemanejamento\\\" UNION ALL SELECT 'RemanejamentoFuncionario', COUNT(*) FROM public.\\\"RemanejamentoFuncionario\\\" UNION ALL SELECT 'SolicitacaoRemanejamento', COUNT(*) FROM public.\\\"SolicitacaoRemanejamento\\\" UNION ALL SELECT 'Funcionarios em Migracao', COUNT(*) FROM public.\\\"Funcionario\\\" WHERE \\\"emMigracao\\\" = true;\""`
+  - UI: `http://46.202.146.234:3002/prestserv/remanejamentos` e `http://46.202.146.234:3002/prestserv/remanejamentos/tabela`
+
+- Alternativa via GitHub Actions:
+  - Workflow manual: "Cleanup Remanejamentos (Staging)" (`.github/workflows/cleanup-staging-remanejamentos.yml`)
+  - Acessar a aba Actions, selecionar o workflow e clicar em "Run workflow"
+
+- Observações importantes:
+  - Operação destrutiva. Confirme o ambiente (`staging`) e `DATABASE_URL` antes de executar.
+  - Se usar a rota HTTP administrativa (`POST /api/admin/cleanup-remanejamentos`), configure `CLEANUP_ADMIN_TOKEN` via segredo do GitHub e injete no container.
+
 ## 🚀 Tecnologias Utilizadas
 
 - **Next.js 14** - Framework React

@@ -22,7 +22,7 @@
     "dev:docker": "docker-compose -f docker-compose.local.yml up -d app-dev",
     "dev:docker:restart": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\" && docker-compose -f docker-compose.local.yml restart app-dev",
     "dev:docker:recreate": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\" && docker-compose -f docker-compose.local.yml down --remove-orphans && docker-compose -f docker-compose.local.yml up -d --build --force-recreate",
-    "staging:cleanup-remanejamentos": "node scripts/cleanup-remanejamentos.js",
+    "staging:cleanup-remanejamentos": "node scripts/cleanup-remanejamentos.cjs",
     "staging:add-funcionarios-extra": "node scripts/add-funcionarios-extra.js",
     "staging:reset-and-seed-extra": "npm run staging:cleanup-remanejamentos && npm run staging:add-funcionarios-extra",
     "compose:down": "docker-compose -f docker-compose.local.yml down",

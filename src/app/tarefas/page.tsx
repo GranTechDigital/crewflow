@@ -1008,13 +1008,16 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
       const textoObservacao = `Data limite alterada: ${dataAnterior} → ${dataNova}\n\nJustificativa: ${justificativaDataLimite}`;
 
       // Atualizar a data limite da tarefa
+      const [y, m, d] = novaDataLimite.split("-").map(Number);
+      const dataLimiteUtcNoonIso = new Date(Date.UTC(y, m - 1, d, 12, 0, 0)).toISOString();
+
       const responseDataLimite = await fetch(
         `/api/logistica/tarefas/${tarefaSelecionada.id}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            dataLimite: novaDataLimite,
+            dataLimite: dataLimiteUtcNoonIso,
           }),
         }
       );
@@ -1563,7 +1566,7 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
                                   }`}
                                 />
                               </button>
-                              <div className="flex items-center space-x-2">
+                              <div className="flex flex-col">
                                 <div className="text-[12px] font-medium text-gray-900">
                                   {funcionario.nome}
                                 </div>

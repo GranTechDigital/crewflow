@@ -2,200 +2,201 @@ name: Deploy CrewFlow to Staging
 
 on:
   push:
-    branches: [ develop, staging ]
+    branches: [develop, staging]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   deploy-staging:
     runs-on: ubuntu-latest
     environment: staging
-    
+
     steps:
-    - name: 📥 Checkout code
-      uses: actions/checkout@v4
-      
-    - name: 🐳 Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-      
-    - name: 🔧 Build Docker image
-      run: |
-        docker build --no-cache -t crewflow-app:staging .
-        
-    - name: 💾 Save Docker image
-      run: |
-        docker save crewflow-app:staging > crewflow-app-staging.tar
-        
-    - name: 🔑 Setup SSH
-      run: |
-        mkdir -p ~/.ssh
-        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-        chmod 600 ~/.ssh/id_rsa
-        ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
-        
-    - name: 📤 Upload image to server
-      run: |
-        # Clean up any existing staging tar file first
-        ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} "rm -f /tmp/crewflow-app-staging.tar"
-        
-        # Upload new image
-        scp -o StrictHostKeyChecking=no crewflow-app-staging.tar root@${{ secrets.SERVER_HOST }}:/tmp/
-        
-        # Ensure application directory exists and upload staging Postgres compose
-        ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} "mkdir -p /opt/projetogran"
-        scp -o StrictHostKeyChecking=no docker-compose.staging-postgres.yml root@${{ secrets.SERVER_HOST }}:/opt/projetogran/
-        
-    - name: 🚀 Deploy to staging
-      run: |
-        ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
-          set -e
-          # Clean up Docker system before deployment
-          docker system prune -f || true
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
 
-          # Load new image
-          docker load < /tmp/crewflow-app-staging.tar
+      - name: 🐳 Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-          # Ensure Postgres staging is up via compose
-          docker network create projetogran_crewflow-network 2>/dev/null || true
-          cd /opt/projetogran
-          docker rm -f postgres-staging 2>/dev/null || true
-          docker rm -f pgadmin-staging 2>/dev/null || true
-          if docker compose version >/dev/null 2>&1; then
-            docker compose -f /opt/projetogran/docker-compose.staging-postgres.yml down || true
-            docker compose -f /opt/projetogran/docker-compose.staging-postgres.yml up -d
-          else
-            echo "ℹ️ Docker Compose v2 not found. Installing plugin..."
-            ARCH=$(uname -m)
-            COMPOSE_URL=""
-            if [ "$ARCH" = "x86_64" ]; then
-              COMPOSE_URL="https://github.com/docker/compose/releases/download/v2.27.0/docker-compose-linux-x86_64"
-            elif [ "$ARCH" = "aarch64" ]; then
-              COMPOSE_URL="https://github.com/docker/compose/releases/download/v2.27.0/docker-compose-linux-aarch64"
-            elif [ "$ARCH" = "armv7l" ]; then
-              COMPOSE_URL="https://github.com/docker/compose/releases/download/v2.27.0/docker-compose-linux-armv7"
-            else
-              echo "❌ Unsupported architecture: $ARCH"
-              uname -a || true
-              exit 125
-            fi
-            mkdir -p ~/.docker/cli-plugins
-            if command -v curl >/dev/null 2>&1; then
-              curl -fsSL "$COMPOSE_URL" -o ~/.docker/cli-plugins/docker-compose
-            elif command -v wget >/dev/null 2>&1; then
-              wget -qO ~/.docker/cli-plugins/docker-compose "$COMPOSE_URL"
-            else
-              echo "❌ Neither curl nor wget is available to download Docker Compose."
-              exit 125
-            fi
-            chmod +x ~/.docker/cli-plugins/docker-compose
+      - name: 🔧 Build Docker image
+        run: |
+          docker build --no-cache -t crewflow-app:staging .
+
+      - name: 💾 Save Docker image
+        run: |
+          docker save crewflow-app:staging > crewflow-app-staging.tar
+
+      - name: 🔑 Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: 📤 Upload image to server
+        run: |
+          # Clean up any existing staging tar file first
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} "rm -f /tmp/crewflow-app-staging.tar"
+
+          # Upload new image
+          scp -o StrictHostKeyChecking=no crewflow-app-staging.tar root@${{ secrets.SERVER_HOST }}:/tmp/
+
+          # Ensure application directory exists and upload staging Postgres compose
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} "mkdir -p /opt/projetogran"
+          scp -o StrictHostKeyChecking=no docker-compose.staging-postgres.yml root@${{ secrets.SERVER_HOST }}:/opt/projetogran/
+
+      - name: 🚀 Deploy to staging
+        run: |
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
+            set -e
+            # Clean up Docker system before deployment
+            docker system prune -f || true
+
+            # Load new image
+            docker load < /tmp/crewflow-app-staging.tar
+
+            # Ensure Postgres staging is up via compose
+            docker network create projetogran_crewflow-network 2>/dev/null || true
+            cd /opt/projetogran
+            docker rm -f postgres-staging 2>/dev/null || true
+            docker rm -f pgadmin-staging 2>/dev/null || true
             if docker compose version >/dev/null 2>&1; then
-              echo "✅ Docker Compose v2 installed."
+              docker compose -f /opt/projetogran/docker-compose.staging-postgres.yml down || true
+              docker compose -f /opt/projetogran/docker-compose.staging-postgres.yml up -d
             else
-              echo "❌ Failed to install Docker Compose v2."
-              exit 125
+              echo "ℹ️ Docker Compose v2 not found. Installing plugin..."
+              ARCH=$(uname -m)
+              COMPOSE_URL=""
+              if [ "$ARCH" = "x86_64" ]; then
+                COMPOSE_URL="https://github.com/docker/compose/releases/download/v2.27.0/docker-compose-linux-x86_64"
+              elif [ "$ARCH" = "aarch64" ]; then
+                COMPOSE_URL="https://github.com/docker/compose/releases/download/v2.27.0/docker-compose-linux-aarch64"
+              elif [ "$ARCH" = "armv7l" ]; then
+                COMPOSE_URL="https://github.com/docker/compose/releases/download/v2.27.0/docker-compose-linux-armv7"
+              else
+                echo "❌ Unsupported architecture: $ARCH"
+                uname -a || true
+                exit 125
+              fi
+              mkdir -p ~/.docker/cli-plugins
+              if command -v curl >/dev/null 2>&1; then
+                curl -fsSL "$COMPOSE_URL" -o ~/.docker/cli-plugins/docker-compose
+              elif command -v wget >/dev/null 2>&1; then
+                wget -qO ~/.docker/cli-plugins/docker-compose "$COMPOSE_URL"
+              else
+                echo "❌ Neither curl nor wget is available to download Docker Compose."
+                exit 125
+              fi
+              chmod +x ~/.docker/cli-plugins/docker-compose
+              if docker compose version >/dev/null 2>&1; then
+                echo "✅ Docker Compose v2 installed."
+              else
+                echo "❌ Failed to install Docker Compose v2."
+                exit 125
+              fi
+              docker compose -f /opt/projetogran/docker-compose.staging-postgres.yml down || true
+              docker compose -f /opt/projetogran/docker-compose.staging-postgres.yml up -d
             fi
-            docker compose -f /opt/projetogran/docker-compose.staging-postgres.yml down || true
-            docker compose -f /opt/projetogran/docker-compose.staging-postgres.yml up -d
-          fi
 
-          # Stop and remove old staging container
-          docker stop crewflow-app-staging 2>/dev/null || true
-          docker rm crewflow-app-staging 2>/dev/null || true
+            # Stop and remove old staging container
+            docker stop crewflow-app-staging 2>/dev/null || true
+            docker rm crewflow-app-staging 2>/dev/null || true
 
-          # Start new staging container (different port, correct internal port)
-          docker run -d --name crewflow-app-staging \
-            --network projetogran_crewflow-network \
-            -p 3002:3001 \
-            -e DATABASE_URL='postgresql://postgres:senha_segura_aqui@postgres-staging:5432/projetogran?schema=public' \
-            -e JWT_SECRET='crewflow-jwt-secret-staging-2024' \
-            -e NEXTAUTH_URL='http://${{ secrets.SERVER_HOST }}:3002' \
-            -e NODE_ENV='production' \
-            crewflow-app:staging
+            # Start new staging container (different port, correct internal port)
+            docker run -d --name crewflow-app-staging \
+              --network projetogran_crewflow-network \
+              -p 3002:3001 \
+              -e DATABASE_URL='postgresql://postgres:senha_segura_aqui@postgres-staging:5432/projetogran?schema=public' \
+              -e JWT_SECRET='crewflow-jwt-secret-staging-2024' \
+              -e NEXTAUTH_URL='http://${{ secrets.SERVER_HOST }}:3002' \
+              -e NODE_ENV='production' \
+              -e CLEANUP_ADMIN_TOKEN='${{ secrets.CLEANUP_ADMIN_TOKEN }}' \
+              crewflow-app:staging
 
-          # Clean up
-          rm /tmp/crewflow-app-staging.tar
+            # Clean up
+            rm /tmp/crewflow-app-staging.tar
 
-          # Wait for container to start
-          sleep 10
+            # Wait for container to start
+            sleep 10
 
-          # Check if container is running
-          if docker ps | grep -q crewflow-app-staging; then
-            echo "✅ Staging container started successfully"
-          else
-            echo "❌ Staging container failed to start"
-            docker logs crewflow-app-staging
-            exit 1
-          fi
-
-          # Setup Prisma inside container (fail on error)
-          docker exec crewflow-app-staging npx prisma generate
-          # Ensure migration_lock provider is Postgres
-          docker exec crewflow-app-staging sh -lc "if grep -q 'provider = \"sqlite\"' prisma/migrations/migration_lock.toml; then echo '⚠️ Fixing migration_lock provider from sqlite to postgresql'; printf '# Please do not edit this file manually\n# It should be added in your version-control system (e.g., Git)\nprovider = \"postgresql\"\n' > prisma/migrations/migration_lock.toml; fi; echo '🔎 Current migration_lock:'; cat prisma/migrations/migration_lock.toml"
-
-          # Baseline check: mark init as applied only if DB already has migration table
-          echo "🔎 Checking migration baseline in Postgres (_prisma_migrations)..."
-          MIG_TABLE_EXISTS=$(docker exec postgres-staging psql -U postgres -d projetogran -tAc "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='_prisma_migrations');")
-          if [ "$MIG_TABLE_EXISTS" = "t" ]; then
-            INIT_APPLIED=$(docker exec postgres-staging psql -U postgres -d projetogran -tAc "SELECT EXISTS (SELECT 1 FROM public._prisma_migrations WHERE migration_name = '20251013111730_init');")
-            if [ "$INIT_APPLIED" != "t" ]; then
-              echo "ℹ️ Marking baseline migration '20251013111730_init' as applied (existing DB)"
-              docker exec crewflow-app-staging npx prisma migrate resolve --applied "20251013111730_init" || true
+            # Check if container is running
+            if docker ps | grep -q crewflow-app-staging; then
+              echo "✅ Staging container started successfully"
             else
-              echo "✅ Baseline migration already applied"
+              echo "❌ Staging container failed to start"
+              docker logs crewflow-app-staging
+              exit 1
             fi
-          else
-            echo "ℹ️ Fresh database (no _prisma_migrations table). 'migrate deploy' will apply baseline."
-          fi
 
-          # Apply Postgres migrations only
-          docker exec crewflow-app-staging npx prisma migrate deploy
-          
-          # Run seed to populate staging database (idempotent, but surface errors)
-          echo "🌱 Running seed:complete on staging database..."
-          docker exec crewflow-app-staging npm run seed:complete
+            # Setup Prisma inside container (fail on error)
+            docker exec crewflow-app-staging npx prisma generate
+            # Ensure migration_lock provider is Postgres
+            docker exec crewflow-app-staging sh -lc "if grep -q 'provider = \"sqlite\"' prisma/migrations/migration_lock.toml; then echo '⚠️ Fixing migration_lock provider from sqlite to postgresql'; printf '# Please do not edit this file manually\n# It should be added in your version-control system (e.g., Git)\nprovider = \"postgresql\"\n' > prisma/migrations/migration_lock.toml; fi; echo '🔎 Current migration_lock:'; cat prisma/migrations/migration_lock.toml"
 
-          # Pós-deploy: executar limpeza de remanejamentos e cadastro de usuários extras
-          echo "🧹 Executando limpeza de remanejamentos (staging)..."
-          docker exec crewflow-app-staging npm run staging:cleanup-remanejamentos || true
-          echo "➕ Cadastrando funcionários extras (staging)..."
-          docker exec crewflow-app-staging npm run staging:add-funcionarios-extra || true
+            # Baseline check: mark init as applied only if DB already has migration table
+            echo "🔎 Checking migration baseline in Postgres (_prisma_migrations)..."
+            MIG_TABLE_EXISTS=$(docker exec postgres-staging psql -U postgres -d projetogran -tAc "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='_prisma_migrations');")
+            if [ "$MIG_TABLE_EXISTS" = "t" ]; then
+              INIT_APPLIED=$(docker exec postgres-staging psql -U postgres -d projetogran -tAc "SELECT EXISTS (SELECT 1 FROM public._prisma_migrations WHERE migration_name = '20251013111730_init');")
+              if [ "$INIT_APPLIED" != "t" ]; then
+                echo "ℹ️ Marking baseline migration '20251013111730_init' as applied (existing DB)"
+                docker exec crewflow-app-staging npx prisma migrate resolve --applied "20251013111730_init" || true
+              else
+                echo "✅ Baseline migration already applied"
+              fi
+            else
+              echo "ℹ️ Fresh database (no _prisma_migrations table). 'migrate deploy' will apply baseline."
+            fi
 
-          # Verify tables exist
-          echo "🔎 Verificando tabelas no banco..."
-          docker exec postgres-staging psql -U postgres -d projetogran -c "\dt"
-        EOF
-        
-    - name: 🧪 Run tests (optional)
-      run: |
-        ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
-          # Basic health check
-          sleep 5
-          if curl -f http://localhost:3002/api/health 2>/dev/null; then
-            echo "✅ Health check passed"
-          else
-            echo "⚠️ Health check failed (normal if no health endpoint)"
-          fi
-        EOF
-        
-    - name: 📝 Comment PR (if PR)
-      if: github.event_name == 'pull_request'
-      uses: actions/github-script@v7
-      with:
-        script: |
-          github.rest.issues.createComment({
-            issue_number: context.issue.number,
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            body: `🚀 **CrewFlow Staging Deploy Successful!**
+            # Apply Postgres migrations only
+            docker exec crewflow-app-staging npx prisma migrate deploy
             
-            📍 **Staging URL:** http://${{ secrets.SERVER_HOST }}:3002
-            🔐 **Login:** ADMIN001 / admin123
-            
-            ✅ Ready for testing!`
-          })
-        
-    - name: 🎉 Staging deployment complete
-      run: |
-        echo "🚀 CrewFlow staging deployment completed successfully!"
-        echo "🌐 Staging available at: http://${{ secrets.SERVER_HOST }}:3002"
-        echo "🔐 Login: ADMIN001 / admin123"
+            # Run seed to populate staging database (idempotent, but surface errors)
+            echo "🌱 Running seed:complete on staging database..."
+            docker exec crewflow-app-staging npm run seed:complete
+
+            # Pós-deploy: executar limpeza de remanejamentos e cadastro de usuários extras
+            echo "🧹 Executando limpeza de remanejamentos (staging)..."
+            docker exec crewflow-app-staging npm run staging:cleanup-remanejamentos || true
+            echo "➕ Cadastrando funcionários extras (staging)..."
+            docker exec crewflow-app-staging npm run staging:add-funcionarios-extra || true
+
+            # Verify tables exist
+            echo "🔎 Verificando tabelas no banco..."
+            docker exec postgres-staging psql -U postgres -d projetogran -c "\dt"
+          EOF
+
+      - name: 🧪 Run tests (optional)
+        run: |
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
+            # Basic health check
+            sleep 5
+            if curl -f http://localhost:3002/api/health 2>/dev/null; then
+              echo "✅ Health check passed"
+            else
+              echo "⚠️ Health check failed (normal if no health endpoint)"
+            fi
+          EOF
+
+      - name: 📝 Comment PR (if PR)
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `🚀 **CrewFlow Staging Deploy Successful!**
+              
+              📍 **Staging URL:** http://${{ secrets.SERVER_HOST }}:3002
+              🔐 **Login:** ADMIN001 / admin123
+              
+              ✅ Ready for testing!`
+            })
+
+      - name: 🎉 Staging deployment complete
+        run: |
+          echo "🚀 CrewFlow staging deployment completed successfully!"
+          echo "🌐 Staging available at: http://${{ secrets.SERVER_HOST }}:3002"
+          echo "🔐 Login: ADMIN001 / admin123"

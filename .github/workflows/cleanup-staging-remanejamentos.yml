@@ -1,0 +1,52 @@
+name: Cleanup Remanejamentos (Staging)
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Motivo da limpeza"
+        required: false
+        default: "Limpeza manual"
+
+jobs:
+  cleanup-staging:
+    runs-on: ubuntu-latest
+    environment: staging
+
+    steps:
+      - name: 🔑 Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: 🧹 Executar cleanup via docker exec
+        run: |
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
+            set -e
+            echo "➡️ Executando: node scripts/cleanup-remanejamentos.cjs"
+            docker exec crewflow-app-staging node scripts/cleanup-remanejamentos.cjs || {
+              echo "❌ Falha ao executar cleanup dentro do container";
+              docker logs crewflow-app-staging || true;
+              exit 1;
+            }
+            echo "✅ Cleanup executado. Conferindo contagens residuais..."
+            echo "Observações:"; docker exec postgres-staging psql -U postgres -d projetogran -tAc "SELECT COUNT(*) FROM public.\"observacaoTarefaRemanejamento\";" || true
+            echo "Histórico:"; docker exec postgres-staging psql -U postgres -d projetogran -tAc "SELECT COUNT(*) FROM public.\"historicoRemanejamento\";" || true
+            echo "Tarefas:"; docker exec postgres-staging psql -U postgres -d projetogran -tAc "SELECT COUNT(*) FROM public.\"tarefaRemanejamento\";" || true
+            echo "Remanejamentos de funcionário:"; docker exec postgres-staging psql -U postgres -d projetogran -tAc "SELECT COUNT(*) FROM public.\"remanejamentoFuncionario\";" || true
+            echo "Solicitações:"; docker exec postgres-staging psql -U postgres -d projetogran -tAc "SELECT COUNT(*) FROM public.\"solicitacaoRemanejamento\";" || true
+            echo "emMigracao (TRUE):"; docker exec postgres-staging psql -U postgres -d projetogran -tAc "SELECT COUNT(*) FROM public.\"funcionario\" WHERE \"emMigracao\" IS TRUE;" || true
+          EOF
+
+      - name: 🔒 (Opcional) Disparar via HTTP admin route
+        if: ${{ secrets.CLEANUP_ADMIN_TOKEN != '' }}
+        run: |
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
+            set -e
+            echo "➡️ GET preview";
+            curl -s -H "X-Admin-Token: ${CLEANUP_ADMIN_TOKEN}" http://localhost:3002/api/admin/cleanup-remanejamentos || true
+            echo "➡️ POST cleanup";
+            curl -s -X POST -H "X-Admin-Token: ${CLEANUP_ADMIN_TOKEN}" http://localhost:3002/api/admin/cleanup-remanejamentos || true
+          EOF
