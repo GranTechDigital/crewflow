@@ -1,0 +1,120 @@
+name: Staging DB Restore
+
+on:
+  workflow_dispatch:
+    inputs:
+      dump_path:
+        description: 'Caminho absoluto do dump no servidor (ex.: /var/backups/projetogran/staging/projetogran_YYYYmmdd_HHMMSS.dump ou .sql)'
+        type: string
+        required: true
+      db_name:
+        description: 'Nome do banco de dados de destino'
+        type: string
+        required: true
+        default: 'projetogran'
+      confirm_env:
+        description: 'Confirmação de ambiente (digite exatamente: staging)'
+        type: string
+        required: true
+        default: 'staging'
+      restart_app:
+        description: 'Reiniciar o app de staging após restaurar'
+        type: boolean
+        required: true
+        default: true
+      min_dump_size_bytes:
+        description: 'Tamanho mínimo esperado do dump, em bytes (string). Use 1000000 para 1MB).'
+        type: string
+        required: false
+        default: '1000000'
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🔑 Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: 🗄️ Restaurar dump no Postgres de staging
+        run: |
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << EOF
+            set -euo pipefail
+
+            if [ "${{ github.event.inputs.confirm_env }}" != "staging" ]; then
+              echo "❌ confirm_env inválido (use: staging)"; exit 1; fi
+
+            DUMP="${{ github.event.inputs.dump_path }}"
+            DB_NAME="${{ github.event.inputs.db_name }}"
+            RESTART="${{ github.event.inputs.restart_app }}"
+            MIN_SIZE="${{ github.event.inputs.min_dump_size_bytes }}"
+
+            echo "🔎 Validando arquivo de dump: $DUMP"
+            if [ ! -f "$DUMP" ]; then echo "❌ Dump não encontrado: $DUMP"; exit 1; fi
+            ls -lh "$DUMP" || true
+
+            # Verifica tamanho mínimo (somente se for número válido)
+            if echo "$MIN_SIZE" | grep -Eq '^[0-9]+$'; then
+              SIZE=$(stat -c%s "$DUMP" || echo 0)
+              if [ "$SIZE" -lt "$MIN_SIZE" ]; then
+                echo "❌ Dump muito pequeno (${SIZE} bytes < ${MIN_SIZE} bytes). Aborto preventivo."; exit 2; fi
+            else
+              echo "⚠️ min_dump_size_bytes não numérico ('${MIN_SIZE}'); pulando verificação de tamanho."
+            fi
+
+            echo "⏹️ Parando app de staging para evitar conexões durante o restore..."
+            docker ps --format '{{.Names}}' | grep -E '^(crewflow-app-staging|app-staging)$' | xargs -r -I{} docker stop {}
+
+            echo "💾 Criando backup pré-restore do DB atual (formato custom -Fc)..."
+            mkdir -p /var/backups/projetogran/staging
+            TS=$(date -u +%Y%m%d_%H%M%S)
+            PRE="/var/backups/projetogran/staging/${DB_NAME}_pre_restore_${TS}.dump"
+            docker exec postgres-staging pg_dump -U postgres -d "$DB_NAME" -Fc > "$PRE"
+            ls -lh "$PRE" || true
+            if [ ! -s "$PRE" ]; then echo "❌ Backup pré-restore vazio ou inválido: $PRE"; exit 3; fi
+            echo "✅ Backup pré-restore criado: $PRE"
+
+            echo "🔧 Derrubando conexões e recriando DB limpo ($DB_NAME)"
+            docker exec postgres-staging psql -U postgres -tAc "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='${DB_NAME}';" || true
+            docker exec postgres-staging psql -U postgres -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS \"${DB_NAME}\";"
+            docker exec postgres-staging psql -U postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE \"${DB_NAME}\" TEMPLATE template0 ENCODING 'UTF8';"
+
+            echo "📦 Restaurando dump em ${DB_NAME}"
+            EXT="${DUMP##*.}"
+            if [ "$EXT" = "sql" ]; then
+              echo "↪️ Detetado dump SQL (texto). Usando psql < arquivo."
+              cat "$DUMP" | docker exec -i postgres-staging psql -U postgres -d "$DB_NAME"
+            else
+              echo "↪️ Detetado dump em formato custom/dir/tar. Usando pg_restore."
+              cat "$DUMP" | docker exec -i postgres-staging pg_restore -U postgres -d "$DB_NAME" --clean --if-exists --no-owner --no-privileges
+            fi
+            echo "✅ Restore concluído."
+
+            echo "🧪 Validando conexão e contagem de tabelas"
+            docker exec postgres-staging psql -U postgres -d "$DB_NAME" -tAc "SELECT current_database();" | grep -q "^${DB_NAME}$" || { echo '❌ Conexão falhou pós-restore'; exit 4; }
+            docker exec postgres-staging psql -U postgres -d "$DB_NAME" -tAc "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public';" | awk '{print "Qtd. tabelas public:", $1}'
+
+            if [ "$RESTART" = "true" ]; then
+              echo "🚀 Reiniciando app de staging..."
+              docker ps -a --format '{{.Names}}' | grep -q '^crewflow-app-staging$' && docker start crewflow-app-staging || true
+              docker ps -a --format '{{.Names}}' | grep -q '^app-staging$' && docker start app-staging || true
+            else
+              echo "ℹ️ restart_app=false — não reiniciando app automaticamente."
+            fi
+
+            echo "ℹ️ Para aplicar migrações manualmente (se necessário):"
+            echo "   docker exec crewflow-app-staging npx prisma migrate deploy || true"
+
+            echo "✅ Processo finalizado com sucesso."
+          EOF
+
+      - name: 📋 Resumo
+        run: |
+          echo "dump_path: ${{ github.event.inputs.dump_path }}"
+          echo "db_name: ${{ github.event.inputs.db_name }}"
+          echo "confirm_env: ${{ github.event.inputs.confirm_env }}"
+          echo "restart_app: ${{ github.event.inputs.restart_app }}"
+          echo "min_dump_size_bytes: ${{ github.event.inputs.min_dump_size_bytes }}"
