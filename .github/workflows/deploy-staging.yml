@@ -176,9 +176,9 @@ jobs:
 
             # Baseline check: mark init as applied only if DB already has migration table
             echo "🔎 Checking migration baseline in Postgres (_prisma_migrations)..."
-            MIG_TABLE_EXISTS=$(docker exec postgres-staging bash -lc 'export PGPASSWORD="$POSTGRES_PASSWORD"; psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema=''public'' AND table_name=''_prisma_migrations'');"')
+            MIG_TABLE_EXISTS=$(docker exec postgres-staging bash -lc 'export PGPASSWORD="$POSTGRES_PASSWORD"; psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='\''public'\'' AND table_name='\''_prisma_migrations'\'');"')
             if [ "$MIG_TABLE_EXISTS" = "t" ]; then
-              INIT_APPLIED=$(docker exec postgres-staging bash -lc 'export PGPASSWORD="$POSTGRES_PASSWORD"; psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "SELECT EXISTS (SELECT 1 FROM public._prisma_migrations WHERE migration_name = ''20251013111730_init'');"')
+              INIT_APPLIED=$(docker exec postgres-staging bash -lc 'export PGPASSWORD="$POSTGRES_PASSWORD"; psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "SELECT EXISTS (SELECT 1 FROM public._prisma_migrations WHERE migration_name = '\''20251013111730_init'\'');"')
               if [ "$INIT_APPLIED" != "t" ]; then
                 echo "ℹ️ Marking baseline migration '20251013111730_init' as applied (existing DB)"
                 docker exec crewflow-app-staging npx prisma migrate resolve --applied "20251013111730_init" || true
