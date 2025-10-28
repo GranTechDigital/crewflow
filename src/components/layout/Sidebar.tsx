@@ -157,7 +157,7 @@ export default function Sidebar() {
       items: [
         { label: "Minhas Tarefas", href: "/tarefas?setor=treinamento" },
         { label: "Matriz de Treinamento", href: "/matriz-treinamento/contratos" },
-        { label: "Cadastrar Treinamentos", href: "http://46.202.146.234:3002/treinamentos" },
+        { label: "Cadastrar Treinamentos", href: "/treinamentos" },
       ],
       permission: "canAccessTreinamento",
     },
