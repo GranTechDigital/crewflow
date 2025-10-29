@@ -1240,6 +1240,8 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
       return Array.from(set.values()).sort((a, b) => a.localeCompare(b));
     }, [solicitacoes]);
 
+    const [dataExataDraft, setDataExataDraft] = useState(filtroDataExata);
+
     return (
       <div className="bg-white border-slate-400 border-1 p-4 rounded-lg shadow-lg mb-4">
         <div className="flex justify-between items-center mb-2">
@@ -1264,6 +1266,7 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
               setFiltroDataCategoria("");
               setOrdenacaoDataLimite("");
               setFiltroDataExata("");
+              setDataExataDraft("");
               setPaginaAtual(1);
             }}
           >
@@ -1416,12 +1419,34 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
             <label className="block text-xs font-medium text-slate-800 mb-1">
               Data Limite
             </label>
-            <input
-              type="date"
-              className="w-full h-9 rounded-md border-slate-800 bg-slate-100 text-slate-600 shadow-sm focus:border-slate-300 focus:ring-slate-300"
-              value={filtroDataExata}
-              onChange={(e) => setFiltroDataExata(e.target.value)}
-            />
+            <div className="flex gap-2">
+              <input
+                type="date"
+                className="w-full h-9 rounded-md border-slate-800 bg-slate-100 text-slate-600 shadow-sm focus:border-slate-300 focus:ring-slate-300"
+                value={dataExataDraft}
+                onChange={(e) => setDataExataDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  e.stopPropagation();
+                  if (e.key === "Enter") {
+                    setFiltroDataExata(dataExataDraft);
+                  }
+                }}
+              />
+              <button
+                className="px-3 h-9 rounded-md bg-slate-500 hover:bg-slate-600 text-white transition-colors"
+                onClick={() => setFiltroDataExata(dataExataDraft)}
+                title="Aplicar data"
+              >
+                Aplicar
+              </button>
+              <button
+                className="px-3 h-9 rounded-md bg-slate-200 hover:bg-slate-300 text-slate-700 transition-colors"
+                onClick={() => { setFiltroDataExata(""); setDataExataDraft(""); }}
+                title="Limpar data"
+              >
+                Limpar
+              </button>
+            </div>
           </div>
         </div>
       </div>

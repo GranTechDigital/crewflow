@@ -17,7 +17,8 @@ function normalizarSetor(setor: string): SetorValido | null {
 async function gerarTarefasTreinamento(
   remanejamentoFuncionario: Record<string, unknown>,
   funcionario: Record<string, unknown>,
-  tarefasParaCriar: Record<string, unknown>[]
+  tarefasParaCriar: Record<string, unknown>[],
+  prioridadeSolicitacao: string
 ) {
   console.log("=== INICIANDO GERAÇÃO DE TAREFAS DE TREINAMENTO ===");
   console.log("RemanejamentoFuncionario ID:", remanejamentoFuncionario?.id);
@@ -98,15 +99,15 @@ async function gerarTarefasTreinamento(
         continue;
       }
 
-      // Definir prioridade baseada no tipo de obrigatoriedade
-      let prioridade = "Média";
-      if (matriz.tipoObrigatoriedade === "RA") {
-        prioridade = "Alta";
-      } else if (matriz.tipoObrigatoriedade === "AP") {
-        prioridade = "Média";
-      } else {
-        prioridade = "Baixa";
-      }
+      // Usar a prioridade da solicitação de remanejamento, normalizada em maiúsculas
+      const prioridade = (() => {
+        const v = (prioridadeSolicitacao || "media").toLowerCase();
+        if (v === "baixa") return "BAIXA";
+        if (v === "media") return "MEDIA";
+        if (v === "alta") return "ALTA";
+        if (v === "urgente") return "URGENTE";
+        return "MEDIA";
+      })();
 
       // Criar descrição detalhada
       const descricao = `Treinamento: ${treinamento.treinamento}
@@ -122,7 +123,7 @@ Contrato: ${matriz.contrato?.nome || "N/A"}`;
         responsavel: "TREINAMENTO",
         status: "PENDENTE",
         prioridade: prioridade,
-        dataLimite: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 dias
+        // dataLimite removida - será definida pelo usuário após criação da tarefa
       };
 
       tarefasParaCriar.push(novaTarefa);
@@ -179,6 +180,7 @@ export async function POST(request: NextRequest) {
           where: { id: funcionarioId },
           include: {
             funcionario: true,
+            solicitacao: true,
           },
         });
 
@@ -206,6 +208,9 @@ export async function POST(request: NextRequest) {
             await prisma.remanejamentoFuncionario.findFirst({
               where: {
                 funcionarioId: funcionarioIdInt,
+              },
+              include: {
+                solicitacao: true,
               },
               orderBy: {
                 createdAt: "desc",
@@ -273,7 +278,8 @@ export async function POST(request: NextRequest) {
         await gerarTarefasTreinamento(
           remanejamentoFuncionario,
           funcionario,
-          tarefasParaCriar
+          tarefasParaCriar,
+          remanejamentoFuncionario.solicitacao?.prioridade || "media"
         );
       } else {
         // Para RH e MEDICINA, usar tarefas padrão como antes
@@ -301,8 +307,15 @@ export async function POST(request: NextRequest) {
             descricao: tarefaPadrao.descricao,
             responsavel: setor,
             status: "PENDENTE",
-            prioridade: "Alta",
-            dataLimite: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 dias
+            prioridade: (() => {
+               const v = (remanejamentoFuncionario.solicitacao?.prioridade || "media").toLowerCase();
+               if (v === "baixa") return "BAIXA";
+               if (v === "media") return "MEDIA";
+               if (v === "alta") return "ALTA";
+               if (v === "urgente") return "URGENTE";
+               return "MEDIA";
+             })(),
+             // dataLimite removida - será definida pelo usuário após criação da tarefa
           });
         }
       }

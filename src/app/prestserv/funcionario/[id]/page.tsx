@@ -953,6 +953,7 @@ function FuncionarioModernoContent() {
           onClose={() => setMostrarTarefaUnica(false)}
           funcionarioId={funcionarioId}
           funcionarioNome={funcionario.funcionario?.nome || ""}
+          prioridadeSolicitacao={funcionario.solicitacao?.prioridade}
           onSuccess={() => {
             setMostrarTarefaUnica(false);
             fetchFuncionario();

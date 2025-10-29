@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
       tipo,
       descricao,
       responsavel,
-      prioridade = "Normal",
+      prioridade,
       dataLimite,
       dataVencimento,
     } = body;
@@ -126,6 +126,9 @@ export async function POST(request: NextRequest) {
         where: {
           id: remanejamentoFuncionarioId,
         },
+        include: {
+          solicitacao: true,
+        },
       });
 
     if (!remanejamentoFuncionario) {
@@ -156,7 +159,15 @@ export async function POST(request: NextRequest) {
         tipo,
         descricao,
         responsavel,
-        prioridade,
+        prioridade: (() => {
+          const base = prioridade || remanejamentoFuncionario.solicitacao?.prioridade || "media";
+          const v = base.toString().toLowerCase();
+          if (v === "baixa") return "BAIXA";
+          if (v === "media" || v === "normal") return "MEDIA";
+          if (v === "alta") return "ALTA";
+          if (v === "urgente") return "URGENTE";
+          return "MEDIA";
+        })(),
         ...(dataLimite && { dataLimite: new Date(dataLimite) }),
         ...(dataVencimento && { dataVencimento: new Date(dataVencimento) }),
       },

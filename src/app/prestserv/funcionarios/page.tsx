@@ -58,6 +58,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import { ROUTE_PROTECTION } from "@/lib/permissions";
 import ListaTarefasModal from "@/components/ListaTarefasModal";
 import CheckIcon from "@heroicons/react/24/solid/CheckIcon";
+import { useAuth } from "@/app/hooks/useAuth";
 
 interface ProgressoPorSetor {
   setor: string;
@@ -107,6 +108,7 @@ export default function FuncionariosPage() {
 function FuncionariosPageContent() {
   const router = useRouter();
   const { showToast } = useToast();
+  const { usuario } = useAuth();
   const [funcionarios, setFuncionarios] = useState<FuncionarioTableData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -193,6 +195,11 @@ function FuncionariosPageContent() {
   const [aprovandoTodasTarefas, setAprovandoTodasTarefas] = useState<
     string | null
   >(null);
+
+  // Função para verificar se o usuário é administrador
+  const isAdmin = () => {
+    return usuario?.equipe === "Administração";
+  };
 
   // Função para carregar dados do dashboard com filtros aplicados
   const fetchDashboardData = async () => {
@@ -4474,12 +4481,14 @@ function FuncionariosPageContent() {
                     >
                       Limpar Seleção
                     </button>
-                    <button
-                      onClick={abrirModalAprovacaoLote}
-                      className="px-4 py-1.5 text-xs font-medium text-white bg-green-600 border border-green-600 rounded hover:bg-green-700 transition-colors"
-                    >
-                      Aprovar Selecionados
-                    </button>
+                    {isAdmin() && (
+                      <button
+                        onClick={abrirModalAprovacaoLote}
+                        className="px-4 py-1.5 text-xs font-medium text-white bg-green-600 border border-green-600 rounded hover:bg-green-700 transition-colors"
+                      >
+                        Aprovar Selecionados
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
