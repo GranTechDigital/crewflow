@@ -5,6 +5,17 @@ on:
     branches: [develop, staging]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      run_name:
+        description: 'Nome do run (opcional) — deixe vazio para usar branch/autor'
+        type: string
+        required: false
+      skip_db_backup:
+        description: 'Pular backup do banco antes do deploy? (false recomendado)'
+        type: boolean
+        required: false
+        default: false
 
 jobs:
   deploy-staging:
@@ -34,6 +45,7 @@ jobs:
           ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
 
       - name: 💾 Backup banco de dados (staging) antes do deploy
+        if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.skip_db_backup != 'true' }}
         run: |
           ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
             set -e

@@ -803,10 +803,11 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
     setAbaAtiva("dataLimite");
     // Inicializar a data limite atual (se existir)
     if (tarefa.dataLimite) {
-      const dataFormatada = new Date(tarefa.dataLimite)
-        .toISOString()
-        .split("T")[0];
-      setNovaDataLimite(dataFormatada);
+      const dt = new Date(tarefa.dataLimite);
+      const y = dt.getUTCFullYear();
+      const m = String(dt.getUTCMonth() + 1).padStart(2, "0");
+      const d = String(dt.getUTCDate()).padStart(2, "0");
+      setNovaDataLimite(`${y}-${m}-${d}`);
     } else {
       setNovaDataLimite("");
     }
@@ -1000,9 +1001,16 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
 
       // Formatar as datas para exibição
       const dataAnterior = tarefaSelecionada.dataLimite
-        ? new Date(tarefaSelecionada.dataLimite).toLocaleDateString("pt-BR")
+        ? (() => {
+            const dt = new Date(tarefaSelecionada.dataLimite);
+            const dd = String(dt.getUTCDate()).padStart(2, "0");
+            const mm = String(dt.getUTCMonth() + 1).padStart(2, "0");
+            const yyyy = String(dt.getUTCFullYear());
+            return `${dd}/${mm}/${yyyy}`;
+          })()
         : "Não definida";
-      const dataNova = new Date(novaDataLimite).toLocaleDateString("pt-BR");
+      const partes = novaDataLimite.split("-");
+      const dataNova = `${partes[2]}/${partes[1]}/${partes[0]}`;
 
       // Criar texto da observação automática
       const textoObservacao = `Data limite alterada: ${dataAnterior} → ${dataNova}\n\nJustificativa: ${justificativaDataLimite}`;
@@ -1049,7 +1057,7 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
       if (tarefaSelecionada) {
         setTarefaSelecionada({
           ...tarefaSelecionada,
-          dataLimite: novaDataLimite,
+          dataLimite: dataLimiteUtcNoonIso,
         });
       }
 
