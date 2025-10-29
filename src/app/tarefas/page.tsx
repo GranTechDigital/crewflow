@@ -126,6 +126,7 @@ export default function TarefasPage() {
   const [filtroTipo, setFiltroTipo] = useState("");
   const [filtroDataCategoria, setFiltroDataCategoria] = useState<"" | "VENCIDOS" | "A_VENCER" | "NO_PRAZO" | "SEM_DATA">("");
   const [ordenacaoDataLimite, setOrdenacaoDataLimite] = useState<"" | "asc" | "desc">("");
+  const [filtroDataExata, setFiltroDataExata] = useState("");
 
   // Refs para evitar re-renderizações
   const filtroNomeRef = useRef<HTMLInputElement>(null);
@@ -430,12 +431,28 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
               // Novo: filtro por tipo
               const matchTipo = !filtroTipo || tarefa.tipo === filtroTipo;
 
+              // Novo: filtro por data limite exata (compara dia civil em UTC)
+              let matchDataExata = true;
+              if (filtroDataExata) {
+                if (!tarefa.dataLimite) {
+                  matchDataExata = false;
+                } else {
+                  const d = new Date(tarefa.dataLimite);
+                  const y = d.getUTCFullYear();
+                  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+                  const day = String(d.getUTCDate()).padStart(2, "0");
+                  const dataSomenteDia = `${y}-${m}-${day}`;
+                  matchDataExata = dataSomenteDia === filtroDataExata;
+                }
+              }
+
               return (
                 matchStatus &&
                 matchPrioridade &&
                 matchSetor &&
                 matchDataCategoria &&
-                matchTipo
+                matchTipo &&
+                matchDataExata
               );
             }) || [];
 
@@ -1246,6 +1263,7 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
               setFiltroTipo("");
               setFiltroDataCategoria("");
               setOrdenacaoDataLimite("");
+              setFiltroDataExata("");
               setPaginaAtual(1);
             }}
           >
@@ -1378,7 +1396,7 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
           {/* Filtro por Categoria de Data Limite */}
           <div>
             <label className="block text-xs font-medium text-slate-800 mb-1">
-              Data Limite
+              Data Limite por Categoria
             </label>
             <select
               className="w-full h-9 rounded-md border-slate-800 bg-slate-100 text-slate-600 shadow-sm focus:border-slate-300 focus:ring-slate-300"
@@ -1391,6 +1409,19 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
               <option value="NO_PRAZO">No prazo</option>
               <option value="SEM_DATA">Pendentes (sem data)</option>
             </select>
+          </div>
+
+          {/* Novo: Filtro por Data Limite Exata */}
+          <div>
+            <label className="block text-xs font-medium text-slate-800 mb-1">
+              Data Limite
+            </label>
+            <input
+              type="date"
+              className="w-full h-9 rounded-md border-slate-800 bg-slate-100 text-slate-600 shadow-sm focus:border-slate-300 focus:ring-slate-300"
+              value={filtroDataExata}
+              onChange={(e) => setFiltroDataExata(e.target.value)}
+            />
           </div>
         </div>
       </div>
