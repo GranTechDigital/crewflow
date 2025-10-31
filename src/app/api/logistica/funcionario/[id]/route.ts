@@ -148,6 +148,11 @@ export async function PUT(
       observacoesPrestserv,
     };
 
+    // Se cancelar o Prestserv, marcar status geral das tarefas como CANCELADO
+    if (statusPrestserv === "CANCELADO") {
+      updateData.statusTarefas = "CANCELADO";
+    }
+
     // Adicionar datas automaticamente conforme o status
     if (
       statusPrestserv === "CRIADO" &&
@@ -342,6 +347,34 @@ export async function PUT(
       console.log(
         `Funcionário ${funcionarioAtualizado.funcionarioId} desmarcado como em migração após ${statusPrestserv}`
       );
+    }
+
+    // Cancelar todas as tarefas associadas quando Prestserv é CANCELADO
+    if (statusPrestserv === "CANCELADO") {
+      await prisma.tarefaRemanejamento.updateMany({
+        where: { remanejamentoFuncionarioId: id },
+        data: { status: "CANCELADO" },
+      });
+      try {
+        await prisma.historicoRemanejamento.create({
+          data: {
+            solicitacaoId: funcionarioAtualizado.solicitacaoId,
+            remanejamentoFuncionarioId: funcionarioAtualizado.id,
+            tipoAcao: "ATUALIZACAO_STATUS",
+            entidade: "TAREFA",
+            descricaoAcao:
+              "Todas as tarefas foram canceladas devido ao cancelamento do Prestserv.",
+            usuarioResponsavel: "Sistema",
+            campoAlterado: "status",
+            valorNovo: "CANCELADO",
+          },
+        });
+      } catch (historicoError) {
+        console.error(
+          "Erro ao registrar histórico de cancelamento das tarefas:",
+          historicoError
+        );
+      }
     }
 
     // Se o Prestserv foi validado e todas as tarefas estão concluídas, verificar se a solicitação pode ser concluída
@@ -662,6 +695,34 @@ export async function PATCH(
 
         console.log(
           `Funcionário ${funcionarioAtualizado.funcionarioId} desmarcado como em migração após ${statusPrestserv}`
+        );
+      }
+    }
+
+    // Cancelar todas as tarefas associadas quando Prestserv é CANCELADO
+    if (statusPrestserv === "CANCELADO") {
+      await prisma.tarefaRemanejamento.updateMany({
+        where: { remanejamentoFuncionarioId: id },
+        data: { status: "CANCELADO" },
+      });
+      try {
+        await prisma.historicoRemanejamento.create({
+          data: {
+            solicitacaoId: funcionarioAtualizado.solicitacaoId,
+            remanejamentoFuncionarioId: funcionarioAtualizado.id,
+            tipoAcao: "ATUALIZACAO_STATUS",
+            entidade: "TAREFA",
+            descricaoAcao:
+              "Todas as tarefas foram canceladas devido ao cancelamento do Prestserv.",
+            usuarioResponsavel: "Sistema",
+            campoAlterado: "status",
+            valorNovo: "CANCELADO",
+          },
+        });
+      } catch (historicoError) {
+        console.error(
+          "Erro ao registrar histórico de cancelamento das tarefas:",
+          historicoError
         );
       }
     }
