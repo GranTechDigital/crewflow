@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getStatusColor } from '../../utils/statusColors';
+import { getStatusColor, getStatusConfig } from '../../utils/statusColors';
 import { getStatusBorder } from '../../utils/statusBorders';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { ROUTE_PROTECTION } from '@/lib/permissions';
@@ -44,6 +44,12 @@ type SortConfig = {
   direction: 'asc' | 'desc';
 };
 
+// Tipos do dashboard agregado
+type DashboardData = {
+  funcionariosPorStatusFolha: { status: string; count: number }[];
+  funcionariosPorFuncao: { funcao: string; count: number }[];
+};
+
 export default function Home() {
   const [dados, setDados] = useState<Pessoa[]>([]);
   const [loading, setLoading] = useState(false);
@@ -60,15 +66,19 @@ export default function Home() {
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [syncLoading, setSyncLoading] = useState(false);
+  const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
   const [showLegend, setShowLegend] = useState(false);
   const [selectedPessoa, setSelectedPessoa] = useState<Pessoa | null>(null);
   const [showDetails, setShowDetails] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editedPessoa, setEditedPessoa] = useState<Pessoa | null>(null);
   const [sortConfig, setSortConfig] = useState<SortConfig>({ key: null, direction: 'asc' });
+  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
 
   useEffect(() => {
     fetchDados();
+    fetchLastSync();
+    fetchDashboard();
   }, []);
 
   const fetchDados = async () => {
@@ -77,12 +87,37 @@ export default function Home() {
       const res = await fetch('/api/dados');
       if (!res.ok) throw new Error('Erro ao carregar dados');
       const data = await res.json();
-        setDados(data);
+      setDados(data);
     } catch (error) {
       alert('Erro ao carregar dados');
       console.error(error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchLastSync = async () => {
+    try {
+      const res = await fetch('/api/funcionarios/ultima-atualizacao');
+      if (!res.ok) return;
+      const data = await res.json();
+      setLastSyncAt(data.lastSyncAt || null);
+    } catch (err) {
+      console.warn('Falha ao obter última atualização de funcionários:', err);
+    }
+  };
+
+  const fetchDashboard = async () => {
+    try {
+      const res = await fetch('/api/prestserv/funcionarios-dashboard');
+      if (!res.ok) return;
+      const data = await res.json();
+      setDashboard({
+        funcionariosPorStatusFolha: data?.funcionariosPorStatusFolha || [],
+        funcionariosPorFuncao: data?.funcionariosPorFuncao || [],
+      });
+    } catch (err) {
+      console.warn('Falha ao obter dashboard de funcionários:', err);
     }
   };
 
@@ -93,6 +128,8 @@ export default function Home() {
       if (!res.ok) throw new Error('Erro ao importar dados');
       alert('Dados importados com sucesso!');
       await fetchDados();
+      await fetchLastSync();
+      await fetchDashboard();
     } catch (error) {
       alert('Erro ao importar dados');
       console.error(error);
@@ -109,11 +146,13 @@ export default function Home() {
       if (!res.ok) throw new Error('Erro ao excluir dados');
       alert('Dados excluídos com sucesso!');
       setDados([]);
+      await fetchLastSync();
+      await fetchDashboard();
     } catch (error) {
       alert('Erro ao excluir dados');
       console.error(error);
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
   };
 
@@ -136,6 +175,8 @@ export default function Home() {
     if (result.success) {
       setSyncMsg(formatSyncMessage(result.data));
       await fetchDados();
+      await fetchLastSync();
+      await fetchDashboard();
     } else {
       setSyncError(result.error || 'Erro na sincronização após todas as tentativas');
     }
@@ -239,6 +280,7 @@ export default function Home() {
     });
   };
 
+
   const filteredData = getFilteredData();
   const totalPages = Math.ceil(filteredData.length / itemsPerPage);
   const dadosPagina = filteredData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -257,26 +299,7 @@ export default function Home() {
       {/* Barra de ações */}
       <div className="mb-2 flex flex-wrap items-center justify-between bg-white p-2 rounded-lg border border-gray-100 shadow-sm">
         <div className="flex gap-2">
-          <button
-            onClick={handleImport}
-            disabled={loading}
-            className="inline-flex items-center px-3 py-1.5 bg-white text-gray-700 rounded-md border border-gray-200 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 text-sm font-medium"
-          >
-            <svg className="w-4 h-4 mr-1.5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-            </svg>
-            Importar
-          </button>
-          <button
-            onClick={handleDelete}
-            disabled={loading}
-            className="inline-flex items-center px-3 py-1.5 bg-white text-gray-700 rounded-md border border-gray-200 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 text-sm font-medium"
-          >
-            <svg className="w-4 h-4 mr-1.5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
-            Excluir
-          </button>
+          {/* Botões Importar e Excluir removidos conforme solicitado */}
           <button
             onClick={handleSincronizar}
             disabled={syncLoading}
@@ -321,21 +344,46 @@ export default function Home() {
 
           <div className="flex items-center gap-1.5">
             <label className="text-xs text-gray-500">Linhas:</label>
-        <select
+            <select
               className="bg-white border border-gray-200 rounded-md px-2 py-1.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all duration-200 text-sm"
-          value={itemsPerPage}
-          onChange={(e) => {
-            setItemsPerPage(Number(e.target.value));
-            setCurrentPage(1);
-          }}
-        >
+              value={itemsPerPage}
+              onChange={(e) => {
+                setItemsPerPage(Number(e.target.value));
+                setCurrentPage(1);
+              }}
+            >
               {[10, 25, 50, 100].map((value) => (
                 <option key={value} value={value}>
                   {value}
-            </option>
-          ))}
-        </select>
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
       </div>
+
+      {/* Cards agregados */}
+      <div className="mb-2 grid grid-cols-1 gap-2">
+        <div className="bg-white rounded-lg border border-gray-100 shadow-sm p-2">
+          <div className="flex items-center justify-between mb-1">
+            <h4 className="text-xs font-medium text-gray-700">Status Folha</h4>
+            <span className="text-[11px] text-gray-500">Total: {(dashboard?.funcionariosPorStatusFolha || []).reduce((acc, it) => acc + (it?.count || 0), 0)}</span>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {([...((dashboard?.funcionariosPorStatusFolha || []))].sort((a, b) => b.count - a.count)).map((item) => {
+              const statusLabel = item?.status || 'Sem status';
+              const ringClass = getStatusConfig(statusLabel).ring || 'ring-gray-600/20';
+              return (
+                <div
+                  key={statusLabel}
+                  className={`inline-flex items-center gap-1 px-2 py-1 text-[11px] rounded-md ${getStatusColor(statusLabel, 'badge')} ring-1 ring-inset ${ringClass}`}
+                >
+                  <span className="font-medium">{statusLabel}</span>
+                  <span className="font-semibold">{item.count}</span>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
 
@@ -462,10 +510,15 @@ export default function Home() {
 
       {/* Mensagens de sincronização */}
       {syncMsg && (
-        <div className="mb-4 p-3 bg-green-50 border border-green-100 rounded-lg">
-          <p className="text-green-700 text-sm">{syncMsg}</p>
-        </div>
-      )}
+         <div className="mb-4 p-3 bg-green-50 border border-green-100 rounded-lg">
+           <p className="text-green-700 text-sm">{syncMsg}</p>
+         </div>
+       )}
+       {lastSyncAt && (
+         <div className="mb-2">
+           <p className="text-xs text-gray-500">Última atualização: {new Date(lastSyncAt).toLocaleString('pt-BR')}</p>
+         </div>
+       )}
       {syncError && (
         <div className="mb-4 p-3 bg-red-50 border border-red-100 rounded-lg">
           <p className="text-red-700 text-sm">{syncError}</p>

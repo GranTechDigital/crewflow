@@ -16,11 +16,11 @@ export const STATUS_COLORS: Record<string, StatusColorConfig> = {
     ring: 'ring-emerald-600/20'
   },
   
-  // Status de férias
+  // Status de férias (ajustado para azul para seguir a legenda)
   'férias': {
-    background: 'bg-sky-100',
-    text: 'text-sky-700',
-    ring: 'ring-sky-600/20'
+    background: 'bg-blue-100',
+    text: 'text-blue-700',
+    ring: 'ring-blue-600/20'
   },
   
   // Status de afastamentos previdenciários
@@ -64,10 +64,11 @@ export const STATUS_COLORS: Record<string, StatusColorConfig> = {
     ring: 'ring-red-600/20'
   },
   
+  // Afastado ajustado para âmbar para seguir a legenda
   'afastado': {
-    background: 'bg-yellow-100',
-    text: 'text-yellow-700',
-    ring: 'ring-yellow-600/20'
+    background: 'bg-amber-100',
+    text: 'text-amber-700',
+    ring: 'ring-amber-600/20'
   },
   
   'licença': {
@@ -89,10 +90,11 @@ export const STATUS_COLORS: Record<string, StatusColorConfig> = {
     ring: 'ring-violet-600/20'
   },
   
+  // Ajustado para roxo para seguir a legenda
   'admissão prox.mês': {
-    background: 'bg-indigo-100',
-    text: 'text-indigo-700',
-    ring: 'ring-indigo-600/20'
+    background: 'bg-purple-100',
+    text: 'text-purple-700',
+    ring: 'ring-purple-600/20'
   },
   
   'treinamento': {
