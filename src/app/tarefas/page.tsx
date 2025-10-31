@@ -378,9 +378,18 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
 
           if (!matchContrato) return;
 
+          // Excluir remanejamentos cancelados (não devem exibir tarefas)
+          if (remanejamento.statusPrestserv === "CANCELADO") {
+            return;
+          }
+
           // Filtrar tarefas dentro do remanejamento
           const tarefasFiltradas =
             remanejamento.tarefas?.filter((tarefa: TarefaRemanejamento) => {
+              // Excluir tarefas canceladas de todas as visões (listagem, cards e painéis)
+              if (tarefa.status === "CANCELADO") {
+                return false;
+              }
               // Lógica especial para status concluído
               let matchStatus = !filtroStatus;
               if (filtroStatus === "CONCLUIDO") {
