@@ -9,6 +9,9 @@ export async function POST(
   try {
     const { funcionarioId } = await params;
 
+    const { getUserFromRequest } = await import("@/utils/authUtils");
+    const usuarioAutenticado = await getUserFromRequest(request);
+
     if (!funcionarioId) {
       return NextResponse.json(
         { error: "ID do funcionário é obrigatório" },
@@ -88,7 +91,7 @@ export async function POST(
           descricaoAcao: `Todas as tarefas foram aprovadas automaticamente para teste (${tarefasPendentes.length} tarefas)`,
           campoAlterado: "status",
           valorNovo: "CONCLUIDO",
-          usuarioResponsavel: "Sistema - Teste",
+          usuarioResponsavel: usuarioAutenticado?.funcionario?.nome || "Sistema",
         },
       });
 
@@ -101,7 +104,7 @@ export async function POST(
           descricaoAcao: "Status geral atualizado para SUBMETER RASCUNHO após aprovação de todas as tarefas",
           campoAlterado: "statusTarefas",
           valorNovo: "SUBMETER RASCUNHO",
-          usuarioResponsavel: "Sistema - Teste",
+          usuarioResponsavel: usuarioAutenticado?.funcionario?.nome || "Sistema",
         },
       });
     } catch (historicoError) {
