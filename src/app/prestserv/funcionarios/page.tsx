@@ -169,6 +169,7 @@ function FuncionariosPageContent() {
   ]);
   const [generatingTarefas, setGeneratingTarefas] = useState(false);
   const [rejectingStatus, setRejectingStatus] = useState(false);
+  const [approvingStatus, setApprovingStatus] = useState(false);
   const [activeTab, setActiveTab] = useState<
     "nominal" | "solicitacao" | "dashboard"
   >("nominal");
@@ -1632,8 +1633,9 @@ function FuncionariosPageContent() {
   };
 
   const aprovarSolicitacao = async () => {
-    if (!selectedFuncionario) return;
+    if (!selectedFuncionario || approvingStatus) return;
 
+    setApprovingStatus(true);
     try {
       // Definir o status adequado com base no tipo de solicitação
       const novoStatus =
@@ -1693,6 +1695,8 @@ function FuncionariosPageContent() {
         error instanceof Error ? error.message : "Erro ao aprovar solicitação",
         "error"
       );
+    } finally {
+      setApprovingStatus(false);
     }
   };
 
@@ -4246,9 +4250,10 @@ function FuncionariosPageContent() {
                               </button>
                             )}
 
-                          {/* Botão para aprovar todas as tarefas (apenas para teste) */}
-                          {funcionario.statusTarefas !==
-                            "APROVAR SOLICITAÇÃO" &&
+                          {/* Botão para aprovar todas as tarefas (apenas para teste, visível somente para admin) */}
+                          {isAdmin() &&
+                            funcionario.statusTarefas !==
+                              "APROVAR SOLICITAÇÃO" &&
                             funcionario.statusTarefas !== "REJEITADO" &&
                             funcionario.statusTarefas !==
                               "SOLICITAÇÃO REJEITADA" &&
@@ -5012,15 +5017,22 @@ function FuncionariosPageContent() {
             <div className="space-y-3 mb-6">
               <button
                 onClick={aprovarSolicitacao}
-                className="w-full flex items-center p-3 border border-gray-200 rounded-lg hover:bg-green-50 hover:border-green-300 transition-colors focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-offset-1"
+                disabled={approvingStatus}
+                className="w-full flex items-center p-3 border border-gray-200 rounded-lg hover:bg-green-50 hover:border-green-300 transition-colors focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <div className="flex-shrink-0">
                   <div className="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center">
-                    <PlusIcon className="w-4 h-4 text-green-600" />
+                    {approvingStatus ? (
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-600"></div>
+                    ) : (
+                      <PlusIcon className="w-4 h-4 text-green-600" />
+                    )}
                   </div>
                 </div>
                 <div className="ml-3 flex-1 text-left">
-                  <h4 className="text-sm font-medium text-gray-900">Aprovar</h4>
+                  <h4 className="text-sm font-medium text-gray-900">
+                    {approvingStatus ? "Aprovando..." : "Aprovar"}
+                  </h4>
                   <p className="text-xs text-gray-500">
                     Aprovar solicitação e gerar tarefas para RH, MEDICINA e
                     TREINAMENTO (para desligamentos, irá direto para SUBMETER
