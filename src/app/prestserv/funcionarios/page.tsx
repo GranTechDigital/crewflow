@@ -143,6 +143,8 @@ function FuncionariosPageContent() {
   const [dropdownPendenciasSetorOpen, setDropdownPendenciasSetorOpen] =
     useState(false);
   const [dropdownStatusOpen, setDropdownStatusOpen] = useState(false);
+  const [dropdownStatusPrestservOpen, setDropdownStatusPrestservOpen] = useState(false);
+  const [filtroStatusPrestserv, setFiltroStatusPrestserv] = useState<string[]>([]);
   const [dropdownTipoSolicitacaoOpen, setDropdownTipoSolicitacaoOpen] =
     useState(false);
   const [setoresSelecionados, setSetoresSelecionados] = useState<string[]>([]);
@@ -314,6 +316,7 @@ function FuncionariosPageContent() {
         setFiltroContratoOrigem(filters.filtroContratoOrigem || []);
         setFiltroContratoDestino(filters.filtroContratoDestino || []);
         setFiltroStatusGeral(filters.filtroStatusGeral || []);
+        setFiltroStatusPrestserv(filters.filtroStatusPrestserv || []);
         setFiltroAcaoNecessaria(filters.filtroAcaoNecessaria || "");
         setFiltroTipoSolicitacao(filters.filtroTipoSolicitacao || []);
         setFiltroNumeroSolicitacao(filters.filtroNumeroSolicitacao || []);
@@ -354,6 +357,7 @@ function FuncionariosPageContent() {
       const target = event.target as Element;
       if (!target.closest(".dropdown-container")) {
         setDropdownStatusOpen(false);
+        setDropdownStatusPrestservOpen(false);
         setDropdownTipoSolicitacaoOpen(false);
         setDropdownContratoOrigemOpen(false);
         setDropdownContratoDestinoOpen(false);
@@ -387,6 +391,7 @@ function FuncionariosPageContent() {
         filtroContratoOrigem,
         filtroContratoDestino,
         filtroStatusGeral,
+        filtroStatusPrestserv,
         filtroAcaoNecessaria,
         filtroTipoSolicitacao,
         filtroNumeroSolicitacao,
@@ -404,6 +409,7 @@ function FuncionariosPageContent() {
     filtroContratoOrigem,
     filtroContratoDestino,
     filtroStatusGeral,
+    filtroStatusPrestserv,
     filtroAcaoNecessaria,
     filtroTipoSolicitacao,
     filtroNumeroSolicitacao,
@@ -1364,11 +1370,15 @@ function FuncionariosPageContent() {
       return {
         ID: funcionario.remanejamentoId,
         "ID GRUPO": funcionario.solicitacaoId,
-        Contratos: `${funcionario.contratoOrigem} → ${funcionario.contratoDestino}`,
-        "FUNCIONÁRIO PRESTSERV": `${funcionario.nome} (${funcionario.matricula}) - ${funcionario.funcao}`,
+        "Contrato Origem": funcionario.contratoOrigem,
+        "Contrato Destino": funcionario.contratoDestino,
+        "Matrícula": funcionario.matricula,
+        "Nome": funcionario.nome,
+        "Função": funcionario.funcao,
         "AÇÃO NECESSÁRIA": funcionario.statusTarefas,
         Responsável: funcionario.responsavelAtual || "N/A",
-        "Progresso Setores": `${funcionario.tarefasConcluidas}/${funcionario.totalTarefas}`,
+        "Pendente": Math.max((funcionario.totalTarefas || 0) - (funcionario.tarefasConcluidas || 0), 0),
+        "Concluído": funcionario.tarefasConcluidas || 0,
         "RASCUNHO PRESTSERV": funcionario.statusPrestserv,
         RH: getStatusSetor("RH"),
         MEDICINA: getStatusSetor("MEDICINA"),
@@ -1441,6 +1451,15 @@ function FuncionariosPageContent() {
         break;
       case "statusGeral":
         if (valor) removerFiltroStatusGeral(valor);
+        break;
+      case "statusPrestserv":
+        if (valor) {
+          setFiltroStatusPrestserv((prev) =>
+            prev.filter((status) => status !== valor)
+          );
+        } else {
+          setFiltroStatusPrestserv([]);
+        }
         break;
       case "acaoNecessaria":
         setFiltroAcaoNecessaria("");
@@ -1524,6 +1543,14 @@ function FuncionariosPageContent() {
         tipo: "statusGeral",
         valor: status,
         label: `Ação: ${getStatusSemNumeracao(status)}`,
+      });
+    });
+
+    filtroStatusPrestserv.forEach((status) => {
+      tags.push({
+        tipo: "statusPrestserv",
+        valor: status,
+        label: `Prestserv: ${getStatusSemNumeracao(status)}`,
       });
     });
 
@@ -2032,6 +2059,7 @@ function FuncionariosPageContent() {
       filtroContratoOrigem.length > 0 ||
       filtroContratoDestino.length > 0 ||
       filtroStatusGeral.length > 0 ||
+      filtroStatusPrestserv.length > 0 ||
       filtroAcaoNecessaria ||
       filtroTipoSolicitacao.length > 0 ||
       filtroNumeroSolicitacao.length > 0 ||
@@ -2064,6 +2092,10 @@ function FuncionariosPageContent() {
       filtroStatusGeral.length === 0 ||
       filtroStatusGeral.includes(funcionario.statusTarefas);
 
+    const matchStatusPrestserv =
+      filtroStatusPrestserv.length === 0 ||
+      filtroStatusPrestserv.includes(funcionario.statusPrestserv);
+
     const matchAcaoNecessaria =
       !filtroAcaoNecessaria ||
       funcionario.statusTarefas === filtroAcaoNecessaria;
@@ -2095,6 +2127,7 @@ function FuncionariosPageContent() {
       matchContratoOrigem &&
       matchContratoDestino &&
       matchStatusGeral &&
+      matchStatusPrestserv &&
       matchAcaoNecessaria &&
       matchTipoSolicitacao &&
       matchNumeroSolicitacao &&
@@ -3585,6 +3618,92 @@ function FuncionariosPageContent() {
                           </span>
                         </label>
                       ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Filtro por Status Prestserv */}
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">
+                Status Prestserv
+              </label>
+              <div className="relative dropdown-container">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setDropdownStatusPrestservOpen(!dropdownStatusPrestservOpen)
+                  }
+                  className="w-full pl-8 pr-3 py-2 text-sm border-slate-800 bg-slate-100 text-slate-500 rounded-md shadow-sm focus:border-slate-300 focus:ring-slate-300 text-left flex justify-between items-center"
+                >
+                  <FunnelIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <span className="text-gray-700">
+                    {filtroStatusPrestserv.length === 0
+                      ? "Todos"
+                      : `${filtroStatusPrestserv.length} selecionado(s)`}
+                  </span>
+                  <svg
+                    className={`w-4 h-4 transition-transform ${
+                      dropdownStatusPrestservOpen ? "rotate-180" : ""
+                    }`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 9l-7 7-7-7"
+                    />
+                  </svg>
+                </button>
+                {dropdownStatusPrestservOpen && (
+                  <div className="absolute z-10 w-full mt-1 bg-slate-100 border border-slate-800 rounded-md shadow-lg">
+                    <div className="p-2 space-y-2 max-h-48 overflow-y-auto">
+                      {[...new Set([...(funcionarios.map((f) => f.statusPrestserv)),
+                        ...[
+                          "PENDENTE",
+                          "APROVADO",
+                          "REPROVADO",
+                          "CRIADO",
+                          "SUBMETIDO",
+                          "EM VALIDAÇÃO",
+                          "VALIDADO",
+                          "INVALIDADO",
+                          "CANCELADO",
+                        ],
+                      ])]
+                        .filter(Boolean)
+                        .sort()
+                        .map((status) => (
+                          <label
+                            key={status}
+                            className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-1 rounded"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={filtroStatusPrestserv.includes(status)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setFiltroStatusPrestserv([
+                                    ...filtroStatusPrestserv,
+                                    status,
+                                  ]);
+                                } else {
+                                  setFiltroStatusPrestserv(
+                                    filtroStatusPrestserv.filter((s) => s !== status)
+                                  );
+                                }
+                              }}
+                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="text-sm text-gray-700">
+                              {getStatusSemNumeracao(status)}
+                            </span>
+                          </label>
+                        ))}
                     </div>
                   </div>
                 )}
