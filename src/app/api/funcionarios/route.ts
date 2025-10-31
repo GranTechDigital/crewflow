@@ -4,8 +4,24 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 
+const SYNC_INTERVAL_MS = Number(process.env.FUNCIONARIOS_AUTO_SYNC_INTERVAL_MS || 15 * 60 * 1000);
+const __GLOBAL_SYNC_STATE__ = (globalThis as any).__FUNCIONARIOS_AUTO_SYNC_STATE__ || { lastRun: 0, inProgress: false };
+(globalThis as any).__FUNCIONARIOS_AUTO_SYNC_STATE__ = __GLOBAL_SYNC_STATE__;
+
 export async function GET(request: NextRequest) {
   try {
+    // Disparar sincronização automática em background se passou do intervalo
+    const origin = new URL(request.url).origin;
+    const now = Date.now();
+    if (!__GLOBAL_SYNC_STATE__.inProgress && now - __GLOBAL_SYNC_STATE__.lastRun > SYNC_INTERVAL_MS) {
+      __GLOBAL_SYNC_STATE__.inProgress = true;
+      __GLOBAL_SYNC_STATE__.lastRun = now;
+      // Fire-and-forget: não aguardar para não bloquear resposta desta API
+      fetch(new URL('/api/funcionarios/sincronizar', origin).toString(), { method: 'POST' })
+        .catch((err) => console.error('Auto-sync de funcionários falhou:', err))
+        .finally(() => { __GLOBAL_SYNC_STATE__.inProgress = false; });
+    }
+
     const { searchParams } = new URL(request.url);
     const tipo = searchParams.get('tipo'); // 'alocacao', 'realocacao' ou 'desligamento'
     

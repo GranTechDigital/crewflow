@@ -9,7 +9,7 @@
   },
   "homepage": "https://github.com/GranTechDigital/crewflow",
   "scripts": {
-    "dev": "next dev",
+    "dev": "npm run dev:docker",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -18,20 +18,12 @@
     "seed:matriz": "node prisma/seed-fill-matriz.cjs",
     "seed:essential": "node prisma/seed-complete.cjs",
     "init": "node scripts/init-project.cjs",
-    "producao-like": "docker-compose -f docker-compose.local.yml up -d app-local",
-    "producao-like:rebuild": "docker build -t crewflow-app:latest . && docker-compose -f docker-compose.local.yml up -d --force-recreate --no-deps app-local",
-    "dev:docker": "docker-compose -f docker-compose.local.yml up -d app-dev",
-    "dev:docker:restart": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\" && docker-compose -f docker-compose.local.yml restart app-dev",
-    "dev:docker:recreate": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\" && docker-compose -f docker-compose.local.yml down --remove-orphans && docker-compose -f docker-compose.local.yml up -d --build --force-recreate",
+    "dev:docker": "docker-compose -f docker-compose.dev.yml up -d",
+    "dev:docker:down": "docker-compose -f docker-compose.dev.yml down",
     "staging:cleanup-remanejamentos": "node scripts/cleanup-remanejamentos.cjs",
     "staging:add-funcionarios-extra": "node scripts/add-funcionarios-extra.js",
-    "staging:reset-and-seed-extra": "npm run staging:add-funcionarios-extra",
-    "compose:down": "docker-compose -f docker-compose.local.yml down",
-    "logs:dev": "docker logs -f crewflow-app-dev",
-    "logs:producao-like": "docker logs -f crewflow-app-local",
-    "open": "powershell -Command Start-Process 'http://localhost:3000'",
-    "prisma:dev": "docker exec crewflow-app-dev npx prisma migrate dev",
-    "prisma:prod": "docker exec crewflow-app-local npx prisma migrate deploy"
+
+    "open": "powershell -Command Start-Process 'http://localhost:3000'"
   },
   "prisma": {
     "seed": "node prisma/seed-complete.cjs"
