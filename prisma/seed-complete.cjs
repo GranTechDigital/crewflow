@@ -297,15 +297,19 @@ async function main() {
   // Criar Funcionário e Usuário Administrador
   console.log("\nCriando funcionário e usuário administrador...");
   
+  const adminMatricula = process.env.ADMIN_USER || "ADMIN001";
+  const adminEmail = process.env.ADMIN_EMAIL || "admin@gransystem.com";
+  const adminPassword = process.env.ADMIN_PASSWORD || "admin123";
+  
   const adminFuncionario = await prisma.funcionario.upsert({
-    where: { matricula: "ADMIN001" },
+    where: { matricula: adminMatricula },
     update: {},
     create: {
       nome: "Administrador do Sistema",
       cpf: "00000000000",
-      email: "admin@gransystem.com",
+      email: adminEmail,
       telefone: "(11) 99999-9999",
-      matricula: "ADMIN001",
+      matricula: adminMatricula,
       funcao: "Administrador",
       departamento: "TI",
       centroCusto: "ADMIN",
@@ -314,7 +318,7 @@ async function main() {
     },
   });
 
-  const hashedPassword = await bcrypt.hash("admin123", 10);
+  const hashedPassword = await bcrypt.hash(adminPassword, 10);
   await prisma.usuario.upsert({
     where: { funcionarioId: adminFuncionario.id },
     update: {},

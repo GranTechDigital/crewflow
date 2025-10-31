@@ -149,6 +149,8 @@ export default function FuncionariosPorContratoPage() {
 
   // Estado para todos os status prestserv disponíveis
   const [todosStatusPrestserv, setTodosStatusPrestserv] = useState<string[]>([]);
+// Mapa de contratos futuros por funcionário (preenchido quando em migração)
+const [contratosFuturosMap, setContratosFuturosMap] = useState<Record<string, string>>({});
 
   // Função para carregar dados do dashboard
   const fetchDashboardData = async () => {
@@ -459,6 +461,46 @@ export default function FuncionariosPorContratoPage() {
     return funcionariosFiltrados.slice(startIndex, startIndex + itemsPerPage);
   }, [funcionariosFiltrados, currentPage, itemsPerPage]);
 
+  // Buscar contrato futuro (destino) para funcionários em migração da página atual
+  useEffect(() => {
+    const idsParaBuscar = funcionariosPaginados
+      .filter((f) => f.emMigracao)
+      .map((f) => String(f.id))
+      .filter((id) => !(id in contratosFuturosMap));
+
+    if (idsParaBuscar.length === 0) return;
+
+    const fetchContratosFuturos = async () => {
+      try {
+        const resultados = await Promise.all(
+          idsParaBuscar.map(async (id) => {
+            try {
+              const res = await fetch(`/api/funcionarios/${id}/remanejamentos`);
+              if (!res.ok) return { id, nome: "" };
+              const json = await res.json();
+              const nomeDestino = json?.remanejamentos?.[0]?.contratoDestino?.nome || "";
+              return { id, nome: nomeDestino };
+            } catch (e) {
+              return { id, nome: "" };
+            }
+          })
+        );
+
+        setContratosFuturosMap((prev) => {
+          const next = { ...prev };
+          resultados.forEach(({ id, nome }) => {
+            if (nome) next[id] = nome;
+          });
+          return next;
+        });
+      } catch (error) {
+        console.error("Erro ao buscar contratos futuros:", error);
+      }
+    };
+
+    fetchContratosFuturos();
+  }, [funcionariosPaginados, contratosFuturosMap]);
+
   // Função para exportar dados para Excel
   const exportToExcel = useCallback(() => {
     try {
@@ -473,7 +515,8 @@ export default function FuncionariosPorContratoPage() {
         "Status Prestserv": f.statusPrestserv,
         "Status PeopleLog": f.statusPeoplelog || "",
         "Em Migração": f.emMigracao ? "SIM" : "NÃO",
-        Contrato: f.contrato || "Sem Contrato",
+        "Contrato Atual": f.contrato || "Sem Contrato",
+        "Contrato Futuro": f.emMigracao ? (contratosFuturosMap[String(f.id)] || "") : "",
         "Data Início": f.dataInicio ? new Date(f.dataInicio).toLocaleDateString('pt-BR') : "",
         "Data Fim": f.dataFim ? new Date(f.dataFim).toLocaleDateString('pt-BR') : "",
         "Total Dias": f.totalDiasPeriodo || "",
@@ -1128,7 +1171,13 @@ export default function FuncionariosPorContratoPage() {
                           scope="col"
                           className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                         >
-                          Contrato
+                          Contrato Atual
+                        </th>
+                        <th
+                          scope="col"
+                          className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                        >
+                          Contrato Futuro
                         </th>
                         <th
                           scope="col"
@@ -1280,6 +1329,11 @@ export default function FuncionariosPorContratoPage() {
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                               {funcionario.contrato || "Sem Contrato"}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {funcionario.emMigracao
+                                ? (contratosFuturosMap[String(funcionario.id)] || "-")
+                                : "-"}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                               {funcionario.dataInicio

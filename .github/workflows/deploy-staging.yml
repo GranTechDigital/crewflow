@@ -85,7 +85,7 @@ jobs:
           ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} "mkdir -p /opt/projetogran"
           scp -o StrictHostKeyChecking=no docker-compose.staging-postgres.yml root@${{ secrets.SERVER_HOST }}:/opt/projetogran/
           # Se .env não existir no servidor, criar com valores padrão seguros (staging)
-          ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} "if [ ! -f /opt/projetogran/.env ]; then printf '%s\n' 'POSTGRES_USER=postgres' 'POSTGRES_PASSWORD=postgres' 'POSTGRES_DB=projetogran' 'PGADMIN_DEFAULT_EMAIL=admin-staging@crewflow.local' 'PGADMIN_DEFAULT_PASSWORD=admin123' > /opt/projetogran/.env && chmod 600 /opt/projetogran/.env; fi"
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} "if [ ! -f /opt/projetogran/.env ]; then printf '%s\n' 'POSTGRES_USER=postgres' 'POSTGRES_PASSWORD=postgres' 'POSTGRES_DB=projetogran' 'PGADMIN_DEFAULT_EMAIL=admin@gransystem.com' 'PGADMIN_DEFAULT_PASSWORD=admin123' > /opt/projetogran/.env && chmod 600 /opt/projetogran/.env; fi"
 
       - name: 🚀 Deploy to staging
         run: |
@@ -217,19 +217,13 @@ jobs:
             docker exec crewflow-app-staging npx prisma migrate deploy
             
             # Conditionally run seed only if database is empty (avoid overwriting migrated data)
-          echo "🌱 Checking if database is empty to decide on seeding..."
-          HAS_TABLES=$(docker exec postgres-staging bash -lc "export PGPASSWORD=\"\$POSTGRES_PASSWORD\"; psql -U \"\$POSTGRES_USER\" -d \"$DB_NAME\" -tAc \"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';\" | tr -d '\r\n'")
-          if [ -z "$HAS_TABLES" ]; then HAS_TABLES=0; fi
-          if [ "$HAS_TABLES" -eq 0 ]; then
-            echo "🌱 Database empty. Running seed:complete on staging database..."
-            docker exec crewflow-app-staging npm run seed:complete
-          else
-            echo "ℹ️ Seed skipped: database has $HAS_TABLES table(s)."
-          fi
-
-            # Pós-deploy: cadastrar funcionários extras (staging) – sem limpeza automática
-            echo "➕ Cadastrando funcionários extras (staging)..."
-            docker exec crewflow-app-staging npm run staging:add-funcionarios-extra || true
+            # Seed idempotente
+            echo "🌱 Seeding database (idempotente) ..."
+            if docker exec crewflow-app-staging npm run seed:complete 2>/dev/null; then
+              echo "✅ Seed aplicado ou ignorado de forma segura (idempotente)"
+            else
+              echo "ℹ️ Seed falhou ou foi ignorado; verificar logs do container se necessário"
+            fi
 
             # Verify tables exist
             echo "🔎 Verificando tabelas no banco..."
@@ -260,7 +254,8 @@ jobs:
               body: `🚀 **CrewFlow Staging Deploy Successful!**
               
               📍 **Staging URL:** http://${{ secrets.SERVER_HOST }}:3002
-              🔐 **Login:** ADMIN001 / admin123
+              -              🔐 **Login:** ADMIN001 / admin123
+              +              🔐 **Login:** usuário administrador configurado via ambiente
               
               ✅ Ready for testing!`
             })
@@ -269,4 +264,4 @@ jobs:
         run: |
           echo "🚀 CrewFlow staging deployment completed successfully!"
           echo "🌐 Staging available at: http://${{ secrets.SERVER_HOST }}:3002"
-          echo "🔐 Login: ADMIN001 / admin123"
+          echo "🔐 Login: usuário administrador configurado via variáveis de ambiente"

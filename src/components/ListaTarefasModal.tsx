@@ -236,27 +236,9 @@ export default function ListaTarefasModal({
         throw new Error("Erro ao processar dados das tarefas");
       }
 
-      // Adicionar tarefas de teste se não houver tarefas
-      if (data.length === 0) {
-        const tarefasTeste = [
-          {
-            id: "teste1",
-            tipo: "Teste",
-            descricao: "Tarefa de teste 1",
-            responsavel: "Sistema",
-            status: "PENDENTE",
-            prioridade: "Alta",
-            dataCriacao: new Date().toISOString(),
-            dataLimite: new Date().toISOString(),
-            observacoes: "Tarefa de teste para verificar o botão de reprovação",
-          },
-        ];
-        setTarefas(tarefasTeste);
-        console.log("Adicionando tarefas de teste:", tarefasTeste);
-      } else {
-        setTarefas(data);
-        setTarefasFiltradas(data);
-      }
+      // Atualizar lista com os dados reais (sem tarefas fictícias)
+      setTarefas(data);
+      setTarefasFiltradas(data);
     } catch (error) {
       console.error("Erro ao carregar tarefas:", error);
       showToast("Erro ao carregar tarefas", "error");
@@ -536,81 +518,88 @@ export default function ListaTarefasModal({
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="min-w-full table-auto divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Setor
-                </th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Item
-                </th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/3">
-                  Descrição
-                </th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <button onClick={toggleOrdenacaoDataLimite} className="flex items-center gap-1 text-gray-700">
-                    Data Limite
-                    {ordenacaoDataLimite === "asc" ? "▲" : ordenacaoDataLimite === "desc" ? "▼" : ""}
-                  </button>
-                </th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-red-100 border border-gray-300">
-                  Ações
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {tarefasFiltradas.map((tarefa) => (
-                <tr key={tarefa.id} className="align-top">
-                  <td className="px-4 py-2 text-sm text-gray-900 break-words">
-                    {tarefa.responsavel}
-                  </td>
-                  <td className="px-4 py-2 text-sm text-gray-900 break-words">
-                    {tarefa.tipo}
-                  </td>
-                  <td className="px-4 py-2 text-sm text-gray-500 break-words">
-                    {tarefa.descricao || "N/A"}
-                  </td>
-                  <td className="px-4 py-2 text-sm text-gray-900 whitespace-nowrap">
-                    {formatDate(tarefa.dataLimite)}
-                  </td>
-                  <td className="px-4 py-2 whitespace-nowrap">
-                    <span
-                      className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(
-                        tarefa.status
-                      )}`}
-                    >
-                      {tarefa.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500">
-                    {tarefa.status === "CONCLUIDO" && 
-                     statusPrestserv && 
-                     (statusPrestserv === "CRIADO" || statusPrestserv === "INVALIDADO") && (
-                      <button
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          handleReprovarClick(tarefa.id);
-                        }}
-                        className="px-3 py-1 bg-red-600 text-white rounded-md hover:bg-red-700 mr-2 disabled:opacity-50"
-                        disabled={reprovarLoadingId === tarefa.id}
-                      >
-                        {reprovarLoadingId === tarefa.id
-                          ? "Processando..."
-                          : "Reprovar"}
-                      </button>
-                    )}
-                  </td>
+        {/* Tabela removida (duplicada). Renderização condicional aplicada mais abaixo. */}
+        {/* Lista de Tarefas */}
+        {tarefasFiltradas.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="min-w-full table-auto divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Setor
+                  </th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Item
+                  </th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/3">
+                    Descrição
+                  </th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <button onClick={toggleOrdenacaoDataLimite} className="flex items-center gap-1 text-gray-700">
+                      Data Limite
+                      {ordenacaoDataLimite === "asc" ? "▲" : ordenacaoDataLimite === "desc" ? "▼" : ""}
+                    </button>
+                  </th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-red-100 border border-gray-300">
+                    Ações
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {tarefasFiltradas.map((tarefa) => (
+                  <tr key={tarefa.id} className="align-top">
+                    <td className="px-4 py-2 text-sm text-gray-900 break-words">
+                      {tarefa.responsavel}
+                    </td>
+                    <td className="px-4 py-2 text-sm text-gray-900 break-words">
+                      {tarefa.tipo}
+                    </td>
+                    <td className="px-4 py-2 text-sm text-gray-500 break-words">
+                      {tarefa.descricao || "N/A"}
+                    </td>
+                    <td className="px-4 py-2 text-sm text-gray-900 whitespace-nowrap">
+                      {formatDate(tarefa.dataLimite)}
+                    </td>
+                    <td className="px-4 py-2 whitespace-nowrap">
+                      <span
+                        className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(
+                          tarefa.status
+                        )}`}
+                      >
+                        {tarefa.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500">
+                      {tarefa.status === "CONCLUIDO" &&
+                       statusPrestserv &&
+                       (statusPrestserv === "CRIADO" || statusPrestserv === "INVALIDADO") && (
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleReprovarClick(tarefa.id);
+                          }}
+                          className="px-3 py-1 bg-red-600 text-white rounded-md hover:bg-red-700 mr-2 disabled:opacity-50"
+                          disabled={reprovarLoadingId === tarefa.id}
+                        >
+                          {reprovarLoadingId === tarefa.id
+                            ? "Processando..."
+                            : "Reprovar"}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="text-center py-8 text-gray-500">Nenhuma tarefa encontrada.</div>
+        )}
+
         {/* Modal de Justificativa (fora da tabela) */}
         {expandedTarefaId && (
           <>
@@ -665,3 +654,5 @@ export default function ListaTarefasModal({
     </div>
   );
 }
+
+// ...existing code...

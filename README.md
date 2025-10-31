@@ -21,7 +21,7 @@ O sistema utiliza uma arquitetura baseada em containers Docker com os seguintes 
 | Ambiente | URL | Descrição |
 |----------|-----|-----------|
 | Produção | http://46.202.146.234:3001 | Ambiente de produção |
-| Staging | Local | Ambiente de testes com PostgreSQL local |
+| Staging | http://46.202.146.234:3002 (app) / http://46.202.146.234:5051 (pgAdmin) | Ambiente de testes remoto com PostgreSQL e pgAdmin no servidor |
 | Desenvolvimento | Local | Ambiente de desenvolvimento com PostgreSQL |
 
 ### 🚀 Processo de Deploy
@@ -122,7 +122,7 @@ Notas importantes:
 
 #### Worker de Sincronização de Funcionários (dev)
 - Serviço: `func-sync-worker` no `docker-compose.dev.yml`.
-- Horários padrão: `07:00` e `12:30` (configuráveis via `FUNCIONARIOS_SYNC_SCHEDULE`).
+- Agendamento: horários fixos (`FUNCIONARIOS_SYNC_SCHEDULE`) ou intervalo em minutos (`FUNCIONARIOS_SYNC_INTERVAL_MINUTES`, ex.: `60`).
 - Autorização: envia `Authorization: Bearer $FUNCIONARIOS_SYNC_SERVICE_TOKEN`.
 - Variáveis necessárias (definir em `.env.dev`, documentadas em `.env.example`):
   - `FUNCIONARIOS_SYNC_SERVICE_TOKEN`

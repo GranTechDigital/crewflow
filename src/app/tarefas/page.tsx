@@ -1464,8 +1464,7 @@ const isAdmin = !!usuario?.permissoes?.includes('admin');
               <option value="VENCIDOS">Vencidos</option>
               <option value="A_VENCER">Próximo de vencer</option>
               <option value="NO_PRAZO">No prazo</option>
-              <option value="SEM_DATA">Pendentes (sem data)</option>
-              <option value="NOVO">Novo (criado há menos de 48h)</option>
+              <option value="NOVO">Novo</option>
             </select>
           </div>
 
