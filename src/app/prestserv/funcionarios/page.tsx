@@ -4279,6 +4279,70 @@ function FuncionariosPageContent() {
                                   : "Aprovar Todas"}
                               </button>
                             )}
+                          {isAdmin() && funcionario.remanejamentoId && (
+                                <button
+                                  onClick={async () => {
+                                    const confirmar = typeof window !== 'undefined'
+                                      ? window.confirm(`Excluir remanejamento de ${funcionario.nome} (${funcionario.matricula})?`)
+                                      : true;
+                                    if (!confirmar) return;
+                                    try {
+                                      const idsToTry = [funcionario.remanejamentoId, funcionario.id].filter(Boolean);
+                                      let lastStatus = 0;
+                                      let lastDetail = '';
+                                      for (const tryId of idsToTry) {
+                                        // 1) Tentar primeiro a rota base com query param (estável em dev)
+                                        const queryUrl = `/api/logistica/remanejamentos?id=${encodeURIComponent(String(tryId))}`;
+                                        console.log('Solicitando DELETE via query param', { id: tryId, url: queryUrl });
+                                        let statusQuery = 0;
+                                        let contentTypeQuery = '';
+                                        try {
+                                          const respQuery = await fetch(queryUrl, { method: 'DELETE', credentials: 'include', headers: { 'Accept': 'application/json' } });
+                                          statusQuery = respQuery.status;
+                                          contentTypeQuery = respQuery.headers.get('content-type') || '';
+                                          if (respQuery.ok && contentTypeQuery.includes('application/json') && !contentTypeQuery.includes('text/html')) {
+                                            console.log('DELETE /logistica/remanejamentos (query) sucesso', { status: statusQuery, id: tryId, contentType: contentTypeQuery });
+                                            showToast('Remanejamento excluído com sucesso', 'success');
+                                            await fetchFuncionarios();
+                                            return;
+                                          }
+                                          let errorDetailQuery = '';
+                                          try {
+                                            const rawTextQuery = await respQuery.text();
+                                            try {
+                                              const parsedQuery = rawTextQuery && contentTypeQuery.includes('application/json') ? JSON.parse(rawTextQuery) : {};
+                                              errorDetailQuery = (parsedQuery as any).error || (parsedQuery as any).message || rawTextQuery || `HTTP ${statusQuery}`;
+                                            } catch {
+                                              errorDetailQuery = rawTextQuery || `HTTP ${statusQuery}`;
+                                            }
+                                          } catch {
+                                            errorDetailQuery = `HTTP ${statusQuery}`;
+                                          }
+                                          console.warn('DELETE /logistica/remanejamentos via query falhou', { status: statusQuery, errorDetail: errorDetailQuery, id: tryId, url: queryUrl, contentType: contentTypeQuery });
+                                          lastStatus = statusQuery;
+                                          lastDetail = errorDetailQuery || '';
+                                        } catch (errQuery) {
+                                          console.warn('DELETE /logistica/remanejamentos (query) exceção', { id: tryId, url: queryUrl, err: errQuery });
+                                          lastStatus = statusQuery;
+                                          lastDetail = (errQuery as any)?.message || 'Erro de rede';
+                                        }
+
+                                        // 2) Rota dinâmica desativada por estabilidade em dev; seguimos para o próximo ID
+                                        // tenta próximo ID (fallback)
+                                      }
+                                      throw new Error(lastDetail || `Falha ao excluir remanejamento (HTTP ${lastStatus})`);
+                                    } catch (err: any) {
+                                      console.error('Erro ao excluir remanejamento:', err);
+                                      showToast(err?.message || 'Erro ao excluir remanejamento', 'error');
+                                    }
+                                  }}
+                                  className="inline-flex items-center px-2 py-1 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded hover:bg-red-100 transition-colors focus:outline-none focus:ring-1 focus:ring-red-500"
+                                  title="Excluir remanejamento"
+                                >
+                                  <XMarkIcon className="w-3 h-3 mr-1" />
+                                  Excluir
+                                </button>
+                              )}
                         </div>
                       </td>
                     </tr>
