@@ -47,6 +47,13 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
+  // Permitir sincronização via token de serviço (worker)
+  const serviceToken = process.env.FUNCIONARIOS_SYNC_SERVICE_TOKEN
+  const authHeader = request.headers.get('authorization') || ''
+  if (pathname.startsWith('/api/funcionarios/sincronizar') && serviceToken && authHeader === `Bearer ${serviceToken}`) {
+    return NextResponse.next()
+  }
+
   // Obter token do cookie
   const token = request.cookies.get('auth-token')?.value
 

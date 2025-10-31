@@ -36,6 +36,8 @@ O deploy é realizado automaticamente pelo GitHub Actions quando há um push par
 4. Para e remove containers antigos e sobe a nova versão
 5. Aplica migrações do Prisma e executa seed idempotente
 
+Nota (staging): o workflow não cadastra mais funcionários extras automaticamente; quando necessário, execute manualmente dentro do container: `npm run staging:add-funcionarios-extra`.
+
 #### Configuração da Rede Docker
 
 ```bash
@@ -53,6 +55,7 @@ docker network create projetogran_crewflow-network
   - `POSTGRES_PROD_DB`, `POSTGRES_PROD_USER`, `POSTGRES_PROD_PASSWORD`
   - `PGADMIN_PROD_EMAIL`, `PGADMIN_PROD_PASSWORD`
 - Não existem credenciais hardcoded no repositório.
+- Credenciais do usuário administrador são parametrizadas via `ADMIN_USER`, `ADMIN_EMAIL`, `ADMIN_PASSWORD` e podem ser definidas no `.env` de cada ambiente (não são impressas em logs).
 
 Exemplo de `DATABASE_URL` (apenas formato):
 ```
@@ -83,88 +86,57 @@ Para iniciar o PostgreSQL local para testes:
 
 ### Desenvolvimento Local com Docker
 
-Você pode rodar a aplicação localmente de dois modos, sem impactar staging ou produção:
+Use apenas o ambiente de desenvolvimento dedicado via `docker-compose.dev.yml`:
 
-1) Modo produção-like (app-local, Next.js com `next start`)
-- Uso: valida build, cookies, middleware e autenticação como em produção.
-- Como subir:
-```bash
-# sobe somente o app-local (usa a imagem crewflow-app:latest)
-docker-compose -f docker-compose.local.yml up -d app-local
+- Subir ambiente de desenvolvimento (app-dev + postgres-dev + pgadmin-dev):
 ```
-- Quando mudar código, precisa rebuildar a imagem e recriar o contêiner:
-```bash
-docker build -t crewflow-app:latest .
-docker-compose -f docker-compose.local.yml up -d --force-recreate --no-deps app-local
+docker-compose -f docker-compose.dev.yml up -d
 ```
-- Não precisa rebuild para rodar migrações ou seeds:
-```bash
-docker exec crewflow-app-local npx prisma migrate deploy
-docker exec crewflow-app-local npm run seed
+- Parar todo o ambiente de desenvolvimento:
 ```
-
-2) Modo desenvolvimento com hot-reload (app-dev, Next.js com `npm run dev`)
-- Uso: editar código e ver mudanças instantaneamente, sem rebuild.
-- Como subir:
-```bash
-# garanta que o postgres-staging esteja ativo
-# depois suba o serviço de desenvolvimento
-docker-compose -f docker-compose.local.yml up -d app-dev
+docker-compose -f docker-compose.dev.yml down
 ```
-- A aplicação ficará acessível em http://localhost:3000 e atualizará ao salvar arquivos.
-- Para evitar conflitos de porta, rode SOMENTE um dos serviços (app-local OU app-dev) por vez:
-```bash
-# parar tudo do compose local
-docker-compose -f docker-compose.local.yml down
-# subir o modo desejado
-# app-local (produção-like):
-docker-compose -f docker-compose.local.yml up -d app-local
-# app-dev (hot-reload):
-docker-compose -f docker-compose.local.yml up -d app-dev
+- Logs da aplicação:
+```
+docker logs -f crewflow-app-dev
+```
+- Migrações Prisma (dev):
+```
+docker exec crewflow-app-dev npx prisma migrate dev
+```
+- Criar/atualizar usuário admin:
+```
+docker exec crewflow-app-dev node create-admin-user.js
 ```
 
 Notas importantes:
-- Ambos os serviços reutilizam a rede externa `projetogran_crewflow-network` e o container `postgres-staging` já existente.
-- Mantemos apenas os compose essenciais: `docker-compose.yml` (produção) e `docker-compose.staging-postgres.yml` (staging).
-- No Windows/Docker Desktop, `CHOKIDAR_USEPOLLING=true` está habilitado no app-dev para o watch funcionar corretamente.
-- Se o `schema.prisma` mudar, o Prisma Client precisa ser gerado. No app-dev isso ocorre automaticamente via `npx prisma generate`; no app-local, o generate roda no `docker build`.
-
-#### Comandos rápidos (Windows)
-- Desenvolvimento (hot-reload):
-  - start-app-dev.bat
-- Produção-like:
-  - start-app-local.bat
-- Rebuild da imagem e restart do produção-like:
-  - rebuild-app-local.bat
-- Abrir o app no navegador:
-  - open-app.bat
-
-Dicas:
-- Você pode executar os .bat clicando duas vezes no Explorer ou pelo terminal com:
-  - cmd /c start-app-dev.bat
-  - cmd /c start-app-local.bat
-- Rode apenas um serviço por vez para evitar conflito na porta 3000.
+- Ambiente LOCAL não utiliza termos "staging". Serviços: `app-dev`, `postgres-dev`, `pgadmin-dev`.
+- Rede: `crewflow-dev-network`. Volumes: `crewflow_postgres_dev_data`, `crewflow_pgadmin_dev_data`, `crewflow_node_modules_dev`.
+- Variáveis de ambiente via arquivo `.env.dev` (documentadas em `.env.example`).
 
 #### Comandos npm (atalhos oficiais)
-- Alternar para produção-like:
-  - npm run producao-like
-- Alternar para desenvolvimento com Docker (hot-reload):
-  - npm run dev:docker
-- Rebuild da imagem e recriar produção-like:
-  - npm run producao-like:rebuild
-- Derrubar tudo do compose local:
-  - npm run compose:down
-- Ver logs:
-  - npm run logs:dev
-  - npm run logs:producao-like
-- Abrir o app no navegador:
-  - npm run open
-- Prisma (opcionais):
-  - npm run prisma:dev
-  - npm run prisma:prod
-- Seed da Matriz (manual):
-  - npm run seed:matriz
- 
+- Desenvolvimento com Docker:
+  - `npm run dev:docker`
+- Derrubar ambiente de desenvolvimento:
+  - `npm run dev:docker:down`
+
+#### Worker de Sincronização de Funcionários (dev)
+- Serviço: `func-sync-worker` no `docker-compose.dev.yml`.
+- Horários padrão: `07:00` e `12:30` (configuráveis via `FUNCIONARIOS_SYNC_SCHEDULE`).
+- Autorização: envia `Authorization: Bearer $FUNCIONARIOS_SYNC_SERVICE_TOKEN`.
+- Variáveis necessárias (definir em `.env.dev`, documentadas em `.env.example`):
+  - `FUNCIONARIOS_SYNC_SERVICE_TOKEN`
+  - `FUNCIONARIOS_SYNC_SCHEDULE` (ex.: `07:00,12:30`)
+  - `TZ` (ex.: `America/Sao_Paulo`)
+- Subir/derrubar só o worker:
+```
+docker-compose -f docker-compose.dev.yml up -d func-sync-worker
+docker-compose -f docker-compose.dev.yml stop func-sync-worker
+```
+- Logs do worker:
+```
+docker logs -f crewflow-func-sync-worker
+```
  
  ### 📋 Checklist de Verificação de Deploy
 
@@ -195,6 +167,8 @@ Após um deploy, verifique:
 | Falha no deploy automático | Inconsistência nos nomes dos arquivos/containers | Verificar logs do GitHub Actions e corrigir o workflow |
 | Dados não persistindo | Volume do PostgreSQL não configurado | Verificar se o volume `postgres_data` está mapeado corretamente |
 | pgAdmin inacessível | Container não iniciado ou porta incorreta | Verificar status do container `pgadmin-production` e mapeamento de porta |
+
+Nota (staging): o workflow não cadastra mais funcionários extras automaticamente; use apenas `npm run seed:complete` (idempotente). Quando necessário, execute `npm run staging:add-funcionarios-extra` manualmente dentro do container.
 
 ### 🧹 Limpeza de Remanejamentos (Staging) — Desativado
 
