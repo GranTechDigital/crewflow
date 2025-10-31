@@ -124,7 +124,7 @@ export default function TarefasPage() {
   const [filtroDataFim, setFiltroDataFim] = useState("");
   // Novos filtros: tipo e categoria de data limite, e ordenação por data limite
   const [filtroTipo, setFiltroTipo] = useState("");
-  const [filtroDataCategoria, setFiltroDataCategoria] = useState<"" | "VENCIDOS" | "A_VENCER" | "NO_PRAZO" | "SEM_DATA">("");
+  const [filtroDataCategoria, setFiltroDataCategoria] = useState<"" | "VENCIDOS" | "A_VENCER" | "NO_PRAZO" | "SEM_DATA" | "NOVO">("");
   const [ordenacaoDataLimite, setOrdenacaoDataLimite] = useState<"" | "asc" | "desc">("");
   const [filtroDataExata, setFiltroDataExata] = useState("");
 
@@ -410,33 +410,39 @@ const isAdmin = !!usuario?.permissoes?.includes('admin');
               const matchSetor =
                 !filtroSetor || tarefa.responsavel === filtroSetor;
 
-              // Novo: filtro por categoria de data limite (aplica apenas a PENDENTES)
+              // Filtro por categoria de data limite e "Novo" ("Novo" baseado em data de criação, independente do status)
               let matchDataCategoria = true;
               if (filtroDataCategoria) {
-                if (tarefa.status !== "PENDENTE") {
-                  matchDataCategoria = true;
+                if (filtroDataCategoria === "NOVO") {
+                  const criadoMs = tarefa.dataCriacao ? new Date(tarefa.dataCriacao).getTime() : 0;
+                  matchDataCategoria = !!tarefa.dataCriacao && (Date.now() - criadoMs <= 48 * 60 * 60 * 1000);
                 } else {
-                  const hoje = new Date();
-                  hoje.setHours(0, 0, 0, 0);
-                  const dataLimiteDate = tarefa.dataLimite
-                    ? new Date(tarefa.dataLimite)
-                    : null;
-
-                  if (filtroDataCategoria === "SEM_DATA") {
-                    matchDataCategoria = !dataLimiteDate;
-                  } else if (!dataLimiteDate) {
-                    matchDataCategoria = false;
+                  // Aplica apenas a PENDENTES para categorias de data limite
+                  if (tarefa.status !== "PENDENTE") {
+                    matchDataCategoria = true;
                   } else {
-                    const diffDias = Math.floor(
-                      (dataLimiteDate.getTime() - hoje.getTime()) / 86400000
-                    );
-                    const limiteA_Vencer = 7; // próximos 7 dias
-                    if (filtroDataCategoria === "VENCIDOS") {
-                      matchDataCategoria = dataLimiteDate < hoje;
-                    } else if (filtroDataCategoria === "A_VENCER") {
-                      matchDataCategoria = diffDias >= 0 && diffDias <= limiteA_Vencer;
-                    } else if (filtroDataCategoria === "NO_PRAZO") {
-                      matchDataCategoria = diffDias > limiteA_Vencer;
+                    const hoje = new Date();
+                    hoje.setHours(0, 0, 0, 0);
+                    const dataLimiteDate = tarefa.dataLimite
+                      ? new Date(tarefa.dataLimite)
+                      : null;
+
+                    if (filtroDataCategoria === "SEM_DATA") {
+                      matchDataCategoria = !dataLimiteDate;
+                    } else if (!dataLimiteDate) {
+                      matchDataCategoria = false;
+                    } else {
+                      const diffDias = Math.floor(
+                        (dataLimiteDate.getTime() - hoje.getTime()) / 86400000
+                      );
+                      const limiteA_Vencer = 7; // próximos 7 dias
+                      if (filtroDataCategoria === "VENCIDOS") {
+                        matchDataCategoria = dataLimiteDate < hoje;
+                      } else if (filtroDataCategoria === "A_VENCER") {
+                        matchDataCategoria = diffDias >= 0 && diffDias <= limiteA_Vencer;
+                      } else if (filtroDataCategoria === "NO_PRAZO") {
+                        matchDataCategoria = diffDias > limiteA_Vencer;
+                      }
                     }
                   }
                 }
@@ -1459,6 +1465,7 @@ const isAdmin = !!usuario?.permissoes?.includes('admin');
               <option value="A_VENCER">Próximo de vencer</option>
               <option value="NO_PRAZO">No prazo</option>
               <option value="SEM_DATA">Pendentes (sem data)</option>
+              <option value="NOVO">Novo (criado há menos de 48h)</option>
             </select>
           </div>
 
@@ -1645,6 +1652,9 @@ const isAdmin = !!usuario?.permissoes?.includes('admin');
                         : 0;
                     const expandido = funcionariosExpandidos.has(chaveGrupo);
                     
+                    // Determinar se as tarefas do funcionário foram criadas há menos de 48h
+                    const grupoNovo = tarefas.some((t) => t.dataCriacao && (Date.now() - new Date(t.dataCriacao).getTime() <= 48 * 60 * 60 * 1000));
+                    
                     // Determinar status geral e classes de borda
                     const statusGeral = getStatusGeralFuncionario(tarefas);
                     const bordaClasses = getBordaStatusClasses(statusGeral);
@@ -1679,8 +1689,13 @@ const isAdmin = !!usuario?.permissoes?.includes('admin');
                                 />
                               </button>
                               <div className="flex flex-col">
-                                <div className="text-[12px] font-medium text-gray-900">
+                                <div className="text-[12px] font-medium text-gray-900 flex items-center gap-2">
                                   {funcionario.nome}
+                                  {grupoNovo && (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-100 text-emerald-800" title="Tarefas criadas há menos de 48h">
+                                      Novo
+                                    </span>
+                                  )}
                                 </div>
                                 <div className="text-[11px] text-gray-500">
                                   {funcionario.funcao || 'Função não informada'}
@@ -1907,14 +1922,7 @@ const isAdmin = !!usuario?.permissoes?.includes('admin');
                                                 className="hover:bg-gray-50"
                                               >
                                                 <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-500">
-                                                  <div className="flex items-center gap-2">
-                                                    <span>{tarefa.tipo}</span>
-                                                    {tarefa.dataCriacao && (Date.now() - new Date(tarefa.dataCriacao).getTime() <= 48 * 60 * 60 * 1000) && (
-                                                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-100 text-emerald-800" title="Tarefa criada há menos de 48h">
-                                                        Novo
-                                                      </span>
-                                                    )}
-                                                  </div>
+                                                  {tarefa.tipo}
                                                 </td>
                                                 <td className="px-4 py-3 text-xs text-gray-500 max-w-xs truncate">
                                                   {tarefa.descricao}
