@@ -4,10 +4,17 @@ import { prisma } from "@/lib/prisma";
 // DELETE - Excluir remanejamento de funcionário e registros associados
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  context: any
 ) {
   try {
-    let { id } = params;
+    let { id } = context?.params || {};
+
+    if (!id || typeof id !== "string") {
+      return NextResponse.json(
+        { error: "Parâmetro id inválido ou ausente" },
+        { status: 400 }
+      );
+    }
 
     // Tentar encontrar por id direto (UUID/texto)
     let remanejamentoFuncionario = await prisma.remanejamentoFuncionario.findUnique({
@@ -55,15 +62,12 @@ export async function DELETE(
 
     // Excluir observações das tarefas, depois tarefas e por fim o remanejamento do funcionário
     await prisma.$transaction([
-      // Observações das tarefas
       prisma.observacaoTarefaRemanejamento.deleteMany({
         where: { tarefaId: { in: tarefaIds } },
       }),
-      // Tarefas
       prisma.tarefaRemanejamento.deleteMany({
         where: { remanejamentoFuncionarioId: id },
       }),
-      // Remanejamento do funcionário
       prisma.remanejamentoFuncionario.delete({
         where: { id },
       }),
@@ -94,7 +98,6 @@ export async function DELETE(
       });
     } catch (logErr) {
       console.error("Falha ao registrar histórico de exclusão de remanejamento:", logErr);
-      // Prosseguir sem falhar a operação principal
     }
 
     return NextResponse.json({ message: "Remanejamento excluído com sucesso" }, { status: 200 });
