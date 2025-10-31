@@ -1325,7 +1325,7 @@ export default function FuncionariosPorContratoPage() {
                               <button
                                 onClick={() =>
                                   router.push(
-                                    `/prestserv/funcionarios/${funcionario.id}`
+                                    `/prestserv/funcionarios-por-contrato/${funcionario.id}`
                                   )
                                 }
                                 className="text-blue-600 hover:text-blue-900"
