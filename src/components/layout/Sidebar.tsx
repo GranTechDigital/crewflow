@@ -120,6 +120,10 @@ export default function Sidebar() {
           label: "Upload da Planilha (Uptime)",
           href: "/uptime",
         },
+        {
+          label: "Sincronizar Lista de Funcionários",
+          href: "/funcionarios",
+        },
         // {
         //   label: "Upload do Downtime",
         //   href: "/downtime",

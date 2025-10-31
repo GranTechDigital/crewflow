@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { getStatusColor } from '../../utils/statusColors';
 import { getStatusBorder } from '../../utils/statusBorders';
+import ProtectedRoute from '@/components/ProtectedRoute';
+import { ROUTE_PROTECTION } from '@/lib/permissions';
 
 type Pessoa = {
   id: number;
@@ -250,7 +252,8 @@ export default function Home() {
   }
 
   return (
-    <div className="p-1 max-w-full">
+    <ProtectedRoute requiredPermissions={ROUTE_PROTECTION.LOGISTICA.requiredPermissions} requiredEquipe={ROUTE_PROTECTION.LOGISTICA.requiredEquipe}>
+      <div className="p-1 max-w-full">
       {/* Barra de ações */}
       <div className="mb-2 flex flex-wrap items-center justify-between bg-white p-2 rounded-lg border border-gray-100 shadow-sm">
         <div className="flex gap-2">
@@ -746,5 +749,6 @@ export default function Home() {
         </div>
       )}
     </div>
+    </ProtectedRoute>
   );
 }
