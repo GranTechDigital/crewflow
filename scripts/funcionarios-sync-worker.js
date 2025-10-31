@@ -13,6 +13,7 @@
 
 const TARGET_URL = process.env.SYNC_TARGET_URL || 'http://localhost:3000/api/funcionarios/sincronizar'
 const SERVICE_TOKEN = process.env.FUNCIONARIOS_SYNC_SERVICE_TOKEN || ''
++ const INTERVAL_MINUTES = Number(process.env.FUNCIONARIOS_SYNC_INTERVAL_MINUTES || 0)
 const SCHEDULE = (process.env.FUNCIONARIOS_SYNC_SCHEDULE || '07:00,12:30')
   .split(',')
   .map((t) => t.trim())
@@ -98,6 +99,17 @@ function scheduleNext() {
 function start() {
   console.log('[func-sync-worker] Iniciado. TARGET_URL=', TARGET_URL)
   console.log('[func-sync-worker] Horários configurados:', SCHEDULE.join(', '))
++  if (INTERVAL_MINUTES > 0) {
++    const delayMs = INTERVAL_MINUTES * 60 * 1000
++    console.log(`[func-sync-worker] Modo intervalo: a cada ${INTERVAL_MINUTES} minutos`)
++    const run = async () => {
++      await doSync()
++      timer = setTimeout(run, delayMs)
++    }
++    // primeira execução após 5s para evitar corrida na subida do app
++    timer = setTimeout(run, 5000)
++    return
++  }
   scheduleNext()
 }
 
