@@ -94,6 +94,7 @@ export async function DELETE(
           tipoAcao: "EXCLUSAO",
           entidade: "REMANEJAMENTO_FUNCIONARIO",
           descricaoAcao: `Remanejamento de ${remanejamentoFuncionario.funcionario.nome} (${remanejamentoFuncionario.funcionario.matricula}) excluído`,
+          usuarioResponsavel: "Sistema",
         },
       });
     } catch (logErr) {
