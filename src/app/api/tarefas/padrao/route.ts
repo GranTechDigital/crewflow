@@ -123,7 +123,7 @@ Contrato: ${matriz.contrato?.nome || "N/A"}`;
         responsavel: "TREINAMENTO",
         status: "PENDENTE",
         prioridade: prioridade,
-        // dataLimite removida - será definida pelo usuário após criação da tarefa
+        dataLimite: new Date(Date.now() + 48 * 60 * 60 * 1000),
       };
 
       tarefasParaCriar.push(novaTarefa);
@@ -315,7 +315,7 @@ export async function POST(request: NextRequest) {
                if (v === "urgente") return "URGENTE";
                return "MEDIA";
              })(),
-             // dataLimite removida - será definida pelo usuário após criação da tarefa
+            dataLimite: new Date(Date.now() + 48 * 60 * 60 * 1000),
           });
         }
       }

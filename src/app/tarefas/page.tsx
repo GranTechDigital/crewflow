@@ -175,6 +175,11 @@ const [adicionandoObservacao, setAdicionandoObservacao] = useState(false);
 // Mapa de contagem de observações por tarefa
 const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>({});
 
+// Estados para exclusão de tarefa (apenas administradores)
+const [mostrarModalExcluir, setMostrarModalExcluir] = useState(false);
+const [excluindoTarefa, setExcluindoTarefa] = useState(false);
+const isAdmin = !!usuario?.permissoes?.includes('admin');
+
   const [funcionariosExpandidos, setFuncionariosExpandidos] = useState<
     Set<string>
   >(new Set());
@@ -818,6 +823,40 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
       }
     } finally {
       setConcluindoTarefa(false);
+    }
+  };
+
+  // Funções para exclusão de tarefa (admin)
+  const abrirModalExcluir = (tarefa: TarefaRemanejamento) => {
+    setTarefaSelecionada(tarefa);
+    setMostrarModalExcluir(true);
+  };
+
+  const fecharModalExcluir = () => {
+    setMostrarModalExcluir(false);
+  };
+
+  const excluirTarefa = async () => {
+    if (!tarefaSelecionada) return;
+    try {
+      setExcluindoTarefa(true);
+      const resp = await fetch(`/api/logistica/tarefas/${tarefaSelecionada.id}`, {
+        method: "DELETE",
+      });
+      if (!resp.ok) {
+        const errorData = await resp.json().catch(() => null);
+        const msg = errorData?.error || "Erro ao excluir tarefa";
+        toast.error(msg);
+        throw new Error(msg);
+      }
+      toast.success("Tarefa excluída com sucesso!");
+      fecharModalExcluir();
+      fetchTodasTarefas();
+    } catch (error) {
+      console.error("Erro ao excluir tarefa:", error);
+      toast.error("Erro ao excluir tarefa");
+    } finally {
+      setExcluindoTarefa(false);
     }
   };
 
@@ -1868,7 +1907,14 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
                                                 className="hover:bg-gray-50"
                                               >
                                                 <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-500">
-                                                  {tarefa.tipo}
+                                                  <div className="flex items-center gap-2">
+                                                    <span>{tarefa.tipo}</span>
+                                                    {tarefa.dataCriacao && (Date.now() - new Date(tarefa.dataCriacao).getTime() <= 48 * 60 * 60 * 1000) && (
+                                                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-100 text-emerald-800" title="Tarefa criada há menos de 48h">
+                                                        Novo
+                                                      </span>
+                                                    )}
+                                                  </div>
                                                 </td>
                                                 <td className="px-4 py-3 text-xs text-gray-500 max-w-xs truncate">
                                                   {tarefa.descricao}
@@ -1995,6 +2041,15 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
   {(observacoesCount as Record<string, number>)[tarefa.id] ?? 0}
 </span>
                                                     </button>
+                                                    {isAdmin && (
+                                                      <button
+                                                        className="text-slate-500 hover:text-red-600"
+                                                        title="Excluir tarefa"
+                                                        onClick={() => abrirModalExcluir(tarefa)}
+                                                      >
+                                                        <TrashIcon className="h-4 w-4" />
+                                                      </button>
+                                                    )}
                                                   </div>
                                                 </td>
                                               </tr>
@@ -2900,6 +2955,63 @@ const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>
                 className="px-4 py-2 border border-transparent rounded-md shadow-sm text-xs font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:bg-green-300"
               >
                 {concluindoTarefa ? "Concluindo..." : "Concluir Tarefa"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal para excluir tarefa (admin) */}
+      {mostrarModalExcluir && tarefaSelecionada && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">Excluir Tarefa</h3>
+              <button
+                onClick={fecharModalExcluir}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <XMarkIcon className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="mb-6">
+              <p className="text-gray-700 mb-4">
+                Tem certeza que deseja excluir esta tarefa? Esta ação não pode ser desfeita.
+              </p>
+
+              <div className="bg-gray-50 p-4 rounded-lg mb-4">
+                <h4 className="font-medium text-gray-700 mb-2">
+                  Detalhes da Tarefa
+                </h4>
+                <p className="text-xs text-gray-600">
+                  <span className="font-medium">Tipo:</span>{" "}
+                  {tarefaSelecionada.tipo}
+                </p>
+                <p className="text-xs text-gray-600">
+                  <span className="font-medium">Descrição:</span>{" "}
+                  {tarefaSelecionada.descricao}
+                </p>
+                <p className="text-xs text-gray-600">
+                  <span className="font-medium">Responsável:</span>{" "}
+                  {tarefaSelecionada.responsavel}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={fecharModalExcluir}
+                className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-xs font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={excluirTarefa}
+                disabled={excluindoTarefa}
+                className="px-4 py-2 border border-transparent rounded-md shadow-sm text-xs font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:bg-red-300"
+              >
+                {excluindoTarefa ? "Excluindo..." : "Excluir Tarefa"}
               </button>
             </div>
           </div>

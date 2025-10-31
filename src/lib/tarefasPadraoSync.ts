@@ -112,6 +112,7 @@ export async function sincronizarTarefasPadrao({ setores: setoresInput, usuarioR
               responsavel: resp,
               status: "PENDENTE",
               prioridade,
+              dataLimite: new Date(Date.now() + 48 * 60 * 60 * 1000),
             });
           }
         }
@@ -137,6 +138,7 @@ export async function sincronizarTarefasPadrao({ setores: setoresInput, usuarioR
           responsavel: resp,
           status: "PENDENTE",
           prioridade,
+          dataLimite: new Date(Date.now() + 48 * 60 * 60 * 1000),
         });
       }
     }
