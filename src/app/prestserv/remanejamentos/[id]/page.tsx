@@ -11,7 +11,7 @@ import {
 } from "@/types/remanejamento-funcionario";
 import TarefaUnicaModal from "@/components/TarefaUnicaModal";
 import ProtectedRoute from "@/components/ProtectedRoute";
-import { ROUTE_PROTECTION } from "@/lib/permissions";
+import { ROUTE_PROTECTION, PERMISSIONS } from "@/lib/permissions";
 import VersionSelector from "@/components/VersionSelector";
 import FlowbiteStatusTimeline from "@/components/FlowbiteStatusTimeline";
 import HistoricoCompleto from "@/components/HistoricoCompleto";
@@ -55,8 +55,18 @@ interface ObservacaoTarefa {
 export default function FuncionarioModernoPage() {
   return (
     <ProtectedRoute
-      requiredEquipe={ROUTE_PROTECTION.PRESTSERV.requiredEquipe}
-      requiredPermissions={ROUTE_PROTECTION.PRESTSERV.requiredPermissions}
+      requiredEquipe={[
+        ...ROUTE_PROTECTION.PRESTSERV.requiredEquipe,
+        "RH",
+        "Treinamento",
+        "Medicina",
+      ]}
+      requiredPermissions={[
+        ...ROUTE_PROTECTION.PRESTSERV.requiredPermissions,
+        PERMISSIONS.ACCESS_RH,
+        PERMISSIONS.ACCESS_TREINAMENTO,
+        PERMISSIONS.ACCESS_MEDICINA,
+      ]}
     >
       <FuncionarioModernoContent />
     </ProtectedRoute>
