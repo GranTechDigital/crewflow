@@ -8,6 +8,10 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
+
+    const { getUserFromRequest } = await import("@/utils/authUtils");
+    const usuarioAutenticado = await getUserFromRequest(request);
+
     // Obter dados do corpo da requisição
     const body = await request.json().catch(() => ({}));
     const { dataVencimento } = body;
@@ -126,7 +130,7 @@ export async function PUT(
           campoAlterado: "status",
           valorAnterior: tarefaAtual.status,
           valorNovo: "CONCLUIDO",
-          usuarioResponsavel: "Sistema",
+          usuarioResponsavel: usuarioAutenticado?.funcionario?.nome || "Sistema",
         },
       });
     } catch (historicoError) {
@@ -135,7 +139,8 @@ export async function PUT(
 
     // Atualizar o status das tarefas do funcionário
     await atualizarStatusTarefasFuncionario(
-      tarefaAtual.remanejamentoFuncionarioId
+      tarefaAtual.remanejamentoFuncionarioId,
+      usuarioAutenticado?.funcionario?.nome || "Sistema"
     );
 
     return NextResponse.json(tarefaAtualizada);
@@ -150,7 +155,8 @@ export async function PUT(
 
 // Função auxiliar para atualizar o status das tarefas do funcionário
 async function atualizarStatusTarefasFuncionario(
-  remanejamentoFuncionarioId: string
+  remanejamentoFuncionarioId: string,
+  usuarioResponsavelNome: string
 ) {
   try {
     // Buscar todas as tarefas do funcionário
@@ -211,7 +217,7 @@ async function atualizarStatusTarefasFuncionario(
           } (via conclusão de tarefa)`,
           campoAlterado: "statusTarefas",
           valorNovo: todasConcluidas ? "SUBMETER RASCUNHO" : "ATENDER TAREFAS",
-          usuarioResponsavel: "Sistema",
+          usuarioResponsavel: usuarioResponsavelNome,
         },
       });
     } catch (historicoError) {

@@ -63,8 +63,6 @@ export async function PUT(
     // Obter o usuário autenticado
     const { getUserFromRequest } = await import("@/utils/authUtils");
     const usuarioAutenticado = await getUserFromRequest(request);
-    console.log("usuarioAutenticado");
-    console.log(usuarioAutenticado);
 
     // Não exigir autenticação para atualização de status
     // Usar 'Sistema' como nome do usuário se não estiver autenticado
@@ -225,7 +223,7 @@ export async function PUT(
             campoAlterado: "status",
             valorAnterior: tarefaAtual.status,
             valorNovo: status,
-            usuarioResponsavel: "Sistema", // Pode ser melhorado para capturar o usuário real
+            usuarioResponsavel: usuarioAutenticado?.funcionario?.nome || "Sistema",
             observacoes: observacoes || undefined,
           },
         });
@@ -274,7 +272,7 @@ export async function PUT(
               valorNovo: dataLimiteNovaIso
                 ? new Date(dataLimiteNovaIso).toLocaleDateString("pt-BR")
                 : "Removida",
-              usuarioResponsavel: "Sistema", // Pode ser melhorado para capturar o usuário real
+              usuarioResponsavel: usuarioAutenticado?.funcionario?.nome || "Sistema",
               observacoes: observacoes || undefined,
             },
           });
@@ -291,7 +289,8 @@ export async function PUT(
     // Atualizar o status das tarefas do funcionário apenas se o status foi alterado
     if (status !== undefined) {
       await atualizarStatusTarefasFuncionario(
-        tarefaAtual.remanejamentoFuncionarioId
+        tarefaAtual.remanejamentoFuncionarioId,
+        usuarioAutenticado?.funcionario?.nome || "Sistema"
       );
     }
 
@@ -312,6 +311,10 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
+
+    // Obter o usuário autenticado
+    const { getUserFromRequest } = await import("@/utils/authUtils");
+    const usuarioAutenticado = await getUserFromRequest(request);
 
     // Buscar a tarefa para obter dados para o histórico
     const tarefa = await prisma.tarefaRemanejamento.findUnique({
@@ -345,7 +348,7 @@ export async function DELETE(
           tipoAcao: "EXCLUSAO",
           entidade: "TAREFA",
           descricaoAcao: `Tarefa "${tarefa.tipo}" excluída para ${tarefa.remanejamentoFuncionario.funcionario.nome} (${tarefa.remanejamentoFuncionario.funcionario.matricula})`,
-          usuarioResponsavel: "Sistema",
+          usuarioResponsavel: usuarioAutenticado?.funcionario?.nome || "Sistema",
         },
       });
     } catch (historicoError) {
@@ -367,7 +370,8 @@ export async function DELETE(
 
 // Função auxiliar para atualizar o status das tarefas do funcionário
 async function atualizarStatusTarefasFuncionario(
-  remanejamentoFuncionarioId: string
+  remanejamentoFuncionarioId: string,
+  usuarioResponsavelNome: string
 ) {
   try {
     // Buscar todas as tarefas do funcionário
@@ -427,7 +431,7 @@ async function atualizarStatusTarefasFuncionario(
           } (via atualização de tarefa individual)`,
           campoAlterado: "statusTarefas",
           valorNovo: todasConcluidas ? "SUBMETER RASCUNHO" : "ATENDER TAREFAS",
-          usuarioResponsavel: "Sistema",
+          usuarioResponsavel: usuarioResponsavelNome,
         },
       });
     } catch (historicoError) {
