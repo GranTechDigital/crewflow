@@ -95,26 +95,27 @@ jobs:
             set -e
             ENV_FILE=/opt/projetogran/.env.staging
             mkdir -p /opt/projetogran
-            [ -f "$ENV_FILE" ] || touch "$ENV_FILE"
-            chmod 600 "$ENV_FILE"
+            [ -f \"$ENV_FILE\" ] || touch \"$ENV_FILE\"
+            chmod 600 \"$ENV_FILE\"
             # Defaults se secrets vazios
-            [ -z "$POSTGRES_PASSWORD_VALUE" ] && POSTGRES_PASSWORD_VALUE=postgres
-            [ -z "$PGADMIN_EMAIL_VALUE" ] && PGADMIN_EMAIL_VALUE=admin@gransystem.com
-            [ -z "$PGADMIN_PASSWORD_VALUE" ] && PGADMIN_PASSWORD_VALUE=admin123
+            [ -z \"$POSTGRES_PASSWORD_VALUE\" ] && POSTGRES_PASSWORD_VALUE=postgres
+            [ -z \"$PGADMIN_EMAIL_VALUE\" ] && PGADMIN_EMAIL_VALUE=admin@gransystem.com
+            [ -z \"$PGADMIN_PASSWORD_VALUE\" ] && PGADMIN_PASSWORD_VALUE=admin123
             ensure_var() {
-              key="$1"; val="$2"
-              if grep -q "^${key}=" "$ENV_FILE"; then
-                sed -i "s/^${key}=.*/${key}=${val}/" "$ENV_FILE"
+              key=\"$1\"; val=\"$2\"
+              if grep -q \"^${key}=\" \"$ENV_FILE\"; then
+                sed -i \"s/^${key}=.*/${key}=${val}/\" \"$ENV_FILE\"
               else
-                echo "${key}=${val}" >> "$ENV_FILE"
+                echo \"${key}=${val}\" >> \"$ENV_FILE\"
               fi
             }
             ensure_var POSTGRES_USER postgres
-            ensure_var POSTGRES_PASSWORD "$POSTGRES_PASSWORD_VALUE"
+            ensure_var POSTGRES_PASSWORD \"$POSTGRES_PASSWORD_VALUE\"
             ensure_var POSTGRES_DB projetogran
-            ensure_var PGADMIN_DEFAULT_EMAIL "$PGADMIN_EMAIL_VALUE"
-            ensure_var PGADMIN_DEFAULT_PASSWORD "$PGADMIN_PASSWORD_VALUE"
-          '"
+            ensure_var PGADMIN_DEFAULT_EMAIL \"$PGADMIN_EMAIL_VALUE\"
+            ensure_var PGADMIN_DEFAULT_PASSWORD \"$PGADMIN_PASSWORD_VALUE\"
+          '
+          "
       - name: 🚀 Deploy to staging
         run: |
           ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
