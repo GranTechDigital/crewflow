@@ -182,21 +182,27 @@ jobs:
             fi
             # Usuário do DB
             DB_USER=$(docker exec postgres-staging bash -lc 'echo -n "${POSTGRES_USER:-postgres}"')
-            # Descobrir senha válida testando candidatos (env do container, secret do Actions, default)
+            # Descobrir senha válida testando candidatos (env do container, Secret do .env.staging no servidor, default)
             CANDIDATE_ENV=$(docker exec postgres-staging bash -lc 'echo -n "${POSTGRES_PASSWORD:-}"')
-            CANDIDATE_SECRET='${{ secrets.POSTGRES_PASSWORD }}'
+            CANDIDATE_SECRET=$(grep -E '^POSTGRES_PASSWORD=' /opt/projetogran/.env.staging | head -n1 | cut -d= -f2- | tr -d '\r')
             CANDIDATE_DEFAULT='postgres'
-            DB_PASS=""
-            for CAND in "$CANDIDATE_ENV" "$CANDIDATE_SECRET" "$CANDIDATE_DEFAULT"; do
+            DB_PASS=""; DB_PASS_SOURCE=""
+            for SRC in env secret default; do
+              case "$SRC" in
+                env) CAND="$CANDIDATE_ENV" ;;
+                secret) CAND="$CANDIDATE_SECRET" ;;
+                default) CAND="$CANDIDATE_DEFAULT" ;;
+              esac
               if [ -n "$CAND" ]; then
                 if docker exec postgres-staging env PGPASSWORD="$CAND" psql -h localhost -U "$DB_USER" -d "$DB_NAME" -tAc "SELECT 1;" >/dev/null 2>&1; then
-                  DB_PASS="$CAND"; break
+                  DB_PASS="$CAND"; DB_PASS_SOURCE="$SRC"; break
                 fi
               fi
             done
             if [ -z "$DB_PASS" ]; then
               echo "❌ Não foi possível validar credenciais do Postgres (todas candidatas falharam)."; exit 1
             fi
+            echo "ℹ️ Senha do Postgres validada (fonte): $DB_PASS_SOURCE"
             # Codificar credenciais para URL (evita quebra com caracteres especiais)
             urlencode() {
               local LANG=C s="$1" i c out=""
