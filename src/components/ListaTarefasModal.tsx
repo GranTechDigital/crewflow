@@ -133,27 +133,27 @@ export default function ListaTarefasModal({
       tarefasFiltradas = tarefasFiltradas.filter((t) => t.prioridade === filtroPrioridade);
     }
 
-    // Filtro por Data Limite (aplica-se apenas a tarefas com status PENDENTE)
+    // Filtro por Data Limite (aplica-se a tarefas não concluídas)
     if (filtroDataLimite) {
       const hoje = new Date();
       hoje.setHours(0, 0, 0, 0);
-      const cincoDiasMs = 5 * 24 * 60 * 60 * 1000;
+      const seteDiasMs = 7 * 24 * 60 * 60 * 1000;
 
       tarefasFiltradas = tarefasFiltradas.filter((t) => {
-        if (t.status !== "PENDENTE") return true; // Apenas PENDENTE é afetado
+        const notConcluida = t.status !== "CONCLUIDO" && t.status !== "CONCLUIDA";
         const dl = t.dataLimite ? new Date(t.dataLimite) : null;
         const dlTime = dl ? dl.getTime() : null;
         const hojeTime = hoje.getTime();
 
         switch (filtroDataLimite) {
           case "VENCIDOS":
-            return dlTime !== null && dlTime < hojeTime;
+            return notConcluida && dlTime !== null && dlTime < hojeTime;
           case "A_VENCER":
-            return dlTime !== null && dlTime >= hojeTime && dlTime < hojeTime + cincoDiasMs;
+            return notConcluida && dlTime !== null && dlTime >= hojeTime && dlTime < hojeTime + seteDiasMs;
           case "NO_PRAZO":
-            return dlTime !== null && dlTime >= hojeTime + cincoDiasMs;
+            return notConcluida && dlTime !== null && dlTime >= hojeTime + seteDiasMs;
           case "SEM_DATA":
-            return dlTime === null;
+            return notConcluida && dlTime === null;
           default:
             return true;
         }

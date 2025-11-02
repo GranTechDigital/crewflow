@@ -415,34 +415,27 @@ const isAdmin = !!usuario?.permissoes?.includes('admin');
               if (filtroDataCategoria) {
                 if (filtroDataCategoria === "NOVO") {
                   const criadoMs = tarefa.dataCriacao ? new Date(tarefa.dataCriacao).getTime() : 0;
-                  matchDataCategoria = !!tarefa.dataCriacao && (Date.now() - criadoMs <= 48 * 60 * 60 * 1000);
+                  const nowMs = Date.now();
+                  matchDataCategoria = !!tarefa.dataCriacao && criadoMs <= nowMs && (nowMs - criadoMs <= 48 * 60 * 60 * 1000);
                 } else {
-                  // Aplica apenas a PENDENTES para categorias de data limite
-                  if (tarefa.status !== "PENDENTE") {
-                    matchDataCategoria = true;
-                  } else {
-                    const hoje = new Date();
-                    hoje.setHours(0, 0, 0, 0);
-                    const dataLimiteDate = tarefa.dataLimite
-                      ? new Date(tarefa.dataLimite)
-                      : null;
+                  const hoje = new Date();
+                  hoje.setHours(0, 0, 0, 0);
+                  const dataLimiteDate = tarefa.dataLimite ? new Date(tarefa.dataLimite) : null;
+                  const notConcluida = tarefa.status !== "CONCLUIDO" && tarefa.status !== "CONCLUIDA";
 
-                    if (filtroDataCategoria === "SEM_DATA") {
-                      matchDataCategoria = !dataLimiteDate;
-                    } else if (!dataLimiteDate) {
-                      matchDataCategoria = false;
-                    } else {
-                      const diffDias = Math.floor(
-                        (dataLimiteDate.getTime() - hoje.getTime()) / 86400000
-                      );
-                      const limiteA_Vencer = 7; // próximos 7 dias
-                      if (filtroDataCategoria === "VENCIDOS") {
-                        matchDataCategoria = dataLimiteDate < hoje;
-                      } else if (filtroDataCategoria === "A_VENCER") {
-                        matchDataCategoria = diffDias >= 0 && diffDias <= limiteA_Vencer;
-                      } else if (filtroDataCategoria === "NO_PRAZO") {
-                        matchDataCategoria = diffDias > limiteA_Vencer;
-                      }
+                  if (filtroDataCategoria === "SEM_DATA") {
+                    matchDataCategoria = notConcluida && !dataLimiteDate;
+                  } else if (!dataLimiteDate) {
+                    matchDataCategoria = false;
+                  } else {
+                    const diffDias = Math.floor((dataLimiteDate.getTime() - hoje.getTime()) / 86400000);
+                    const limiteA_Vencer = 7; // próximos 7 dias
+                    if (filtroDataCategoria === "VENCIDOS") {
+                      matchDataCategoria = notConcluida && dataLimiteDate < hoje;
+                    } else if (filtroDataCategoria === "A_VENCER") {
+                      matchDataCategoria = notConcluida && diffDias >= 0 && diffDias <= limiteA_Vencer;
+                    } else if (filtroDataCategoria === "NO_PRAZO") {
+                      matchDataCategoria = notConcluida && diffDias > limiteA_Vencer;
                     }
                   }
                 }
