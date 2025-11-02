@@ -1,4 +1,4 @@
-name: Deploy CrewFlow to Staging
+name: Deploy to Staging
 
 on:
   push:
@@ -43,8 +43,8 @@ jobs:
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
- 
-       - name: 💾 Backup banco de dados (staging) antes do deploy
+
+      - name: 💾 Backup do banco de dados (staging) antes do deploy
         if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.skip_db_backup != 'true' }}
         run: |
           ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
