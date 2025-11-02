@@ -176,14 +176,27 @@ jobs:
             docker rm crewflow-app-staging 2>/dev/null || true
 
             # Montar DATABASE_URL preferindo o maior DB existente (não-template); fallback para POSTGRES_DB
-            DB_NAME=$(docker exec postgres-staging bash -lc 'export PGPASSWORD="$POSTGRES_PASSWORD"; psql -U "$POSTGRES_USER" -d postgres -tAc "SELECT datname FROM pg_database WHERE datistemplate = false AND datname NOT IN ('\''postgres'\'') ORDER BY pg_database_size(datname) DESC LIMIT 1;" | tr -d "\r\n"')
+            DB_NAME=$(docker exec postgres-staging bash -lc 'export PGPASSWORD="$POSTGRES_PASSWORD"; psql -h localhost -U "$POSTGRES_USER" -d postgres -tAc "SELECT datname FROM pg_database WHERE datistemplate = false AND datname NOT IN ('\''postgres'\'') ORDER BY pg_database_size(datname) DESC LIMIT 1;" | tr -d "\r\n"')
             if [ -z "$DB_NAME" ]; then
-              DB_NAME=$(docker exec postgres-staging bash -lc 'echo -n "$POSTGRES_DB"')
+              DB_NAME=$(docker exec postgres-staging bash -lc 'echo -n "${POSTGRES_DB:-projetogran}"')
             fi
-            DB_USER=$(docker exec postgres-staging bash -lc 'echo -n "$POSTGRES_USER"')
-            DB_PASS=$(docker exec postgres-staging bash -lc 'echo -n "$POSTGRES_PASSWORD"')
-            [ -z "$DB_USER" ] && DB_USER="postgres"
-            [ -z "$DB_PASS" ] && DB_PASS="postgres"
+            # Usuário do DB
+            DB_USER=$(docker exec postgres-staging bash -lc 'echo -n "${POSTGRES_USER:-postgres}"')
+            # Descobrir senha válida testando candidatos (env do container, secret do Actions, default)
+            CANDIDATE_ENV=$(docker exec postgres-staging bash -lc 'echo -n "${POSTGRES_PASSWORD:-}"')
+            CANDIDATE_SECRET='${{ secrets.POSTGRES_PASSWORD }}'
+            CANDIDATE_DEFAULT='postgres'
+            DB_PASS=""
+            for CAND in "$CANDIDATE_ENV" "$CANDIDATE_SECRET" "$CANDIDATE_DEFAULT"; do
+              if [ -n "$CAND" ]; then
+                if docker exec postgres-staging env PGPASSWORD="$CAND" psql -h localhost -U "$DB_USER" -d "$DB_NAME" -tAc "SELECT 1;" >/dev/null 2>&1; then
+                  DB_PASS="$CAND"; break
+                fi
+              fi
+            done
+            if [ -z "$DB_PASS" ]; then
+              echo "❌ Não foi possível validar credenciais do Postgres (todas candidatas falharam)."; exit 1
+            fi
             DATABASE_URL="postgresql://${DB_USER}:${DB_PASS}@postgres-staging:5432/${DB_NAME}?schema=public"
             # Gerar JWT_SECRET e CLEANUP_ADMIN_TOKEN efêmeros
             if command -v openssl >/dev/null 2>&1; then
