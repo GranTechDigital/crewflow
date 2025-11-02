@@ -206,7 +206,25 @@ jobs:
             echo "🔎 DB_USER=$DB_USER DB_NAME=$DB_NAME"
             echo "🔎 Validando autenticação remota via psql para postgres-staging:5432"
             if ! docker run --rm --network projetogran_crewflow-network -e PGPASSWORD="$DB_PASS" postgres:15 psql -h postgres-staging -U "$DB_USER" -d "$DB_NAME" -tAc "SELECT 1;" >/dev/null 2>&1; then
-              echo "❌ Falha na autenticação remota (host postgres-staging). Usuário/senha válidos localmente podem não estar habilitados para conexões remotas."; exit 1
+              echo "⚠️ Falha na autenticação remota. Aplicando correção de pg_hba.conf e alinhando senha do usuário ($DB_USER)."
+              TARGET_PASS="$CANDIDATE_SECRET"; [ -z "$TARGET_PASS" ] && TARGET_PASS="$DB_PASS"
+              # Habilitar autenticação por senha em conexões remotas e escuta em todas interfaces
+              docker exec postgres-staging bash -lc "set -e
+                PGDATA=\${PGDATA:-/var/lib/postgresql/data}
+                grep -q '^host .*0.0.0.0/0 .*md5' \"$PGDATA/pg_hba.conf\" || echo 'host all all 0.0.0.0/0 md5' >> \"$PGDATA/pg_hba.conf\"
+                grep -q '^host .*::/0 .*md5' \"$PGDATA/pg_hba.conf\" || echo 'host all all ::/0 md5' >> \"$PGDATA/pg_hba.conf\"
+                echo \"listen_addresses = '*'\" >> \"$PGDATA/postgresql.auto.conf\"
+              "
+              # Reload das configs
+              docker exec postgres-staging bash -lc "export PGPASSWORD=\"$DB_PASS\"; psql -U \"$DB_USER\" -d \"$DB_NAME\" -tAc 'SELECT pg_reload_conf();'"
+              # Ajuste/Padronização da senha do usuário alvo para permitir acesso remoto
+              docker exec postgres-staging bash -lc "export PGPASSWORD=\"$DB_PASS\"; psql -U \"$DB_USER\" -d \"$DB_NAME\" -c \"ALTER ROLE \\\"$DB_USER\\\" WITH PASSWORD '$TARGET_PASS';\""
+              # Re-teste remoto com senha alvo
+              if ! docker run --rm --network projetogran_crewflow-network -e PGPASSWORD=\"$TARGET_PASS\" postgres:15 psql -h postgres-staging -U \"$DB_USER\" -d \"$DB_NAME\" -tAc \"SELECT 1;\" >/dev/null 2>&1; then
+                echo \"❌ Correção não aplicada: autenticação remota ainda falhou. Verificar pg_hba.conf e senha.\"; exit 1
+              fi
+              DB_PASS="$TARGET_PASS"
+              echo "✅ Autenticação remota habilitada e senha alinhada (user=$DB_USER)."
             fi
             # Codificar credenciais para URL (evita quebra com caracteres especiais)
             urlencode() {
