@@ -30,6 +30,7 @@ yarn-error.log*
 # Excluir envs específicos de dev/staging (não versionar)
 .env.dev
 .env.staging
+.env.production
 
 # Docker local configs with credentials
 docker-compose.local.yml
