@@ -1,4 +1,4 @@
-name: Deploy to Staging
+name: Deploy CrewFlow to Staging
 
 on:
   push:
@@ -60,10 +60,15 @@ jobs:
               DB_NAME=$(docker exec postgres-staging bash -lc 'echo -n "$POSTGRES_DB"')
             fi
             DB_USER=$(docker exec postgres-staging bash -lc 'echo -n "$POSTGRES_USER"')
-            echo "🔎 Validando conexão ao DB '${DB_NAME}'..."
-            docker exec postgres-staging bash -lc "export PGPASSWORD=\"\$POSTGRES_PASSWORD\"; psql -U \"\$POSTGRES_USER\" -d \"$DB_NAME\" -tAc \"SELECT current_database();\"" | grep -q "^${DB_NAME}$" || { echo "❌ Conexão ao DB ${DB_NAME} falhou"; exit 1; }
+            # Obter usuário e senha explicitamente; evitar default para 'root'
+            DB_USER=$(docker exec postgres-staging bash -lc 'echo -n "${POSTGRES_USER:-postgres}"')
+            DB_PASS=$(docker exec postgres-staging bash -lc 'echo -n "${POSTGRES_PASSWORD:-}"')
+            [ -z "$DB_PASS" ] && DB_PASS="${{ secrets.POSTGRES_PASSWORD }}"
+            [ -z "$DB_PASS" ] && DB_PASS="postgres"
+            echo "🔎 Validando conexão ao DB '${DB_NAME}' com usuário '${DB_USER}'..."
+            docker exec postgres-staging env PGPASSWORD="$DB_PASS" psql -h localhost -U "$DB_USER" -d "$DB_NAME" -tAc "SELECT current_database();" | grep -q "^${DB_NAME}$" || { echo "❌ Conexão ao DB ${DB_NAME} falhou"; exit 1; }
             echo "🔎 Realizando pg_dump (custom format) do banco '${DB_NAME}'..."
-            docker exec postgres-staging bash -lc "export PGPASSWORD=\"\$POSTGRES_PASSWORD\"; pg_dump -U \"\$POSTGRES_USER\" -d \"$DB_NAME\" -Fc" > "$FILE"
+            docker exec postgres-staging env PGPASSWORD="$DB_PASS" pg_dump -h localhost -U "$DB_USER" -d "$DB_NAME" -Fc > "$FILE"
             ls -lh "$FILE" || true
             # Guard rail: validar arquivo gerado (não-vazio)
             if [ ! -s "$FILE" ]; then
