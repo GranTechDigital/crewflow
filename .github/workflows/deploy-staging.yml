@@ -197,7 +197,21 @@ jobs:
             if [ -z "$DB_PASS" ]; then
               echo "❌ Não foi possível validar credenciais do Postgres (todas candidatas falharam)."; exit 1
             fi
-            DATABASE_URL="postgresql://${DB_USER}:${DB_PASS}@postgres-staging:5432/${DB_NAME}?schema=public"
+            # Codificar credenciais para URL (evita quebra com caracteres especiais)
+            urlencode() {
+              local LANG=C s="$1" i c out=""
+              for ((i=0; i<${#s}; i++)); do
+                c=${s:i:1}
+                case "$c" in [a-zA-Z0-9.~_-]) out+="$c" ;; *)
+                  printf -v hex '%02X' "'$c" 
+                  out+="%$hex"
+                esac
+              done
+              echo -n "$out"
+            }
+            DB_USER_ENC="$(urlencode "$DB_USER")"
+            DB_PASS_ENC="$(urlencode "$DB_PASS")"
+            DATABASE_URL="postgresql://${DB_USER_ENC}:${DB_PASS_ENC}@postgres-staging:5432/${DB_NAME}?schema=public"
             # Gerar JWT_SECRET e CLEANUP_ADMIN_TOKEN efêmeros
             if command -v openssl >/dev/null 2>&1; then
               JWT_SECRET=$(openssl rand -hex 32)
