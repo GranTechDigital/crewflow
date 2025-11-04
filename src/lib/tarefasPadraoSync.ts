@@ -15,6 +15,7 @@ function chaveTarefa(tipo: string, responsavel: string) {
 export interface SincronizarInput {
   setores?: string[]; // ex.: ["TREINAMENTO"], ["RH"], ["MEDICINA"], ou combinação
   usuarioResponsavel?: string; // nome de quem disparou
+  funcionarioIds?: number[]; // opcional: restringe aos remanejamentos destes funcionários
 }
 
 export interface SincronizarResultadoItem {
@@ -33,7 +34,7 @@ export interface SincronizarResultado {
 }
 
 // Função reutilizável para sincronização de tarefas faltantes em remanejamentos com status "ATENDER TAREFAS"
-export async function sincronizarTarefasPadrao({ setores: setoresInput, usuarioResponsavel }: SincronizarInput): Promise<SincronizarResultado> {
+export async function sincronizarTarefasPadrao({ setores: setoresInput, usuarioResponsavel, funcionarioIds }: SincronizarInput): Promise<SincronizarResultado> {
   const setoresNormalizados: SetorValido[] = [];
   const baseSetores = Array.isArray(setoresInput) && setoresInput.length > 0 ? setoresInput : (SETORES_VALIDOS as unknown as string[]);
   for (const s of baseSetores) {
@@ -50,13 +51,19 @@ export async function sincronizarTarefasPadrao({ setores: setoresInput, usuarioR
     };
   }
 
-  const rems = await prisma.remanejamentoFuncionario.findMany({
-    where: {
-      statusTarefas: { in: ["ATENDER TAREFAS", "SUBMETER RASCUNHO"] },
-      statusPrestserv: {
-        notIn: ["EM_AVALIACAO", "CONCLUIDO", "CANCELADO"],
-      },
+  const whereRemanejamentos: any = {
+    statusTarefas: "ATENDER TAREFAS",
+    statusPrestserv: {
+      notIn: ["EM_AVALIACAO", "CONCLUIDO", "CANCELADO"],
     },
+  };
+
+  if (Array.isArray(funcionarioIds) && funcionarioIds.length > 0) {
+    whereRemanejamentos.funcionarioId = { in: funcionarioIds };
+  }
+
+  const rems = await prisma.remanejamentoFuncionario.findMany({
+    where: whereRemanejamentos,
     include: {
       funcionario: { select: { id: true, nome: true, matricula: true, funcao: true } },
       solicitacao: { select: { id: true, contratoDestinoId: true, prioridade: true } },
@@ -184,7 +191,7 @@ export async function sincronizarTarefasPadrao({ setores: setoresInput, usuarioR
     // Aplicar criações
     let criadasCount = 0;
     if (tarefasParaCriar.length > 0) {
-      const result = await prisma.tarefaRemanejamento.createMany({ data: tarefasParaCriar });
+      const result = await prisma.tarefaRemanejamento.createMany({ data: tarefasParaCriar, skipDuplicates: true });
       criadasCount = result.count;
       totalCriadas += result.count;
 

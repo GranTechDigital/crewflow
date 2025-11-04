@@ -1,6 +1,7 @@
 // src/app/api/funcionarios/sincronizar/route.ts
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { sincronizarTarefasPadrao } from '@/lib/tarefasPadraoSync';
 
 function parseDate(dateStr: string): Date | null {
   const date = new Date(dateStr);
@@ -92,7 +93,7 @@ export async function POST() {
         matricula: String(item.MATRICULA),
         cpf: item.CPF ? String(item.CPF) : null,
         nome: String(item.NOME),
-        funcao: item.FUNCAO ? String(item.FUNCAO) : null,
+        funcao: item.FUNCAO ? String(item.FUNCAO).trim() : null,
         rg: item.RG ? String(item.RG) : null,
         orgaoEmissor: item['ORGÃO_EMISSOR'] ? String(item['ORGÃO_EMISSOR']) : null,
         uf: item.UF ? String(item.UF) : null,
@@ -111,54 +112,69 @@ export async function POST() {
       await prisma.funcionario.createMany({ data: dadosParaInserir });
     }
 
-    // 3) Atualizar funcionários cujo status mudou de "ADMISSÃO PROX.MÊS" para "ATIVO"
-    // e também atualizar status se mudou na API (exceto casos já tratados acima)
+    // 3) Atualizar funcionários cujo status mudou e/ou função mudou
     const paraAtualizar: Array<{
       matricula: string;
       status: string;
       statusPrestserv?: string;
+      funcao?: string | null;
       atualizadoEm: Date;
       excluidoEm?: Date | null;
     }> = [];
+
+    const funcionariosFuncaoAlteradaIds = new Set<number>();
 
     dadosBanco.forEach((func) => {
       const dadosApi = mapApi.get(func.matricula);
       if (!dadosApi) return;
 
-      const statusApi = String(dadosApi.STATUS);
+      const statusApi = String((dadosApi as any).STATUS);
       const statusBanco = func.status;
+      const funcaoApiRaw = (dadosApi as any).FUNCAO ? String((dadosApi as any).FUNCAO) : null;
+      const funcaoApi = funcaoApiRaw ? funcaoApiRaw.trim() : null;
+      const funcaoBancoNorm = (func.funcao || '').trim();
+
+      const isRhudson = (func.nome || '').toLowerCase().includes('rhudson');
+      if (isRhudson) {
+        console.log('[SYNC rhudson] matricula=', func.matricula, 'statusBanco=', statusBanco, 'statusApi=', statusApi, 'funcaoBancoNorm=', funcaoBancoNorm, 'funcaoApi=', funcaoApi);
+      }
 
       // Verificar se o funcionário precisa ter o statusPrestserv atualizado para SEM_CADASTRO
       if (func.statusPrestserv === null || func.statusPrestserv === undefined) {
         paraAtualizar.push({
           matricula: func.matricula,
-          status: func.status || 'ATIVO', // Mantém o status atual ou usa 'ATIVO' se for null
-          statusPrestserv: 'SEM_CADASTRO', // Define o statusPrestserv como SEM_CADASTRO
+          status: func.status || 'ATIVO',
+          statusPrestserv: 'SEM_CADASTRO',
           atualizadoEm: now,
           excluidoEm: null,
         });
-        return; // Continua para o próximo funcionário
+        // não retorna; segue para avaliar mudança de função e status
       }
 
-      // Se status é diferente e não é "DEMITIDO" (que já tratamos)
+      // Mudança de status (exceto DEMITIDO que já foi tratado)
       if (statusBanco !== statusApi && statusApi !== 'DEMITIDO') {
-        // Se mudou de ADMISSÃO PROX.MÊS para ATIVO, atualizar atualizadoEm
         if (statusBanco === 'ADMISSÃO PROX.MÊS' && statusApi === 'ATIVO') {
-          paraAtualizar.push({
-            matricula: func.matricula,
-            status: 'ATIVO',
-            atualizadoEm: now,
-            excluidoEm: null,
-          });
+          paraAtualizar.push({ matricula: func.matricula, status: 'ATIVO', atualizadoEm: now, excluidoEm: null });
         } else {
-          // Qualquer outra mudança de status que não demitido, só atualiza status e atualizadoEm
-          paraAtualizar.push({
-            matricula: func.matricula,
-            status: statusApi,
-            atualizadoEm: now,
-            excluidoEm: null,
-          });
+          paraAtualizar.push({ matricula: func.matricula, status: statusApi, atualizadoEm: now, excluidoEm: null });
         }
+      }
+
+      // Mudança de função (normalizada com trim)
+      if (funcaoApi && funcaoBancoNorm !== funcaoApi) {
+        if (isRhudson) console.log('[SYNC rhudson] função será atualizada para', funcaoApi);
+        paraAtualizar.push({
+          matricula: func.matricula,
+          status: func.status || 'ATIVO',
+          funcao: funcaoApi,
+          atualizadoEm: now,
+          excluidoEm: null,
+        });
+        if (typeof func.id === 'number') {
+          funcionariosFuncaoAlteradaIds.add(func.id);
+        }
+      } else {
+        if (isRhudson) console.log('[SYNC rhudson] função permanece inalterada');
       }
     });
 
@@ -169,10 +185,26 @@ export async function POST() {
         data: {
           status: f.status,
           statusPrestserv: f.statusPrestserv, // Incluir statusPrestserv se estiver definido
+          funcao: f.funcao !== undefined ? f.funcao : undefined,
           atualizadoEm: f.atualizadoEm,
           excluidoEm: f.excluidoEm,
         },
       });
+    }
+    console.log('[SYNC] total atualizações aplicadas:', paraAtualizar.length);
+
+    // Re-sync de treinamentos apenas para funcionários com função alterada e remanejamentos em "ATENDER TAREFAS"
+    if (funcionariosFuncaoAlteradaIds.size > 0) {
+      try {
+        const resultado = await sincronizarTarefasPadrao({
+          setores: ['TREINAMENTO'],
+          usuarioResponsavel: 'Sistema - Sincronização de Função',
+          funcionarioIds: Array.from(funcionariosFuncaoAlteradaIds),
+        });
+        console.log(`Re-sync de TREINAMENTO executado para ${funcionariosFuncaoAlteradaIds.size} funcionário(s):`, resultado.message);
+      } catch (syncError) {
+        console.error('Erro ao re-sincronizar treinamentos após mudança de função:', syncError);
+      }
     }
 
     console.log(`Sincronização de funcionários concluída: ${matriculasParaDemitir.length} demitidos, ${novosFuncionarios.length} adicionados, ${paraAtualizar.length} atualizados`);

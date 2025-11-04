@@ -334,6 +334,7 @@ export async function POST(request: NextRequest) {
 
     const result = await prisma.tarefaRemanejamento.createMany({
       data: tarefasParaCriar,
+      skipDuplicates: true,
     });
 
     // Buscar as tarefas criadas para retornar na resposta
