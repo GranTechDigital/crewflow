@@ -84,7 +84,7 @@ export default function Home() {
   const fetchDados = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/dados');
+      const res = await fetch(`/api/dados?t=${Date.now()}`, { cache: 'no-store' });
       if (!res.ok) throw new Error('Erro ao carregar dados');
       const data = await res.json();
       setDados(data);
@@ -98,7 +98,7 @@ export default function Home() {
 
   const fetchLastSync = async () => {
     try {
-      const res = await fetch('/api/funcionarios/ultima-atualizacao');
+      const res = await fetch('/api/funcionarios/ultima-atualizacao', { cache: 'no-store' });
       if (!res.ok) return;
       const data = await res.json();
       setLastSyncAt(data.lastSyncAt || null);
@@ -109,7 +109,7 @@ export default function Home() {
 
   const fetchDashboard = async () => {
     try {
-      const res = await fetch('/api/prestserv/funcionarios-dashboard');
+      const res = await fetch('/api/prestserv/funcionarios-dashboard', { cache: 'no-store' });
       if (!res.ok) return;
       const data = await res.json();
       setDashboard({
