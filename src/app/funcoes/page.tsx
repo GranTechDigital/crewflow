@@ -83,17 +83,26 @@ export default function FuncoesPage() {
       setLoading(true);
       showToast('Iniciando sincronização...', 'info');
 
-      const response = await fetch('/api/funcoes/sincronizar', {
+      const response = await fetch('/api/dados/sincronizar-funcoes', {
         method: 'POST',
       });
-      const data = await response.json();
 
-      if (data.success) {
-        showToast(`Sincronização concluída: ${data.dados.novasFuncoes} novas funções adicionadas`, 'success');
-        carregarFuncoes();
-      } else {
-        showToast(data.message || 'Erro na sincronização', 'error');
+      let data: any = null;
+      try {
+        data = await response.json();
+      } catch {
+        data = null;
       }
+
+      if (!response.ok) {
+        const msg = data?.error || data?.message || `Erro na sincronização (status ${response.status})`;
+        showToast(msg, 'error');
+        return;
+      }
+
+      const novas = data?.novasFuncoesInseridas ?? data?.dados?.novasFuncoes ?? 0;
+      showToast(`Sincronização concluída: ${novas} novas funções adicionadas`, 'success');
+      carregarFuncoes();
     } catch (error) {
       console.error('Erro na sincronização:', error);
       showToast('Erro na sincronização', 'error');
