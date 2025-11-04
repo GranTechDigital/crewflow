@@ -193,6 +193,7 @@ model TarefaRemanejamento {
 
   @@index([status])
   @@index([responsavel])
+  @@unique([remanejamentoFuncionarioId, tipo, responsavel])
 }
 
 model ObservacaoTarefaRemanejamento {
@@ -407,12 +408,16 @@ model CentroCustoProjeto {
 
 model Funcao {
   id        Int      @id @default(autoincrement())
-  funcao    String   @unique
-  regime    String?
+  funcao    String
+  regime    String
+  funcao_slug String
   ativo     Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   matrizTreinamento MatrizTreinamento[]
+
+  @@unique([funcao, regime])
+  @@unique([funcao_slug, regime])
 
   @@index([funcao])
   @@index([regime])

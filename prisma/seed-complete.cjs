@@ -3,6 +3,16 @@ const bcrypt = require("bcryptjs");
 const fs = require("fs");
 const path = require("path");
 
+function normalizeRegime(regime) {
+  const r = String(regime || "ONSHORE").toUpperCase();
+  return r.includes("OFFSHORE") ? "OFFSHORE" : "ONSHORE";
+}
+
+function formatFuncaoNome(funcao, regime) {
+  const r = normalizeRegime(regime);
+  return `${funcao} (${r})`;
+}
+
 // Função para carregar dados dos arquivos JSON organizados
 function loadSeedData() {
   const seedsDir = path.join(__dirname, "..", "seeds", "data");
@@ -275,17 +285,23 @@ async function main() {
   console.log("\nCriando funções...");
   let funcoesCriadas = 0;
   for (const funcaoData of dadosOrganizados.funcoes) {
+    const nome = String(funcaoData.funcao).trim();
+    const regimeNormalizado = normalizeRegime(funcaoData.regime);
+    const funcaoSlug = toSlug(nome);
+
     const existing = await prisma.funcao.findFirst({
       where: {
-        funcao: funcaoData.funcao,
+        funcao_slug: funcaoSlug,
+        regime: regimeNormalizado,
       },
     });
 
     if (!existing) {
       await prisma.funcao.create({
         data: {
-          funcao: funcaoData.funcao,
-          regime: funcaoData.regime,
+          funcao: nome,
+          regime: regimeNormalizado,
+          funcao_slug: funcaoSlug,
           ativo: true,
         },
       });
@@ -354,3 +370,14 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
+
+function toSlug(input) {
+  return String(input || '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-');
+}
