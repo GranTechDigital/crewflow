@@ -188,3 +188,30 @@ Não use scripts de limpeza pela aplicação; execute operações destrutivas ap
 ### 🛡️ Guard Rails de Deploy e Backup
 - Backups obrigatórios e verificados: staging e produção realizam `pg_dump -Fc` com checagens de container, conexão ao DB e tamanho do arquivo (>0 bytes) antes do deploy.
 - Sem segredos hardcoded em compose/workflows; uso de Secrets e `.env` no servidor.
+
+### 🔧 Notas de Migração — Funções (Nov/2025)
+- Campo `funcao_slug` agora obrigatório em `Funcao` com unicidade reforçada por `@@unique([funcao_slug, regime])` (mantida também `@@unique([funcao, regime])`).
+- Migrações versionadas criadas e aplicadas:
+  - `prisma/migrations/20251104120000_add_funcao_slug_nullable` — adiciona coluna `funcao_slug` como opcional e cria índice único `[funcao, regime]` se não existir.
+  - `prisma/migrations/20251104121500_make_funcao_slug_not_null_and_unique` — torna `funcao_slug` `NOT NULL` e cria índice único `[funcao_slug, regime]`.
+- Aplicação não interativa das migrações (dev/staging/prod):
+```
+docker exec <container_app> npx prisma migrate deploy
+```
+- Backfill (quando necessário) antes de tornar `NOT NULL`:
+```
+docker exec <container_app> node scripts/backfill-funcao-slug.cjs
+```
+- Observações:
+  - Se existirem duplicatas em `[funcao_slug, regime]`, a migração 2 falha; revise dados antes.
+  - Evitamos `reset` de banco; dados preservados.
+  - Em ambientes com histórico divergente, utilize `migrate diff` com shadow DB para auditar antes de aplicar.
+
+### 🔄 Sincronização Manual
+- Funcionários:
+  - Na página `Funcionários`, use o botão `Sincronizar`. Ele dispara `POST /api/funcionarios/sincronizar` com retry/backoff e timeout, atualizando a lista e o dashboard.
+  - Alternativa via terminal (ambiente local): `curl -X POST http://localhost:3000/api/funcionarios/sincronizar`.
+- Funções:
+  - Endpoint oficial: `POST /api/dados/sincronizar-funcoes` (rota pública conforme `middleware.ts`). Deduplica por `[funcao_slug, regime]` e `[funcao, regime]`.
+  - Alternativa via terminal (ambiente local): `curl -X POST http://localhost:3000/api/dados/sincronizar-funcoes`.
+  - UI: a página `Funções` possui ação de sincronização; se não funcionar, ajuste o endpoint para `/api/dados/sincronizar-funcoes`.
