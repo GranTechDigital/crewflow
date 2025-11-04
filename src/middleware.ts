@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server'
 import { jwtVerify } from 'jose'
 
 const publicRoutes = ['/login', '/unauthorized', '/api/auth/login']
-const publicApiRoutes = ['/api/auth/login', '/api/auth/register', '/api/periodo/upload', '/api/periodo/dashboard-projetos-simples', '/api/dados/sincronizar-funcoes', '/api/debug/db']
+const publicApiRoutes = ['/api/auth/login', '/api/auth/register', '/api/periodo/upload', '/api/periodo/dashboard-projetos-simples', '/api/dados/sincronizar-funcoes', '/api/debug/db', '/api/tarefas/dedup']
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
@@ -51,6 +51,12 @@ export async function middleware(request: NextRequest) {
   const serviceToken = process.env.FUNCIONARIOS_SYNC_SERVICE_TOKEN
   const authHeader = request.headers.get('authorization') || ''
   if (pathname.startsWith('/api/funcionarios/sincronizar') && serviceToken && authHeader === `Bearer ${serviceToken}`) {
+    return NextResponse.next()
+  }
+
+  // Permitir manutenção (deduplicação de tarefas) via token de serviço
+  const manutencaoToken = process.env.MANTENCAO_SERVICE_TOKEN
+  if (pathname.startsWith('/api/tarefas/dedup') && manutencaoToken && authHeader === `Bearer ${manutencaoToken}`) {
     return NextResponse.next()
   }
 
