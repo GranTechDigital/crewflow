@@ -15,8 +15,6 @@ function chaveTarefa(tipo: string, responsavel: string) {
 export interface SincronizarInput {
   setores?: string[]; // ex.: ["TREINAMENTO"], ["RH"], ["MEDICINA"], ou combinação
   usuarioResponsavel?: string; // nome de quem disparou
-  funcionarioIds?: number[]; // opcional: restringe aos remanejamentos destes funcionários
-  remanejamentoIds?: string[]; // opcional: restringe pelos IDs de remanejamentoFuncionario
 }
 
 export interface SincronizarResultadoItem {
@@ -35,16 +33,9 @@ export interface SincronizarResultado {
 }
 
 // Função reutilizável para sincronização de tarefas faltantes em remanejamentos com status "ATENDER TAREFAS"
-export async function sincronizarTarefasPadrao({
-  setores: setoresInput,
-  usuarioResponsavel,
-  funcionarioIds,
-}: SincronizarInput): Promise<SincronizarResultado> {
+export async function sincronizarTarefasPadrao({ setores: setoresInput, usuarioResponsavel }: SincronizarInput): Promise<SincronizarResultado> {
   const setoresNormalizados: SetorValido[] = [];
-  const baseSetores =
-    Array.isArray(setoresInput) && setoresInput.length > 0
-      ? setoresInput
-      : (SETORES_VALIDOS as unknown as string[]);
+  const baseSetores = Array.isArray(setoresInput) && setoresInput.length > 0 ? setoresInput : (SETORES_VALIDOS as unknown as string[]);
   for (const s of baseSetores) {
     const n = normalizarSetor(s);
     if (n) setoresNormalizados.push(n);
@@ -52,39 +43,23 @@ export async function sincronizarTarefasPadrao({
 
   if (setoresNormalizados.length === 0) {
     return {
-      message: `Nenhum setor válido informado. Válidos: ${SETORES_VALIDOS.join(
-        ", "
-      )}`,
+      message: `Nenhum setor válido informado. Válidos: ${SETORES_VALIDOS.join(", ")}`,
       totalRemanejamentos: 0,
       totalTarefasCriadas: 0,
       detalhes: [],
     };
   }
 
-  const whereRemanejamentos: any = {
-    statusTarefas: { in: ["ATENDER TAREFAS", "SUBMETER RASCUNHO"] },
-    statusPrestserv: {
-      notIn: ["EM_AVALIACAO", "CONCLUIDO", "CANCELADO"],
-    },
-  };
-
-  if (Array.isArray(funcionarioIds) && funcionarioIds.length > 0) {
-    whereRemanejamentos.funcionarioId = { in: funcionarioIds };
-  }
-
-  if (Array.isArray(remanejamentoIds) && remanejamentoIds.length > 0) {
-    whereRemanejamentos.id = { in: remanejamentoIds };
-  }
-
   const rems = await prisma.remanejamentoFuncionario.findMany({
-    where: whereRemanejamentos,
+    where: {
+      statusTarefas: "ATENDER TAREFAS",
+      statusPrestserv: {
+        notIn: ["EM_AVALIACAO", "CONCLUIDO", "CANCELADO"],
+      },
+    },
     include: {
-      funcionario: {
-        select: { id: true, nome: true, matricula: true, funcao: true },
-      },
-      solicitacao: {
-        select: { id: true, contratoDestinoId: true, prioridade: true },
-      },
+      funcionario: { select: { id: true, nome: true, matricula: true, funcao: true } },
+      solicitacao: { select: { id: true, contratoDestinoId: true, prioridade: true } },
       tarefas: true,
     },
     orderBy: { createdAt: "desc" },
@@ -104,15 +79,9 @@ export async function sincronizarTarefasPadrao({
   const detalhes: SincronizarResultadoItem[] = [];
 
   for (const rem of rems) {
-    const existentes = new Set<string>(
-      rem.tarefas.map((t) => chaveTarefa(t.tipo, t.responsavel))
-    );
+    const existentes = new Set<string>(rem.tarefas.map((t) => chaveTarefa(t.tipo, t.responsavel)));
     const tarefasParaCriar: any[] = [];
-    let tarefasParaCancelar: {
-      id: string;
-      statusAnterior: string;
-      responsavel: SetorValido;
-    }[] = [];
+    let tarefasParaCancelar: { id: string; statusAnterior: string; responsavel: SetorValido }[] = [];
 
     // TREINAMENTO via matriz
     if (setoresNormalizados.includes("TREINAMENTO")) {
@@ -120,27 +89,18 @@ export async function sincronizarTarefasPadrao({
       const funcaoNome = rem.funcionario?.funcao || undefined;
 
       if (contratoId && funcaoNome) {
-        const funcao = await prisma.funcao.findFirst({
-          where: { funcao: funcaoNome },
-        });
+        const funcao = await prisma.funcao.findFirst({ where: { funcao: funcaoNome } });
         if (funcao) {
           // Buscar somente treinamentos obrigatórios ativos para criação
           const matrizObrigatoria = await prisma.matrizTreinamento.findMany({
-            where: {
-              contratoId,
-              funcaoId: funcao.id,
-              ativo: true,
-              tipoObrigatoriedade: "AP",
-            },
+            where: { contratoId, funcaoId: funcao.id, ativo: true, tipoObrigatoriedade: "AP" },
             include: { treinamento: true, contrato: true },
           });
 
           // Set de treinamentos mandatórios (chaves) para comparação
           const mandatariosSet = new Set<string>(
             matrizObrigatoria
-              .map((m) =>
-                chaveTarefa(m.treinamento?.treinamento || "", "TREINAMENTO")
-              )
+              .map((m) => chaveTarefa(m.treinamento?.treinamento || "", "TREINAMENTO"))
               .filter((k) => !!k.trim())
           );
 
@@ -153,22 +113,10 @@ export async function sincronizarTarefasPadrao({
 
             const prioridade = (() => {
               const v = (rem.solicitacao?.prioridade || "media").toLowerCase();
-              if (v === "baixa") return "BAIXA";
-              if (v === "media") return "MEDIA";
-              if (v === "alta") return "ALTA";
-              if (v === "urgente") return "URGENTE";
-              return "MEDIA";
+              if (v === "baixa") return "BAIXA"; if (v === "media") return "MEDIA"; if (v === "alta") return "ALTA"; if (v === "urgente") return "URGENTE"; return "MEDIA";
             })();
 
-            const descricao = `Treinamento: ${
-              m.treinamento?.treinamento
-            }\nCarga Horária: ${
-              m.treinamento?.cargaHoraria ?? "N/A"
-            }\nValidade: ${m.treinamento?.validadeValor ?? "N/A"} ${
-              m.treinamento?.validadeUnidade ?? ""
-            }\nTipo: ${m.tipoObrigatoriedade}\nContrato: ${
-              m.contrato?.nome ?? "N/A"
-            }`;
+            const descricao = `Treinamento: ${m.treinamento?.treinamento}\nCarga Horária: ${m.treinamento?.cargaHoraria ?? "N/A"}\nValidade: ${m.treinamento?.validadeValor ?? "N/A"} ${m.treinamento?.validadeUnidade ?? ""}\nTipo: ${m.tipoObrigatoriedade}\nContrato: ${m.contrato?.nome ?? "N/A"}`;
 
             tarefasParaCriar.push({
               remanejamentoFuncionarioId: rem.id,
@@ -182,20 +130,13 @@ export async function sincronizarTarefasPadrao({
           }
 
           // Remover (cancelar) tarefas de treinamento que não são mais obrigatórias
-          const tarefasTreinamentoExistentes = rem.tarefas.filter(
-            (t) => t.responsavel === "TREINAMENTO"
-          );
+          const tarefasTreinamentoExistentes = rem.tarefas.filter((t) => t.responsavel === "TREINAMENTO");
           for (const t of tarefasTreinamentoExistentes) {
             const chave = chaveTarefa(t.tipo, t.responsavel);
             const deveManter = mandatariosSet.has(chave);
-            const podeCancelar =
-              t.status !== "CANCELADO" && t.status !== "CONCLUIDO"; // preservar conclusões
+            const podeCancelar = t.status !== "CANCELADO" && t.status !== "CONCLUIDO"; // preservar conclusões
             if (!deveManter && podeCancelar) {
-              tarefasParaCancelar.push({
-                id: t.id,
-                statusAnterior: t.status,
-                responsavel: "TREINAMENTO",
-              });
+              tarefasParaCancelar.push({ id: t.id, statusAnterior: t.status, responsavel: "TREINAMENTO" });
             }
           }
         }
@@ -205,10 +146,7 @@ export async function sincronizarTarefasPadrao({
     // RH e MEDICINA via tarefas padrão (criação faltantes e cancelamento retroativo)
     for (const setor of setoresNormalizados) {
       if (setor === "TREINAMENTO") continue;
-      const tarefasPadrao = await prisma.tarefaPadrao.findMany({
-        where: { setor, ativo: true },
-        select: { tipo: true, descricao: true },
-      });
+      const tarefasPadrao = await prisma.tarefaPadrao.findMany({ where: { setor, ativo: true }, select: { tipo: true, descricao: true } });
 
       // Criar faltantes
       for (const t of tarefasPadrao) {
@@ -217,11 +155,7 @@ export async function sincronizarTarefasPadrao({
         if (existentes.has(chaveTarefa(tipo, resp))) continue;
         const prioridade = (() => {
           const v = (rem.solicitacao?.prioridade || "media").toLowerCase();
-          if (v === "baixa") return "BAIXA";
-          if (v === "media") return "MEDIA";
-          if (v === "alta") return "ALTA";
-          if (v === "urgente") return "URGENTE";
-          return "MEDIA";
+          if (v === "baixa") return "BAIXA"; if (v === "media") return "MEDIA"; if (v === "alta") return "ALTA"; if (v === "urgente") return "URGENTE"; return "MEDIA";
         })();
         tarefasParaCriar.push({
           remanejamentoFuncionarioId: rem.id,
@@ -235,23 +169,14 @@ export async function sincronizarTarefasPadrao({
       }
 
       // Cancelar tarefas do setor que não constam mais nas tarefas padrão ativas
-      const mandatariosPadraoSet = new Set<string>(
-        tarefasPadrao.map((tp) => chaveTarefa(tp.tipo, setor))
-      );
-      const tarefasSetorExistentes = rem.tarefas.filter(
-        (t) => t.responsavel === setor
-      );
+      const mandatariosPadraoSet = new Set<string>(tarefasPadrao.map((tp) => chaveTarefa(tp.tipo, setor)));
+      const tarefasSetorExistentes = rem.tarefas.filter((t) => t.responsavel === setor);
       for (const t of tarefasSetorExistentes) {
         const chave = chaveTarefa(t.tipo, t.responsavel);
         const deveManter = mandatariosPadraoSet.has(chave);
-        const podeCancelar =
-          t.status !== "CANCELADO" && t.status !== "CONCLUIDO";
+        const podeCancelar = t.status !== "CANCELADO" && t.status !== "CONCLUIDO";
         if (!deveManter && podeCancelar) {
-          tarefasParaCancelar.push({
-            id: t.id,
-            statusAnterior: t.status,
-            responsavel: setor,
-          });
+          tarefasParaCancelar.push({ id: t.id, statusAnterior: t.status, responsavel: setor });
         }
       }
     }
@@ -259,10 +184,7 @@ export async function sincronizarTarefasPadrao({
     // Aplicar criações
     let criadasCount = 0;
     if (tarefasParaCriar.length > 0) {
-      const result = await prisma.tarefaRemanejamento.createMany({
-        data: tarefasParaCriar,
-        skipDuplicates: true,
-      });
+      const result = await prisma.tarefaRemanejamento.createMany({ data: tarefasParaCriar });
       criadasCount = result.count;
       totalCriadas += result.count;
 
@@ -273,13 +195,7 @@ export async function sincronizarTarefasPadrao({
             remanejamentoFuncionarioId: rem.id,
             tipoAcao: "CRIACAO",
             entidade: "TAREFA",
-            descricaoAcao: `${
-              result.count
-            } novas tarefas sincronizadas a partir de matriz/pareceres para ${
-              rem.funcionario?.nome
-            } (${
-              rem.funcionario?.matricula
-            }) - Setores: ${setoresNormalizados.join(", ")}`,
+            descricaoAcao: `${result.count} novas tarefas sincronizadas a partir de matriz/pareceres para ${rem.funcionario?.nome} (${rem.funcionario?.matricula}) - Setores: ${setoresNormalizados.join(", ")}`,
             usuarioResponsavel: usuarioResponsavel || "Sistema",
           },
         });
@@ -303,19 +219,15 @@ export async function sincronizarTarefasPadrao({
             await prisma.observacaoTarefaRemanejamento.create({
               data: {
                 tarefaId: tc.id,
-                texto:
-                  tc.responsavel === "TREINAMENTO"
-                    ? "Cancelada automaticamente: treinamento marcado como não obrigatório na matriz"
-                    : "Cancelada automaticamente: tarefa padrão desativada/removida",
+                texto: tc.responsavel === "TREINAMENTO"
+                  ? "Cancelada automaticamente: treinamento marcado como não obrigatório na matriz"
+                  : "Cancelada automaticamente: tarefa padrão desativada/removida",
                 criadoPor: usuarioResponsavel || "Sistema",
                 modificadoPor: usuarioResponsavel || "Sistema",
               },
             });
           } catch (obsErr) {
-            console.error(
-              "Erro ao registrar observação de cancelamento:",
-              obsErr
-            );
+            console.error("Erro ao registrar observação de cancelamento:", obsErr);
           }
 
           // Histórico (mensagem contextual por setor)
@@ -338,10 +250,7 @@ export async function sincronizarTarefasPadrao({
               },
             });
           } catch (histErr) {
-            console.error(
-              "Erro ao registrar histórico de cancelamento:",
-              histErr
-            );
+            console.error("Erro ao registrar histórico de cancelamento:", histErr);
           }
 
           canceladasCount += 1;
@@ -352,12 +261,7 @@ export async function sincronizarTarefasPadrao({
       }
     }
 
-    detalhes.push({
-      remanejamentoId: rem.id,
-      tarefasCriadas: criadasCount,
-      tarefasCanceladas: canceladasCount,
-      setores: setoresNormalizados,
-    });
+    detalhes.push({ remanejamentoId: rem.id, tarefasCriadas: criadasCount, tarefasCanceladas: canceladasCount, setores: setoresNormalizados });
   }
 
   return {

@@ -22,12 +22,10 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
     const setoresInput: string[] = Array.isArray(body?.setores) ? body.setores : [];
-    const remanejamentoIds: string[] = Array.isArray(body?.remanejamentoIds) ? body.remanejamentoIds : [];
 
     const resultado = await sincronizarTarefasPadrao({
       setores: setoresInput,
       usuarioResponsavel: usuarioAutenticado?.funcionario?.nome || "Sistema",
-      remanejamentoIds,
     });
 
     return NextResponse.json(resultado);
