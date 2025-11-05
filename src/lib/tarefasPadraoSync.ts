@@ -39,7 +39,6 @@ export async function sincronizarTarefasPadrao({
   setores: setoresInput,
   usuarioResponsavel,
   funcionarioIds,
-  remanejamentoIds,
 }: SincronizarInput): Promise<SincronizarResultado> {
   const setoresNormalizados: SetorValido[] = [];
   const baseSetores =
