@@ -52,7 +52,7 @@ export async function sincronizarTarefasPadrao({ setores: setoresInput, usuarioR
 
   const rems = await prisma.remanejamentoFuncionario.findMany({
     where: {
-      statusTarefas: "ATENDER TAREFAS",
+      statusTarefas: { in: ["ATENDER TAREFAS", "SUBMETER RASCUNHO"] },
       statusPrestserv: {
         notIn: ["EM_AVALIACAO", "CONCLUIDO", "CANCELADO"],
       },
