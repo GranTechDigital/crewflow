@@ -59,16 +59,26 @@ export default function ListaTarefasModal({
   const [tarefaReprovada, setTarefaReprovada] = useState<boolean>(false); // Rastrear se alguma tarefa foi reprovada
 
   // Filtros adicionais e ordenação
-  const [filtroDataLimite, setFiltroDataLimite] = useState<"" | "VENCIDOS" | "A_VENCER" | "NO_PRAZO" | "SEM_DATA">("");
+  const [filtroDataLimite, setFiltroDataLimite] = useState<
+    "" | "VENCIDOS" | "A_VENCER" | "NO_PRAZO" | "SEM_DATA"
+  >("");
   const [filtroStatus, setFiltroStatus] = useState<string>("");
   const [filtroPrioridade, setFiltroPrioridade] = useState<string>("");
   const [filtroTipo, setFiltroTipo] = useState<string>("");
-  const [ordenacaoDataLimite, setOrdenacaoDataLimite] = useState<"" | "asc" | "desc">("");
+  const [ordenacaoDataLimite, setOrdenacaoDataLimite] = useState<
+    "" | "asc" | "desc"
+  >("");
 
   // Valores disponíveis para selects dinâmicos
-  const tiposDisponiveis = Array.from(new Set(tarefas.map((t) => t.tipo))).sort();
-  const prioridadesDisponiveis = Array.from(new Set(tarefas.map((t) => t.prioridade))).sort();
-  const statusDisponiveis = Array.from(new Set(tarefas.map((t) => t.status))).sort();
+  const tiposDisponiveis = Array.from(
+    new Set(tarefas.map((t) => t.tipo))
+  ).sort();
+  const prioridadesDisponiveis = Array.from(
+    new Set(tarefas.map((t) => t.prioridade))
+  ).sort();
+  const statusDisponiveis = Array.from(
+    new Set(tarefas.map((t) => t.status))
+  ).sort();
 
   useEffect(() => {
     if (isOpen && funcionario) {
@@ -120,7 +130,9 @@ export default function ListaTarefasModal({
 
     // Filtro por Status
     if (filtroStatus) {
-      tarefasFiltradas = tarefasFiltradas.filter((t) => t.status === filtroStatus);
+      tarefasFiltradas = tarefasFiltradas.filter(
+        (t) => t.status === filtroStatus
+      );
     }
 
     // Filtro por Tipo
@@ -130,7 +142,9 @@ export default function ListaTarefasModal({
 
     // Filtro por Prioridade
     if (filtroPrioridade) {
-      tarefasFiltradas = tarefasFiltradas.filter((t) => t.prioridade === filtroPrioridade);
+      tarefasFiltradas = tarefasFiltradas.filter(
+        (t) => t.prioridade === filtroPrioridade
+      );
     }
 
     // Filtro por Data Limite (aplica-se a tarefas não concluídas)
@@ -140,7 +154,8 @@ export default function ListaTarefasModal({
       const seteDiasMs = 7 * 24 * 60 * 60 * 1000;
 
       tarefasFiltradas = tarefasFiltradas.filter((t) => {
-        const notConcluida = t.status !== "CONCLUIDO" && t.status !== "CONCLUIDA";
+        const notConcluida =
+          t.status !== "CONCLUIDO" && t.status !== "CONCLUIDA";
         const dl = t.dataLimite ? new Date(t.dataLimite) : null;
         const dlTime = dl ? dl.getTime() : null;
         const hojeTime = hoje.getTime();
@@ -149,9 +164,16 @@ export default function ListaTarefasModal({
           case "VENCIDOS":
             return notConcluida && dlTime !== null && dlTime < hojeTime;
           case "A_VENCER":
-            return notConcluida && dlTime !== null && dlTime >= hojeTime && dlTime < hojeTime + seteDiasMs;
+            return (
+              notConcluida &&
+              dlTime !== null &&
+              dlTime >= hojeTime &&
+              dlTime < hojeTime + seteDiasMs
+            );
           case "NO_PRAZO":
-            return notConcluida && dlTime !== null && dlTime >= hojeTime + seteDiasMs;
+            return (
+              notConcluida && dlTime !== null && dlTime >= hojeTime + seteDiasMs
+            );
           case "SEM_DATA":
             return notConcluida && dlTime === null;
           default:
@@ -163,8 +185,16 @@ export default function ListaTarefasModal({
     // Ordenação por Data Limite
     if (ordenacaoDataLimite) {
       tarefasFiltradas.sort((a, b) => {
-        const aVal = a.dataLimite ? new Date(a.dataLimite).getTime() : (ordenacaoDataLimite === "asc" ? Infinity : -Infinity);
-        const bVal = b.dataLimite ? new Date(b.dataLimite).getTime() : (ordenacaoDataLimite === "asc" ? Infinity : -Infinity);
+        const aVal = a.dataLimite
+          ? new Date(a.dataLimite).getTime()
+          : ordenacaoDataLimite === "asc"
+          ? Infinity
+          : -Infinity;
+        const bVal = b.dataLimite
+          ? new Date(b.dataLimite).getTime()
+          : ordenacaoDataLimite === "asc"
+          ? Infinity
+          : -Infinity;
         return ordenacaoDataLimite === "asc" ? aVal - bVal : bVal - aVal;
       });
     }
@@ -173,9 +203,10 @@ export default function ListaTarefasModal({
   };
 
   const toggleOrdenacaoDataLimite = () => {
-    setOrdenacaoDataLimite((prev) => (prev === "asc" ? "desc" : prev === "desc" ? "" : "asc"));
+    setOrdenacaoDataLimite((prev) =>
+      prev === "asc" ? "desc" : prev === "desc" ? "" : "asc"
+    );
   };
-
 
   // Adicionar evento para fechar o campo de justificativa quando clicar fora dele
   useEffect(() => {
@@ -294,7 +325,6 @@ export default function ListaTarefasModal({
       return;
     }
 
-    
     try {
       setReprovarLoading(true);
       setReprovarLoadingId(tarefaId);
@@ -394,10 +424,10 @@ export default function ListaTarefasModal({
     if (tarefaReprovada && onTarefaReprovada) {
       onTarefaReprovada();
     }
-    
+
     // Resetar o estado de tarefa reprovada
     setTarefaReprovada(false);
-    
+
     // Fechar o modal
     onClose();
   };
@@ -488,7 +518,9 @@ export default function ListaTarefasModal({
             >
               <option value="">Status (todos)</option>
               {statusDisponiveis.map((s) => (
-                <option key={s} value={s}>{s}</option>
+                <option key={s} value={s}>
+                  {s}
+                </option>
               ))}
             </select>
           </div>
@@ -500,7 +532,9 @@ export default function ListaTarefasModal({
             >
               <option value="">Prioridade (todas)</option>
               {prioridadesDisponiveis.map((p) => (
-                <option key={p} value={p}>{p}</option>
+                <option key={p} value={p}>
+                  {p}
+                </option>
               ))}
             </select>
           </div>
@@ -512,7 +546,9 @@ export default function ListaTarefasModal({
             >
               <option value="">Tipo (todos)</option>
               {tiposDisponiveis.map((t) => (
-                <option key={t} value={t}>{t}</option>
+                <option key={t} value={t}>
+                  {t}
+                </option>
               ))}
             </select>
           </div>
@@ -535,9 +571,16 @@ export default function ListaTarefasModal({
                     Descrição
                   </th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    <button onClick={toggleOrdenacaoDataLimite} className="flex items-center gap-1 text-gray-700">
+                    <button
+                      onClick={toggleOrdenacaoDataLimite}
+                      className="flex items-center gap-1 text-gray-700"
+                    >
                       Data Limite
-                      {ordenacaoDataLimite === "asc" ? "▲" : ordenacaoDataLimite === "desc" ? "▼" : ""}
+                      {ordenacaoDataLimite === "asc"
+                        ? "▲"
+                        : ordenacaoDataLimite === "desc"
+                        ? "▼"
+                        : ""}
                     </button>
                   </th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -574,22 +617,23 @@ export default function ListaTarefasModal({
                     </td>
                     <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500">
                       {tarefa.status === "CONCLUIDO" &&
-                       statusPrestserv &&
-                       (statusPrestserv === "CRIADO" || statusPrestserv === "INVALIDADO") && (
-                        <button
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            handleReprovarClick(tarefa.id);
-                          }}
-                          className="px-3 py-1 bg-red-600 text-white rounded-md hover:bg-red-700 mr-2 disabled:opacity-50"
-                          disabled={reprovarLoadingId === tarefa.id}
-                        >
-                          {reprovarLoadingId === tarefa.id
-                            ? "Processando..."
-                            : "Reprovar"}
-                        </button>
-                      )}
+                        statusPrestserv &&
+                        (statusPrestserv === "CRIADO" ||
+                          statusPrestserv === "INVALIDADO") && (
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleReprovarClick(tarefa.id);
+                            }}
+                            className="px-3 py-1 bg-red-600 text-white rounded-md hover:bg-red-700 mr-2 disabled:opacity-50"
+                            disabled={reprovarLoadingId === tarefa.id}
+                          >
+                            {reprovarLoadingId === tarefa.id
+                              ? "Processando..."
+                              : "Reprovar"}
+                          </button>
+                        )}
                     </td>
                   </tr>
                 ))}
@@ -597,7 +641,9 @@ export default function ListaTarefasModal({
             </table>
           </div>
         ) : (
-          <div className="text-center py-8 text-gray-500">Nenhuma tarefa encontrada.</div>
+          <div className="text-center py-8 text-gray-500">
+            Nenhuma tarefa encontrada.
+          </div>
         )}
 
         {/* Modal de Justificativa (fora da tabela) */}
