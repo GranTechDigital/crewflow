@@ -6,7 +6,9 @@ function chaveTarefa(tipo, responsavel) {
 }
 
 async function dedupPorFuncionarios(nomes, usuarioResponsavel = "Sistema") {
-  const whereOr = nomes.map((n) => ({ nome: { contains: n, mode: 'insensitive' } }));
+  const whereOr = nomes.map((n) => ({
+    nome: { contains: n, mode: "insensitive" },
+  }));
   const funcionarios = await prisma.funcionario.findMany({
     where: { OR: whereOr },
     select: { id: true, nome: true, matricula: true },
@@ -31,12 +33,23 @@ async function dedupPorFuncionarios(nomes, usuarioResponsavel = "Sistema") {
       }
       for (const [key, arr] of grupos.entries()) {
         if (arr.length <= 1) continue;
-        const ativos = arr.filter((t) => t.status !== "CANCELADO" && t.status !== "CONCLUIDO" && t.status !== "CONCLUIDA");
+        const ativos = arr.filter(
+          (t) =>
+            t.status !== "CANCELADO" &&
+            t.status !== "CONCLUIDO" &&
+            t.status !== "CONCLUIDA"
+        );
         if (ativos.length === 0) continue;
-        ativos.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+        ativos.sort(
+          (a, b) =>
+            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        );
         const cancelar = ativos.slice(1);
         for (const t of cancelar) {
-          await prisma.tarefaRemanejamento.update({ where: { id: t.id }, data: { status: "CANCELADO" } });
+          await prisma.tarefaRemanejamento.update({
+            where: { id: t.id },
+            data: { status: "CANCELADO" },
+          });
           try {
             await prisma.observacaoTarefaRemanejamento.create({
               data: {
@@ -73,7 +86,10 @@ async function dedupPorFuncionarios(nomes, usuarioResponsavel = "Sistema") {
 }
 
 async function dedupTodos(usuarioResponsavel = "Sistema") {
-  const rems = await prisma.remanejamentoFuncionario.findMany({ where: { statusTarefas: "ATENDER TAREFAS" }, include: { tarefas: true, solicitacao: true } });
+  const rems = await prisma.remanejamentoFuncionario.findMany({
+    where: { statusTarefas: "ATENDER TAREFAS" },
+    include: { tarefas: true, solicitacao: true },
+  });
   let totalCanceladas = 0;
   for (const rem of rems) {
     const grupos = new Map();
@@ -85,12 +101,23 @@ async function dedupTodos(usuarioResponsavel = "Sistema") {
     }
     for (const [key, arr] of grupos.entries()) {
       if (arr.length <= 1) continue;
-      const ativos = arr.filter((t) => t.status !== "CANCELADO" && t.status !== "CONCLUIDO" && t.status !== "CONCLUIDA");
+      const ativos = arr.filter(
+        (t) =>
+          t.status !== "CANCELADO" &&
+          t.status !== "CONCLUIDO" &&
+          t.status !== "CONCLUIDA"
+      );
       if (ativos.length === 0) continue;
-      ativos.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+      ativos.sort(
+        (a, b) =>
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      );
       const cancelar = ativos.slice(1);
       for (const t of cancelar) {
-        await prisma.tarefaRemanejamento.update({ where: { id: t.id }, data: { status: "CANCELADO" } });
+        await prisma.tarefaRemanejamento.update({
+          where: { id: t.id },
+          data: { status: "CANCELADO" },
+        });
         try {
           await prisma.observacaoTarefaRemanejamento.create({
             data: {
@@ -129,12 +156,16 @@ async function dedupTodos(usuarioResponsavel = "Sistema") {
   try {
     let result;
     if (nomes.length === 0) {
-      console.log("Nenhum nome fornecido, deduplicando TODOS os remanejamentos (apenas 'ATENDER TAREFAS')...");
+      console.log(
+        "Nenhum nome fornecido, deduplicando TODOS os remanejamentos (apenas 'ATENDER TAREFAS')..."
+      );
       result = await dedupTodos("Manutenção");
     } else {
       result = await dedupPorFuncionarios(nomes, "Manutenção");
     }
-    console.log(`Deduplicação concluída. ${result.totalCanceladas} tarefas canceladas no total.`);
+    console.log(
+      `Deduplicação concluída. ${result.totalCanceladas} tarefas canceladas no total.`
+    );
   } catch (e) {
     console.error(e);
   } finally {
