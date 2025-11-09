@@ -17,7 +17,10 @@ export async function POST(request: NextRequest) {
     const usuarioResponsavel: string = body?.usuarioResponsavel || "Sistema";
 
     if (!nomes || nomes.length === 0) {
-      return NextResponse.json({ message: "Informe 'nomes': string[] no body" }, { status: 400 });
+      return NextResponse.json(
+        { message: "Informe 'nomes': string[] no body" },
+        { status: 400 }
+      );
     }
 
     // Buscar funcionários pelos nomes informados
@@ -27,7 +30,13 @@ export async function POST(request: NextRequest) {
     });
 
     if (funcionarios.length === 0) {
-      return NextResponse.json({ message: "Nenhum funcionário encontrado pelos nomes informados", nomes }, { status: 404 });
+      return NextResponse.json(
+        {
+          message: "Nenhum funcionário encontrado pelos nomes informados",
+          nomes,
+        },
+        { status: 404 }
+      );
     }
 
     const resultados: any[] = [];
@@ -61,7 +70,9 @@ export async function POST(request: NextRequest) {
           if (arr.length <= 1) continue;
 
           // Preferir manter a primeira criada ativa; não cancelar CONCLUIDO
-          const ativos = arr.filter((t) => t.status !== "CANCELADO" && t.status !== "CONCLUIDO");
+          const ativos = arr.filter(
+            (t) => t.status !== "CANCELADO" && t.status !== "CONCLUIDO"
+          );
           const concluidos = arr.filter((t) => t.status === "CONCLUIDO");
 
           // Se não há ativos, não cancelar concluídos automaticamente
@@ -69,8 +80,12 @@ export async function POST(request: NextRequest) {
 
           // Ordenar por createdAt asc para manter o mais antigo ativo
           ativos.sort((a, b) => {
-            const ad = (a as any).createdAt ? new Date((a as any).createdAt).getTime() : 0;
-            const bd = (b as any).createdAt ? new Date((b as any).createdAt).getTime() : 0;
+            const ad = (a as any).createdAt
+              ? new Date((a as any).createdAt).getTime()
+              : 0;
+            const bd = (b as any).createdAt
+              ? new Date((b as any).createdAt).getTime()
+              : 0;
             return ad - bd;
           });
 
@@ -89,13 +104,17 @@ export async function POST(request: NextRequest) {
                 await prisma.observacaoTarefaRemanejamento.create({
                   data: {
                     tarefaId: t.id,
-                    texto: "Cancelada por deduplicação automática (tarefas duplicadas para mesmo responsável/tipo)",
+                    texto:
+                      "Cancelada por deduplicação automática (tarefas duplicadas para mesmo responsável/tipo)",
                     criadoPor: usuarioResponsavel,
                     modificadoPor: usuarioResponsavel,
                   },
                 });
               } catch (obsErr) {
-                console.error("Erro ao registrar observação de deduplicação:", obsErr);
+                console.error(
+                  "Erro ao registrar observação de deduplicação:",
+                  obsErr
+                );
               }
 
               // Histórico
@@ -115,7 +134,10 @@ export async function POST(request: NextRequest) {
                   },
                 });
               } catch (histErr) {
-                console.error("Erro ao registrar histórico de deduplicação:", histErr);
+                console.error(
+                  "Erro ao registrar histórico de deduplicação:",
+                  histErr
+                );
               }
 
               canceladasNesteRem += 1;
@@ -126,14 +148,27 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        detalhesRems.push({ remanejamentoId: rem.id, canceladas: canceladasNesteRem });
+        detalhesRems.push({
+          remanejamentoId: rem.id,
+          canceladas: canceladasNesteRem,
+        });
         canceladasFuncionario += canceladasNesteRem;
       }
 
-      resultados.push({ funcionarioId: func.id, nome: func.nome, matricula: func.matricula, remanejamentosProcessados: rems.length, tarefasCanceladas: canceladasFuncionario, detalhesRemanejamentos: detalhesRems });
+      resultados.push({
+        funcionarioId: func.id,
+        nome: func.nome,
+        matricula: func.matricula,
+        remanejamentosProcessados: rems.length,
+        tarefasCanceladas: canceladasFuncionario,
+        detalhesRemanejamentos: detalhesRems,
+      });
     }
 
-    return NextResponse.json({ message: `Deduplicação concluída. ${totalCanceladas} tarefas canceladas no total.`, resultados });
+    return NextResponse.json({
+      message: `Deduplicação concluída. ${totalCanceladas} tarefas canceladas no total.`,
+      resultados,
+    });
   } catch (error) {
     console.error("Erro na deduplicação de tarefas:", error);
     return NextResponse.json({ message: "Erro interno" }, { status: 500 });

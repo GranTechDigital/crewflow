@@ -8,14 +8,14 @@ function normalizeRegime(regime: unknown) {
 }
 
 function toSlug(input: string): string {
-  return (input || '')
-    .normalize('NFKD')
-    .replace(/[\u0300-\u036f]/g, '')
+  return (input || "")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .trim()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-');
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-");
 }
 
 async function fetchExternalDataWithRetry(maxRetries = 3, timeout = 15000) {
@@ -67,7 +67,10 @@ export async function POST() {
     console.log(`Dados externos obtidos: ${dadosExternos.length} registros`);
 
     // Extrair funções distintas por (funcao, regime)
-    const funcoesDistintas = new Map<string, { funcao: string; regime: string }>();
+    const funcoesDistintas = new Map<
+      string,
+      { funcao: string; regime: string }
+    >();
 
     dadosExternos.forEach((item: Record<string, unknown>) => {
       const funcao = item.FUNCAO ? String(item.FUNCAO).trim() : "";
@@ -91,23 +94,33 @@ export async function POST() {
     );
 
     // Preparar dados para inserção (apenas funções que não existem)
-    const funcoesParaInserir: Array<{ funcao: string; regime: string; funcao_slug: string; ativo: boolean }> = [];
+    const funcoesParaInserir: Array<{
+      funcao: string;
+      regime: string;
+      funcao_slug: string;
+      ativo: boolean;
+    }> = [];
 
     funcoesDistintas.forEach(({ funcao, regime }, key) => {
-    if (!funcoesExistentesSet.has(key)) {
-    const funcao_slug = toSlug(funcao);
-    funcoesParaInserir.push({ funcao, regime, funcao_slug, ativo: true });
-    }
+      if (!funcoesExistentesSet.has(key)) {
+        const funcao_slug = toSlug(funcao);
+        funcoesParaInserir.push({ funcao, regime, funcao_slug, ativo: true });
+      }
     });
 
     // Inserir novas funções
     let funcoesInseridas = 0;
     if (funcoesParaInserir.length > 0) {
-    const res = await prisma.funcao.createMany({ data: funcoesParaInserir, skipDuplicates: true });
-    funcoesInseridas = res.count;
+      const res = await prisma.funcao.createMany({
+        data: funcoesParaInserir,
+        skipDuplicates: true,
+      });
+      funcoesInseridas = res.count;
     }
 
-    console.log(`Sincronização de funções concluída: ${funcoesInseridas} novas funções inseridas`);
+    console.log(
+      `Sincronização de funções concluída: ${funcoesInseridas} novas funções inseridas`
+    );
 
     return NextResponse.json({
       message: "Sincronização de funções concluída",
@@ -115,23 +128,31 @@ export async function POST() {
       funcoesExistentes: funcoesExistentes.length,
       novasFuncoesInseridas: funcoesInseridas,
       funcoes: Array.from(funcoesDistintas.values()).sort(
-        (a, b) => a.funcao.localeCompare(b.funcao) || a.regime.localeCompare(b.regime)
+        (a, b) =>
+          a.funcao.localeCompare(b.funcao) || a.regime.localeCompare(b.regime)
       ),
     });
   } catch (error) {
     console.error("Erro na sincronização de funções:", error);
 
-    const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
-    const isTimeoutError = errorMessage.includes("AbortError") || errorMessage.includes("timeout");
-    const isNetworkError = errorMessage.includes("fetch") || errorMessage.includes("network");
+    const errorMessage =
+      error instanceof Error ? error.message : "Erro desconhecido";
+    const isTimeoutError =
+      errorMessage.includes("AbortError") || errorMessage.includes("timeout");
+    const isNetworkError =
+      errorMessage.includes("fetch") || errorMessage.includes("network");
 
     let userMessage = "Erro interno na sincronização de funções.";
     if (isTimeoutError) {
-      userMessage = "Timeout na sincronização. A API externa demorou muito para responder.";
+      userMessage =
+        "Timeout na sincronização. A API externa demorou muito para responder.";
     } else if (isNetworkError) {
       userMessage = "Erro de conexão com a API externa.";
     }
 
-    return NextResponse.json({ error: userMessage, details: errorMessage }, { status: 500 });
+    return NextResponse.json(
+      { error: userMessage, details: errorMessage },
+      { status: 500 }
+    );
   }
 }

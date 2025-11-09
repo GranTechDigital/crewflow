@@ -70,7 +70,7 @@ async function gerarTarefasTreinamento(
         contratoId: contratoId,
         funcaoId: funcao.id,
         ativo: true,
-        tipoObrigatoriedade: 'AP',
+        tipoObrigatoriedade: "AP",
       },
       include: {
         treinamento: true,
@@ -93,7 +93,7 @@ async function gerarTarefasTreinamento(
     let tarefasGeradas = 0;
     for (const matriz of matrizTreinamento) {
       const treinamento = matriz.treinamento;
-      
+
       if (!treinamento) {
         console.log("⚠️ Treinamento não encontrado para matriz:", matriz.id);
         continue;
@@ -112,7 +112,9 @@ async function gerarTarefasTreinamento(
       // Criar descrição detalhada
       const descricao = `Treinamento: ${treinamento.treinamento}
 Carga Horária: ${treinamento.cargaHoraria || "N/A"}
-Validade: ${treinamento.validadeValor || "N/A"} ${treinamento.validadeUnidade || ""}
+Validade: ${treinamento.validadeValor || "N/A"} ${
+        treinamento.validadeUnidade || ""
+      }
 Tipo: ${matriz.tipoObrigatoriedade}
 Contrato: ${matriz.contrato?.nome || "N/A"}`;
 
@@ -128,10 +130,15 @@ Contrato: ${matriz.contrato?.nome || "N/A"}`;
 
       tarefasParaCriar.push(novaTarefa);
       tarefasGeradas++;
-      console.log(`✅ Tarefa ${tarefasGeradas} criada:`, treinamento.treinamento);
+      console.log(
+        `✅ Tarefa ${tarefasGeradas} criada:`,
+        treinamento.treinamento
+      );
     }
 
-    console.log(`✅ Total de tarefas de treinamento geradas: ${tarefasGeradas}`);
+    console.log(
+      `✅ Total de tarefas de treinamento geradas: ${tarefasGeradas}`
+    );
   } catch (error) {
     console.error("❌ Erro ao gerar tarefas de treinamento:", error);
   }
@@ -308,13 +315,15 @@ export async function POST(request: NextRequest) {
             responsavel: setor,
             status: "PENDENTE",
             prioridade: (() => {
-               const v = (remanejamentoFuncionario.solicitacao?.prioridade || "media").toLowerCase();
-               if (v === "baixa") return "BAIXA";
-               if (v === "media") return "MEDIA";
-               if (v === "alta") return "ALTA";
-               if (v === "urgente") return "URGENTE";
-               return "MEDIA";
-             })(),
+              const v = (
+                remanejamentoFuncionario.solicitacao?.prioridade || "media"
+              ).toLowerCase();
+              if (v === "baixa") return "BAIXA";
+              if (v === "media") return "MEDIA";
+              if (v === "alta") return "ALTA";
+              if (v === "urgente") return "URGENTE";
+              return "MEDIA";
+            })(),
             dataLimite: new Date(Date.now() + 48 * 60 * 60 * 1000),
           });
         }

@@ -46,6 +46,7 @@ export async function GET(
     // Buscar funções associadas ao contrato com seus treinamentos
     const funcoes = await prisma.funcao.findMany({
       where: {
+        ativo: true,
         matrizTreinamento: {
           some: {
             contratoId: contratoId
