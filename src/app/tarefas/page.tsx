@@ -87,7 +87,8 @@ interface Funcionario {
 }
 
 // Usando a interface correta da estrutura hierárquica
-interface FuncionarioRemanejamento extends Omit<SolicitacaoRemanejamento, 'tipo'> {
+interface FuncionarioRemanejamento
+  extends Omit<SolicitacaoRemanejamento, "tipo"> {
   // Campos adicionais para compatibilidade se necessário
   tipo?: TipoSolicitacao;
 }
@@ -124,8 +125,12 @@ export default function TarefasPage() {
   const [filtroDataFim, setFiltroDataFim] = useState("");
   // Novos filtros: tipo e categoria de data limite, e ordenação por data limite
   const [filtroTipo, setFiltroTipo] = useState("");
-  const [filtroDataCategoria, setFiltroDataCategoria] = useState<"" | "VENCIDOS" | "A_VENCER" | "NO_PRAZO" | "SEM_DATA" | "NOVO">("");
-  const [ordenacaoDataLimite, setOrdenacaoDataLimite] = useState<"" | "asc" | "desc">("");
+  const [filtroDataCategoria, setFiltroDataCategoria] = useState<
+    "" | "VENCIDOS" | "A_VENCER" | "NO_PRAZO" | "SEM_DATA" | "NOVO"
+  >("");
+  const [ordenacaoDataLimite, setOrdenacaoDataLimite] = useState<
+    "" | "asc" | "desc"
+  >("");
   const [filtroDataExata, setFiltroDataExata] = useState("");
 
   // Refs para evitar re-renderizações
@@ -168,17 +173,19 @@ export default function TarefasPage() {
 
   // Estados para o modal de observações
   const [mostrarModalObservacoes, setMostrarModalObservacoes] = useState(false);
-const [observacoes, setObservacoes] = useState<Observacao[]>([]);
-const [carregandoObservacoes, setCarregandoObservacoes] = useState(false);
-const [novaObservacao, setNovaObservacao] = useState("");
-const [adicionandoObservacao, setAdicionandoObservacao] = useState(false);
-// Mapa de contagem de observações por tarefa
-const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>({});
+  const [observacoes, setObservacoes] = useState<Observacao[]>([]);
+  const [carregandoObservacoes, setCarregandoObservacoes] = useState(false);
+  const [novaObservacao, setNovaObservacao] = useState("");
+  const [adicionandoObservacao, setAdicionandoObservacao] = useState(false);
+  // Mapa de contagem de observações por tarefa
+  const [observacoesCount, setObservacoesCount] = useState<
+    Record<string, number>
+  >({});
 
-// Estados para exclusão de tarefa (apenas administradores)
-const [mostrarModalExcluir, setMostrarModalExcluir] = useState(false);
-const [excluindoTarefa, setExcluindoTarefa] = useState(false);
-const isAdmin = !!usuario?.permissoes?.includes('admin');
+  // Estados para exclusão de tarefa (apenas administradores)
+  const [mostrarModalExcluir, setMostrarModalExcluir] = useState(false);
+  const [excluindoTarefa, setExcluindoTarefa] = useState(false);
+  const isAdmin = !!usuario?.permissoes?.includes("admin");
 
   const [funcionariosExpandidos, setFuncionariosExpandidos] = useState<
     Set<string>
@@ -186,7 +193,8 @@ const isAdmin = !!usuario?.permissoes?.includes('admin');
 
   // Paginação específica para visão por funcionários
   const [paginaAtualFuncionarios, setPaginaAtualFuncionarios] = useState(1);
-  const [itensPorPaginaFuncionarios, setItensPorPaginaFuncionarios] = useState(5);
+  const [itensPorPaginaFuncionarios, setItensPorPaginaFuncionarios] =
+    useState(5);
 
   // Estados para tabs
   const [activeTab, setActiveTab] = useState<"funcionarios" | "dashboard">(
@@ -207,7 +215,8 @@ const isAdmin = !!usuario?.permissoes?.includes('admin');
   const [novaDataLimite, setNovaDataLimite] = useState("");
   const [justificativaDataLimite, setJustificativaDataLimite] = useState("");
   const [erroNovaDataLimite, setErroNovaDataLimite] = useState<string>("");
-  const [erroJustificativaDataLimite, setErroJustificativaDataLimite] = useState<string>("");
+  const [erroJustificativaDataLimite, setErroJustificativaDataLimite] =
+    useState<string>("");
   const [atualizandoDataLimite, setAtualizandoDataLimite] = useState(false);
   const [abaAtiva, setAbaAtiva] = useState<"observacoes" | "dataLimite">(
     "observacoes"
@@ -414,28 +423,44 @@ const isAdmin = !!usuario?.permissoes?.includes('admin');
               let matchDataCategoria = true;
               if (filtroDataCategoria) {
                 if (filtroDataCategoria === "NOVO") {
-                  const criadoMs = tarefa.dataCriacao ? new Date(tarefa.dataCriacao).getTime() : 0;
+                  const criadoMs = tarefa.dataCriacao
+                    ? new Date(tarefa.dataCriacao).getTime()
+                    : 0;
                   const nowMs = Date.now();
-                  matchDataCategoria = !!tarefa.dataCriacao && criadoMs <= nowMs && (nowMs - criadoMs <= 48 * 60 * 60 * 1000);
+                  matchDataCategoria =
+                    !!tarefa.dataCriacao &&
+                    criadoMs <= nowMs &&
+                    nowMs - criadoMs <= 48 * 60 * 60 * 1000;
                 } else {
                   const hoje = new Date();
                   hoje.setHours(0, 0, 0, 0);
-                  const dataLimiteDate = tarefa.dataLimite ? new Date(tarefa.dataLimite) : null;
-                  const notConcluida = tarefa.status !== "CONCLUIDO" && tarefa.status !== "CONCLUIDA";
+                  const dataLimiteDate = tarefa.dataLimite
+                    ? new Date(tarefa.dataLimite)
+                    : null;
+                  const notConcluida =
+                    tarefa.status !== "CONCLUIDO" &&
+                    tarefa.status !== "CONCLUIDA";
 
                   if (filtroDataCategoria === "SEM_DATA") {
                     matchDataCategoria = notConcluida && !dataLimiteDate;
                   } else if (!dataLimiteDate) {
                     matchDataCategoria = false;
                   } else {
-                    const diffDias = Math.floor((dataLimiteDate.getTime() - hoje.getTime()) / 86400000);
+                    const diffDias = Math.floor(
+                      (dataLimiteDate.getTime() - hoje.getTime()) / 86400000
+                    );
                     const limiteA_Vencer = 7; // próximos 7 dias
                     if (filtroDataCategoria === "VENCIDOS") {
-                      matchDataCategoria = notConcluida && dataLimiteDate < hoje;
+                      matchDataCategoria =
+                        notConcluida && dataLimiteDate < hoje;
                     } else if (filtroDataCategoria === "A_VENCER") {
-                      matchDataCategoria = notConcluida && diffDias >= 0 && diffDias <= limiteA_Vencer;
+                      matchDataCategoria =
+                        notConcluida &&
+                        diffDias >= 0 &&
+                        diffDias <= limiteA_Vencer;
                     } else if (filtroDataCategoria === "NO_PRAZO") {
-                      matchDataCategoria = notConcluida && diffDias > limiteA_Vencer;
+                      matchDataCategoria =
+                        notConcluida && diffDias > limiteA_Vencer;
                     }
                   }
                 }
@@ -555,9 +580,9 @@ const isAdmin = !!usuario?.permissoes?.includes('admin');
     remanejamentosFiltrados.forEach((remanejamento) => {
       if (remanejamento.tarefas) {
         // Add funcionario data to each tarefa
-        const tarefasComFuncionario = remanejamento.tarefas.map(tarefa => ({
+        const tarefasComFuncionario = remanejamento.tarefas.map((tarefa) => ({
           ...tarefa,
-          funcionario: remanejamento.funcionario
+          funcionario: remanejamento.funcionario,
         }));
         todasTarefas.push(...tarefasComFuncionario);
       }
@@ -566,8 +591,58 @@ const isAdmin = !!usuario?.permissoes?.includes('admin');
     return todasTarefas;
   };
 
-  const exportarParaExcel = () => {
+  const exportarParaExcel = async () => {
     const tarefasFiltradas = getTarefasFiltradas();
+
+    // Buscar última observação em lote para todas as tarefas filtradas (com chunking para evitar URL longa)
+    const ids = Array.from(new Set((tarefasFiltradas || []).map((t) => t.id)));
+    let ultimaObsMap: Record<string, { texto?: string; criadoEm?: string; criadoPor?: string }> = {};
+    try {
+      if (ids.length > 0) {
+        const chunkSize = 100;
+        for (let i = 0; i < ids.length; i += chunkSize) {
+          const chunk = ids.slice(i, i + chunkSize);
+          const qs = encodeURIComponent(chunk.join(","));
+          const resp = await fetch(`/api/logistica/tarefas/observacoes/ultima?ids=${qs}`);
+          if (resp.ok) {
+            const partial = await resp.json();
+            ultimaObsMap = { ...ultimaObsMap, ...partial };
+          } else {
+            console.warn("Falha ao obter última observação (status):", resp.status);
+          }
+        }
+        console.log("[exportacao] totalIds:", ids.length, "mapKeys:", Object.keys(ultimaObsMap).length);
+
+        // Fallback: para IDs sem retorno no lote, buscar via endpoint do modal
+        const missingIds = ids.filter((id) => !ultimaObsMap[id]);
+        if (missingIds.length > 0) {
+          console.log("[exportacao] missingIds:", missingIds.length);
+          for (const id of missingIds) {
+            try {
+              const respInd = await fetch(`/api/logistica/tarefas/${id}/observacoes`);
+              if (respInd.ok) {
+                const obsArr: Array<{ texto?: string; criadoEm?: string; criadoPor?: string }> = await respInd.json();
+                if (Array.isArray(obsArr) && obsArr.length > 0) {
+                  const ultima = obsArr[0]; // Já vem ordenado por dataCriacao desc
+                  ultimaObsMap[id] = {
+                    texto: ultima?.texto,
+                    criadoEm: ultima?.criadoEm,
+                    criadoPor: ultima?.criadoPor,
+                  };
+                }
+              } else {
+                console.warn("Falha ao obter observação individual (status):", respInd.status);
+              }
+            } catch (e) {
+              console.warn("Erro ao obter observação individual:", e);
+            }
+          }
+          console.log("[exportacao] mapKeys pós-fallback:", Object.keys(ultimaObsMap).length);
+        }
+      }
+    } catch (err) {
+      console.error("Erro ao obter última observação para exportação:", err);
+    }
 
     const dadosExcel = tarefasFiltradas.map((tarefa) => ({
       ID: tarefa.id,
@@ -579,33 +654,32 @@ const isAdmin = !!usuario?.permissoes?.includes('admin');
         ? new Date(tarefa.dataLimite).toLocaleDateString("pt-BR")
         : "N/A",
       "Data Criação": new Date(tarefa.dataCriacao).toLocaleDateString("pt-BR"),
-      Funcionário:
-        tarefa.funcionario?.nome ||
-        "N/A",
-      Matrícula:
-        tarefa.funcionario?.matricula ||
-        "N/A",
-      Função:
-        tarefa.funcionario?.funcao ||
-        "N/A",
+      Funcionário: tarefa.funcionario?.nome || "N/A",
+      Matrícula: tarefa.funcionario?.matricula || "N/A",
+      Função: tarefa.funcionario?.funcao || "N/A",
       "Setor Responsável": tarefa.responsavel,
+      "Última Observação": ultimaObsMap[tarefa.id]?.texto || "N/A",
     }));
 
     const wb = utils.book_new();
-      const ws = utils.json_to_sheet(dadosExcel);
-      utils.book_append_sheet(wb, ws, "Tarefas");
-      writeFile(wb, "Tarefas_Exportadas.xlsx");
+    const ws = utils.json_to_sheet(dadosExcel);
+    utils.book_append_sheet(wb, ws, "Tarefas");
+    writeFile(wb, "Tarefas_Exportadas.xlsx");
 
     toast.success("Tarefas exportadas com sucesso!");
   };
 
   // Função para carregar contagem de observações sob demanda para as tarefas do grupo
-  const carregarObservacoesCountParaGrupo = async (tarefas: TarefaRemanejamento[]) => {
+  const carregarObservacoesCountParaGrupo = async (
+    tarefas: TarefaRemanejamento[]
+  ) => {
     const ids = Array.from(new Set((tarefas || []).map((t) => t.id)));
     if (ids.length === 0) return;
     try {
       const qs = encodeURIComponent(ids.join(","));
-      const resp = await fetch(`/api/logistica/tarefas/observacoes/count?ids=${qs}`);
+      const resp = await fetch(
+        `/api/logistica/tarefas/observacoes/count?ids=${qs}`
+      );
       if (!resp.ok) throw new Error("Erro ao contar observações");
       const data = await resp.json();
       const normalized = Object.fromEntries(
@@ -618,7 +692,10 @@ const isAdmin = !!usuario?.permissoes?.includes('admin');
   };
 
   // Função para expandir/contrair funcionários
-  const toggleExpandirFuncionario = async (chaveGrupo: string, tarefas: TarefaRemanejamento[]) => {
+  const toggleExpandirFuncionario = async (
+    chaveGrupo: string,
+    tarefas: TarefaRemanejamento[]
+  ) => {
     const novoExpandido = new Set(funcionariosExpandidos);
     const isExpanded = novoExpandido.has(chaveGrupo);
     if (isExpanded) {
@@ -648,8 +725,12 @@ const isAdmin = !!usuario?.permissoes?.includes('admin');
         tarefasFiltradas.sort(
           (a: TarefaRemanejamento, b: TarefaRemanejamento) => {
             if (ordenacaoDataLimite) {
-              const aTime = a.dataLimite ? new Date(a.dataLimite).getTime() : Number.POSITIVE_INFINITY;
-              const bTime = b.dataLimite ? new Date(b.dataLimite).getTime() : Number.POSITIVE_INFINITY;
+              const aTime = a.dataLimite
+                ? new Date(a.dataLimite).getTime()
+                : Number.POSITIVE_INFINITY;
+              const bTime = b.dataLimite
+                ? new Date(b.dataLimite).getTime()
+                : Number.POSITIVE_INFINITY;
               const diff = aTime - bTime;
               return ordenacaoDataLimite === "asc" ? diff : -diff;
             }
@@ -664,7 +745,7 @@ const isAdmin = !!usuario?.permissoes?.includes('admin');
 
             const priorityA = getStatusPriority(a.status);
             const priorityB = getStatusPriority(b.status);
-            
+
             return priorityA - priorityB;
           }
         );
@@ -680,50 +761,62 @@ const isAdmin = !!usuario?.permissoes?.includes('admin');
 
     // Ordenar funcionários baseado no status das suas tarefas
     funcionariosComTarefas.sort((a, b) => {
-      const tarefasConcluidas_A = a.tarefas.filter(t => t.status === "CONCLUIDA" || t.status === "CONCLUIDO").length;
-      const tarefasConcluidas_B = b.tarefas.filter(t => t.status === "CONCLUIDA" || t.status === "CONCLUIDO").length;
-      
+      const tarefasConcluidas_A = a.tarefas.filter(
+        (t) => t.status === "CONCLUIDA" || t.status === "CONCLUIDO"
+      ).length;
+      const tarefasConcluidas_B = b.tarefas.filter(
+        (t) => t.status === "CONCLUIDA" || t.status === "CONCLUIDO"
+      ).length;
+
       const totalTarefas_A = a.tarefas.length;
       const totalTarefas_B = b.tarefas.length;
-      
+
       // Verificar se tem tarefas reprovadas
-      const hasReprovado_A = a.tarefas.some(t => t.status === "REPROVADO");
-      const hasReprovado_B = b.tarefas.some(t => t.status === "REPROVADO");
-      
+      const hasReprovado_A = a.tarefas.some((t) => t.status === "REPROVADO");
+      const hasReprovado_B = b.tarefas.some((t) => t.status === "REPROVADO");
+
       // Calcular se está concluído (todas as tarefas concluídas)
-      const isConcluido_A = tarefasConcluidas_A === totalTarefas_A && totalTarefas_A > 0;
-      const isConcluido_B = tarefasConcluidas_B === totalTarefas_B && totalTarefas_B > 0;
-      
+      const isConcluido_A =
+        tarefasConcluidas_A === totalTarefas_A && totalTarefas_A > 0;
+      const isConcluido_B =
+        tarefasConcluidas_B === totalTarefas_B && totalTarefas_B > 0;
+
       // Calcular se está em andamento (algumas tarefas concluídas, mas não todas)
-      const isEmAndamento_A = tarefasConcluidas_A > 0 && tarefasConcluidas_A < totalTarefas_A && !hasReprovado_A;
-      const isEmAndamento_B = tarefasConcluidas_B > 0 && tarefasConcluidas_B < totalTarefas_B && !hasReprovado_B;
-      
+      const isEmAndamento_A =
+        tarefasConcluidas_A > 0 &&
+        tarefasConcluidas_A < totalTarefas_A &&
+        !hasReprovado_A;
+      const isEmAndamento_B =
+        tarefasConcluidas_B > 0 &&
+        tarefasConcluidas_B < totalTarefas_B &&
+        !hasReprovado_B;
+
       // Calcular se está pendente (nenhuma tarefa concluída e não tem reprovadas)
       const isPendente_A = tarefasConcluidas_A === 0 && !hasReprovado_A;
       const isPendente_B = tarefasConcluidas_B === 0 && !hasReprovado_B;
-      
+
       // Prioridade de ordenação:
       // 1. Reprovado (tem pelo menos uma tarefa reprovada)
       // 2. Em andamento (algumas tarefas concluídas, mas não todas, sem reprovadas)
       // 3. Pendente (nenhuma tarefa concluída e não tem reprovadas)
       // 4. Concluído (todas as tarefas concluídas)
-      
+
       if (hasReprovado_A && !hasReprovado_B) return -1;
       if (!hasReprovado_A && hasReprovado_B) return 1;
-      
+
       if (!hasReprovado_A && !hasReprovado_B) {
         if (isEmAndamento_A && !isEmAndamento_B) return -1;
         if (!isEmAndamento_A && isEmAndamento_B) return 1;
-        
+
         if (!isEmAndamento_A && !isEmAndamento_B) {
           if (isPendente_A && !isPendente_B) return -1;
           if (!isPendente_A && isPendente_B) return 1;
-          
+
           if (isConcluido_A && !isConcluido_B) return 1;
           if (!isConcluido_A && isConcluido_B) return -1;
         }
       }
-      
+
       // Se mesmo status, ordenar por nome
       return a.funcionario.nome.localeCompare(b.funcionario.nome);
     });
@@ -776,18 +869,22 @@ const isAdmin = !!usuario?.permissoes?.includes('admin');
       // Validação local da data de vencimento (apenas se não for responsabilidade do RH)
       if (tarefaSelecionada.responsavel !== "RH") {
         if (!dataVencimento) {
-           setErroDataVencimento("Informe a data de vencimento.");
-           return;
-         }
-         const hoje = new Date();
-         const dt = new Date(`${dataVencimento}T00:00:00`);
-         const hojeDateOnly = new Date(`${hoje.toISOString().split("T")[0]}T00:00:00`);
-         const diffMs = dt.getTime() - hojeDateOnly.getTime();
-         const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-         if (diffDays < 30) {
-           setErroDataVencimento("A data deve ser pelo menos 30 dias após hoje.");
-           return;
-         }
+          setErroDataVencimento("Informe a data de vencimento.");
+          return;
+        }
+        const hoje = new Date();
+        const dt = new Date(`${dataVencimento}T00:00:00`);
+        const hojeDateOnly = new Date(
+          `${hoje.toISOString().split("T")[0]}T00:00:00`
+        );
+        const diffMs = dt.getTime() - hojeDateOnly.getTime();
+        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        if (diffDays < 30) {
+          setErroDataVencimento(
+            "A data deve ser pelo menos 30 dias após hoje."
+          );
+          return;
+        }
       }
 
       setConcluindoTarefa(true);
@@ -797,7 +894,10 @@ const isAdmin = !!usuario?.permissoes?.includes('admin');
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            dataVencimento: tarefaSelecionada.responsavel !== "RH" ? (dataVencimento || null) : null,
+            dataVencimento:
+              tarefaSelecionada.responsavel !== "RH"
+                ? dataVencimento || null
+                : null,
           }),
         }
       );
@@ -815,7 +915,10 @@ const isAdmin = !!usuario?.permissoes?.includes('admin');
     } catch (error) {
       console.error("Erro ao concluir tarefa:", error);
       // Evitar mensagem duplicada se já mostramos a do backend
-      if (error instanceof Error && error.message.startsWith("Data de vencimento")) {
+      if (
+        error instanceof Error &&
+        error.message.startsWith("Data de vencimento")
+      ) {
         // já mostrado
       } else {
         toast.error("Erro ao concluir tarefa");
@@ -839,9 +942,12 @@ const isAdmin = !!usuario?.permissoes?.includes('admin');
     if (!tarefaSelecionada) return;
     try {
       setExcluindoTarefa(true);
-      const resp = await fetch(`/api/logistica/tarefas/${tarefaSelecionada.id}`, {
-        method: "DELETE",
-      });
+      const resp = await fetch(
+        `/api/logistica/tarefas/${tarefaSelecionada.id}`,
+        {
+          method: "DELETE",
+        }
+      );
       if (!resp.ok) {
         const errorData = await resp.json().catch(() => null);
         const msg = errorData?.error || "Erro ao excluir tarefa";
@@ -1044,14 +1150,18 @@ const isAdmin = !!usuario?.permissoes?.includes('admin');
     // Validar data mínima (hoje) e campo obrigatório
     const hoje = new Date();
     const pad = (n: number) => n.toString().padStart(2, "0");
-    const hojeStr = `${hoje.getFullYear()}-${pad(hoje.getMonth() + 1)}-${pad(hoje.getDate())}`;
+    const hojeStr = `${hoje.getFullYear()}-${pad(hoje.getMonth() + 1)}-${pad(
+      hoje.getDate()
+    )}`;
 
     if (!novaDataLimite) {
       setErroNovaDataLimite("Selecione a nova data limite.");
       return;
     }
     if (novaDataLimite < hojeStr) {
-      setErroNovaDataLimite("A data limite não pode ser anterior à data atual.");
+      setErroNovaDataLimite(
+        "A data limite não pode ser anterior à data atual."
+      );
       return;
     }
 
@@ -1081,7 +1191,9 @@ const isAdmin = !!usuario?.permissoes?.includes('admin');
 
       // Atualizar a data limite da tarefa
       const [y, m, d] = novaDataLimite.split("-").map(Number);
-      const dataLimiteUtcNoonIso = new Date(Date.UTC(y, m - 1, d, 12, 0, 0)).toISOString();
+      const dataLimiteUtcNoonIso = new Date(
+        Date.UTC(y, m - 1, d, 12, 0, 0)
+      ).toISOString();
 
       const responseDataLimite = await fetch(
         `/api/logistica/tarefas/${tarefaSelecionada.id}`,
@@ -1254,7 +1366,10 @@ const isAdmin = !!usuario?.permissoes?.includes('admin');
 
     // Contratos disponíveis (origem/destino) para seleção
     const contratosOptions = React.useMemo(() => {
-      const map = new Map<number, { id: number; numero: string; nome: string }>();
+      const map = new Map<
+        number,
+        { id: number; numero: string; nome: string }
+      >();
       solicitacoes.forEach((s) => {
         if (s.contratoOrigem) {
           map.set(s.contratoOrigem.id, {
@@ -1271,7 +1386,9 @@ const isAdmin = !!usuario?.permissoes?.includes('admin');
           });
         }
       });
-      return Array.from(map.values()).sort((a, b) => a.numero.localeCompare(b.numero));
+      return Array.from(map.values()).sort((a, b) =>
+        a.numero.localeCompare(b.numero)
+      );
     }, [solicitacoes]);
 
     // Tipos de tarefas disponíveis (para filtro de Tipo)
@@ -1324,12 +1441,12 @@ const isAdmin = !!usuario?.permissoes?.includes('admin');
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
           <div>
             <label className="block text-xs font-medium text-slate-800 mb-1">
-               Status
-             </label>
-             <select
-               className="w-full h-9 rounded-md border-slate-800 bg-slate-100 text-slate-600 shadow-sm focus:border-slate-300 focus:ring-slate-300"
-               value={filtroStatus}
-               onChange={(e) => setFiltroStatus(e.target.value)}
+              Status
+            </label>
+            <select
+              className="w-full h-9 rounded-md border-slate-800 bg-slate-100 text-slate-600 shadow-sm focus:border-slate-300 focus:ring-slate-300"
+              value={filtroStatus}
+              onChange={(e) => setFiltroStatus(e.target.value)}
             >
               <option value="">Todos</option>
               <option value="PENDENTE">Pendente</option>
@@ -1366,7 +1483,10 @@ const isAdmin = !!usuario?.permissoes?.includes('admin');
             >
               <option value="">Todos</option>
               {contratosOptions.map((c) => (
-                <option key={c.id} value={c.id.toString()}>{`${c.numero} — ${c.nome}`}</option>
+                <option
+                  key={c.id}
+                  value={c.id.toString()}
+                >{`${c.numero} — ${c.nome}`}</option>
               ))}
             </select>
           </div>
@@ -1402,7 +1522,9 @@ const isAdmin = !!usuario?.permissoes?.includes('admin');
             >
               <option value="">Todos</option>
               {tiposOptions.map((t) => (
-                <option key={t} value={t}>{t}</option>
+                <option key={t} value={t}>
+                  {t}
+                </option>
               ))}
             </select>
           </div>
@@ -1486,13 +1608,7 @@ const isAdmin = !!usuario?.permissoes?.includes('admin');
               >
                 Aplicar
               </button>
-              <button
-                className="px-3 h-9 rounded-md bg-slate-200 hover:bg-slate-300 text-slate-700 transition-colors"
-                onClick={() => { setFiltroDataExata(""); setDataExataDraft(""); }}
-                title="Limpar data"
-              >
-                Limpar
-              </button>
+
             </div>
           </div>
         </div>
@@ -1502,39 +1618,41 @@ const isAdmin = !!usuario?.permissoes?.includes('admin');
 
   // Função para determinar o status geral do funcionário baseado nas suas tarefas
   const getStatusGeralFuncionario = (tarefas: TarefaRemanejamento[]) => {
-    if (tarefas.length === 0) return 'PENDENTE';
-    
+    if (tarefas.length === 0) return "PENDENTE";
+
     // Verificar se tem tarefas reprovadas
-    const hasReprovado = tarefas.some(t => t.status === "REPROVADO");
-    if (hasReprovado) return 'REPROVADO';
-    
+    const hasReprovado = tarefas.some((t) => t.status === "REPROVADO");
+    if (hasReprovado) return "REPROVADO";
+
     // Calcular progresso
-    const tarefasConcluidas = tarefas.filter(t => t.status === "CONCLUIDA" || t.status === "CONCLUIDO").length;
+    const tarefasConcluidas = tarefas.filter(
+      (t) => t.status === "CONCLUIDA" || t.status === "CONCLUIDO"
+    ).length;
     const totalTarefas = tarefas.length;
-    
+
     // Se todas concluídas
-    if (tarefasConcluidas === totalTarefas) return 'CONCLUIDO';
-    
+    if (tarefasConcluidas === totalTarefas) return "CONCLUIDO";
+
     // Se nenhuma concluída
-    if (tarefasConcluidas === 0) return 'PENDENTE';
-    
+    if (tarefasConcluidas === 0) return "PENDENTE";
+
     // Se algumas concluídas (em andamento)
-    return 'EM_ANDAMENTO';
+    return "EM_ANDAMENTO";
   };
 
   // Função para obter classes de borda baseadas no status
   const getBordaStatusClasses = (status: string) => {
     switch (status) {
-      case 'REPROVADO':
-        return 'border-l-4 border-l-red-500 bg-red-50/20';
-      case 'EM_ANDAMENTO':
-        return 'border-l-4 border-l-blue-500 bg-blue-50/20';
-      case 'CONCLUIDO':
-        return 'border-l-4 border-l-green-500 bg-green-50/20';
-      case 'PENDENTE':
-        return 'border-l-4 border-l-gray-400 bg-gray-50/20';
+      case "REPROVADO":
+        return "border-l-4 border-l-red-500 bg-red-50/20";
+      case "EM_ANDAMENTO":
+        return "border-l-4 border-l-blue-500 bg-blue-50/20";
+      case "CONCLUIDO":
+        return "border-l-4 border-l-green-500 bg-green-50/20";
+      case "PENDENTE":
+        return "border-l-4 border-l-gray-400 bg-gray-50/20";
       default:
-        return 'border-l-4 border-l-gray-400 bg-gray-50/20';
+        return "border-l-4 border-l-gray-400 bg-gray-50/20";
     }
   };
 
@@ -1551,7 +1669,7 @@ const isAdmin = !!usuario?.permissoes?.includes('admin');
     const fim = inicio + itensPorPaginaFuncionarios;
     const remanejamentosPaginados = remanejamentosComTarefas.slice(inicio, fim);
 
-// Contagem de observações será carregada sob demanda ao expandir uma linha
+    // Contagem de observações será carregada sob demanda ao expandir uma linha
 
     if (loading) {
       return <div className="text-center py-10">Carregando tarefas...</div>;
@@ -1643,34 +1761,48 @@ const isAdmin = !!usuario?.permissoes?.includes('admin');
                           )
                         : 0;
                     const expandido = funcionariosExpandidos.has(chaveGrupo);
-                    
+
                     // Determinar se as tarefas do funcionário foram criadas há menos de 48h
-                    const grupoNovo = tarefas.some((t) => t.dataCriacao && (Date.now() - new Date(t.dataCriacao).getTime() <= 48 * 60 * 60 * 1000));
-                    
+                    const grupoNovo = tarefas.some(
+                      (t) =>
+                        t.dataCriacao &&
+                        Date.now() - new Date(t.dataCriacao).getTime() <=
+                          48 * 60 * 60 * 1000
+                    );
+
                     // Determinar status geral e classes de borda
                     const statusGeral = getStatusGeralFuncionario(tarefas);
                     const bordaClasses = getBordaStatusClasses(statusGeral);
-                    
+
                     return (
                       <React.Fragment key={chaveGrupo}>
                         <tr
-                          className={`group ${bordaClasses} cursor-pointer ${expandido ? 'bg-slate-50' : 'hover:bg-gray-50'}`}
+                          className={`group ${bordaClasses} cursor-pointer ${
+                            expandido ? "bg-slate-50" : "hover:bg-gray-50"
+                          }`}
                           onClick={(e) => {
                             const target = e.target as HTMLElement;
-                            if (target && (target.closest('button') || target.closest('a') || target.closest('input') || target.closest('[data-no-expand]'))) {
+                            if (
+                              target &&
+                              (target.closest("button") ||
+                                target.closest("a") ||
+                                target.closest("input") ||
+                                target.closest("[data-no-expand]"))
+                            ) {
                               return;
                             }
                             toggleExpandirFuncionario(chaveGrupo, tarefas);
                           }}
                         >
-                          <td
-                            className="px-6 py-4 whitespace-nowrap"
-                          >
+                          <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center space-x-3">
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  toggleExpandirFuncionario(chaveGrupo, tarefas);
+                                  toggleExpandirFuncionario(
+                                    chaveGrupo,
+                                    tarefas
+                                  );
                                 }}
                                 className="text-gray-500 hover:text-gray-700"
                               >
@@ -1683,42 +1815,56 @@ const isAdmin = !!usuario?.permissoes?.includes('admin');
                               <div className="flex flex-col">
                                 <div className="text-[12px] font-medium text-gray-900 flex items-center gap-2">
                                   {funcionario.nome}
+                                  {/* Matrícula como badge ao lado do nome para diferenciar nomes parecidos */}
+                                  {funcionario.matricula && (
+                                    <span
+                                      className="text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded font-mono"
+                                      title="Matrícula do funcionário"
+                                    >
+                                      Matrícula: {funcionario.matricula}
+                                    </span>
+                                  )}
                                   {grupoNovo && (
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-100 text-emerald-800" title="Tarefas criadas há menos de 48h">
+                                    <span
+                                      className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-100 text-emerald-800"
+                                      title="Tarefas criadas há menos de 48h"
+                                    >
                                       Novo
                                     </span>
                                   )}
                                 </div>
                                 <div className="text-[11px] text-gray-500">
-                                  {funcionario.funcao || 'Função não informada'}
+                                  {funcionario.funcao || "Função não informada"}
                                 </div>
                               </div>
                             </div>
                           </td>
-                          
+
                           {/* Tipo de Solicitação */}
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                              {solicitacao?.tipo || 'N/A'}
+                              {solicitacao?.tipo || "N/A"}
                             </span>
                           </td>
-                          
+
                           {/* Resumo das Tarefas */}
                           <td className="px-6 py-4 whitespace-nowrap text-center">
                             <span className="text-sm font-medium text-gray-900">
                               {tarefasConcluidas.length}/{tarefas.length}
                             </span>
                             <div className="text-xs text-gray-500">
-                              {tarefasConcluidas.length} concluída{tarefasConcluidas.length !== 1 ? 's' : ''} de {tarefas.length}
+                              {tarefasConcluidas.length} concluída
+                              {tarefasConcluidas.length !== 1 ? "s" : ""} de{" "}
+                              {tarefas.length}
                             </div>
                           </td>
-                          
+
                           {/* Barra de Progresso */}
                           <td className="px-6 py-4 whitespace-nowrap text-center">
                             <div className="flex items-center justify-center space-x-2">
                               <div className="w-16 bg-gray-200 rounded-full h-2">
-                                <div 
-                                  className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                                <div
+                                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
                                   style={{ width: `${progresso}%` }}
                                 ></div>
                               </div>
@@ -1727,11 +1873,12 @@ const isAdmin = !!usuario?.permissoes?.includes('admin');
                               </span>
                             </div>
                           </td>
-                          
+
                           {/* Contrato (De → Para) */}
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className="text-sm text-gray-900">
-                              {solicitacao?.contratoOrigem?.numero || '-'} → {solicitacao?.contratoDestino?.numero || '-'}
+                              {solicitacao?.contratoOrigem?.numero || "-"} →{" "}
+                              {solicitacao?.contratoDestino?.numero || "-"}
                             </span>
                           </td>
                         </tr>
@@ -1784,7 +1931,11 @@ const isAdmin = !!usuario?.permissoes?.includes('admin');
                                               className="inline-flex items-center gap-2 text-gray-700 hover:text-gray-900"
                                               onClick={() =>
                                                 setOrdenacaoDataLimite((prev) =>
-                                                  prev === "asc" ? "desc" : prev === "desc" ? "" : "asc"
+                                                  prev === "asc"
+                                                    ? "desc"
+                                                    : prev === "desc"
+                                                    ? ""
+                                                    : "asc"
                                                 )
                                               }
                                             >
@@ -1792,7 +1943,8 @@ const isAdmin = !!usuario?.permissoes?.includes('admin');
                                               <span className="text-xs">
                                                 {ordenacaoDataLimite === "asc"
                                                   ? "▲"
-                                                  : ordenacaoDataLimite === "desc"
+                                                  : ordenacaoDataLimite ===
+                                                    "desc"
                                                   ? "▼"
                                                   : ""}
                                               </span>
@@ -1818,17 +1970,30 @@ const isAdmin = !!usuario?.permissoes?.includes('admin');
                                         {tarefas
                                           .sort((a, b) => {
                                             // Função para obter prioridade do status
-                                            const getStatusPriority = (status: string) => {
-                                              if (status === "REPROVADO") return 0; // Maior prioridade
-                                              if (status === "EM_ANDAMENTO") return 1;
-                                              if (status === "PENDENTE") return 2;
-                                              if (status === "CONCLUIDA" || status === "CONCLUIDO") return 3; // Menor prioridade
+                                            const getStatusPriority = (
+                                              status: string
+                                            ) => {
+                                              if (status === "REPROVADO")
+                                                return 0; // Maior prioridade
+                                              if (status === "EM_ANDAMENTO")
+                                                return 1;
+                                              if (status === "PENDENTE")
+                                                return 2;
+                                              if (
+                                                status === "CONCLUIDA" ||
+                                                status === "CONCLUIDO"
+                                              )
+                                                return 3; // Menor prioridade
                                               return 4; // Outros status
                                             };
 
-                                            const priorityA = getStatusPriority(a.status);
-                                            const priorityB = getStatusPriority(b.status);
-                                            
+                                            const priorityA = getStatusPriority(
+                                              a.status
+                                            );
+                                            const priorityB = getStatusPriority(
+                                              b.status
+                                            );
+
                                             return priorityA - priorityB;
                                           })
                                           .map((tarefa) => {
@@ -1844,10 +2009,14 @@ const isAdmin = !!usuario?.permissoes?.includes('admin');
                                             )
                                               statusClasses +=
                                                 " bg-green-100 text-green-800";
-                                            else if (tarefa.status === "REPROVADO")
+                                            else if (
+                                              tarefa.status === "REPROVADO"
+                                            )
                                               statusClasses +=
                                                 " bg-red-100 text-red-800";
-                                            else if (tarefa.status === "EM_ANDAMENTO")
+                                            else if (
+                                              tarefa.status === "EM_ANDAMENTO"
+                                            )
                                               statusClasses +=
                                                 " bg-blue-100 text-blue-800";
                                             else
@@ -2033,19 +2202,35 @@ const isAdmin = !!usuario?.permissoes?.includes('admin');
                                                       }
                                                     >
                                                       <ChatBubbleLeftRightIcon className="h-4 w-4" />
-<span
-  className={`absolute -top-2 -right-2 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center ${
-    (observacoesCount as Record<string, number>)[tarefa.id] > 0 ? "bg-blue-500" : "bg-gray-400"
-  }`}
->
-  {(observacoesCount as Record<string, number>)[tarefa.id] ?? 0}
-</span>
+                                                      <span
+                                                        className={`absolute -top-2 -right-2 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center ${
+                                                          (
+                                                            observacoesCount as Record<
+                                                              string,
+                                                              number
+                                                            >
+                                                          )[tarefa.id] > 0
+                                                            ? "bg-blue-500"
+                                                            : "bg-gray-400"
+                                                        }`}
+                                                      >
+                                                        {(
+                                                          observacoesCount as Record<
+                                                            string,
+                                                            number
+                                                          >
+                                                        )[tarefa.id] ?? 0}
+                                                      </span>
                                                     </button>
                                                     {isAdmin && (
                                                       <button
                                                         className="text-slate-500 hover:text-red-600"
                                                         title="Excluir tarefa"
-                                                        onClick={() => abrirModalExcluir(tarefa)}
+                                                        onClick={() =>
+                                                          abrirModalExcluir(
+                                                            tarefa
+                                                          )
+                                                        }
                                                       >
                                                         <TrashIcon className="h-4 w-4" />
                                                       </button>
@@ -2200,8 +2385,12 @@ const isAdmin = !!usuario?.permissoes?.includes('admin');
     const tarefasAtrasadas = () => {
       // Normalizar data de hoje para ignorar horas
       const hoje = new Date();
-      const hojeNorm = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
-      
+      const hojeNorm = new Date(
+        hoje.getFullYear(),
+        hoje.getMonth(),
+        hoje.getDate()
+      );
+
       return tarefasFiltradas.filter((tarefa) => {
         if (
           !tarefa.dataLimite ||
@@ -2209,11 +2398,15 @@ const isAdmin = !!usuario?.permissoes?.includes('admin');
           tarefa.status === "CONCLUIDA"
         )
           return false;
-        
+
         // Normalizar data limite para ignorar horas
         const dataLimite = new Date(tarefa.dataLimite);
-        const dataLimiteNorm = new Date(dataLimite.getFullYear(), dataLimite.getMonth(), dataLimite.getDate());
-        
+        const dataLimiteNorm = new Date(
+          dataLimite.getFullYear(),
+          dataLimite.getMonth(),
+          dataLimite.getDate()
+        );
+
         return dataLimiteNorm < hojeNorm;
       }).length;
     };
@@ -2448,14 +2641,7 @@ const isAdmin = !!usuario?.permissoes?.includes('admin');
                   Funcionários Envolvidos
                 </span>
                 <span className="text-lg font-semibold text-blue-600">
-                  {
-                    new Set(
-                      tarefasFiltradas.map(
-                        (t) =>
-                          t.funcionario?.id
-                      )
-                    ).size
-                  }
+                  {new Set(tarefasFiltradas.map((t) => t.funcionario?.id)).size}
                 </span>
               </div>
             </div>
@@ -2475,14 +2661,14 @@ const isAdmin = !!usuario?.permissoes?.includes('admin');
         (solicitacao.funcionarios || [])
           .filter(
             (f) =>
-              (f.statusTarefa === "REPROVADO" ||
-                f.statusTarefa === "EM_ANDAMENTO")
+              f.statusTarefa === "REPROVADO" ||
+              f.statusTarefa === "EM_ANDAMENTO"
           )
           .map((f) => ({
             id: f.id,
-            nome: f.funcionario?.nome || '',
-            matricula: f.funcionario?.matricula || '',
-            funcao: f.funcionario?.funcao || '',
+            nome: f.funcionario?.nome || "",
+            matricula: f.funcionario?.matricula || "",
+            funcao: f.funcionario?.funcao || "",
           }))
       )
       .reduce((acc: any[], curr) => {
@@ -2587,7 +2773,7 @@ const isAdmin = !!usuario?.permissoes?.includes('admin');
 
                       // Atualizar o valor do textarea
                       if (descricaoRef.current) {
-                        descricaoRef.current.value = novaDescricao || '';
+                        descricaoRef.current.value = novaDescricao || "";
                       }
                     }}
                     disabled={loadingTiposTarefa}
@@ -2721,59 +2907,75 @@ const isAdmin = !!usuario?.permissoes?.includes('admin');
                       <h3 className="font-medium text-gray-700 mb-2">
                         Detalhes do Funcionário
                       </h3>
-                      {solicitacaoSelecionada && (solicitacaoSelecionada.funcionarios || []).find(
-                        (f) => f.id === novaTarefa.remanejamentoFuncionarioId
-                      )?.funcionario && (
-                        <>
-                          <p className="text-xs text-gray-600">
-                            <span className="font-medium">Nome:</span>{" "}
-                            {
-                              (solicitacaoSelecionada?.funcionarios || []).find(
-                                (f) =>
-                                  f.id === novaTarefa.remanejamentoFuncionarioId
-                              )?.funcionario?.nome
-                            }
-                          </p>
-                          <p className="text-xs text-gray-600">
-                            <span className="font-medium">Matrícula:</span>{" "}
-                            {
-                              (solicitacaoSelecionada?.funcionarios || []).find(
-                                (f) =>
-                                  f.id === novaTarefa.remanejamentoFuncionarioId
-                              )?.funcionario?.matricula
-                            }
-                          </p>
-                          <p className="text-xs text-gray-600">
-                            <span className="font-medium">Função:</span>{" "}
-                            {
-                              (solicitacaoSelecionada?.funcionarios || []).find(
-                                (f) =>
-                                  f.id === novaTarefa.remanejamentoFuncionarioId
-                              )?.funcionario?.funcao
-                            }
-                          </p>
-                          <p className="text-xs text-gray-600">
-                            <span className="font-medium">
-                              Centro de Custo:
-                            </span>{" "}
-                            {
-                              (solicitacaoSelecionada?.funcionarios || []).find(
-                                (f) =>
-                                  f.id === novaTarefa.remanejamentoFuncionarioId
-                              )?.funcionario?.centroCusto
-                            }
-                          </p>
-                          <p className="text-xs text-gray-600">
-                            <span className="font-medium">Status:</span>{" "}
-                            {
-                              (solicitacaoSelecionada?.funcionarios || []).find(
-                                (f) =>
-                                  f.id === novaTarefa.remanejamentoFuncionarioId
-                              )?.funcionario?.nome
-                            }
-                          </p>
-                        </>
-                      )}
+                      {solicitacaoSelecionada &&
+                        (solicitacaoSelecionada.funcionarios || []).find(
+                          (f) => f.id === novaTarefa.remanejamentoFuncionarioId
+                        )?.funcionario && (
+                          <>
+                            <p className="text-xs text-gray-600">
+                              <span className="font-medium">Nome:</span>{" "}
+                              {
+                                (
+                                  solicitacaoSelecionada?.funcionarios || []
+                                ).find(
+                                  (f) =>
+                                    f.id ===
+                                    novaTarefa.remanejamentoFuncionarioId
+                                )?.funcionario?.nome
+                              }
+                            </p>
+                            <p className="text-xs text-gray-600">
+                              <span className="font-medium">Matrícula:</span>{" "}
+                              {
+                                (
+                                  solicitacaoSelecionada?.funcionarios || []
+                                ).find(
+                                  (f) =>
+                                    f.id ===
+                                    novaTarefa.remanejamentoFuncionarioId
+                                )?.funcionario?.matricula
+                              }
+                            </p>
+                            <p className="text-xs text-gray-600">
+                              <span className="font-medium">Função:</span>{" "}
+                              {
+                                (
+                                  solicitacaoSelecionada?.funcionarios || []
+                                ).find(
+                                  (f) =>
+                                    f.id ===
+                                    novaTarefa.remanejamentoFuncionarioId
+                                )?.funcionario?.funcao
+                              }
+                            </p>
+                            <p className="text-xs text-gray-600">
+                              <span className="font-medium">
+                                Centro de Custo:
+                              </span>{" "}
+                              {
+                                (
+                                  solicitacaoSelecionada?.funcionarios || []
+                                ).find(
+                                  (f) =>
+                                    f.id ===
+                                    novaTarefa.remanejamentoFuncionarioId
+                                )?.funcionario?.centroCusto
+                              }
+                            </p>
+                            <p className="text-xs text-gray-600">
+                              <span className="font-medium">Status:</span>{" "}
+                              {
+                                (
+                                  solicitacaoSelecionada?.funcionarios || []
+                                ).find(
+                                  (f) =>
+                                    f.id ===
+                                    novaTarefa.remanejamentoFuncionarioId
+                                )?.funcionario?.nome
+                              }
+                            </p>
+                          </>
+                        )}
                     </div>
                   </div>
                 )}
@@ -2912,8 +3114,7 @@ const isAdmin = !!usuario?.permissoes?.includes('admin');
                   {tarefaSelecionada.descricao}
                 </p>
                 <p className="text-xs text-gray-600">
-                  <span className="font-medium">Funcionário:</span>{" "}
-                  {"N/A"}
+                  <span className="font-medium">Funcionário:</span> {"N/A"}
                 </p>
               </div>
 
@@ -2935,9 +3136,13 @@ const isAdmin = !!usuario?.permissoes?.includes('admin');
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                   {erroDataVencimento && (
-                    <p className="text-xs text-red-600 mt-1">{erroDataVencimento}</p>
+                    <p className="text-xs text-red-600 mt-1">
+                      {erroDataVencimento}
+                    </p>
                   )}
-                  <p className="text-[10px] text-gray-500 mt-1">Obrigatório para Treinamento e Medicina. Prazo mínimo d+30.</p>
+                  <p className="text-[10px] text-gray-500 mt-1">
+                    Obrigatório para Treinamento e Medicina. Prazo mínimo d+30.
+                  </p>
                 </div>
               )}
             </div>
@@ -2977,7 +3182,8 @@ const isAdmin = !!usuario?.permissoes?.includes('admin');
 
             <div className="mb-6">
               <p className="text-gray-700 mb-4">
-                Tem certeza que deseja excluir esta tarefa? Esta ação não pode ser desfeita.
+                Tem certeza que deseja excluir esta tarefa? Esta ação não pode
+                ser desfeita.
               </p>
 
               <div className="bg-gray-50 p-4 rounded-lg mb-4">
@@ -3049,8 +3255,7 @@ const isAdmin = !!usuario?.permissoes?.includes('admin');
                 {tarefaSelecionada.status}
               </p>
               <p className="text-xs text-gray-600">
-                <span className="font-medium">Funcionário:</span>{" "}
-                {"N/A"}
+                <span className="font-medium">Funcionário:</span> {"N/A"}
               </p>
               <p className="text-xs text-gray-600">
                 <span className="font-medium">Data Limite Atual:</span>{" "}
@@ -3098,7 +3303,9 @@ const isAdmin = !!usuario?.permissoes?.includes('admin');
                         className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                       {erroNovaDataLimite && (
-                        <p className="text-xs text-red-600 mt-1">{erroNovaDataLimite}</p>
+                        <p className="text-xs text-red-600 mt-1">
+                          {erroNovaDataLimite}
+                        </p>
                       )}
                     </div>
                     <div>
@@ -3115,7 +3322,9 @@ const isAdmin = !!usuario?.permissoes?.includes('admin');
                         rows={2}
                       />
                       {erroJustificativaDataLimite && (
-                        <p className="text-xs text-red-600 mt-1">{erroJustificativaDataLimite}</p>
+                        <p className="text-xs text-red-600 mt-1">
+                          {erroJustificativaDataLimite}
+                        </p>
                       )}
                     </div>
                     <button
@@ -3123,9 +3332,7 @@ const isAdmin = !!usuario?.permissoes?.includes('admin');
                       disabled={atualizandoDataLimite}
                       className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:bg-green-300"
                     >
-                      {atualizandoDataLimite
-                        ? "Atualizando..."
-                        : "Atualizar"}
+                      {atualizandoDataLimite ? "Atualizando..." : "Atualizar"}
                     </button>
                   </div>
                 </div>
