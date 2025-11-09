@@ -22,7 +22,6 @@
     "dev:docker:down": "docker-compose -f docker-compose.dev.yml down",
     "staging:cleanup-remanejamentos": "node scripts/cleanup-remanejamentos.cjs",
     "staging:add-funcionarios-extra": "node scripts/add-funcionarios-extra.js",
-
     "open": "powershell -Command Start-Process 'http://localhost:3000'"
   },
   "prisma": {
@@ -37,6 +36,7 @@
     "bcryptjs": "^3.0.2",
     "chart.js": "^4.5.0",
     "chartjs-plugin-datalabels": "^2.2.0",
+    "exceljs": "^4.4.0",
     "flowbite": "^3.1.2",
     "flowbite-react": "^0.12.6",
     "form-data": "^4.0.4",
