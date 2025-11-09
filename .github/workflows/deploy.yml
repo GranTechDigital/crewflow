@@ -3,16 +3,16 @@ run-name: ${{ inputs.run_name || github.event.head_commit.message || format('Dep
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
     paths:
-      - 'src/**'
-      - 'prisma/**'
-      - 'Dockerfile'
-      - 'docker-compose.yml'
+      - "src/**"
+      - "prisma/**"
+      - "Dockerfile"
+      - "docker-compose.yml"
   workflow_dispatch:
     inputs:
       run_name:
-        description: 'Nome do run (opcional) — deixe vazio para usar branch/autor'
+        description: "Nome do run (opcional) — deixe vazio para usar branch/autor"
         type: string
         required: false
 

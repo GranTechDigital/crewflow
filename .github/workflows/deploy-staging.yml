@@ -8,11 +8,11 @@ on:
   workflow_dispatch:
     inputs:
       run_name:
-        description: 'Nome do run (opcional) — deixe vazio para usar branch/autor'
+        description: "Nome do run (opcional) — deixe vazio para usar branch/autor"
         type: string
         required: false
       skip_db_backup:
-        description: 'Pular backup do banco antes do deploy? (false recomendado)'
+        description: "Pular backup do banco antes do deploy? (false recomendado)"
         type: boolean
         required: false
         default: false
