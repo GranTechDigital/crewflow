@@ -28,10 +28,15 @@ jobs:
     steps:
       - name: 🔑 Setup SSH
         run: |
+          set -euo pipefail
+          if [ -z "${{ secrets.SSH_PRIVATE_KEY }}" ]; then
+            echo "❌ SSH_PRIVATE_KEY secret não está configurado"; exit 1; fi
+          if [ -z "${{ secrets.SERVER_HOST }}" ]; then
+            echo "❌ SERVER_HOST secret não está configurado"; exit 1; fi
           mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+          ssh-keyscan -T 10 -H "${{ secrets.SERVER_HOST }}" >> ~/.ssh/known_hosts || { echo "❌ ssh-keyscan falhou para host '${{ secrets.SERVER_HOST }}'"; exit 1; }
 
       - name: 🔎 Audit/Migrate staging volume
         run: |
