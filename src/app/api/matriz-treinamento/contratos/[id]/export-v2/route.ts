@@ -140,7 +140,7 @@ export async function GET(
       }
     }
     if (logoBuffer) {
-      const imageId = workbook.addImage({ buffer: logoBuffer, extension: 'png' });
+      const imageId = workbook.addImage({ base64: logoBuffer.toString('base64'), extension: 'png' });
       // Dimensões do logo fixas: 7,80 cm (largura) x 1,60 cm (altura)
       const CM_TO_PX = 96 / 2.54; // conversão cm -> px
       const imgWidthPx = Math.round(7.80 * CM_TO_PX);
