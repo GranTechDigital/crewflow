@@ -115,6 +115,13 @@ export async function POST(request: NextRequest) {
       data: {
         funcao: funcao.trim(),
         regime: regime.trim(),
+        funcao_slug: funcao
+          .normalize('NFD')
+          .replace(/\p{Diacritic}/gu, '')
+          .toLowerCase()
+          .trim()
+          .replace(/\s+/g, '-')
+          .replace(/[^a-z0-9-]/g, ''),
       },
     });
 
