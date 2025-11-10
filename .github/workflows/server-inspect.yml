@@ -1,0 +1,66 @@
+name: Server Inspect (SSH)
+
+on:
+  workflow_dispatch:
+    inputs:
+      remote_path:
+        description: 'Caminho absoluto do arquivo no servidor (ex.: /opt/projetogran/.env.production)'
+        type: string
+        required: true
+      use_sudo:
+        description: 'Usar sudo para leitura (caso permissões restritas)'
+        type: boolean
+        required: false
+        default: true
+      tail_lines:
+        description: 'Quantidade de linhas para tail (0 = desabilitado)'
+        type: number
+        required: false
+        default: 0
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🔑 Setup SSH
+        run: |
+          set -euo pipefail
+          if [ -z "${{ secrets.SSH_PRIVATE_KEY }}" ]; then
+            echo "❌ SSH_PRIVATE_KEY secret não está configurado"; exit 1; fi
+          if [ -z "${{ secrets.SERVER_HOST }}" ]; then
+            echo "❌ SERVER_HOST secret não está configurado"; exit 1; fi
+          PORT="${{ secrets.SERVER_SSH_PORT }}"; [ -z "$PORT" ] && PORT=22
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -p "$PORT" -T 10 -H "${{ secrets.SERVER_HOST }}" >> ~/.ssh/known_hosts || { echo "❌ ssh-keyscan falhou para host '${{ secrets.SERVER_HOST }}' porta $PORT"; exit 1; }
+
+      - name: 📄 Mostrar arquivo remoto
+        run: |
+          set -euo pipefail
+          PORT="${{ secrets.SERVER_SSH_PORT }}"; [ -z "$PORT" ] && PORT=22
+          HOST="${{ secrets.SERVER_HOST }}"
+          PATH_IN="${{ github.event.inputs.remote_path }}"
+          USE_SUDO="${{ github.event.inputs.use_sudo }}"
+          TAIL_LINES="${{ github.event.inputs.tail_lines }}"
+
+          echo "🔎 Host: $HOST"
+          echo "🔎 Porta SSH: $PORT"
+          echo "🔎 Caminho: $PATH_IN"
+
+          # Comandos para inspeção segura
+          READ_CMD="cat \"$PATH_IN\""
+          if [ "$USE_SUDO" = "true" ]; then READ_CMD="sudo $READ_CMD"; fi
+
+          # Mostra metadados
+          ssh -p "$PORT" -o StrictHostKeyChecking=no root@"$HOST" "set -e; ls -lah \"$PATH_IN\" || true; stat \"$PATH_IN\" || true"
+
+          # Conteúdo completo (limitado a 2000 linhas para segurança)
+          echo "\n===== Conteúdo (limitado) ====="
+          ssh -p "$PORT" -o StrictHostKeyChecking=no root@"$HOST" "set -e; $READ_CMD | head -n 2000"
+
+          # Tail opcional
+          if [ "$TAIL_LINES" != "0" ]; then
+            echo "\n===== Tail (${TAIL_LINES} linhas) ====="
+            ssh -p "$PORT" -o StrictHostKeyChecking=no root@"$HOST" "set -e; $READ_CMD | tail -n \"$TAIL_LINES\""
+          fi
