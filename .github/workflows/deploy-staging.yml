@@ -2,7 +2,7 @@ name: Deploy CrewFlow to Staging
 
 on:
   push:
-    branches: [develop, staging]
+    branches: [develop]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -16,6 +16,10 @@ on:
         type: boolean
         required: false
         default: false
+
+concurrency:
+  group: crewflow-staging-deploy
+  cancel-in-progress: true
 
 jobs:
   deploy-staging:
