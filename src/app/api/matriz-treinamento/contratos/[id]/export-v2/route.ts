@@ -316,7 +316,7 @@ export async function GET(
     wsTreinamentos.getColumn(5).width = 16;
     wsTreinamentos.getColumn(6).width = 18;
     wsTreinamentos.views = [{ state: 'frozen', ySplit: 1 }];
-    wsTreinamentos.protect();
+    wsTreinamentos.protect(undefined, { selectLockedCells: true, selectUnlockedCells: true });
     wsTreinamentos.state = 'visible';
 
     // Reverter: remover aba SelecaoCabecalhos e usar lista direta da aba Treinamentos
@@ -377,7 +377,7 @@ export async function GET(
   wsFuncoes.getColumn(3).width = 18;  // Regime
   wsFuncoes.getColumn(4).width = 42;  // Label
   wsFuncoes.views = [{ state: 'frozen', ySplit: 1 }];
-  wsFuncoes.protect();
+  wsFuncoes.protect(undefined, { selectLockedCells: true, selectUnlockedCells: true });
   wsFuncoes.state = 'visible';
 
     const wsTipos = workbook.addWorksheet('TiposObrigatoriedade');
@@ -395,7 +395,7 @@ export async function GET(
   // Largura da coluna
   wsTipos.getColumn(1).width = 24;
   wsTipos.views = [{ state: 'frozen', ySplit: 1 }];
-  wsTipos.protect();
+  wsTipos.protect(undefined, { selectLockedCells: true, selectUnlockedCells: true });
   wsTipos.state = 'visible';
 
     // Validações
@@ -478,7 +478,7 @@ export async function GET(
     resumo.getCell(1, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDDEBF7' } };
     resumo.getCell(1, 2).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDDEBF7' } };
     resumo.views = [{ state: 'frozen', ySplit: 1 }];
-    resumo.protect();
+    resumo.protect(undefined, { selectLockedCells: true, selectUnlockedCells: true });
 
     // Legenda
     const legenda = workbook.addWorksheet('Legenda');
