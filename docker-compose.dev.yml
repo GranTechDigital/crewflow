@@ -1,0 +1,82 @@
+version: '3.8'
+services:
+  app-dev:
+    image: node:18-alpine
+    container_name: crewflow-app-dev
+    working_dir: /app
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env.dev
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+      - CHOKIDAR_INTERVAL=3000
+      - WATCHPACK_POLL=3000
+    volumes:
+      - .:/app
+      - node_modules:/app/node_modules
+    networks:
+      - crewflow-dev-network
+    command: sh -c "npm ci && npx prisma generate && npx next dev -p 3000"
+    depends_on:
+      - postgres-dev
+
+  postgres-dev:
+    image: postgres:15
+    container_name: postgres-dev
+    restart: unless-stopped
+    env_file:
+      - .env.dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-dev-data:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d
+    networks:
+      - crewflow-dev-network
+
+  pgadmin-dev:
+    image: dpage/pgadmin4:latest
+    container_name: pgadmin-dev
+    env_file:
+      - .env.dev
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin-dev-data:/var/lib/pgadmin
+    restart: unless-stopped
+    networks:
+      - crewflow-dev-network
+    depends_on:
+      - postgres-dev
+
+  func-sync-worker:
+    image: node:18-alpine
+    container_name: crewflow-func-sync-worker
+    working_dir: /app
+    env_file:
+      - .env.dev
+    environment:
+      - SYNC_TARGET_URL=http://app-dev:3000/api/funcionarios/sincronizar
+      - FUNCIONARIOS_SYNC_INTERVAL_MINUTES=60
+      - TZ=America/Sao_Paulo
+    volumes:
+      - .:/app
+    networks:
+      - crewflow-dev-network
+    depends_on:
+      - app-dev
+    command: ["node", "scripts/funcionarios-sync-worker.js"]
+    restart: unless-stopped
+
+networks:
+  crewflow-dev-network:
+    name: crewflow-dev-network
+
+volumes:
+  node_modules:
+    name: crewflow_node_modules_dev
+  postgres-dev-data:
+    name: crewflow_postgres_dev_data
+  pgadmin-dev-data:
+    name: crewflow_pgadmin_dev_data

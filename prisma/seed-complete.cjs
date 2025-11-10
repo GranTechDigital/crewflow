@@ -3,21 +3,53 @@ const bcrypt = require("bcryptjs");
 const fs = require("fs");
 const path = require("path");
 
+function normalizeRegime(regime) {
+  const r = String(regime || "ONSHORE").toUpperCase();
+  return r.includes("OFFSHORE") ? "OFFSHORE" : "ONSHORE";
+}
+
+function formatFuncaoNome(funcao, regime) {
+  const r = normalizeRegime(regime);
+  return `${funcao} (${r})`;
+}
+
 // Função para carregar dados dos arquivos JSON organizados
 function loadSeedData() {
   const seedsDir = path.join(__dirname, "..", "seeds", "data");
-  
-  const status = JSON.parse(fs.readFileSync(path.join(seedsDir, "status.json"), "utf8"));
-  const statusMapping = JSON.parse(fs.readFileSync(path.join(seedsDir, "status-mapping.json"), "utf8"));
-  const projetos = JSON.parse(fs.readFileSync(path.join(seedsDir, "projetos.json"), "utf8"));
-  const centrosCustoProjeto = JSON.parse(fs.readFileSync(path.join(seedsDir, "centros-custo-projeto.json"), "utf8"));
-  const centrosCusto = JSON.parse(fs.readFileSync(path.join(seedsDir, "centros-custo.json"), "utf8"));
-  const contratos = JSON.parse(fs.readFileSync(path.join(seedsDir, "contratos.json"), "utf8"));
-  const vinculacoes = JSON.parse(fs.readFileSync(path.join(seedsDir, "vinculacoes.json"), "utf8"));
-  const equipes = JSON.parse(fs.readFileSync(path.join(seedsDir, "equipes.json"), "utf8"));
-  const treinamentos = JSON.parse(fs.readFileSync(path.join(seedsDir, "treinamentos.json"), "utf8"));
-  const tarefasPadrao = JSON.parse(fs.readFileSync(path.join(seedsDir, "tarefas-padrao.json"), "utf8"));
-  const funcoes = JSON.parse(fs.readFileSync(path.join(seedsDir, "funcoes.json"), "utf8"));
+
+  const status = JSON.parse(
+    fs.readFileSync(path.join(seedsDir, "status.json"), "utf8")
+  );
+  const statusMapping = JSON.parse(
+    fs.readFileSync(path.join(seedsDir, "status-mapping.json"), "utf8")
+  );
+  const projetos = JSON.parse(
+    fs.readFileSync(path.join(seedsDir, "projetos.json"), "utf8")
+  );
+  const centrosCustoProjeto = JSON.parse(
+    fs.readFileSync(path.join(seedsDir, "centros-custo-projeto.json"), "utf8")
+  );
+  const centrosCusto = JSON.parse(
+    fs.readFileSync(path.join(seedsDir, "centros-custo.json"), "utf8")
+  );
+  const contratos = JSON.parse(
+    fs.readFileSync(path.join(seedsDir, "contratos.json"), "utf8")
+  );
+  const vinculacoes = JSON.parse(
+    fs.readFileSync(path.join(seedsDir, "vinculacoes.json"), "utf8")
+  );
+  const equipes = JSON.parse(
+    fs.readFileSync(path.join(seedsDir, "equipes.json"), "utf8")
+  );
+  const treinamentos = JSON.parse(
+    fs.readFileSync(path.join(seedsDir, "treinamentos.json"), "utf8")
+  );
+  const tarefasPadrao = JSON.parse(
+    fs.readFileSync(path.join(seedsDir, "tarefas-padrao.json"), "utf8")
+  );
+  const funcoes = JSON.parse(
+    fs.readFileSync(path.join(seedsDir, "funcoes.json"), "utf8")
+  );
 
   return {
     status,
@@ -30,7 +62,7 @@ function loadSeedData() {
     equipes,
     treinamentos,
     tarefasPadrao,
-    funcoes
+    funcoes,
   };
 }
 
@@ -38,7 +70,7 @@ const prisma = new PrismaClient();
 
 async function main() {
   console.log("🌱 Iniciando seed completo...");
-  
+
   // Carregar dados organizados
   const dadosOrganizados = loadSeedData();
 
@@ -63,7 +95,9 @@ async function main() {
   let statusMappingsCriados = 0;
   for (const mappingData of dadosOrganizados.statusMapping) {
     // Buscar o status pelo ID fornecido no mapping
-    const statusGeral = statusCriados.find(s => s.id === mappingData.statusId);
+    const statusGeral = statusCriados.find(
+      (s) => s.id === mappingData.statusId
+    );
     if (statusGeral) {
       const existing = await prisma.statusMapping.findFirst({
         where: {
@@ -81,22 +115,27 @@ async function main() {
         statusMappingsCriados++;
       }
     } else {
-      console.log(`⚠️  Status com ID ${mappingData.statusId} não encontrado para mapping: ${mappingData.statusGeral}`);
+      console.log(
+        `⚠️  Status com ID ${mappingData.statusId} não encontrado para mapping: ${mappingData.statusGeral}`
+      );
     }
   }
   console.log(`${statusMappingsCriados} status mappings criados`);
 
   // Criar Projetos
   console.log("\nCriando projetos...");
-  const projetosData = [...dadosOrganizados.projetos, { codigo: "NE", nome: "NÃO ENCONTRADO" }];
+  const projetosData = [
+    ...dadosOrganizados.projetos,
+    { codigo: "NE", nome: "NÃO ENCONTRADO" },
+  ];
   const projetosCriados = [];
   for (const projetoData of projetosData) {
     const projeto = await prisma.projeto.upsert({
       where: { nome: projetoData.nome },
       update: {},
-      create: { 
+      create: {
         codigo: projetoData.codigo,
-        nome: projetoData.nome 
+        nome: projetoData.nome,
       },
     });
     projetosCriados.push(projeto);
@@ -116,7 +155,9 @@ async function main() {
 
   let centrosCustoProjetoCriados = 0;
   for (const centroCustoData of centrosCustoProjeto) {
-    const projeto = projetosCriados.find(p => p.nome === centroCustoData.projeto);
+    const projeto = projetosCriados.find(
+      (p) => p.nome === centroCustoData.projeto
+    );
     if (!projeto) {
       console.warn(`Projeto não encontrado: ${centroCustoData.projeto}`);
       continue;
@@ -185,9 +226,13 @@ async function main() {
   console.log("\nCriando vinculações...");
   let vinculacoesCriadas = 0;
   for (const vinculacaoData of dadosOrganizados.vinculacoes) {
-    const contrato = contratosCriados.find(c => c.numero === vinculacaoData.contratoNumero);
-    const centroCusto = centrosCustoCriados.find(cc => cc.num_centro_custo === vinculacaoData.centroCustoNum);
-    
+    const contrato = contratosCriados.find(
+      (c) => c.numero === vinculacaoData.contratoNumero
+    );
+    const centroCusto = centrosCustoCriados.find(
+      (cc) => cc.num_centro_custo === vinculacaoData.centroCustoNum
+    );
+
     if (contrato && centroCusto) {
       const existing = await prisma.contratosCentrosCusto.findFirst({
         where: {
@@ -275,17 +320,23 @@ async function main() {
   console.log("\nCriando funções...");
   let funcoesCriadas = 0;
   for (const funcaoData of dadosOrganizados.funcoes) {
+    const nome = String(funcaoData.funcao).trim();
+    const regimeNormalizado = normalizeRegime(funcaoData.regime);
+    const funcaoSlug = toSlug(nome);
+
     const existing = await prisma.funcao.findFirst({
       where: {
-        funcao: funcaoData.funcao,
+        funcao_slug: funcaoSlug,
+        regime: regimeNormalizado,
       },
     });
 
     if (!existing) {
       await prisma.funcao.create({
         data: {
-          funcao: funcaoData.funcao,
-          regime: funcaoData.regime,
+          funcao: nome,
+          regime: regimeNormalizado,
+          funcao_slug: funcaoSlug,
           ativo: true,
         },
       });
@@ -296,16 +347,20 @@ async function main() {
 
   // Criar Funcionário e Usuário Administrador
   console.log("\nCriando funcionário e usuário administrador...");
-  
+
+  const adminMatricula = process.env.ADMIN_USER || "ADMIN001";
+  const adminEmail = process.env.ADMIN_EMAIL || "admin@gransystem.com";
+  const adminPassword = process.env.ADMIN_PASSWORD || "admin123";
+
   const adminFuncionario = await prisma.funcionario.upsert({
-    where: { matricula: "ADMIN001" },
+    where: { matricula: adminMatricula },
     update: {},
     create: {
       nome: "Administrador do Sistema",
       cpf: "00000000000",
-      email: "admin@gransystem.com",
+      email: adminEmail,
       telefone: "(11) 99999-9999",
-      matricula: "ADMIN001",
+      matricula: adminMatricula,
       funcao: "Administrador",
       departamento: "TI",
       centroCusto: "ADMIN",
@@ -314,7 +369,7 @@ async function main() {
     },
   });
 
-  const hashedPassword = await bcrypt.hash("admin123", 10);
+  const hashedPassword = await bcrypt.hash(adminPassword, 10);
   await prisma.usuario.upsert({
     where: { funcionarioId: adminFuncionario.id },
     update: {},
@@ -330,7 +385,9 @@ async function main() {
   console.log(`- ${statusCriados.length} status (categorias) criados`);
   console.log(`- ${statusMappingsCriados} status mappings criados`);
   console.log(`- ${projetosCriados.length} projetos criados`);
-  console.log(`- ${centrosCustoProjetoCriados} centros de custo projeto criados`);
+  console.log(
+    `- ${centrosCustoProjetoCriados} centros de custo projeto criados`
+  );
   console.log(`- ${centrosCustoCriados.length} centros de custo criados`);
   console.log(`- ${contratosCriados.length} contratos criados`);
   console.log(`- ${vinculacoesCriadas.length} vinculações criadas`);
@@ -350,3 +407,14 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
+
+function toSlug(input) {
+  return String(input || "")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-");
+}

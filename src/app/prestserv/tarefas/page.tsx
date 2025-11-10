@@ -53,6 +53,8 @@ export default function TarefasPage() {
   const [observacoesTarefa, setObservacoesTarefa] = useState<{
     [tarefaId: string]: ObservacaoTarefa[];
   }>({});
+  // Mapa de contagem de observações por tarefa
+  const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>({});
   const [mostrarObservacoesTarefa, setMostrarObservacoesTarefa] = useState<
     string | null
   >(null);
@@ -97,11 +99,23 @@ export default function TarefasPage() {
   }, []);
 
   useEffect(() => {
-    // Carregar observações para todas as tarefas quando as tarefas são carregadas
     if (tarefas.length > 0) {
-      tarefas.forEach((tarefa) => {
-        buscarObservacoesTarefa(tarefa.id, false); // false para não mostrar loading
-      });
+      const ids = Array.from(new Set(tarefas.map((t) => t.id)));
+      const qs = encodeURIComponent(ids.join(","));
+      fetch(`/api/logistica/tarefas/observacoes/count?ids=${qs}`)
+        .then((resp) => (resp.ok ? resp.json() : Promise.reject(new Error("Erro ao contar observações"))))
+        .then((data) => {
+          const normalized = Object.fromEntries(
+            Object.entries(data || {}).map(([k, v]) => [String(k), v as number])
+          );
+          setObservacoesCount(normalized);
+        })
+        .catch((err) => {
+          console.error("Erro ao contar observações:", err);
+          setObservacoesCount({});
+        });
+    } else {
+      setObservacoesCount({});
     }
   }, [tarefas]);
 
@@ -323,6 +337,10 @@ export default function TarefasPage() {
       }
       const observacoes = await response.json();
       setObservacoesTarefa((prev) => ({ ...prev, [tarefaId]: observacoes }));
+      setObservacoesCount((prev) => ({
+        ...prev,
+        [tarefaId]: Array.isArray(observacoes) ? observacoes.length : 0,
+      }));
     } catch (err) {
       if (showErrors) {
         alert(err instanceof Error ? err.message : "Erro desconhecido");
@@ -856,16 +874,9 @@ export default function TarefasPage() {
                             className="px-3 py-1 text-sm bg-purple-600 text-white rounded hover:bg-purple-700 relative"
                           >
                             Observações
-                            {observacoesTarefa[tarefa.id] && (
-                              <span className="ml-1 px-1.5 py-0.5 text-xs bg-purple-800 rounded-full">
-                                {observacoesTarefa[tarefa.id].length}
-                              </span>
-                            )}
-                            {!observacoesTarefa[tarefa.id] && (
-                              <span className="ml-1 px-1.5 py-0.5 text-xs bg-gray-500 rounded-full">
-                                0
-                              </span>
-                            )}
+                            <span className={`ml-1 px-1.5 py-0.5 text-xs rounded-full ${observacoesCount[tarefa.id] > 0 ? "bg-purple-800" : "bg-gray-500"}`}>
+                              {observacoesCount[tarefa.id] ?? 0}
+                            </span>
                           </button>
                           <button
                             onClick={() => {

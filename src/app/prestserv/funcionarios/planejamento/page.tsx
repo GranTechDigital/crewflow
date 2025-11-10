@@ -9,7 +9,7 @@ import {
   // StatusPrestserv,
   StatusTarefa,
 } from "@/types/remanejamento-funcionario";
-import { read, utils, write } from 'xlsx';
+
 import {
   EyeIcon,
   PlusIcon,
@@ -153,6 +153,7 @@ function FuncionariosPageContent() {
   ]);
   const [generatingTarefas, setGeneratingTarefas] = useState(false);
   const [rejectingStatus, setRejectingStatus] = useState(false);
+  const [approvingStatus, setApprovingStatus] = useState(false);
   const [showListaTarefasModal, setShowListaTarefasModal] = useState(false);
   const [funcionarioSelecionadoTarefas, setFuncionarioSelecionadoTarefas] = useState<FuncionarioTableData | null>(null);
   const [activeTab, setActiveTab] = useState<
@@ -1015,7 +1016,7 @@ function FuncionariosPageContent() {
     setOrdenacao({ campo: "solicitacaoId", direcao: "asc" });
   };
 
-  const exportarParaExcel = () => {
+  const exportarParaExcel = async () => {
     const dadosParaExportar = funcionariosFiltrados.map((funcionario) => {
       // Função para determinar status do setor
       const getStatusSetor = (setor: string) => {
@@ -1054,11 +1055,12 @@ function FuncionariosPageContent() {
       };
     });
 
-    const ws = utils.json_to_sheet(dadosParaExportar);
-    const wb = utils.book_new();
-    utils.book_append_sheet(wb, ws, "Funcionários");
+    const XLSX = await import("xlsx");
+    const ws = XLSX.utils.json_to_sheet(dadosParaExportar);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Funcionários");
 
-    const excelBuffer = write(wb, { bookType: "xlsx", type: "array" });
+    const excelBuffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
     const data = new Blob([excelBuffer], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     });
@@ -1301,8 +1303,9 @@ function FuncionariosPageContent() {
   };
 
   const aprovarSolicitacao = async () => {
-    if (!selectedFuncionario) return;
+    if (!selectedFuncionario || approvingStatus) return;
 
+    setApprovingStatus(true);
     try {
       const response = await fetch(
         `/api/logistica/funcionario/${selectedFuncionario.id}`,
@@ -1346,6 +1349,8 @@ function FuncionariosPageContent() {
         error instanceof Error ? error.message : "Erro ao aprovar solicitação",
         "error"
       );
+    } finally {
+      setApprovingStatus(false);
     }
   };
 
@@ -3551,22 +3556,58 @@ function FuncionariosPageContent() {
                         />
                       </button>
 
-                      {/* Números das páginas */}
-                      {Array.from(
-                        { length: totalPaginas },
-                        (_, i) => i + 1
-                      ).map((numeroPagina) => (
-                        <button
-                          key={numeroPagina}
-                          onClick={() => setPaginaAtual(numeroPagina)}
-                          className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
-                            numeroPagina === paginaAtual
-                              ? "z-10 bg-blue-50 border-blue-500 text-blue-600"
-                              : "bg-white border-gray-300 text-gray-500 hover:bg-gray-50"
-                          }`}
-                        >
-                          {numeroPagina}
-                        </button>
+                      {/* Números das páginas - compactos com reticências */}
+                      {(() => {
+                        const delta = 1;
+                        const range: number[] = [];
+                        const result: (number | string)[] = [];
+                        let last: number | undefined;
+
+                        for (let i = 1; i <= totalPaginas; i++) {
+                          if (
+                            i === 1 ||
+                            i === totalPaginas ||
+                            (i >= paginaAtual - delta && i <= paginaAtual + delta)
+                          ) {
+                            range.push(i);
+                          }
+                        }
+
+                        for (const i of range) {
+                          if (last !== undefined) {
+                            if (i - last === 2) {
+                              result.push(last + 1);
+                            } else if (i - last > 2) {
+                              result.push("...");
+                            }
+                          }
+                          result.push(i);
+                          last = i;
+                        }
+
+                        return result;
+                      })().map((item, idx) => (
+                        typeof item === "string" ? (
+                          <span
+                            key={`ellipsis-${idx}`}
+                            className="relative inline-flex items-center px-2 py-1 text-xs text-gray-400 select-none"
+                          >
+                            …
+                          </span>
+                        ) : (
+                          <button
+                            key={item}
+                            onClick={() => setPaginaAtual(item)}
+                            className={`relative inline-flex items-center px-2 py-1 border text-xs font-medium ${
+                              item === paginaAtual
+                                ? "z-10 bg-blue-50 border-blue-500 text-blue-600"
+                                : "bg-white border-gray-300 text-gray-500 hover:bg-gray-50"
+                            }`}
+                            aria-label={`Ir para página ${item}`}
+                          >
+                            {item}
+                          </button>
+                        )
                       ))}
 
                       <button
@@ -3849,15 +3890,22 @@ function FuncionariosPageContent() {
             <div className="space-y-3 mb-6">
               <button
                 onClick={aprovarSolicitacao}
-                className="w-full flex items-center p-3 border border-gray-200 rounded-lg hover:bg-green-50 hover:border-green-300 transition-colors focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-offset-1"
+                disabled={approvingStatus}
+                className="w-full flex items-center p-3 border border-gray-200 rounded-lg hover:bg-green-50 hover:border-green-300 transition-colors focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <div className="flex-shrink-0">
                   <div className="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center">
-                    <PlusIcon className="w-4 h-4 text-green-600" />
+                    {approvingStatus ? (
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-600"></div>
+                    ) : (
+                      <PlusIcon className="w-4 h-4 text-green-600" />
+                    )}
                   </div>
                 </div>
                 <div className="ml-3 flex-1 text-left">
-                  <h4 className="text-sm font-medium text-gray-900">Aprovar</h4>
+                  <h4 className="text-sm font-medium text-gray-900">
+                    {approvingStatus ? "Aprovando..." : "Aprovar"}
+                  </h4>
                   <p className="text-xs text-gray-500">
                     Aprovar solicitação e gerar tarefas padrão
                   </p>

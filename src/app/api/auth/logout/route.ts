@@ -14,16 +14,19 @@ export async function POST(request: NextRequest) {
     // Debug: verificar se o token está sendo recebido via cookie, payload, header
     const cookieToken = request.cookies.get('auth-token')?.value;
     const token = headerToken || payloadToken || cookieToken;
-    
-    console.log('🚪 LOGOUT API - Token via cookie:', cookieToken ? 'SIM' : 'NÃO');
-    console.log('🚪 LOGOUT API - Token via payload:', payloadToken ? 'SIM' : 'NÃO');
-    console.log('🚪 LOGOUT API - Token via header:', headerToken ? 'SIM' : 'NÃO');
-    console.log('🚪 LOGOUT API - Token final usado:', token ? 'SIM' : 'NÃO');
-    console.log('🚪 LOGOUT API - Todos os cookies:', request.cookies.getAll().map(c => `${c.name}=${c.value}`));
+
+    const debugLogout = false;
+    if (debugLogout) {
+      // console.log('🚪 LOGOUT API - Token via cookie:', cookieToken ? 'SIM' : 'NÃO');
+      // console.log('🚪 LOGOUT API - Token via payload:', payloadToken ? 'SIM' : 'NÃO');
+      // console.log('🚪 LOGOUT API - Token via header:', headerToken ? 'SIM' : 'NÃO');
+      // console.log('🚪 LOGOUT API - Token final usado:', token ? 'SIM' : 'NÃO');
+      // console.log('🚪 LOGOUT API - Todos os cookies:', request.cookies.getAll().map(c => `${c.name}=${c.value}`));
+    }
     
     // Exigir token presente (usuário deve estar autenticado para realizar logout)
     if (!token) {
-      console.log('🚪 LOGOUT API - Nenhum token encontrado, bloqueando logout');
+      // console.log('🚪 LOGOUT API - Nenhum token encontrado, bloqueando logout');
       return NextResponse.json(
         { error: 'Token de autenticação necessário' },
         { status: 401 }
@@ -35,7 +38,7 @@ export async function POST(request: NextRequest) {
       const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret');
       await jwtVerify(token, secret);
     } catch (e) {
-      console.log('🚪 LOGOUT API - Token inválido no logout');
+      // console.log('🚪 LOGOUT API - Token inválido no logout');
       return NextResponse.json(
         { error: 'Token de autenticação inválido' },
         { status: 401 }
@@ -48,7 +51,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Remover o cookie de autenticação de forma consistente
-    console.log('🚪 LOGOUT API - Removendo cookie auth-token...');
+    // console.log('🚪 LOGOUT API - Removendo cookie auth-token...');
 
     // Definir como vazio e expirar imediatamente
     response.cookies.set('auth-token', '', {
@@ -70,7 +73,7 @@ export async function POST(request: NextRequest) {
     
     // Clear-Site-Data não é suportado em origens inseguras (HTTP); omitido aqui
 
-    console.log('🚪 LOGOUT API - Todas as estratégias de remoção aplicadas');
+    // console.log('🚪 LOGOUT API - Todas as estratégias de remoção aplicadas');
     return response;
   } catch (error) {
     console.error('❌ Erro no logout:', error);

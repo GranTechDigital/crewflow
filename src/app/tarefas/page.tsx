@@ -73,6 +73,7 @@ interface ProgressoGeral {
   emAndamento: number;
   concluidas: number;
   atrasadas: number;
+  reprovadas: number;
 }
 
 interface Funcionario {
@@ -86,7 +87,8 @@ interface Funcionario {
 }
 
 // Usando a interface correta da estrutura hierárquica
-interface FuncionarioRemanejamento extends Omit<SolicitacaoRemanejamento, 'tipo'> {
+interface FuncionarioRemanejamento
+  extends Omit<SolicitacaoRemanejamento, "tipo"> {
   // Campos adicionais para compatibilidade se necessário
   tipo?: TipoSolicitacao;
 }
@@ -118,6 +120,18 @@ export default function TarefasPage() {
   const [filtroPrioridade, setFiltroPrioridade] = useState("");
   const [filtroSetor, setFiltroSetor] = useState("");
   const [filtroContrato, setFiltroContrato] = useState("");
+  // Novo: filtros por data de vencimento (intervalo)
+  const [filtroDataInicio, setFiltroDataInicio] = useState("");
+  const [filtroDataFim, setFiltroDataFim] = useState("");
+  // Novos filtros: tipo e categoria de data limite, e ordenação por data limite
+  const [filtroTipo, setFiltroTipo] = useState("");
+  const [filtroDataCategoria, setFiltroDataCategoria] = useState<
+    "" | "VENCIDOS" | "A_VENCER" | "NO_PRAZO" | "SEM_DATA" | "NOVO"
+  >("");
+  const [ordenacaoDataLimite, setOrdenacaoDataLimite] = useState<
+    "" | "asc" | "desc"
+  >("");
+  const [filtroDataExata, setFiltroDataExata] = useState("");
 
   // Refs para evitar re-renderizações
   const filtroNomeRef = useRef<HTMLInputElement>(null);
@@ -163,6 +177,15 @@ export default function TarefasPage() {
   const [carregandoObservacoes, setCarregandoObservacoes] = useState(false);
   const [novaObservacao, setNovaObservacao] = useState("");
   const [adicionandoObservacao, setAdicionandoObservacao] = useState(false);
+  // Mapa de contagem de observações por tarefa
+  const [observacoesCount, setObservacoesCount] = useState<
+    Record<string, number>
+  >({});
+
+  // Estados para exclusão de tarefa (apenas administradores)
+  const [mostrarModalExcluir, setMostrarModalExcluir] = useState(false);
+  const [excluindoTarefa, setExcluindoTarefa] = useState(false);
+  const isAdmin = !!usuario?.permissoes?.includes("admin");
 
   const [funcionariosExpandidos, setFuncionariosExpandidos] = useState<
     Set<string>
@@ -170,7 +193,8 @@ export default function TarefasPage() {
 
   // Paginação específica para visão por funcionários
   const [paginaAtualFuncionarios, setPaginaAtualFuncionarios] = useState(1);
-  const [itensPorPaginaFuncionarios, setItensPorPaginaFuncionarios] = useState(5);
+  const [itensPorPaginaFuncionarios, setItensPorPaginaFuncionarios] =
+    useState(5);
 
   // Estados para tabs
   const [activeTab, setActiveTab] = useState<"funcionarios" | "dashboard">(
@@ -190,6 +214,9 @@ export default function TarefasPage() {
   const [excluindoObservacao, setExcluindoObservacao] = useState(false);
   const [novaDataLimite, setNovaDataLimite] = useState("");
   const [justificativaDataLimite, setJustificativaDataLimite] = useState("");
+  const [erroNovaDataLimite, setErroNovaDataLimite] = useState<string>("");
+  const [erroJustificativaDataLimite, setErroJustificativaDataLimite] =
+    useState<string>("");
   const [atualizandoDataLimite, setAtualizandoDataLimite] = useState(false);
   const [abaAtiva, setAbaAtiva] = useState<"observacoes" | "dataLimite">(
     "observacoes"
@@ -328,14 +355,6 @@ export default function TarefasPage() {
     }
   };
 
-  const abrirFormTarefa = async () => {
-    setMostrarFormTarefa(true);
-    await Promise.all([
-      fetchFuncionariosRemanejamento(),
-      fetchTiposTarefaPadrao(),
-    ]);
-  };
-
   const fecharFormTarefa = () => {
     setMostrarFormTarefa(false);
     setSolicitacaoSelecionada(null);
@@ -373,9 +392,18 @@ export default function TarefasPage() {
 
           if (!matchContrato) return;
 
+          // Excluir remanejamentos cancelados (não devem exibir tarefas)
+          if (remanejamento.statusPrestserv === "CANCELADO") {
+            return;
+          }
+
           // Filtrar tarefas dentro do remanejamento
           const tarefasFiltradas =
             remanejamento.tarefas?.filter((tarefa: TarefaRemanejamento) => {
+              // Excluir tarefas canceladas de todas as visões (listagem, cards e painéis)
+              if (tarefa.status === "CANCELADO") {
+                return false;
+              }
               // Lógica especial para status concluído
               let matchStatus = !filtroStatus;
               if (filtroStatus === "CONCLUIDO") {
@@ -391,7 +419,79 @@ export default function TarefasPage() {
               const matchSetor =
                 !filtroSetor || tarefa.responsavel === filtroSetor;
 
-              return matchStatus && matchPrioridade && matchSetor;
+              // Filtro por categoria de data limite e "Novo" ("Novo" baseado em data de criação, independente do status)
+              let matchDataCategoria = true;
+              if (filtroDataCategoria) {
+                if (filtroDataCategoria === "NOVO") {
+                  const criadoMs = tarefa.dataCriacao
+                    ? new Date(tarefa.dataCriacao).getTime()
+                    : 0;
+                  const nowMs = Date.now();
+                  matchDataCategoria =
+                    !!tarefa.dataCriacao &&
+                    criadoMs <= nowMs &&
+                    nowMs - criadoMs <= 48 * 60 * 60 * 1000;
+                } else {
+                  const hoje = new Date();
+                  hoje.setHours(0, 0, 0, 0);
+                  const dataLimiteDate = tarefa.dataLimite
+                    ? new Date(tarefa.dataLimite)
+                    : null;
+                  const notConcluida =
+                    tarefa.status !== "CONCLUIDO" &&
+                    tarefa.status !== "CONCLUIDA";
+
+                  if (filtroDataCategoria === "SEM_DATA") {
+                    matchDataCategoria = notConcluida && !dataLimiteDate;
+                  } else if (!dataLimiteDate) {
+                    matchDataCategoria = false;
+                  } else {
+                    const diffDias = Math.floor(
+                      (dataLimiteDate.getTime() - hoje.getTime()) / 86400000
+                    );
+                    const limiteA_Vencer = 7; // próximos 7 dias
+                    if (filtroDataCategoria === "VENCIDOS") {
+                      matchDataCategoria =
+                        notConcluida && dataLimiteDate < hoje;
+                    } else if (filtroDataCategoria === "A_VENCER") {
+                      matchDataCategoria =
+                        notConcluida &&
+                        diffDias >= 0 &&
+                        diffDias <= limiteA_Vencer;
+                    } else if (filtroDataCategoria === "NO_PRAZO") {
+                      matchDataCategoria =
+                        notConcluida && diffDias > limiteA_Vencer;
+                    }
+                  }
+                }
+              }
+
+              // Novo: filtro por tipo
+              const matchTipo = !filtroTipo || tarefa.tipo === filtroTipo;
+
+              // Novo: filtro por data limite exata (compara dia civil em UTC)
+              let matchDataExata = true;
+              if (filtroDataExata) {
+                if (!tarefa.dataLimite) {
+                  matchDataExata = false;
+                } else {
+                  const d = new Date(tarefa.dataLimite);
+                  const y = d.getUTCFullYear();
+                  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+                  const day = String(d.getUTCDate()).padStart(2, "0");
+                  const dataSomenteDia = `${y}-${m}-${day}`;
+                  matchDataExata = dataSomenteDia === filtroDataExata;
+                }
+              }
+
+              return (
+                matchStatus &&
+                matchPrioridade &&
+                matchSetor &&
+                matchDataCategoria &&
+                matchTipo &&
+                matchDataExata
+              );
             }) || [];
 
           // Só incluir remanejamento se tem tarefas após filtro
@@ -449,6 +549,9 @@ export default function TarefasPage() {
     const concluidas = todasTarefas.filter(
       (t) => t.status === "CONCLUIDO" || t.status === "CONCLUIDA"
     ).length;
+    const reprovadas = todasTarefas.filter(
+      (t) => t.status === "REPROVADO"
+    ).length;
 
     // Calcular tarefas atrasadas (pendentes ou em andamento com data limite no passado)
     const hoje = new Date();
@@ -466,7 +569,7 @@ export default function TarefasPage() {
       return dataLimite < hoje;
     }).length;
 
-    return { total, pendentes, emAndamento, concluidas, atrasadas };
+    return { total, pendentes, emAndamento, concluidas, atrasadas, reprovadas };
   };
 
   const getTarefasFiltradas = () => {
@@ -477,9 +580,9 @@ export default function TarefasPage() {
     remanejamentosFiltrados.forEach((remanejamento) => {
       if (remanejamento.tarefas) {
         // Add funcionario data to each tarefa
-        const tarefasComFuncionario = remanejamento.tarefas.map(tarefa => ({
+        const tarefasComFuncionario = remanejamento.tarefas.map((tarefa) => ({
           ...tarefa,
-          funcionario: remanejamento.funcionario
+          funcionario: remanejamento.funcionario,
         }));
         todasTarefas.push(...tarefasComFuncionario);
       }
@@ -488,8 +591,58 @@ export default function TarefasPage() {
     return todasTarefas;
   };
 
-  const exportarParaExcel = () => {
+  const exportarParaExcel = async () => {
     const tarefasFiltradas = getTarefasFiltradas();
+
+    // Buscar última observação em lote para todas as tarefas filtradas (com chunking para evitar URL longa)
+    const ids = Array.from(new Set((tarefasFiltradas || []).map((t) => t.id)));
+    let ultimaObsMap: Record<string, { texto?: string; criadoEm?: string; criadoPor?: string }> = {};
+    try {
+      if (ids.length > 0) {
+        const chunkSize = 100;
+        for (let i = 0; i < ids.length; i += chunkSize) {
+          const chunk = ids.slice(i, i + chunkSize);
+          const qs = encodeURIComponent(chunk.join(","));
+          const resp = await fetch(`/api/logistica/tarefas/observacoes/ultima?ids=${qs}`);
+          if (resp.ok) {
+            const partial = await resp.json();
+            ultimaObsMap = { ...ultimaObsMap, ...partial };
+          } else {
+            console.warn("Falha ao obter última observação (status):", resp.status);
+          }
+        }
+        console.log("[exportacao] totalIds:", ids.length, "mapKeys:", Object.keys(ultimaObsMap).length);
+
+        // Fallback: para IDs sem retorno no lote, buscar via endpoint do modal
+        const missingIds = ids.filter((id) => !ultimaObsMap[id]);
+        if (missingIds.length > 0) {
+          console.log("[exportacao] missingIds:", missingIds.length);
+          for (const id of missingIds) {
+            try {
+              const respInd = await fetch(`/api/logistica/tarefas/${id}/observacoes`);
+              if (respInd.ok) {
+                const obsArr: Array<{ texto?: string; criadoEm?: string; criadoPor?: string }> = await respInd.json();
+                if (Array.isArray(obsArr) && obsArr.length > 0) {
+                  const ultima = obsArr[0]; // Já vem ordenado por dataCriacao desc
+                  ultimaObsMap[id] = {
+                    texto: ultima?.texto,
+                    criadoEm: ultima?.criadoEm,
+                    criadoPor: ultima?.criadoPor,
+                  };
+                }
+              } else {
+                console.warn("Falha ao obter observação individual (status):", respInd.status);
+              }
+            } catch (e) {
+              console.warn("Erro ao obter observação individual:", e);
+            }
+          }
+          console.log("[exportacao] mapKeys pós-fallback:", Object.keys(ultimaObsMap).length);
+        }
+      }
+    } catch (err) {
+      console.error("Erro ao obter última observação para exportação:", err);
+    }
 
     const dadosExcel = tarefasFiltradas.map((tarefa) => ({
       ID: tarefa.id,
@@ -501,34 +654,56 @@ export default function TarefasPage() {
         ? new Date(tarefa.dataLimite).toLocaleDateString("pt-BR")
         : "N/A",
       "Data Criação": new Date(tarefa.dataCriacao).toLocaleDateString("pt-BR"),
-      Funcionário:
-        tarefa.funcionario?.nome ||
-        "N/A",
-      Matrícula:
-        tarefa.funcionario?.matricula ||
-        "N/A",
-      Função:
-        tarefa.funcionario?.funcao ||
-        "N/A",
+      Funcionário: tarefa.funcionario?.nome || "N/A",
+      Matrícula: tarefa.funcionario?.matricula || "N/A",
+      Função: tarefa.funcionario?.funcao || "N/A",
       "Setor Responsável": tarefa.responsavel,
+      "Última Observação": ultimaObsMap[tarefa.id]?.texto || "N/A",
     }));
 
     const wb = utils.book_new();
-      const ws = utils.json_to_sheet(dadosExcel);
-      utils.book_append_sheet(wb, ws, "Tarefas");
-      writeFile(wb, "Tarefas_Exportadas.xlsx");
+    const ws = utils.json_to_sheet(dadosExcel);
+    utils.book_append_sheet(wb, ws, "Tarefas");
+    writeFile(wb, "Tarefas_Exportadas.xlsx");
 
     toast.success("Tarefas exportadas com sucesso!");
   };
 
-  // Função para expandir/contrair funcionários
+  // Função para carregar contagem de observações sob demanda para as tarefas do grupo
+  const carregarObservacoesCountParaGrupo = async (
+    tarefas: TarefaRemanejamento[]
+  ) => {
+    const ids = Array.from(new Set((tarefas || []).map((t) => t.id)));
+    if (ids.length === 0) return;
+    try {
+      const qs = encodeURIComponent(ids.join(","));
+      const resp = await fetch(
+        `/api/logistica/tarefas/observacoes/count?ids=${qs}`
+      );
+      if (!resp.ok) throw new Error("Erro ao contar observações");
+      const data = await resp.json();
+      const normalized = Object.fromEntries(
+        Object.entries(data || {}).map(([k, v]) => [String(k), v as number])
+      );
+      setObservacoesCount((prev) => ({ ...prev, ...normalized }));
+    } catch (err) {
+      console.error("Erro ao contar observações:", err);
+    }
+  };
 
-  const toggleExpandirFuncionario = (chaveGrupo: string) => {
+  // Função para expandir/contrair funcionários
+  const toggleExpandirFuncionario = async (
+    chaveGrupo: string,
+    tarefas: TarefaRemanejamento[]
+  ) => {
     const novoExpandido = new Set(funcionariosExpandidos);
-    if (novoExpandido.has(chaveGrupo)) {
+    const isExpanded = novoExpandido.has(chaveGrupo);
+    if (isExpanded) {
       novoExpandido.delete(chaveGrupo);
     } else {
       novoExpandido.add(chaveGrupo);
+      // Carregar contagem de observações apenas ao expandir
+      carregarObservacoesCountParaGrupo(tarefas);
     }
     setFuncionariosExpandidos(novoExpandido);
   };
@@ -546,9 +721,19 @@ export default function TarefasPage() {
               !setorAtual || tarefa.responsavel === setorAtual
           ) || [];
 
-        // Ordenar tarefas (concluídas por último)
+        // Ordenar tarefas: por Data Limite quando selecionado; caso contrário, por status
         tarefasFiltradas.sort(
           (a: TarefaRemanejamento, b: TarefaRemanejamento) => {
+            if (ordenacaoDataLimite) {
+              const aTime = a.dataLimite
+                ? new Date(a.dataLimite).getTime()
+                : Number.POSITIVE_INFINITY;
+              const bTime = b.dataLimite
+                ? new Date(b.dataLimite).getTime()
+                : Number.POSITIVE_INFINITY;
+              const diff = aTime - bTime;
+              return ordenacaoDataLimite === "asc" ? diff : -diff;
+            }
             // Função para obter prioridade do status
             const getStatusPriority = (status: string) => {
               if (status === "REPROVADO") return 0; // Maior prioridade
@@ -560,7 +745,7 @@ export default function TarefasPage() {
 
             const priorityA = getStatusPriority(a.status);
             const priorityB = getStatusPriority(b.status);
-            
+
             return priorityA - priorityB;
           }
         );
@@ -576,50 +761,62 @@ export default function TarefasPage() {
 
     // Ordenar funcionários baseado no status das suas tarefas
     funcionariosComTarefas.sort((a, b) => {
-      const tarefasConcluidas_A = a.tarefas.filter(t => t.status === "CONCLUIDA" || t.status === "CONCLUIDO").length;
-      const tarefasConcluidas_B = b.tarefas.filter(t => t.status === "CONCLUIDA" || t.status === "CONCLUIDO").length;
-      
+      const tarefasConcluidas_A = a.tarefas.filter(
+        (t) => t.status === "CONCLUIDA" || t.status === "CONCLUIDO"
+      ).length;
+      const tarefasConcluidas_B = b.tarefas.filter(
+        (t) => t.status === "CONCLUIDA" || t.status === "CONCLUIDO"
+      ).length;
+
       const totalTarefas_A = a.tarefas.length;
       const totalTarefas_B = b.tarefas.length;
-      
+
       // Verificar se tem tarefas reprovadas
-      const hasReprovado_A = a.tarefas.some(t => t.status === "REPROVADO");
-      const hasReprovado_B = b.tarefas.some(t => t.status === "REPROVADO");
-      
+      const hasReprovado_A = a.tarefas.some((t) => t.status === "REPROVADO");
+      const hasReprovado_B = b.tarefas.some((t) => t.status === "REPROVADO");
+
       // Calcular se está concluído (todas as tarefas concluídas)
-      const isConcluido_A = tarefasConcluidas_A === totalTarefas_A && totalTarefas_A > 0;
-      const isConcluido_B = tarefasConcluidas_B === totalTarefas_B && totalTarefas_B > 0;
-      
+      const isConcluido_A =
+        tarefasConcluidas_A === totalTarefas_A && totalTarefas_A > 0;
+      const isConcluido_B =
+        tarefasConcluidas_B === totalTarefas_B && totalTarefas_B > 0;
+
       // Calcular se está em andamento (algumas tarefas concluídas, mas não todas)
-      const isEmAndamento_A = tarefasConcluidas_A > 0 && tarefasConcluidas_A < totalTarefas_A && !hasReprovado_A;
-      const isEmAndamento_B = tarefasConcluidas_B > 0 && tarefasConcluidas_B < totalTarefas_B && !hasReprovado_B;
-      
+      const isEmAndamento_A =
+        tarefasConcluidas_A > 0 &&
+        tarefasConcluidas_A < totalTarefas_A &&
+        !hasReprovado_A;
+      const isEmAndamento_B =
+        tarefasConcluidas_B > 0 &&
+        tarefasConcluidas_B < totalTarefas_B &&
+        !hasReprovado_B;
+
       // Calcular se está pendente (nenhuma tarefa concluída e não tem reprovadas)
       const isPendente_A = tarefasConcluidas_A === 0 && !hasReprovado_A;
       const isPendente_B = tarefasConcluidas_B === 0 && !hasReprovado_B;
-      
+
       // Prioridade de ordenação:
       // 1. Reprovado (tem pelo menos uma tarefa reprovada)
       // 2. Em andamento (algumas tarefas concluídas, mas não todas, sem reprovadas)
       // 3. Pendente (nenhuma tarefa concluída e não tem reprovadas)
       // 4. Concluído (todas as tarefas concluídas)
-      
+
       if (hasReprovado_A && !hasReprovado_B) return -1;
       if (!hasReprovado_A && hasReprovado_B) return 1;
-      
+
       if (!hasReprovado_A && !hasReprovado_B) {
         if (isEmAndamento_A && !isEmAndamento_B) return -1;
         if (!isEmAndamento_A && isEmAndamento_B) return 1;
-        
+
         if (!isEmAndamento_A && !isEmAndamento_B) {
           if (isPendente_A && !isPendente_B) return -1;
           if (!isPendente_A && isPendente_B) return 1;
-          
+
           if (isConcluido_A && !isConcluido_B) return 1;
           if (!isConcluido_A && isConcluido_B) return -1;
         }
       }
-      
+
       // Se mesmo status, ordenar por nome
       return a.funcionario.nome.localeCompare(b.funcionario.nome);
     });
@@ -648,17 +845,20 @@ export default function TarefasPage() {
 
   // Estado para data de vencimento no modal de conclusão
   const [dataVencimento, setDataVencimento] = useState("");
+  const [erroDataVencimento, setErroDataVencimento] = useState<string>("");
 
   // Funções para o modal de conclusão de tarefa
   const abrirModalConcluir = (tarefa: TarefaRemanejamento) => {
     setTarefaSelecionada(tarefa);
     setDataVencimento(""); // Resetar a data de vencimento
+    setErroDataVencimento("");
     setMostrarModalConcluir(true);
   };
 
   const fecharModalConcluir = () => {
     setTarefaSelecionada(null);
     setDataVencimento("");
+    setErroDataVencimento("");
     setMostrarModalConcluir(false);
   };
 
@@ -666,6 +866,27 @@ export default function TarefasPage() {
     if (!tarefaSelecionada) return;
 
     try {
+      // Validação local da data de vencimento (apenas se não for responsabilidade do RH)
+      if (tarefaSelecionada.responsavel !== "RH") {
+        if (!dataVencimento) {
+          setErroDataVencimento("Informe a data de vencimento.");
+          return;
+        }
+        const hoje = new Date();
+        const dt = new Date(`${dataVencimento}T00:00:00`);
+        const hojeDateOnly = new Date(
+          `${hoje.toISOString().split("T")[0]}T00:00:00`
+        );
+        const diffMs = dt.getTime() - hojeDateOnly.getTime();
+        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        if (diffDays < 30) {
+          setErroDataVencimento(
+            "A data deve ser pelo menos 30 dias após hoje."
+          );
+          return;
+        }
+      }
+
       setConcluindoTarefa(true);
       const response = await fetch(
         `/api/logistica/tarefas/${tarefaSelecionada.id}/concluir`,
@@ -673,13 +894,19 @@ export default function TarefasPage() {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            dataVencimento: dataVencimento || null,
+            dataVencimento:
+              tarefaSelecionada.responsavel !== "RH"
+                ? dataVencimento || null
+                : null,
           }),
         }
       );
 
       if (!response.ok) {
-        throw new Error("Erro ao concluir tarefa");
+        const errorData = await response.json().catch(() => null);
+        const msg = errorData?.error || "Erro ao concluir tarefa";
+        toast.error(msg);
+        throw new Error(msg);
       }
 
       toast.success("Tarefa concluída com sucesso!");
@@ -687,9 +914,54 @@ export default function TarefasPage() {
       fetchTodasTarefas(); // Atualizar a lista de tarefas
     } catch (error) {
       console.error("Erro ao concluir tarefa:", error);
-      toast.error("Erro ao concluir tarefa");
+      // Evitar mensagem duplicada se já mostramos a do backend
+      if (
+        error instanceof Error &&
+        error.message.startsWith("Data de vencimento")
+      ) {
+        // já mostrado
+      } else {
+        toast.error("Erro ao concluir tarefa");
+      }
     } finally {
       setConcluindoTarefa(false);
+    }
+  };
+
+  // Funções para exclusão de tarefa (admin)
+  const abrirModalExcluir = (tarefa: TarefaRemanejamento) => {
+    setTarefaSelecionada(tarefa);
+    setMostrarModalExcluir(true);
+  };
+
+  const fecharModalExcluir = () => {
+    setMostrarModalExcluir(false);
+  };
+
+  const excluirTarefa = async () => {
+    if (!tarefaSelecionada) return;
+    try {
+      setExcluindoTarefa(true);
+      const resp = await fetch(
+        `/api/logistica/tarefas/${tarefaSelecionada.id}`,
+        {
+          method: "DELETE",
+        }
+      );
+      if (!resp.ok) {
+        const errorData = await resp.json().catch(() => null);
+        const msg = errorData?.error || "Erro ao excluir tarefa";
+        toast.error(msg);
+        throw new Error(msg);
+      }
+      toast.success("Tarefa excluída com sucesso!");
+      fecharModalExcluir();
+      fetchTodasTarefas();
+    } catch (error) {
+      console.error("Erro ao excluir tarefa:", error);
+      toast.error("Erro ao excluir tarefa");
+    } finally {
+      setExcluindoTarefa(false);
     }
   };
 
@@ -697,18 +969,21 @@ export default function TarefasPage() {
   const abrirModalObservacoes = async (tarefa: TarefaRemanejamento) => {
     setTarefaSelecionada(tarefa);
     setMostrarModalObservacoes(true);
-    // Definir a aba ativa como "observacoes" por padrão
-    setAbaAtiva("observacoes");
+    // Definir a aba ativa como "dataLimite" por padrão (ocultando Adicionar Observação por enquanto)
+    setAbaAtiva("dataLimite");
     // Inicializar a data limite atual (se existir)
     if (tarefa.dataLimite) {
-      const dataFormatada = new Date(tarefa.dataLimite)
-        .toISOString()
-        .split("T")[0];
-      setNovaDataLimite(dataFormatada);
+      const dt = new Date(tarefa.dataLimite);
+      const y = dt.getUTCFullYear();
+      const m = String(dt.getUTCMonth() + 1).padStart(2, "0");
+      const d = String(dt.getUTCDate()).padStart(2, "0");
+      setNovaDataLimite(`${y}-${m}-${d}`);
     } else {
       setNovaDataLimite("");
     }
     setJustificativaDataLimite("");
+    setErroNovaDataLimite("");
+    setErroJustificativaDataLimite("");
     await buscarObservacoes(tarefa.id);
   };
 
@@ -719,6 +994,8 @@ export default function TarefasPage() {
     setNovaObservacao("");
     setNovaDataLimite("");
     setJustificativaDataLimite("");
+    setErroNovaDataLimite("");
+    setErroJustificativaDataLimite("");
     // Atualizar a lista de tarefas para refletir as mudanças nas observações
     fetchTodasTarefas();
   };
@@ -866,13 +1143,30 @@ export default function TarefasPage() {
   const atualizarDataLimite = async () => {
     if (!tarefaSelecionada) return;
 
+    // Reset erros
+    setErroNovaDataLimite("");
+    setErroJustificativaDataLimite("");
+
+    // Validar data mínima (hoje) e campo obrigatório
+    const hoje = new Date();
+    const pad = (n: number) => n.toString().padStart(2, "0");
+    const hojeStr = `${hoje.getFullYear()}-${pad(hoje.getMonth() + 1)}-${pad(
+      hoje.getDate()
+    )}`;
+
     if (!novaDataLimite) {
-      toast.error("Selecione uma nova data limite");
+      setErroNovaDataLimite("Selecione a nova data limite.");
+      return;
+    }
+    if (novaDataLimite < hojeStr) {
+      setErroNovaDataLimite(
+        "A data limite não pode ser anterior à data atual."
+      );
       return;
     }
 
     if (!justificativaDataLimite.trim()) {
-      toast.error("Informe uma justificativa para a alteração da data");
+      setErroJustificativaDataLimite("A justificativa é obrigatória.");
       return;
     }
 
@@ -881,21 +1175,33 @@ export default function TarefasPage() {
 
       // Formatar as datas para exibição
       const dataAnterior = tarefaSelecionada.dataLimite
-        ? new Date(tarefaSelecionada.dataLimite).toLocaleDateString("pt-BR")
+        ? (() => {
+            const dt = new Date(tarefaSelecionada.dataLimite);
+            const dd = String(dt.getUTCDate()).padStart(2, "0");
+            const mm = String(dt.getUTCMonth() + 1).padStart(2, "0");
+            const yyyy = String(dt.getUTCFullYear());
+            return `${dd}/${mm}/${yyyy}`;
+          })()
         : "Não definida";
-      const dataNova = new Date(novaDataLimite).toLocaleDateString("pt-BR");
+      const partes = novaDataLimite.split("-");
+      const dataNova = `${partes[2]}/${partes[1]}/${partes[0]}`;
 
       // Criar texto da observação automática
       const textoObservacao = `Data limite alterada: ${dataAnterior} → ${dataNova}\n\nJustificativa: ${justificativaDataLimite}`;
 
       // Atualizar a data limite da tarefa
+      const [y, m, d] = novaDataLimite.split("-").map(Number);
+      const dataLimiteUtcNoonIso = new Date(
+        Date.UTC(y, m - 1, d, 12, 0, 0)
+      ).toISOString();
+
       const responseDataLimite = await fetch(
         `/api/logistica/tarefas/${tarefaSelecionada.id}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            dataLimite: novaDataLimite,
+            dataLimite: dataLimiteUtcNoonIso,
           }),
         }
       );
@@ -927,7 +1233,7 @@ export default function TarefasPage() {
       if (tarefaSelecionada) {
         setTarefaSelecionada({
           ...tarefaSelecionada,
-          dataLimite: novaDataLimite,
+          dataLimite: dataLimiteUtcNoonIso,
         });
       }
 
@@ -992,8 +1298,8 @@ export default function TarefasPage() {
     const progresso = getProgressoGeral();
 
     return (
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div className="bg-linear-to-r from-gray-100 to-slate-100 p-5 rounded-lg shadow-lg min-h-[120px] flex items-center border-1 border-slate-400">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
+        <div className="bg-linear-to-r from-gray-100 to-slate-100 p-4 rounded-lg shadow-lg min-h-[96px] flex items-center border-1 border-slate-400">
           <div className="flex items-center justify-between w-full">
             <div>
               <p className="text-xs text-slate-300">Pendentes</p>
@@ -1011,11 +1317,11 @@ export default function TarefasPage() {
                 )}
               </p>
             </div>
-            <ClockIcon className="h-12 w-12 text-slate-400" />
+            <ClockIcon className="h-10 w-10 text-slate-400" />
           </div>
         </div>
 
-        <div className="bg-linear-to-r from-gray-100 to-slate-100 p-5 rounded-lg shadow-lg min-h-[120px] flex items-center border-1 border-slate-400">
+        <div className="bg-linear-to-r from-gray-100 to-slate-100 p-4 rounded-lg shadow-lg min-h-[96px] flex items-center border-1 border-slate-400">
           <div className="flex items-center justify-between w-full">
             <div>
               <p className="text-xs text-slate-300">Concluídas</p>
@@ -1023,10 +1329,23 @@ export default function TarefasPage() {
                 {progresso.concluidas}
               </p>
             </div>
-            <CheckCircleIcon className="h-12 w-12 text-slate-400" />
+            <CheckCircleIcon className="h-10 w-10 text-slate-400" />
           </div>
         </div>
-        <div className="bg-linear-to-r from-gray-100 to-slate-100 p-5 rounded-lg shadow-lg min-h-[120px] flex items-center border-1 border-slate-400">
+
+        <div className="bg-linear-to-r from-gray-100 to-slate-100 p-4 rounded-lg shadow-lg min-h-[96px] flex items-center border-1 border-slate-400">
+          <div className="flex items-center justify-between w-full">
+            <div>
+              <p className="text-xs text-slate-300">Reprovadas</p>
+              <p className="text-2xl font-semibold text-sky-300">
+                {progresso.reprovadas}
+              </p>
+            </div>
+            <ExclamationCircleIcon className="h-10 w-10 text-red-400" />
+          </div>
+        </div>
+
+        <div className="bg-linear-to-r from-gray-100 to-slate-100 p-4 rounded-lg shadow-lg min-h-[96px] flex items-center border-1 border-slate-400">
           <div className="flex items-center justify-between w-full">
             <div>
               <p className="text-xs text-slate-300">Total</p>
@@ -1034,7 +1353,7 @@ export default function TarefasPage() {
                 {progresso.total}
               </p>
             </div>
-            <UserGroupIcon className="h-12 w-12 text-slate-400" />
+            <UserGroupIcon className="h-10 w-10 text-slate-400" />
           </div>
         </div>
       </div>
@@ -1047,7 +1366,10 @@ export default function TarefasPage() {
 
     // Contratos disponíveis (origem/destino) para seleção
     const contratosOptions = React.useMemo(() => {
-      const map = new Map<number, { id: number; numero: string; nome: string }>();
+      const map = new Map<
+        number,
+        { id: number; numero: string; nome: string }
+      >();
       solicitacoes.forEach((s) => {
         if (s.contratoOrigem) {
           map.set(s.contratoOrigem.id, {
@@ -1064,15 +1386,32 @@ export default function TarefasPage() {
           });
         }
       });
-      return Array.from(map.values()).sort((a, b) => a.numero.localeCompare(b.numero));
+      return Array.from(map.values()).sort((a, b) =>
+        a.numero.localeCompare(b.numero)
+      );
     }, [solicitacoes]);
 
+    // Tipos de tarefas disponíveis (para filtro de Tipo)
+    const tiposOptions = React.useMemo(() => {
+      const set = new Set<string>();
+      solicitacoes.forEach((s) => {
+        s.funcionarios?.forEach((rem) => {
+          rem.tarefas?.forEach((t) => {
+            if (t.tipo) set.add(t.tipo);
+          });
+        });
+      });
+      return Array.from(set.values()).sort((a, b) => a.localeCompare(b));
+    }, [solicitacoes]);
+
+    const [dataExataDraft, setDataExataDraft] = useState(filtroDataExata);
+
     return (
-      <div className="bg-white border-slate-400 border-1 p-5 rounded-lg shadow-lg mb-6">
-        <div className="flex justify-between items-center mb-4">
+      <div className="bg-white border-slate-400 border-1 p-4 rounded-lg shadow-lg mb-4">
+        <div className="flex justify-between items-center mb-2">
           <h3 className="text-lg font-medium text-slate-800">Filtros</h3>
           <button
-            className="hover:bg-gray-200 text-gray-400 px-4 py-2 rounded-md transition-colors duration-200 flex items-center gap-2"
+            className="hover:bg-gray-200 text-gray-400 px-3 py-1.5 rounded-md transition-colors duration-200 flex items-center gap-2"
             onClick={() => {
               // Limpar todos os filtros
               if (filtroNomeRef.current) {
@@ -1083,6 +1422,15 @@ export default function TarefasPage() {
               setFiltroPrioridade("");
               setFiltroSetor("");
               setFiltroContrato("");
+              // Limpar filtros antigos de intervalo
+              setFiltroDataInicio("");
+              setFiltroDataFim("");
+              // Limpar novos filtros
+              setFiltroTipo("");
+              setFiltroDataCategoria("");
+              setOrdenacaoDataLimite("");
+              setFiltroDataExata("");
+              setDataExataDraft("");
               setPaginaAtual(1);
             }}
           >
@@ -1090,13 +1438,13 @@ export default function TarefasPage() {
             Limpar Filtros
           </button>
         </div>
-        <div className={`grid grid-cols-1 md:grid-cols-${numColunas} gap-4`}>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
           <div>
-            <label className="block text-xs font-medium text-slate-800 mb-2">
+            <label className="block text-xs font-medium text-slate-800 mb-1">
               Status
             </label>
             <select
-              className="w-full h-12 rounded-md border-slate-800 bg-slate-100 text-slate-500 shadow-sm focus:border-slate-300 focus:ring-slate-300"
+              className="w-full h-9 rounded-md border-slate-800 bg-slate-100 text-slate-600 shadow-sm focus:border-slate-300 focus:ring-slate-300"
               value={filtroStatus}
               onChange={(e) => setFiltroStatus(e.target.value)}
             >
@@ -1108,11 +1456,11 @@ export default function TarefasPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-800 mb-2">
+            <label className="block text-xs font-medium text-slate-800 mb-1">
               Prioridade
             </label>
             <select
-              className="w-full h-12 rounded-md border-slate-800 bg-slate-100 text-slate-500 shadow-sm focus:border-slate-500 focus:ring-slate-500"
+              className="w-full h-9 rounded-md border-slate-800 bg-slate-100 text-slate-600 shadow-sm focus:border-slate-300 focus:ring-slate-300"
               value={filtroPrioridade}
               onChange={(e) => setFiltroPrioridade(e.target.value)}
             >
@@ -1125,17 +1473,20 @@ export default function TarefasPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-800 mb-2">
+            <label className="block text-xs font-medium text-slate-800 mb-1">
               Contrato
             </label>
             <select
-              className="w-full h-12 rounded-md border-slate-800 bg-slate-100 text-slate-500 shadow-sm focus:border-slate-500 focus:ring-slate-500"
+              className="w-full h-9 rounded-md border-slate-800 bg-slate-100 text-slate-600 shadow-sm focus:border-slate-300 focus:ring-slate-300"
               value={filtroContrato}
               onChange={(e) => setFiltroContrato(e.target.value)}
             >
               <option value="">Todos</option>
               {contratosOptions.map((c) => (
-                <option key={c.id} value={c.id.toString()}>{`${c.numero} — ${c.nome}`}</option>
+                <option
+                  key={c.id}
+                  value={c.id.toString()}
+                >{`${c.numero} — ${c.nome}`}</option>
               ))}
             </select>
           </div>
@@ -1143,11 +1494,11 @@ export default function TarefasPage() {
           {/* Mostrar o filtro de setor apenas quando não estiver em uma rota específica de setor */}
           {!setorAtual && (
             <div>
-              <label className="block text-xs font-medium text-slate-800 mb-2">
+              <label className="block text-xs font-medium text-slate-800 mb-1">
                 Setor Responsável
               </label>
               <select
-                className="w-full h-12 rounded-md border-slate-800 bg-slate-100 text-slate-500 shadow-sm focus:border-slate-500 focus:ring-slate-500"
+                className="w-full h-9 rounded-md border-slate-800 bg-slate-100 text-slate-600 shadow-sm focus:border-slate-300 focus:ring-slate-300"
                 value={filtroSetor}
                 onChange={(e) => setFiltroSetor(e.target.value)}
               >
@@ -1158,14 +1509,34 @@ export default function TarefasPage() {
               </select>
             </div>
           )}
+
+          {/* Novo: filtro por Tipo */}
           <div>
-            <label className="block text-xs font-medium text-slate-800 mb-2">
+            <label className="block text-xs font-medium text-slate-800 mb-1">
+              Tipo
+            </label>
+            <select
+              className="w-full h-9 rounded-md border-slate-800 bg-slate-100 text-slate-600 shadow-sm focus:border-slate-300 focus:ring-slate-300"
+              value={filtroTipo}
+              onChange={(e) => setFiltroTipo(e.target.value)}
+            >
+              <option value="">Todos</option>
+              {tiposOptions.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-800 mb-1">
               Nome do Funcionário
             </label>
             <div className="relative flex">
               <input
                 type="text"
-                className="pl-10 w-full h-12 rounded-l-md border-slate-500 bg-slate-100 text-slate-500 shadow-sm focus:border-slate-500 focus:ring-slate-500"
+                className="pl-8 w-full h-9 rounded-l-md border-slate-500 bg-slate-100 text-slate-600 shadow-sm focus:border-slate-300 focus:ring-slate-300"
                 placeholder="Buscar por nome..."
                 ref={filtroNomeRef}
                 defaultValue={filtroNome}
@@ -1176,21 +1547,68 @@ export default function TarefasPage() {
                   }
                 }}
               />
+              <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
+                <MagnifyingGlassIcon className="h-4 w-4 text-slate-400" />
+              </div>
               <div className="flex">
                 <button
-                  className="bg-slate-500 hover:bg-slate-600 text-white px-4 rounded-r-md transition-colors duration-200"
+                  className="bg-slate-500 hover:bg-slate-600 text-white px-3 rounded-r-md transition-colors duration-200"
                   onClick={() => {
                     if (filtroNomeRef.current) {
                       setFiltroNome(filtroNomeRef.current.value);
                     }
                   }}
                 >
-                  <MagnifyingGlassIcon className="h-5 w-5" />
+                  <MagnifyingGlassIcon className="h-4 w-4" />
                 </button>
               </div>
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <MagnifyingGlassIcon className="h-5 w-5 text-slate-400" />
-              </div>
+            </div>
+          </div>
+
+          {/* Filtro por Categoria de Data Limite */}
+          <div>
+            <label className="block text-xs font-medium text-slate-800 mb-1">
+              Data Limite por Categoria
+            </label>
+            <select
+              className="w-full h-9 rounded-md border-slate-800 bg-slate-100 text-slate-600 shadow-sm focus:border-slate-300 focus:ring-slate-300"
+              value={filtroDataCategoria}
+              onChange={(e) => setFiltroDataCategoria(e.target.value as any)}
+            >
+              <option value="">Todas</option>
+              <option value="VENCIDOS">Vencidos</option>
+              <option value="A_VENCER">Próximo de vencer</option>
+              <option value="NO_PRAZO">No prazo</option>
+              <option value="NOVO">Novo</option>
+            </select>
+          </div>
+
+          {/* Novo: Filtro por Data Limite Exata */}
+          <div>
+            <label className="block text-xs font-medium text-slate-800 mb-1">
+              Data Limite
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="date"
+                className="w-full h-9 rounded-md border-slate-800 bg-slate-100 text-slate-600 shadow-sm focus:border-slate-300 focus:ring-slate-300"
+                value={dataExataDraft}
+                onChange={(e) => setDataExataDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  e.stopPropagation();
+                  if (e.key === "Enter") {
+                    setFiltroDataExata(dataExataDraft);
+                  }
+                }}
+              />
+              <button
+                className="px-3 h-9 rounded-md bg-slate-500 hover:bg-slate-600 text-white transition-colors"
+                onClick={() => setFiltroDataExata(dataExataDraft)}
+                title="Aplicar data"
+              >
+                Aplicar
+              </button>
+
             </div>
           </div>
         </div>
@@ -1200,39 +1618,41 @@ export default function TarefasPage() {
 
   // Função para determinar o status geral do funcionário baseado nas suas tarefas
   const getStatusGeralFuncionario = (tarefas: TarefaRemanejamento[]) => {
-    if (tarefas.length === 0) return 'PENDENTE';
-    
+    if (tarefas.length === 0) return "PENDENTE";
+
     // Verificar se tem tarefas reprovadas
-    const hasReprovado = tarefas.some(t => t.status === "REPROVADO");
-    if (hasReprovado) return 'REPROVADO';
-    
+    const hasReprovado = tarefas.some((t) => t.status === "REPROVADO");
+    if (hasReprovado) return "REPROVADO";
+
     // Calcular progresso
-    const tarefasConcluidas = tarefas.filter(t => t.status === "CONCLUIDA" || t.status === "CONCLUIDO").length;
+    const tarefasConcluidas = tarefas.filter(
+      (t) => t.status === "CONCLUIDA" || t.status === "CONCLUIDO"
+    ).length;
     const totalTarefas = tarefas.length;
-    
+
     // Se todas concluídas
-    if (tarefasConcluidas === totalTarefas) return 'CONCLUIDO';
-    
+    if (tarefasConcluidas === totalTarefas) return "CONCLUIDO";
+
     // Se nenhuma concluída
-    if (tarefasConcluidas === 0) return 'PENDENTE';
-    
+    if (tarefasConcluidas === 0) return "PENDENTE";
+
     // Se algumas concluídas (em andamento)
-    return 'EM_ANDAMENTO';
+    return "EM_ANDAMENTO";
   };
 
   // Função para obter classes de borda baseadas no status
   const getBordaStatusClasses = (status: string) => {
     switch (status) {
-      case 'REPROVADO':
-        return 'border-l-4 border-l-red-500 bg-red-50/20';
-      case 'EM_ANDAMENTO':
-        return 'border-l-4 border-l-blue-500 bg-blue-50/20';
-      case 'CONCLUIDO':
-        return 'border-l-4 border-l-green-500 bg-green-50/20';
-      case 'PENDENTE':
-        return 'border-l-4 border-l-gray-400 bg-gray-50/20';
+      case "REPROVADO":
+        return "border-l-4 border-l-red-500 bg-red-50/20";
+      case "EM_ANDAMENTO":
+        return "border-l-4 border-l-blue-500 bg-blue-50/20";
+      case "CONCLUIDO":
+        return "border-l-4 border-l-green-500 bg-green-50/20";
+      case "PENDENTE":
+        return "border-l-4 border-l-gray-400 bg-gray-50/20";
       default:
-        return 'border-l-4 border-l-gray-400 bg-gray-50/20';
+        return "border-l-4 border-l-gray-400 bg-gray-50/20";
     }
   };
 
@@ -1248,6 +1668,8 @@ export default function TarefasPage() {
     const inicio = (paginaAtualFuncionarios - 1) * itensPorPaginaFuncionarios;
     const fim = inicio + itensPorPaginaFuncionarios;
     const remanejamentosPaginados = remanejamentosComTarefas.slice(inicio, fim);
+
+    // Contagem de observações será carregada sob demanda ao expandir uma linha
 
     if (loading) {
       return <div className="text-center py-10">Carregando tarefas...</div>;
@@ -1339,22 +1761,49 @@ export default function TarefasPage() {
                           )
                         : 0;
                     const expandido = funcionariosExpandidos.has(chaveGrupo);
-                    
+
+                    // Determinar se as tarefas do funcionário foram criadas há menos de 48h
+                    const grupoNovo = tarefas.some(
+                      (t) =>
+                        t.dataCriacao &&
+                        Date.now() - new Date(t.dataCriacao).getTime() <=
+                          48 * 60 * 60 * 1000
+                    );
+
                     // Determinar status geral e classes de borda
                     const statusGeral = getStatusGeralFuncionario(tarefas);
                     const bordaClasses = getBordaStatusClasses(statusGeral);
-                    
+
                     return (
                       <React.Fragment key={chaveGrupo}>
                         <tr
-                          className={`hover:bg-gray-50 group ${bordaClasses}`}
+                          className={`group ${bordaClasses} cursor-pointer ${
+                            expandido ? "bg-slate-50" : "hover:bg-gray-50"
+                          }`}
+                          onClick={(e) => {
+                            const target = e.target as HTMLElement;
+                            if (
+                              target &&
+                              (target.closest("button") ||
+                                target.closest("a") ||
+                                target.closest("input") ||
+                                target.closest("[data-no-expand]"))
+                            ) {
+                              return;
+                            }
+                            toggleExpandirFuncionario(chaveGrupo, tarefas);
+                          }}
                         >
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center space-x-3">
                               <button
-                                onClick={() =>
-                                  toggleExpandirFuncionario(chaveGrupo)
-                                }
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleExpandirFuncionario(
+                                    chaveGrupo,
+                                    tarefas
+                                  );
+                                }}
                                 className="text-gray-500 hover:text-gray-700"
                               >
                                 <ChevronRightIcon
@@ -1363,37 +1812,59 @@ export default function TarefasPage() {
                                   }`}
                                 />
                               </button>
-                              <div className="flex items-center space-x-2">
-                                <div className="text-[12px] font-medium text-gray-900">
+                              <div className="flex flex-col">
+                                <div className="text-[12px] font-medium text-gray-900 flex items-center gap-2">
                                   {funcionario.nome}
+                                  {/* Matrícula como badge ao lado do nome para diferenciar nomes parecidos */}
+                                  {funcionario.matricula && (
+                                    <span
+                                      className="text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded font-mono"
+                                      title="Matrícula do funcionário"
+                                    >
+                                      Matrícula: {funcionario.matricula}
+                                    </span>
+                                  )}
+                                  {grupoNovo && (
+                                    <span
+                                      className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-100 text-emerald-800"
+                                      title="Tarefas criadas há menos de 48h"
+                                    >
+                                      Novo
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-[11px] text-gray-500">
+                                  {funcionario.funcao || "Função não informada"}
                                 </div>
                               </div>
                             </div>
                           </td>
-                          
+
                           {/* Tipo de Solicitação */}
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                              {solicitacao?.tipo || 'N/A'}
+                              {solicitacao?.tipo || "N/A"}
                             </span>
                           </td>
-                          
+
                           {/* Resumo das Tarefas */}
                           <td className="px-6 py-4 whitespace-nowrap text-center">
                             <span className="text-sm font-medium text-gray-900">
                               {tarefasConcluidas.length}/{tarefas.length}
                             </span>
                             <div className="text-xs text-gray-500">
-                              {tarefasConcluidas.length} concluída{tarefasConcluidas.length !== 1 ? 's' : ''} de {tarefas.length}
+                              {tarefasConcluidas.length} concluída
+                              {tarefasConcluidas.length !== 1 ? "s" : ""} de{" "}
+                              {tarefas.length}
                             </div>
                           </td>
-                          
+
                           {/* Barra de Progresso */}
                           <td className="px-6 py-4 whitespace-nowrap text-center">
                             <div className="flex items-center justify-center space-x-2">
                               <div className="w-16 bg-gray-200 rounded-full h-2">
-                                <div 
-                                  className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                                <div
+                                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
                                   style={{ width: `${progresso}%` }}
                                 ></div>
                               </div>
@@ -1402,11 +1873,12 @@ export default function TarefasPage() {
                               </span>
                             </div>
                           </td>
-                          
+
                           {/* Contrato (De → Para) */}
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className="text-sm text-gray-900">
-                              {solicitacao?.contratoOrigem?.numero || '-'} → {solicitacao?.contratoDestino?.numero || '-'}
+                              {solicitacao?.contratoOrigem?.numero || "-"} →{" "}
+                              {solicitacao?.contratoDestino?.numero || "-"}
                             </span>
                           </td>
                         </tr>
@@ -1454,7 +1926,29 @@ export default function TarefasPage() {
                                             scope="col"
                                             className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider"
                                           >
-                                            Data Limite
+                                            <button
+                                              type="button"
+                                              className="inline-flex items-center gap-2 text-gray-700 hover:text-gray-900"
+                                              onClick={() =>
+                                                setOrdenacaoDataLimite((prev) =>
+                                                  prev === "asc"
+                                                    ? "desc"
+                                                    : prev === "desc"
+                                                    ? ""
+                                                    : "asc"
+                                                )
+                                              }
+                                            >
+                                              Data Limite
+                                              <span className="text-xs">
+                                                {ordenacaoDataLimite === "asc"
+                                                  ? "▲"
+                                                  : ordenacaoDataLimite ===
+                                                    "desc"
+                                                  ? "▼"
+                                                  : ""}
+                                              </span>
+                                            </button>
                                           </th>
                                           {!setorAtual && (
                                             <th
@@ -1476,17 +1970,30 @@ export default function TarefasPage() {
                                         {tarefas
                                           .sort((a, b) => {
                                             // Função para obter prioridade do status
-                                            const getStatusPriority = (status: string) => {
-                                              if (status === "REPROVADO") return 0; // Maior prioridade
-                                              if (status === "EM_ANDAMENTO") return 1;
-                                              if (status === "PENDENTE") return 2;
-                                              if (status === "CONCLUIDA" || status === "CONCLUIDO") return 3; // Menor prioridade
+                                            const getStatusPriority = (
+                                              status: string
+                                            ) => {
+                                              if (status === "REPROVADO")
+                                                return 0; // Maior prioridade
+                                              if (status === "EM_ANDAMENTO")
+                                                return 1;
+                                              if (status === "PENDENTE")
+                                                return 2;
+                                              if (
+                                                status === "CONCLUIDA" ||
+                                                status === "CONCLUIDO"
+                                              )
+                                                return 3; // Menor prioridade
                                               return 4; // Outros status
                                             };
 
-                                            const priorityA = getStatusPriority(a.status);
-                                            const priorityB = getStatusPriority(b.status);
-                                            
+                                            const priorityA = getStatusPriority(
+                                              a.status
+                                            );
+                                            const priorityB = getStatusPriority(
+                                              b.status
+                                            );
+
                                             return priorityA - priorityB;
                                           })
                                           .map((tarefa) => {
@@ -1502,10 +2009,14 @@ export default function TarefasPage() {
                                             )
                                               statusClasses +=
                                                 " bg-green-100 text-green-800";
-                                            else if (tarefa.status === "REPROVADO")
+                                            else if (
+                                              tarefa.status === "REPROVADO"
+                                            )
                                               statusClasses +=
                                                 " bg-red-100 text-red-800";
-                                            else if (tarefa.status === "EM_ANDAMENTO")
+                                            else if (
+                                              tarefa.status === "EM_ANDAMENTO"
+                                            )
                                               statusClasses +=
                                                 " bg-blue-100 text-blue-800";
                                             else
@@ -1691,12 +2202,39 @@ export default function TarefasPage() {
                                                       }
                                                     >
                                                       <ChatBubbleLeftRightIcon className="h-4 w-4" />
-                                                      {tarefa.observacoes && (
-                                                          <span className="absolute -top-2 -right-2 bg-blue-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
-                                                            1
-                                                          </span>
-                                                        )}
+                                                      <span
+                                                        className={`absolute -top-2 -right-2 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center ${
+                                                          (
+                                                            observacoesCount as Record<
+                                                              string,
+                                                              number
+                                                            >
+                                                          )[tarefa.id] > 0
+                                                            ? "bg-blue-500"
+                                                            : "bg-gray-400"
+                                                        }`}
+                                                      >
+                                                        {(
+                                                          observacoesCount as Record<
+                                                            string,
+                                                            number
+                                                          >
+                                                        )[tarefa.id] ?? 0}
+                                                      </span>
                                                     </button>
+                                                    {isAdmin && (
+                                                      <button
+                                                        className="text-slate-500 hover:text-red-600"
+                                                        title="Excluir tarefa"
+                                                        onClick={() =>
+                                                          abrirModalExcluir(
+                                                            tarefa
+                                                          )
+                                                        }
+                                                      >
+                                                        <TrashIcon className="h-4 w-4" />
+                                                      </button>
+                                                    )}
                                                   </div>
                                                 </td>
                                               </tr>
@@ -1847,8 +2385,12 @@ export default function TarefasPage() {
     const tarefasAtrasadas = () => {
       // Normalizar data de hoje para ignorar horas
       const hoje = new Date();
-      const hojeNorm = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
-      
+      const hojeNorm = new Date(
+        hoje.getFullYear(),
+        hoje.getMonth(),
+        hoje.getDate()
+      );
+
       return tarefasFiltradas.filter((tarefa) => {
         if (
           !tarefa.dataLimite ||
@@ -1856,11 +2398,15 @@ export default function TarefasPage() {
           tarefa.status === "CONCLUIDA"
         )
           return false;
-        
+
         // Normalizar data limite para ignorar horas
         const dataLimite = new Date(tarefa.dataLimite);
-        const dataLimiteNorm = new Date(dataLimite.getFullYear(), dataLimite.getMonth(), dataLimite.getDate());
-        
+        const dataLimiteNorm = new Date(
+          dataLimite.getFullYear(),
+          dataLimite.getMonth(),
+          dataLimite.getDate()
+        );
+
         return dataLimiteNorm < hojeNorm;
       }).length;
     };
@@ -2095,14 +2641,7 @@ export default function TarefasPage() {
                   Funcionários Envolvidos
                 </span>
                 <span className="text-lg font-semibold text-blue-600">
-                  {
-                    new Set(
-                      tarefasFiltradas.map(
-                        (t) =>
-                          t.funcionario?.id
-                      )
-                    ).size
-                  }
+                  {new Set(tarefasFiltradas.map((t) => t.funcionario?.id)).size}
                 </span>
               </div>
             </div>
@@ -2122,14 +2661,14 @@ export default function TarefasPage() {
         (solicitacao.funcionarios || [])
           .filter(
             (f) =>
-              (f.statusTarefa === "REPROVADO" ||
-                f.statusTarefa === "EM_ANDAMENTO")
+              f.statusTarefa === "REPROVADO" ||
+              f.statusTarefa === "EM_ANDAMENTO"
           )
           .map((f) => ({
             id: f.id,
-            nome: f.funcionario?.nome || '',
-            matricula: f.funcionario?.matricula || '',
-            funcao: f.funcionario?.funcao || '',
+            nome: f.funcionario?.nome || "",
+            matricula: f.funcionario?.matricula || "",
+            funcao: f.funcionario?.funcao || "",
           }))
       )
       .reduce((acc: any[], curr) => {
@@ -2234,7 +2773,7 @@ export default function TarefasPage() {
 
                       // Atualizar o valor do textarea
                       if (descricaoRef.current) {
-                        descricaoRef.current.value = novaDescricao || '';
+                        descricaoRef.current.value = novaDescricao || "";
                       }
                     }}
                     disabled={loadingTiposTarefa}
@@ -2368,59 +2907,75 @@ export default function TarefasPage() {
                       <h3 className="font-medium text-gray-700 mb-2">
                         Detalhes do Funcionário
                       </h3>
-                      {solicitacaoSelecionada && (solicitacaoSelecionada.funcionarios || []).find(
-                        (f) => f.id === novaTarefa.remanejamentoFuncionarioId
-                      )?.funcionario && (
-                        <>
-                          <p className="text-xs text-gray-600">
-                            <span className="font-medium">Nome:</span>{" "}
-                            {
-                              (solicitacaoSelecionada?.funcionarios || []).find(
-                                (f) =>
-                                  f.id === novaTarefa.remanejamentoFuncionarioId
-                              )?.funcionario?.nome
-                            }
-                          </p>
-                          <p className="text-xs text-gray-600">
-                            <span className="font-medium">Matrícula:</span>{" "}
-                            {
-                              (solicitacaoSelecionada?.funcionarios || []).find(
-                                (f) =>
-                                  f.id === novaTarefa.remanejamentoFuncionarioId
-                              )?.funcionario?.matricula
-                            }
-                          </p>
-                          <p className="text-xs text-gray-600">
-                            <span className="font-medium">Função:</span>{" "}
-                            {
-                              (solicitacaoSelecionada?.funcionarios || []).find(
-                                (f) =>
-                                  f.id === novaTarefa.remanejamentoFuncionarioId
-                              )?.funcionario?.funcao
-                            }
-                          </p>
-                          <p className="text-xs text-gray-600">
-                            <span className="font-medium">
-                              Centro de Custo:
-                            </span>{" "}
-                            {
-                              (solicitacaoSelecionada?.funcionarios || []).find(
-                                (f) =>
-                                  f.id === novaTarefa.remanejamentoFuncionarioId
-                              )?.funcionario?.centroCusto
-                            }
-                          </p>
-                          <p className="text-xs text-gray-600">
-                            <span className="font-medium">Status:</span>{" "}
-                            {
-                              (solicitacaoSelecionada?.funcionarios || []).find(
-                                (f) =>
-                                  f.id === novaTarefa.remanejamentoFuncionarioId
-                              )?.funcionario?.nome
-                            }
-                          </p>
-                        </>
-                      )}
+                      {solicitacaoSelecionada &&
+                        (solicitacaoSelecionada.funcionarios || []).find(
+                          (f) => f.id === novaTarefa.remanejamentoFuncionarioId
+                        )?.funcionario && (
+                          <>
+                            <p className="text-xs text-gray-600">
+                              <span className="font-medium">Nome:</span>{" "}
+                              {
+                                (
+                                  solicitacaoSelecionada?.funcionarios || []
+                                ).find(
+                                  (f) =>
+                                    f.id ===
+                                    novaTarefa.remanejamentoFuncionarioId
+                                )?.funcionario?.nome
+                              }
+                            </p>
+                            <p className="text-xs text-gray-600">
+                              <span className="font-medium">Matrícula:</span>{" "}
+                              {
+                                (
+                                  solicitacaoSelecionada?.funcionarios || []
+                                ).find(
+                                  (f) =>
+                                    f.id ===
+                                    novaTarefa.remanejamentoFuncionarioId
+                                )?.funcionario?.matricula
+                              }
+                            </p>
+                            <p className="text-xs text-gray-600">
+                              <span className="font-medium">Função:</span>{" "}
+                              {
+                                (
+                                  solicitacaoSelecionada?.funcionarios || []
+                                ).find(
+                                  (f) =>
+                                    f.id ===
+                                    novaTarefa.remanejamentoFuncionarioId
+                                )?.funcionario?.funcao
+                              }
+                            </p>
+                            <p className="text-xs text-gray-600">
+                              <span className="font-medium">
+                                Centro de Custo:
+                              </span>{" "}
+                              {
+                                (
+                                  solicitacaoSelecionada?.funcionarios || []
+                                ).find(
+                                  (f) =>
+                                    f.id ===
+                                    novaTarefa.remanejamentoFuncionarioId
+                                )?.funcionario?.centroCusto
+                              }
+                            </p>
+                            <p className="text-xs text-gray-600">
+                              <span className="font-medium">Status:</span>{" "}
+                              {
+                                (
+                                  solicitacaoSelecionada?.funcionarios || []
+                                ).find(
+                                  (f) =>
+                                    f.id ===
+                                    novaTarefa.remanejamentoFuncionarioId
+                                )?.funcionario?.nome
+                              }
+                            </p>
+                          </>
+                        )}
                     </div>
                   </div>
                 )}
@@ -2475,13 +3030,6 @@ export default function TarefasPage() {
           >
             <DocumentArrowDownIcon className="h-5 w-5 mr-2" />
             Exportar Excel
-          </button>
-          <button
-            onClick={abrirFormTarefa}
-            className="flex items-center px-4 py-2 border border-slate-500 rounded-md shadow-sm text-xs font-bold bg-sky-500 text-slate-50 hover:bg-sky-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-500"
-          >
-            <PlusIcon className="h-5 w-5 mr-2" />
-            Nova Tarefa
           </button>
         </div>
       </div>
@@ -2566,8 +3114,7 @@ export default function TarefasPage() {
                   {tarefaSelecionada.descricao}
                 </p>
                 <p className="text-xs text-gray-600">
-                  <span className="font-medium">Funcionário:</span>{" "}
-                  {"N/A"}
+                  <span className="font-medium">Funcionário:</span> {"N/A"}
                 </p>
               </div>
 
@@ -2578,15 +3125,24 @@ export default function TarefasPage() {
                     htmlFor="dataVencimento"
                     className="block text-xs font-medium text-gray-700 mb-2"
                   >
-                    Data de Vencimento (Opcional)
+                    Data de Vencimento
                   </label>
                   <input
                     type="date"
                     id="dataVencimento"
                     value={dataVencimento}
                     onChange={(e) => setDataVencimento(e.target.value)}
+                    required
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
+                  {erroDataVencimento && (
+                    <p className="text-xs text-red-600 mt-1">
+                      {erroDataVencimento}
+                    </p>
+                  )}
+                  <p className="text-[10px] text-gray-500 mt-1">
+                    Obrigatório para Treinamento e Medicina. Prazo mínimo d+30.
+                  </p>
                 </div>
               )}
             </div>
@@ -2604,6 +3160,64 @@ export default function TarefasPage() {
                 className="px-4 py-2 border border-transparent rounded-md shadow-sm text-xs font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:bg-green-300"
               >
                 {concluindoTarefa ? "Concluindo..." : "Concluir Tarefa"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal para excluir tarefa (admin) */}
+      {mostrarModalExcluir && tarefaSelecionada && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">Excluir Tarefa</h3>
+              <button
+                onClick={fecharModalExcluir}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <XMarkIcon className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="mb-6">
+              <p className="text-gray-700 mb-4">
+                Tem certeza que deseja excluir esta tarefa? Esta ação não pode
+                ser desfeita.
+              </p>
+
+              <div className="bg-gray-50 p-4 rounded-lg mb-4">
+                <h4 className="font-medium text-gray-700 mb-2">
+                  Detalhes da Tarefa
+                </h4>
+                <p className="text-xs text-gray-600">
+                  <span className="font-medium">Tipo:</span>{" "}
+                  {tarefaSelecionada.tipo}
+                </p>
+                <p className="text-xs text-gray-600">
+                  <span className="font-medium">Descrição:</span>{" "}
+                  {tarefaSelecionada.descricao}
+                </p>
+                <p className="text-xs text-gray-600">
+                  <span className="font-medium">Responsável:</span>{" "}
+                  {tarefaSelecionada.responsavel}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={fecharModalExcluir}
+                className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-xs font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={excluirTarefa}
+                disabled={excluindoTarefa}
+                className="px-4 py-2 border border-transparent rounded-md shadow-sm text-xs font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:bg-red-300"
+              >
+                {excluindoTarefa ? "Excluindo..." : "Excluir Tarefa"}
               </button>
             </div>
           </div>
@@ -2641,8 +3255,7 @@ export default function TarefasPage() {
                 {tarefaSelecionada.status}
               </p>
               <p className="text-xs text-gray-600">
-                <span className="font-medium">Funcionário:</span>{" "}
-                {"N/A"}
+                <span className="font-medium">Funcionário:</span> {"N/A"}
               </p>
               <p className="text-xs text-gray-600">
                 <span className="font-medium">Data Limite Atual:</span>{" "}
@@ -2657,16 +3270,7 @@ export default function TarefasPage() {
             {/* Abas para Observações e Data Limite */}
             <div className="mb-6">
               <div className="flex border-b border-gray-200">
-                <button
-                  onClick={() => setAbaAtiva("observacoes")}
-                  className={`py-2 px-4 font-medium text-xs ${
-                    abaAtiva === "observacoes"
-                      ? "border-b-2 border-blue-500 text-blue-600"
-                      : "text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                  }`}
-                >
-                  Adicionar Observação
-                </button>
+                {/* Aba de 'Adicionar Observação' oculta temporariamente */}
                 <button
                   onClick={() => setAbaAtiva("dataLimite")}
                   className={`py-2 px-4 font-medium text-xs ${
@@ -2679,38 +3283,13 @@ export default function TarefasPage() {
                 </button>
               </div>
 
-              {/* Conteúdo da aba de Observações */}
-              {abaAtiva === "observacoes" && (
-                <div className="mt-4">
-                  <h4 className="font-medium text-gray-700 mb-3">
-                    Adicionar Nova Observação
-                  </h4>
-                  <div className="space-y-3">
-                    <textarea
-                      value={novaObservacao}
-                      onChange={(e) => setNovaObservacao(e.target.value)}
-                      placeholder="Digite sua observação..."
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      rows={3}
-                    />
-                    <button
-                      onClick={adicionarObservacao}
-                      disabled={adicionandoObservacao}
-                      className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-blue-300"
-                    >
-                      {adicionandoObservacao
-                        ? "Adicionando..."
-                        : "Adicionar Observação"}
-                    </button>
-                  </div>
-                </div>
-              )}
+              {/* Conteúdo da aba de Observações oculto temporariamente */}
 
               {/* Conteúdo da aba de Data Limite */}
               {abaAtiva === "dataLimite" && (
                 <div className="mt-4 border border-gray-200 rounded-lg p-4">
                   <h4 className="font-medium text-gray-700 mb-3">
-                    Alterar Data Limite
+                    Adicionar Observaação
                   </h4>
                   <div className="space-y-3">
                     <div>
@@ -2723,6 +3302,11 @@ export default function TarefasPage() {
                         onChange={(e) => setNovaDataLimite(e.target.value)}
                         className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
+                      {erroNovaDataLimite && (
+                        <p className="text-xs text-red-600 mt-1">
+                          {erroNovaDataLimite}
+                        </p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-gray-700 mb-1">
@@ -2737,15 +3321,18 @@ export default function TarefasPage() {
                         className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         rows={2}
                       />
+                      {erroJustificativaDataLimite && (
+                        <p className="text-xs text-red-600 mt-1">
+                          {erroJustificativaDataLimite}
+                        </p>
+                      )}
                     </div>
                     <button
                       onClick={atualizarDataLimite}
                       disabled={atualizandoDataLimite}
                       className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:bg-green-300"
                     >
-                      {atualizandoDataLimite
-                        ? "Atualizando..."
-                        : "Atualizar Data Limite"}
+                      {atualizandoDataLimite ? "Atualizando..." : "Atualizar"}
                     </button>
                   </div>
                 </div>

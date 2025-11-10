@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { 
   BuildingOfficeIcon,
@@ -11,7 +11,9 @@ import {
   TrashIcon,
   MagnifyingGlassIcon,
   XMarkIcon,
-  CheckIcon
+  CheckIcon,
+  ArrowDownTrayIcon,
+  ArrowUpTrayIcon
 } from '@heroicons/react/24/outline';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { ROUTE_PROTECTION } from '@/lib/permissions';
@@ -85,7 +87,7 @@ function ContratoDetalheContent() {
 
   const [contrato, setContrato] = useState<Contrato | null>(null);
   const [funcoes, setFuncoes] = useState<Funcao[]>([]);
-  const [todasFuncoes, setTodasFuncoes] = useState<{id: number, funcao: string, regime: string}[]>([]);
+  const [todasFuncoes, setTodasFuncoes] = useState<{id: number, funcao: string, regime: string | null}[]>([]);
   const [treinamentos, setTreinamentos] = useState<Treinamento[]>([]);
   const [tiposObrigatoriedade, setTiposObrigatoriedade] = useState<TipoObrigatoriedade[]>([]);
   const [loading, setLoading] = useState(true);
@@ -100,55 +102,185 @@ function ContratoDetalheContent() {
   const [funcoesSelecionadas, setFuncoesSelecionadas] = useState<number[]>([]);
   // Estados para filtros e busca
   const [buscaFuncao, setBuscaFuncao] = useState('');
+  // Estado para upload
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const [filtroRegime, setFiltroRegime] = useState('');
-
-  // Estado para salvar atualização de obrigatoriedade por item
+  // Estados auxiliares
   const [savingObrigatoriedadeId, setSavingObrigatoriedadeId] = useState<number | null>(null);
-  // Filtro de treinamentos dentro da função expandida
   const [buscaTreinamento, setBuscaTreinamento] = useState('');
   const [filtroObrigatoriedade, setFiltroObrigatoriedade] = useState('');
+  const [filtroRegime, setFiltroRegime] = useState('');
+
+
+
+  // Exportar XLSX V2 (funções nas linhas, treinamentos nas colunas)
+  const handleExportV2 = async () => {
+    try {
+      if (!contratoId) return;
+      const res = await fetch(`/api/matriz-treinamento/contratos/${contratoId}/export-v2`, { cache: 'no-store' });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || 'Falha ao exportar XLSX V2');
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const nomeContrato = contrato?.nome ? contrato.nome.replace(/[^a-zA-Z0-9-_ ]/g, '') : `contrato-${contratoId}`;
+      a.download = `matriz_treinamento_${nomeContrato}_v2.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Erro ao exportar XLSX V2:', err);
+      alert(err instanceof Error ? err.message : 'Erro ao exportar XLSX V2');
+    }
+  };
+
+  // Importar XLSX
+  const triggerImportSelect = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+      fileInputRef.current.click();
+    }
+  };
+
+  const handleImportChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setUploading(true);
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch(`/api/matriz-treinamento/contratos/${contratoId}/import`, {
+        method: 'POST',
+        body: formData,
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || json.message || 'Falha ao importar XLSX');
+      }
+      const stats = json.stats || json.data?.stats || {};
+      const criados = stats.criados ?? 0;
+      const atualizados = stats.atualizados ?? 0;
+      const removidos = stats.removidos ?? 0;
+      const ignorados = stats.ignorados ?? 0;
+      const erros = stats.erros ?? 0;
+      const errosDetalhes: string[] = Array.isArray(json.errors) ? json.errors : [];
+
+      console.log('Importação concluída. Estatísticas:', stats);
+      if (errosDetalhes.length) {
+        console.error('Erros na importação:', errosDetalhes);
+      }
+
+      const linhasResumo: string[] = [
+        'Importação concluída:',
+        `- Criados: ${criados}`,
+        `- Atualizados: ${atualizados}`,
+        `- Removidos: ${removidos}`,
+        `- Ignorados: ${ignorados}`,
+        `- Erros: ${erros}`,
+      ];
+
+      if (errosDetalhes.length) {
+        const mostrados = errosDetalhes.slice(0, 20);
+        linhasResumo.push('', 'Alguns erros:', ...mostrados.map((msg, i) => `${i + 1}. ${msg}`));
+        if (errosDetalhes.length > mostrados.length) {
+          linhasResumo.push(`... e mais ${errosDetalhes.length - mostrados.length} erro(s). Consulte o console para lista completa.`);
+        }
+      }
+
+      alert(linhasResumo.join('\n'));
+      await fetchContratoDetalhes();
+    } catch (err) {
+      console.error('Erro ao importar XLSX:', err);
+      alert(err instanceof Error ? err.message : 'Erro ao importar XLSX');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
 
   useEffect(() => {
     if (contratoId) {
+      setLoading(true);
       fetchContratoDetalhes();
       fetchTodasFuncoes();
     }
   }, [contratoId]);
 
-  const fetchTodasFuncoes = async () => {
-    try {
-      const response = await fetch('/api/funcoes?limit=1000'); // Buscar todas as funções
-      const data = await response.json();
-      
-      if (data.success) {
-        setTodasFuncoes(data.data);
-      }
-    } catch (error) {
-      console.error('Erro ao buscar funções:', error);
-    }
-  };
-
   const fetchContratoDetalhes = async () => {
     try {
-      setLoading(true);
-      const response = await fetch(`/api/matriz-treinamento/contratos/${contratoId}`);
+      const response = await fetch(`/api/matriz-treinamento/contratos/${contratoId}`, { cache: 'no-store' });
       const data: ApiResponse = await response.json();
-      
-      if (data.success) {
-        setContrato(data.data.contrato);
-        setFuncoes(data.data.funcoes);
-        if (data.filters) {
-          setTreinamentos(data.filters.treinamentos);
-          setTiposObrigatoriedade(data.filters.tiposObrigatoriedade);
-        }
+      if (!data.success) {
+        console.error('Erro ao buscar detalhes do contrato:', data.error);
+        alert(data.error || 'Erro ao buscar detalhes do contrato');
+        setLoading(false);
+        return;
       }
+      setContrato(data.data.contrato);
+      setFuncoes(data.data.funcoes);
+      setTiposObrigatoriedade(data.filters?.tiposObrigatoriedade || []);
+      setTreinamentos(data.filters?.treinamentos || []);
+      setLoading(false);
     } catch (error) {
       console.error('Erro ao buscar detalhes do contrato:', error);
-    } finally {
+      alert('Erro ao buscar detalhes do contrato');
       setLoading(false);
     }
   };
+
+  const fetchTodasFuncoes = async () => {
+    try {
+      // Buscar TODAS as funções (paginada), sem filtrar por ativo
+      const response = await fetch('/api/funcoes?page=1&limit=10000', { cache: 'no-store' });
+      // Clonar resposta para inspeção de texto bruto em caso de formato inesperado
+      const responseClone = response.clone();
+      let rawText: string | null = null;
+      try {
+        rawText = await responseClone.text();
+      } catch {
+        rawText = null;
+      }
+
+      let data: any = null;
+      try {
+        data = await response.json();
+      } catch (parseErr) {
+        console.error('Falha ao parsear JSON de /api/funcoes:', parseErr, '| status:', response.status, '| body:', rawText?.slice(0, 500));
+        setTodasFuncoes([]);
+        return;
+      }
+
+      // Aceitar diferentes formatos de resposta
+      let funcoesLista: any[] = [];
+      if (Array.isArray(data)) {
+        funcoesLista = data;
+      } else if (data && Array.isArray(data.data)) {
+        funcoesLista = data.data;
+      } else if (data && Array.isArray(data.funcoes)) {
+        funcoesLista = data.funcoes;
+      } else {
+        console.error('Resposta inesperada ao buscar funções:', data, '| status:', response.status, '| body:', rawText?.slice(0, 500));
+        setTodasFuncoes([]);
+        return;
+      }
+
+      console.log('[Funcoes/ALL] total:', funcoesLista.length);
+      setTodasFuncoes(funcoesLista);
+    } catch (error) {
+      console.error('Erro ao buscar funções:', error);
+      setTodasFuncoes([]);
+    }
+  };
+
+  // Definição duplicada de fetchContratoDetalhes removida para evitar conflitos.
+
 
   // Atualizar tipo de obrigatoriedade de um item da matriz
   const handleChangeObrigatoriedade = async (matrizId: number, novoTipo: string) => {
@@ -418,23 +550,42 @@ function ContratoDetalheContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
+        {/* Header Moderno */}
         <div className="mb-8">
-          <button
-            onClick={() => router.back()}
-            className="flex items-center text-blue-600 hover:text-blue-700 mb-4"
-          >
-            <ChevronLeftIcon className="h-5 w-5 mr-1" />
-            Voltar
-          </button>
-          
-          <div className="flex items-center space-x-3 mb-4">
-            <BuildingOfficeIcon className="h-8 w-8 text-blue-600" />
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">{contrato.nome}</h1>
-              <p className="text-gray-600">{contrato.numero} - {contrato.cliente}</p>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <button onClick={() => router.back()} className="p-2 bg-white rounded-lg border hover:border-blue-300 shadow-sm">
+                <ChevronLeftIcon className="h-5 w-5 text-gray-700" />
+              </button>
+              <div className="p-3 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl shadow-lg">
+                <AcademicCapIcon className="h-8 w-8 text-white" />
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900">Matriz do Contrato</h1>
+                <p className="text-sm text-gray-600">Gerencie treinamentos obrigatórios por função</p>
+                {/* Contrato info: número e descrição (nome) */}
+                {contrato && (
+                  <div className="mt-1 text-sm text-gray-700">
+                    <span className="font-medium">Contrato:</span> {contrato.numero}
+                    {contrato.nome ? (
+                      <span> — {contrato.nome}</span>
+                    ) : null}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+                <button onClick={handleExportV2} className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg shadow hover:bg-blue-700">
+                <ArrowDownTrayIcon className="h-5 w-5" />
+                Exportar Matriz
+                </button>
+                <button onClick={triggerImportSelect} disabled={uploading} className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg shadow hover:bg-green-700 disabled:opacity-50">
+                <ArrowUpTrayIcon className="h-5 w-5" />
+                {uploading ? 'Importando...' : 'Importar XLSX'}
+              </button>
+              <input ref={fileInputRef} type="file" accept=".xlsx" className="hidden" onChange={handleImportChange} />
             </div>
           </div>
         </div>
@@ -691,7 +842,7 @@ function ContratoDetalheContent() {
                     >
                       <option value="">Todos os regimes</option>
                       {Array.from(new Set(todasFuncoes.map(f => f.regime))).map(regime => (
-                        <option key={regime} value={regime}>{regime}</option>
+                        <option key={String(regime)} value={String(regime)}>{String(regime)}</option>
                       ))}
                     </select>
                   </div>
@@ -703,10 +854,10 @@ function ContratoDetalheContent() {
                         .filter(funcao => {
                           const searchTerm = buscaFuncao.toLowerCase();
                           return funcao.funcao.toLowerCase().includes(searchTerm) ||
-                                 funcao.regime.toLowerCase().includes(searchTerm) ||
+                                 (funcao.regime ? funcao.regime.toLowerCase().includes(searchTerm) : false) ||
                                  funcao.id.toString().includes(searchTerm);
                         })
-                        .filter(funcao => filtroRegime === '' || funcao.regime === filtroRegime)
+                        .filter(funcao => filtroRegime === '' || String(funcao.regime) === filtroRegime)
                         .map((funcao) => {
                           const jaExiste = funcoes.some(f => f.id === funcao.id);
                           return (
@@ -738,7 +889,7 @@ function ContratoDetalheContent() {
                                     )}
                                   </div>
                                   <div className="text-xs text-gray-500 mt-0.5 flex items-center gap-2">
-                                    <span>{funcao.regime}</span>
+                                    <span>{funcao.regime ?? '—'}</span>
                                     <span className="text-gray-400">•</span>
                                     <span className="text-gray-600 font-mono">ID: {funcao.id}</span>
                                   </div>

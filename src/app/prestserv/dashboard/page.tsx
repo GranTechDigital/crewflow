@@ -700,6 +700,69 @@ export default function DashboardPrestserv() {
           </div>
         </div>
 
+        {/* Correções por Tipo (Reprovações) */}
+        <div className="mt-8">
+          <div className="bg-white rounded-xl shadow-lg border border-gray-100">
+            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-gray-800">🛠️ Correções por Tipo</h2>
+              <div className="px-3 py-1 bg-gray-100 text-gray-800 rounded-full text-sm font-medium">SLA simples</div>
+            </div>
+            <div className="p-6">
+              <div className="h-72">
+                {dashboardData.volumetriaCorrecoesPorTipo && Object.keys(dashboardData.volumetriaCorrecoesPorTipo).length > 0 ? (
+                  <Bar
+                    data={{
+                      labels: Object.keys(dashboardData.volumetriaCorrecoesPorTipo),
+                      datasets: [
+                        {
+                          label: 'Total de reprovações',
+                          data: Object.values(dashboardData.volumetriaCorrecoesPorTipo),
+                          backgroundColor: 'rgba(234, 179, 8, 0.8)',
+                          borderColor: '#EAB308',
+                          borderWidth: 2,
+                          borderRadius: 8,
+                          borderSkipped: false,
+                          hoverBackgroundColor: '#EAB308',
+                        },
+                      ],
+                    }}
+                    options={{
+                      responsive: true,
+                      maintainAspectRatio: false,
+                      plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                          titleColor: '#ffffff',
+                          bodyColor: '#ffffff',
+                          borderColor: '#ffffff',
+                          borderWidth: 1,
+                        },
+                      },
+                      scales: {
+                        y: {
+                          beginAtZero: true,
+                          ticks: { font: { weight: 'bold' } },
+                          grid: { color: 'rgba(0, 0, 0, 0.1)' },
+                        },
+                        x: {
+                          ticks: { font: { weight: 'bold' } },
+                          grid: { display: false },
+                        },
+                      },
+                      animation: { duration: 2000, easing: 'easeInOutQuart' },
+                    }}
+                  />
+                ) : (
+                  <div className="h-full flex items-center justify-center">
+                    <p className="text-gray-500">Nenhum dado de correções disponível</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Botão de Atualização */}
         <div className="mt-8 text-center">
           <button

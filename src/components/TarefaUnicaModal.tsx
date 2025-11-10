@@ -13,6 +13,7 @@ interface TarefaUnicaModalProps {
   onClose: () => void;
   funcionarioId: string;
   funcionarioNome: string;
+  prioridadeSolicitacao?: string;
   onSuccess?: () => void;
 }
 
@@ -30,14 +31,27 @@ export default function TarefaUnicaModal({
   onClose, 
   funcionarioId, 
   funcionarioNome,
+  prioridadeSolicitacao,
   onSuccess 
 }: TarefaUnicaModalProps) {
   const { showToast } = useToast();
+  
+  // Mapear prioridade da solicitação para o formato do componente
+  const mapearPrioridade = (prioridade?: string): 'Baixa' | 'Media' | 'Alta' => {
+    if (!prioridade) return 'Media';
+    switch (prioridade.toLowerCase()) {
+      case 'baixa': return 'Baixa';
+      case 'alta': return 'Alta';
+      case 'urgente': return 'Alta';
+      default: return 'Media';
+    }
+  };
+  
   const [novaTarefa, setNovaTarefa] = useState<NovaTarefa>({
     tipo: '',
     descricao: '',
     responsavel: '',
-    prioridade: 'Media',
+    prioridade: mapearPrioridade(prioridadeSolicitacao),
     dataLimite: '',
     dataVencimento: ''
   });
@@ -80,7 +94,7 @@ export default function TarefaUnicaModal({
         tipo: '',
         descricao: '',
         responsavel: '',
-        prioridade: 'Media',
+        prioridade: mapearPrioridade(prioridadeSolicitacao),
         dataLimite: '',
         dataVencimento: ''
       });
@@ -101,7 +115,7 @@ export default function TarefaUnicaModal({
         tipo: '',
         descricao: '',
         responsavel: '',
-        prioridade: 'Media',
+        prioridade: mapearPrioridade(prioridadeSolicitacao),
         dataLimite: '',
         dataVencimento: ''
       });

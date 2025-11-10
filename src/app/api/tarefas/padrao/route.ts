@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 // Setores válidos para validação
@@ -17,7 +17,8 @@ function normalizarSetor(setor: string): SetorValido | null {
 async function gerarTarefasTreinamento(
   remanejamentoFuncionario: Record<string, unknown>,
   funcionario: Record<string, unknown>,
-  tarefasParaCriar: Record<string, unknown>[]
+  tarefasParaCriar: Record<string, unknown>[],
+  prioridadeSolicitacao: string
 ) {
   console.log("=== INICIANDO GERAÇÃO DE TAREFAS DE TREINAMENTO ===");
   console.log("RemanejamentoFuncionario ID:", remanejamentoFuncionario?.id);
@@ -69,6 +70,7 @@ async function gerarTarefasTreinamento(
         contratoId: contratoId,
         funcaoId: funcao.id,
         ativo: true,
+        tipoObrigatoriedade: "AP",
       },
       include: {
         treinamento: true,
@@ -91,26 +93,28 @@ async function gerarTarefasTreinamento(
     let tarefasGeradas = 0;
     for (const matriz of matrizTreinamento) {
       const treinamento = matriz.treinamento;
-      
+
       if (!treinamento) {
         console.log("⚠️ Treinamento não encontrado para matriz:", matriz.id);
         continue;
       }
 
-      // Definir prioridade baseada no tipo de obrigatoriedade
-      let prioridade = "Média";
-      if (matriz.tipoObrigatoriedade === "RA") {
-        prioridade = "Alta";
-      } else if (matriz.tipoObrigatoriedade === "AP") {
-        prioridade = "Média";
-      } else {
-        prioridade = "Baixa";
-      }
+      // Usar a prioridade da solicitação de remanejamento, normalizada em maiúsculas
+      const prioridade = (() => {
+        const v = (prioridadeSolicitacao || "media").toLowerCase();
+        if (v === "baixa") return "BAIXA";
+        if (v === "media") return "MEDIA";
+        if (v === "alta") return "ALTA";
+        if (v === "urgente") return "URGENTE";
+        return "MEDIA";
+      })();
 
       // Criar descrição detalhada
       const descricao = `Treinamento: ${treinamento.treinamento}
 Carga Horária: ${treinamento.cargaHoraria || "N/A"}
-Validade: ${treinamento.validadeValor || "N/A"} ${treinamento.validadeUnidade || ""}
+Validade: ${treinamento.validadeValor || "N/A"} ${
+        treinamento.validadeUnidade || ""
+      }
 Tipo: ${matriz.tipoObrigatoriedade}
 Contrato: ${matriz.contrato?.nome || "N/A"}`;
 
@@ -121,15 +125,20 @@ Contrato: ${matriz.contrato?.nome || "N/A"}`;
         responsavel: "TREINAMENTO",
         status: "PENDENTE",
         prioridade: prioridade,
-        dataLimite: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 dias
+        dataLimite: new Date(Date.now() + 48 * 60 * 60 * 1000),
       };
 
       tarefasParaCriar.push(novaTarefa);
       tarefasGeradas++;
-      console.log(`✅ Tarefa ${tarefasGeradas} criada:`, treinamento.treinamento);
+      console.log(
+        `✅ Tarefa ${tarefasGeradas} criada:`,
+        treinamento.treinamento
+      );
     }
 
-    console.log(`✅ Total de tarefas de treinamento geradas: ${tarefasGeradas}`);
+    console.log(
+      `✅ Total de tarefas de treinamento geradas: ${tarefasGeradas}`
+    );
   } catch (error) {
     console.error("❌ Erro ao gerar tarefas de treinamento:", error);
   }
@@ -178,6 +187,7 @@ export async function POST(request: NextRequest) {
           where: { id: funcionarioId },
           include: {
             funcionario: true,
+            solicitacao: true,
           },
         });
 
@@ -205,6 +215,9 @@ export async function POST(request: NextRequest) {
             await prisma.remanejamentoFuncionario.findFirst({
               where: {
                 funcionarioId: funcionarioIdInt,
+              },
+              include: {
+                solicitacao: true,
               },
               orderBy: {
                 createdAt: "desc",
@@ -272,7 +285,8 @@ export async function POST(request: NextRequest) {
         await gerarTarefasTreinamento(
           remanejamentoFuncionario,
           funcionario,
-          tarefasParaCriar
+          tarefasParaCriar,
+          remanejamentoFuncionario.solicitacao?.prioridade || "media"
         );
       } else {
         // Para RH e MEDICINA, usar tarefas padrão como antes
@@ -300,8 +314,17 @@ export async function POST(request: NextRequest) {
             descricao: tarefaPadrao.descricao,
             responsavel: setor,
             status: "PENDENTE",
-            prioridade: "Alta",
-            dataLimite: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 dias
+            prioridade: (() => {
+              const v = (
+                remanejamentoFuncionario.solicitacao?.prioridade || "media"
+              ).toLowerCase();
+              if (v === "baixa") return "BAIXA";
+              if (v === "media") return "MEDIA";
+              if (v === "alta") return "ALTA";
+              if (v === "urgente") return "URGENTE";
+              return "MEDIA";
+            })(),
+            dataLimite: new Date(Date.now() + 48 * 60 * 60 * 1000),
           });
         }
       }
@@ -320,6 +343,7 @@ export async function POST(request: NextRequest) {
 
     const result = await prisma.tarefaRemanejamento.createMany({
       data: tarefasParaCriar,
+      skipDuplicates: true,
     });
 
     // Buscar as tarefas criadas para retornar na resposta
@@ -343,6 +367,8 @@ export async function POST(request: NextRequest) {
       console.error("Erro ao atualizar status geral:", statusError);
       // Não falha a criação das tarefas se a atualização do status falhar
     }
+
+    // Bloco de registro de eventos SLA removido para manter independência
 
     // Registrar no histórico a criação das tarefas padrão
     try {

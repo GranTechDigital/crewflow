@@ -55,32 +55,27 @@ export async function POST(
     // Obter o usuário autenticado
     const { getUserFromRequest } = await import('@/utils/authUtils');
     const usuarioAutenticado = await getUserFromRequest(request);
-    console.log('DEBUG - Usuário autenticado na rota de observações:', usuarioAutenticado ? JSON.stringify({
-      id: usuarioAutenticado.id,
-      nome: usuarioAutenticado.funcionario?.nome,
-      funcionarioId: usuarioAutenticado.funcionario?.id
-    }) : 'null');
-    
+    // Debug removido: log de usuário autenticado na rota de observações
     const body = await request.json();
     const { texto, criadoPor: criadoPorRequest } = body;
     
-    // Verificar token diretamente para debug
-    const token = request.cookies.get('auth-token')?.value;
-    if (token) {
-      try {
-        const jwt = await import('jsonwebtoken');
-        const decoded = jwt.default.verify(token, process.env.JWT_SECRET || 'fallback-secret') as JWTUser;
-        console.log('DEBUG - Token decodificado diretamente na rota de observações:', JSON.stringify(decoded, null, 2));
-      } catch (tokenError) {
-        console.error('DEBUG - Erro ao decodificar token na rota de observações:', tokenError);
-      }
-    } else {
-      console.log('DEBUG - Nenhum token encontrado nos cookies na rota de observações');
-    }
+    // Removido bloco de debug que verificava e decodificava token diretamente
+    // const token = request.cookies.get('auth-token')?.value;
+    // if (token) {
+    //   try {
+    //     const jwt = await import('jsonwebtoken');
+    //     const decoded = jwt.default.verify(token, process.env.JWT_SECRET || 'fallback-secret') as JWTUser;
+    //     console.log('DEBUG - Token decodificado diretamente na rota de observações:', JSON.stringify(decoded, null, 2));
+    //   } catch (tokenError) {
+    //     console.error('DEBUG - Erro ao decodificar token na rota de observações:', tokenError);
+    //   }
+    // } else {
+    //   console.log('DEBUG - Nenhum token encontrado nos cookies na rota de observações');
+    // }
     
     // Usar o nome do usuário autenticado ou o nome fornecido na requisição ou 'Sistema' como fallback
     const criadoPor = usuarioAutenticado?.funcionario?.nome || criadoPorRequest || 'Sistema';
-    console.log('DEBUG - criadoPor definido como:', criadoPor);
+    // console.log('DEBUG - criadoPor definido como:', criadoPor);
 
     if (!texto) {
       return NextResponse.json(

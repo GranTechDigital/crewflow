@@ -7,20 +7,24 @@ async function createAdminUser() {
   try {
     console.log('🔧 Criando usuário administrador...');
 
+    const adminMatricula = process.env.ADMIN_USER || "ADMIN001";
+    const adminEmail = process.env.ADMIN_EMAIL || "admin@gransystem.com";
+    const adminPassword = process.env.ADMIN_PASSWORD || "admin123";
+
     // Primeiro, verificar se já existe
     const existingFuncionario = await prisma.funcionario.findUnique({
-      where: { matricula: "ADMIN001" },
+      where: { matricula: adminMatricula },
       include: { usuario: true }
     });
 
     if (existingFuncionario) {
-      console.log('✅ Funcionário ADMIN001 já existe');
+      console.log(`✅ Funcionário ${adminMatricula} já existe`);
       
       if (existingFuncionario.usuario) {
         console.log('✅ Usuário já existe');
         
         // Atualizar senha para garantir que está correta
-        const hashedPassword = await bcrypt.hash("admin123", 10);
+        const hashedPassword = await bcrypt.hash(adminPassword, 10);
         await prisma.usuario.update({
           where: { funcionarioId: existingFuncionario.id },
           data: {
@@ -28,10 +32,10 @@ async function createAdminUser() {
             ativo: true
           }
         });
-        console.log('✅ Senha atualizada para: admin123');
+        console.log('✅ Senha atualizada (via variável de ambiente)');
       } else {
         // Criar usuário se não existir
-        const hashedPassword = await bcrypt.hash("admin123", 10);
+        const hashedPassword = await bcrypt.hash(adminPassword, 10);
         await prisma.usuario.create({
           data: {
             senha: hashedPassword,
@@ -48,9 +52,9 @@ async function createAdminUser() {
         data: {
           nome: "Administrador do Sistema",
           cpf: "00000000000",
-          email: "admin@gransystem.com",
+          email: adminEmail,
           telefone: "(11) 99999-9999",
-          matricula: "ADMIN001",
+          matricula: adminMatricula,
           funcao: "Administrador",
           departamento: "TI",
           centroCusto: "ADMIN",
@@ -58,7 +62,7 @@ async function createAdminUser() {
         }
       });
 
-      const hashedPassword = await bcrypt.hash("admin123", 10);
+      const hashedPassword = await bcrypt.hash(adminPassword, 10);
       await prisma.usuario.create({
         data: {
           senha: hashedPassword,
@@ -73,7 +77,7 @@ async function createAdminUser() {
 
     // Verificar se foi criado corretamente
     const verificacao = await prisma.funcionario.findUnique({
-      where: { matricula: "ADMIN001" },
+      where: { matricula: adminMatricula },
       include: { usuario: true }
     });
 
@@ -82,17 +86,11 @@ async function createAdminUser() {
     console.log('Nome:', verificacao?.nome);
     console.log('Email:', verificacao?.email);
     console.log('Usuário ativo:', verificacao?.usuario?.ativo);
-    
-    // Testar senha
-    if (verificacao?.usuario?.senha) {
-      const senhaCorreta = await bcrypt.compare("admin123", verificacao.usuario.senha);
-      console.log('Senha "admin123" válida:', senhaCorreta);
-    }
 
     console.log('\n🎉 Usuário administrador configurado com sucesso!');
     console.log('📋 CREDENCIAIS:');
-    console.log('   Matrícula: ADMIN001');
-    console.log('   Senha: admin123');
+    console.log(`   Matrícula: ${adminMatricula}`);
+    console.log('   Senha: definida via variável de ambiente (ADMIN_PASSWORD)');
 
   } catch (error) {
     console.error('❌ Erro:', error);

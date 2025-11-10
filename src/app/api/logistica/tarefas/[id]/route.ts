@@ -61,14 +61,12 @@ export async function PUT(
   try {
     const { id } = await params;
     // Obter o usuário autenticado
-    const { getUserFromRequest } = await import('@/utils/authUtils');
+    const { getUserFromRequest } = await import("@/utils/authUtils");
     const usuarioAutenticado = await getUserFromRequest(request);
-    console.log("usuarioAutenticado");
-    console.log(usuarioAutenticado);
-    
+
     // Não exigir autenticação para atualização de status
     // Usar 'Sistema' como nome do usuário se não estiver autenticado
-    
+
     const body = await request.json();
 
     const {
@@ -86,7 +84,13 @@ export async function PUT(
     } = body;
 
     // Validações - pelo menos um campo deve ser fornecido
-    if (!status && !observacoes && !dataConclusao && !dataLimite && !dataVencimento) {
+    if (
+      !status &&
+      !observacoes &&
+      !dataConclusao &&
+      !dataLimite &&
+      !dataVencimento
+    ) {
       return NextResponse.json(
         { error: "Pelo menos um campo deve ser fornecido para atualização" },
         { status: 400 }
@@ -107,6 +111,15 @@ export async function PUT(
       );
     }
 
+    // Helper para normalizar qualquer entrada de data (YYYY-MM-DD ou ISO) para meio-dia UTC
+    const normalizeToUtcNoon = (value: string | Date): Date => {
+      const d = typeof value === "string" ? new Date(value) : value;
+      const y = d.getUTCFullYear();
+      const m = d.getUTCMonth();
+      const day = d.getUTCDate();
+      return new Date(Date.UTC(y, m, day, 12, 0, 0));
+    };
+
     // Preparar dados para atualização
     const updateData: {
       status?: string;
@@ -119,10 +132,32 @@ export async function PUT(
     if (status !== undefined) updateData.status = status;
     if (observacoes !== undefined) updateData.observacoes = observacoes;
     if (dataLimite !== undefined) {
-      updateData.dataLimite = dataLimite ? new Date(dataLimite) : null;
+      if (!dataLimite) {
+        updateData.dataLimite = null;
+      } else if (typeof dataLimite === "string") {
+        if (/^\d{4}-\d{2}-\d{2}$/.test(dataLimite)) {
+          const [y, m, d] = dataLimite.split("-").map(Number);
+          updateData.dataLimite = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+        } else {
+          updateData.dataLimite = normalizeToUtcNoon(dataLimite);
+        }
+      } else {
+        updateData.dataLimite = normalizeToUtcNoon(dataLimite as unknown as Date);
+      }
     }
     if (dataVencimento !== undefined) {
-      updateData.dataVencimento = dataVencimento ? new Date(dataVencimento) : null;
+      if (!dataVencimento) {
+        updateData.dataVencimento = null;
+      } else if (typeof dataVencimento === "string") {
+        if (/^\d{4}-\d{2}-\d{2}$/.test(dataVencimento)) {
+          const [y, m, d] = dataVencimento.split("-").map(Number);
+          updateData.dataVencimento = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+        } else {
+          updateData.dataVencimento = normalizeToUtcNoon(dataVencimento);
+        }
+      } else {
+        updateData.dataVencimento = normalizeToUtcNoon(dataVencimento as unknown as Date);
+      }
     }
 
     // Se a tarefa está sendo marcada como concluída, adicionar data de conclusão
@@ -154,22 +189,22 @@ export async function PUT(
                 funcao: true,
               },
             },
-            solicitacao: true
+            solicitacao: true,
           },
         },
       },
     });
-    
+
     // Adicionar observação automática se o status foi alterado (exceto para REPROVADO)
-    if (status && status !== tarefaAtual.status && status !== 'REPROVADO') {
+    if (status && status !== tarefaAtual.status && status !== "REPROVADO") {
       // Criar uma observação automática sobre a mudança de status
       await prisma.observacaoTarefaRemanejamento.create({
         data: {
           tarefaId: id,
           texto: `Status alterado de "${tarefaAtual.status}" para "${status}".`,
-          criadoPor: usuarioAutenticado?.funcionario.nome || 'Sistema',
-          modificadoPor: usuarioAutenticado?.funcionario.nome || 'Sistema'
-        }
+          criadoPor: usuarioAutenticado?.funcionario.nome || "Sistema",
+          modificadoPor: usuarioAutenticado?.funcionario.nome || "Sistema",
+        },
       });
     }
 
@@ -188,7 +223,7 @@ export async function PUT(
             campoAlterado: "status",
             valorAnterior: tarefaAtual.status,
             valorNovo: status,
-            usuarioResponsavel: "Sistema", // Pode ser melhorado para capturar o usuário real
+            usuarioResponsavel: usuarioAutenticado?.funcionario?.nome || "Sistema",
             observacoes: observacoes || undefined,
           },
         });
@@ -203,11 +238,23 @@ export async function PUT(
       const dataLimiteAnterior = tarefaAtual.dataLimite
         ? tarefaAtual.dataLimite.toISOString()
         : null;
-      const dataLimiteNova = dataLimite
-        ? new Date(dataLimite).toISOString()
-        : null;
 
-      if (dataLimiteAnterior !== dataLimiteNova) {
+      // Normalizar a nova data para a mesma referência usada no update
+      let dataLimiteNovaIso: string | null = null;
+      if (!dataLimite) {
+        dataLimiteNovaIso = null;
+      } else if (typeof dataLimite === "string") {
+        if (/^\d{4}-\d{2}-\d{2}$/.test(dataLimite)) {
+          const [y, m, d] = dataLimite.split("-").map(Number);
+          dataLimiteNovaIso = new Date(Date.UTC(y, m - 1, d, 12, 0, 0)).toISOString();
+        } else {
+          dataLimiteNovaIso = normalizeToUtcNoon(dataLimite).toISOString();
+        }
+      } else {
+        dataLimiteNovaIso = normalizeToUtcNoon(dataLimite as unknown as Date).toISOString();
+      }
+
+      if (dataLimiteAnterior !== dataLimiteNovaIso) {
         try {
           await prisma.historicoRemanejamento.create({
             data: {
@@ -222,10 +269,10 @@ export async function PUT(
               valorAnterior: dataLimiteAnterior
                 ? new Date(dataLimiteAnterior).toLocaleDateString("pt-BR")
                 : "Não definida",
-              valorNovo: dataLimiteNova
-                ? new Date(dataLimiteNova).toLocaleDateString("pt-BR")
+              valorNovo: dataLimiteNovaIso
+                ? new Date(dataLimiteNovaIso).toLocaleDateString("pt-BR")
                 : "Removida",
-              usuarioResponsavel: "Sistema", // Pode ser melhorado para capturar o usuário real
+              usuarioResponsavel: usuarioAutenticado?.funcionario?.nome || "Sistema",
               observacoes: observacoes || undefined,
             },
           });
@@ -242,7 +289,8 @@ export async function PUT(
     // Atualizar o status das tarefas do funcionário apenas se o status foi alterado
     if (status !== undefined) {
       await atualizarStatusTarefasFuncionario(
-        tarefaAtual.remanejamentoFuncionarioId
+        tarefaAtual.remanejamentoFuncionarioId,
+        usuarioAutenticado?.funcionario?.nome || "Sistema"
       );
     }
 
@@ -263,20 +311,19 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    // Buscar a tarefa para obter o remanejamentoFuncionarioId e dados para histórico
+
+    // Obter o usuário autenticado
+    const { getUserFromRequest } = await import("@/utils/authUtils");
+    const usuarioAutenticado = await getUserFromRequest(request);
+
+    // Buscar a tarefa para obter dados para o histórico
     const tarefa = await prisma.tarefaRemanejamento.findUnique({
-      where: {
-        id: id,
-      },
+      where: { id },
       include: {
         remanejamentoFuncionario: {
           include: {
             funcionario: {
-              select: {
-                id: true,
-                nome: true,
-                matricula: true,
-              },
+              select: { id: true, nome: true, matricula: true },
             },
           },
         },
@@ -290,7 +337,9 @@ export async function DELETE(
       );
     }
 
-    // Registrar no histórico antes de excluir
+    await prisma.tarefaRemanejamento.delete({ where: { id } });
+
+    // Registrar no histórico a exclusão
     try {
       await prisma.historicoRemanejamento.create({
         data: {
@@ -299,26 +348,17 @@ export async function DELETE(
           tipoAcao: "EXCLUSAO",
           entidade: "TAREFA",
           descricaoAcao: `Tarefa "${tarefa.tipo}" excluída para ${tarefa.remanejamentoFuncionario.funcionario.nome} (${tarefa.remanejamentoFuncionario.funcionario.matricula})`,
-          usuarioResponsavel: "Sistema", // Pode ser melhorado para capturar o usuário real
-          observacoes: tarefa.descricao || undefined,
+          usuarioResponsavel: usuarioAutenticado?.funcionario?.nome || "Sistema",
         },
       });
     } catch (historicoError) {
-      console.error("Erro ao registrar histórico:", historicoError);
-      // Não falha a exclusão se o histórico falhar
+      console.error(
+        "Erro ao registrar histórico da exclusão da tarefa:",
+        historicoError
+      );
     }
 
-    // Excluir a tarefa
-    await prisma.tarefaRemanejamento.delete({
-      where: {
-        id: id,
-      },
-    });
-
-    // Atualizar o status das tarefas do funcionário
-    await atualizarStatusTarefasFuncionario(tarefa.remanejamentoFuncionarioId);
-
-    return NextResponse.json({ message: "Tarefa excluída com sucesso" });
+    return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Erro ao excluir tarefa:", error);
     return NextResponse.json(
@@ -330,7 +370,8 @@ export async function DELETE(
 
 // Função auxiliar para atualizar o status das tarefas do funcionário
 async function atualizarStatusTarefasFuncionario(
-  remanejamentoFuncionarioId: string
+  remanejamentoFuncionarioId: string,
+  usuarioResponsavelNome: string
 ) {
   try {
     // Buscar todas as tarefas do funcionário
@@ -390,7 +431,7 @@ async function atualizarStatusTarefasFuncionario(
           } (via atualização de tarefa individual)`,
           campoAlterado: "statusTarefas",
           valorNovo: todasConcluidas ? "SUBMETER RASCUNHO" : "ATENDER TAREFAS",
-          usuarioResponsavel: "Sistema",
+          usuarioResponsavel: usuarioResponsavelNome,
         },
       });
     } catch (historicoError) {

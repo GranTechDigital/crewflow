@@ -12,7 +12,7 @@ export async function getUserFromRequest(request: NextRequest) {
     const token = request.cookies.get('auth-token')?.value;
 
     if (!token) {
-      console.log('DEBUG - Token não encontrado nos cookies');
+      // console.log('DEBUG - Token não encontrado nos cookies');
       return null;
     }
 
@@ -20,18 +20,18 @@ export async function getUserFromRequest(request: NextRequest) {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret') as any;
     
     // Debug para verificar o conteúdo do token
-    console.log('DEBUG - Token decodificado:', JSON.stringify(decoded, null, 2));
+    // console.log('DEBUG - Token decodificado:', JSON.stringify(decoded, null, 2));
 
     // Buscar dados atualizados do usuário
     // Verificar se temos userId ou id no token
     const userId = decoded.userId || decoded.id;
     
     if (!userId) {
-      console.log('DEBUG - ID do usuário não encontrado no token');
+      // console.log('DEBUG - ID do usuário não encontrado no token');
       return null;
     }
     
-    console.log('DEBUG - Buscando usuário com ID:', userId);
+    // console.log('DEBUG - Buscando usuário com ID:', userId);
     
     const usuario = await prisma.usuario.findUnique({
       where: { id: userId },
@@ -42,16 +42,16 @@ export async function getUserFromRequest(request: NextRequest) {
     });
 
     if (!usuario) {
-      console.log('DEBUG - Usuário não encontrado no banco de dados');
+      // console.log('DEBUG - Usuário não encontrado no banco de dados');
       return null;
     }
     
     if (!usuario.ativo) {
-      console.log('DEBUG - Usuário encontrado, mas está inativo');
+      // console.log('DEBUG - Usuário encontrado, mas está inativo');
       return null;
     }
 
-    console.log('DEBUG - Usuário encontrado:', usuario.funcionario.nome);
+    // console.log('DEBUG - Usuário encontrado:', usuario.funcionario.nome);
     return usuario;
   } catch (error) {
     console.error('Erro ao obter usuário do token:', error);

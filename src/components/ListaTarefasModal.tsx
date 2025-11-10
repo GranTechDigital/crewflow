@@ -57,7 +57,28 @@ export default function ListaTarefasModal({
   const [filtroSetor, setFiltroSetor] = useState<string>("");
   const [termoBusca, setTermoBusca] = useState<string>("");
   const [tarefaReprovada, setTarefaReprovada] = useState<boolean>(false); // Rastrear se alguma tarefa foi reprovada
-  
+
+  // Filtros adicionais e ordenação
+  const [filtroDataLimite, setFiltroDataLimite] = useState<
+    "" | "VENCIDOS" | "A_VENCER" | "NO_PRAZO" | "SEM_DATA"
+  >("");
+  const [filtroStatus, setFiltroStatus] = useState<string>("");
+  const [filtroPrioridade, setFiltroPrioridade] = useState<string>("");
+  const [filtroTipo, setFiltroTipo] = useState<string>("");
+  const [ordenacaoDataLimite, setOrdenacaoDataLimite] = useState<
+    "" | "asc" | "desc"
+  >("");
+
+  // Valores disponíveis para selects dinâmicos
+  const tiposDisponiveis = Array.from(
+    new Set(tarefas.map((t) => t.tipo))
+  ).sort();
+  const prioridadesDisponiveis = Array.from(
+    new Set(tarefas.map((t) => t.prioridade))
+  ).sort();
+  const statusDisponiveis = Array.from(
+    new Set(tarefas.map((t) => t.status))
+  ).sort();
 
   useEffect(() => {
     if (isOpen && funcionario) {
@@ -70,7 +91,16 @@ export default function ListaTarefasModal({
     if (tarefas.length > 0) {
       aplicarFiltros();
     }
-  }, [tarefas, filtroSetor, termoBusca]);
+  }, [
+    tarefas,
+    filtroSetor,
+    termoBusca,
+    filtroDataLimite,
+    filtroStatus,
+    filtroPrioridade,
+    filtroTipo,
+    ordenacaoDataLimite,
+  ]);
 
   // Remover o carregamento automático de observações para evitar múltiplas requisições
   // As observações serão carregadas apenas quando necessário (lazy loading)
@@ -98,7 +128,84 @@ export default function ListaTarefasModal({
       );
     }
 
+    // Filtro por Status
+    if (filtroStatus) {
+      tarefasFiltradas = tarefasFiltradas.filter(
+        (t) => t.status === filtroStatus
+      );
+    }
+
+    // Filtro por Tipo
+    if (filtroTipo) {
+      tarefasFiltradas = tarefasFiltradas.filter((t) => t.tipo === filtroTipo);
+    }
+
+    // Filtro por Prioridade
+    if (filtroPrioridade) {
+      tarefasFiltradas = tarefasFiltradas.filter(
+        (t) => t.prioridade === filtroPrioridade
+      );
+    }
+
+    // Filtro por Data Limite (aplica-se a tarefas não concluídas)
+    if (filtroDataLimite) {
+      const hoje = new Date();
+      hoje.setHours(0, 0, 0, 0);
+      const seteDiasMs = 7 * 24 * 60 * 60 * 1000;
+
+      tarefasFiltradas = tarefasFiltradas.filter((t) => {
+        const notConcluida =
+          t.status !== "CONCLUIDO" && t.status !== "CONCLUIDA";
+        const dl = t.dataLimite ? new Date(t.dataLimite) : null;
+        const dlTime = dl ? dl.getTime() : null;
+        const hojeTime = hoje.getTime();
+
+        switch (filtroDataLimite) {
+          case "VENCIDOS":
+            return notConcluida && dlTime !== null && dlTime < hojeTime;
+          case "A_VENCER":
+            return (
+              notConcluida &&
+              dlTime !== null &&
+              dlTime >= hojeTime &&
+              dlTime < hojeTime + seteDiasMs
+            );
+          case "NO_PRAZO":
+            return (
+              notConcluida && dlTime !== null && dlTime >= hojeTime + seteDiasMs
+            );
+          case "SEM_DATA":
+            return notConcluida && dlTime === null;
+          default:
+            return true;
+        }
+      });
+    }
+
+    // Ordenação por Data Limite
+    if (ordenacaoDataLimite) {
+      tarefasFiltradas.sort((a, b) => {
+        const aVal = a.dataLimite
+          ? new Date(a.dataLimite).getTime()
+          : ordenacaoDataLimite === "asc"
+          ? Infinity
+          : -Infinity;
+        const bVal = b.dataLimite
+          ? new Date(b.dataLimite).getTime()
+          : ordenacaoDataLimite === "asc"
+          ? Infinity
+          : -Infinity;
+        return ordenacaoDataLimite === "asc" ? aVal - bVal : bVal - aVal;
+      });
+    }
+
     setTarefasFiltradas(tarefasFiltradas);
+  };
+
+  const toggleOrdenacaoDataLimite = () => {
+    setOrdenacaoDataLimite((prev) =>
+      prev === "asc" ? "desc" : prev === "desc" ? "" : "asc"
+    );
   };
 
   // Adicionar evento para fechar o campo de justificativa quando clicar fora dele
@@ -160,27 +267,9 @@ export default function ListaTarefasModal({
         throw new Error("Erro ao processar dados das tarefas");
       }
 
-      // Adicionar tarefas de teste se não houver tarefas
-      if (data.length === 0) {
-        const tarefasTeste = [
-          {
-            id: "teste1",
-            tipo: "Teste",
-            descricao: "Tarefa de teste 1",
-            responsavel: "Sistema",
-            status: "PENDENTE",
-            prioridade: "Alta",
-            dataCriacao: new Date().toISOString(),
-            dataLimite: new Date().toISOString(),
-            observacoes: "Tarefa de teste para verificar o botão de reprovação",
-          },
-        ];
-        setTarefas(tarefasTeste);
-        console.log("Adicionando tarefas de teste:", tarefasTeste);
-      } else {
-        setTarefas(data);
-        setTarefasFiltradas(data);
-      }
+      // Atualizar lista com os dados reais (sem tarefas fictícias)
+      setTarefas(data);
+      setTarefasFiltradas(data);
     } catch (error) {
       console.error("Erro ao carregar tarefas:", error);
       showToast("Erro ao carregar tarefas", "error");
@@ -236,7 +325,6 @@ export default function ListaTarefasModal({
       return;
     }
 
-    
     try {
       setReprovarLoading(true);
       setReprovarLoadingId(tarefaId);
@@ -336,10 +424,10 @@ export default function ListaTarefasModal({
     if (tarefaReprovada && onTarefaReprovada) {
       onTarefaReprovada();
     }
-    
+
     // Resetar o estado de tarefa reprovada
     setTarefaReprovada(false);
-    
+
     // Fechar o modal
     onClose();
   };
@@ -379,7 +467,7 @@ export default function ListaTarefasModal({
         </div>
 
         {/* Filtros e Busca */}
-        <div className="flex flex-col md:flex-row gap-3 mb-4">
+        <div className="flex flex-col md:flex-row md:flex-wrap gap-3 mb-4">
           <div className="flex-1 relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
@@ -392,7 +480,7 @@ export default function ListaTarefasModal({
               onChange={(e) => setTermoBusca(e.target.value)}
             />
           </div>
-          <div className="w-full md:w-64">
+          <div className="w-full md:w-44">
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <FunnelIcon className="h-5 w-5 text-gray-400" />
@@ -409,74 +497,155 @@ export default function ListaTarefasModal({
               </select>
             </div>
           </div>
+          <div className="w-full md:w-40">
+            <select
+              className="block w-full px-3 py-2 border border-gray-300 rounded-md leading-5 bg-white focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              value={filtroDataLimite}
+              onChange={(e) => setFiltroDataLimite(e.target.value as any)}
+            >
+              <option value="">Data limite (todas)</option>
+              <option value="VENCIDOS">Vencidos</option>
+              <option value="A_VENCER">A vencer</option>
+              <option value="NO_PRAZO">No prazo</option>
+              <option value="SEM_DATA">Pendentes (sem data)</option>
+            </select>
+          </div>
+          <div className="w-full md:w-40">
+            <select
+              className="block w-full px-3 py-2 border border-gray-300 rounded-md leading-5 bg-white focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              value={filtroStatus}
+              onChange={(e) => setFiltroStatus(e.target.value)}
+            >
+              <option value="">Status (todos)</option>
+              {statusDisponiveis.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="w-full md:w-40">
+            <select
+              className="block w-full px-3 py-2 border border-gray-300 rounded-md leading-5 bg-white focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              value={filtroPrioridade}
+              onChange={(e) => setFiltroPrioridade(e.target.value)}
+            >
+              <option value="">Prioridade (todas)</option>
+              {prioridadesDisponiveis.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="w-full md:w-40">
+            <select
+              className="block w-full px-3 py-2 border border-gray-300 rounded-md leading-5 bg-white focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              value={filtroTipo}
+              onChange={(e) => setFiltroTipo(e.target.value)}
+            >
+              <option value="">Tipo (todos)</option>
+              {tiposDisponiveis.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="min-w-full table-auto divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Setor
-                </th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Item
-                </th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/3">
-                  Descrição
-                </th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-red-100 border border-gray-300">
-                  Ações
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {tarefasFiltradas.map((tarefa) => (
-                <tr key={tarefa.id} className="align-top">
-                  <td className="px-4 py-2 text-sm text-gray-900 break-words">
-                    {tarefa.responsavel}
-                  </td>
-                  <td className="px-4 py-2 text-sm text-gray-900 break-words">
-                    {tarefa.tipo}
-                  </td>
-                  <td className="px-4 py-2 text-sm text-gray-500 break-words">
-                    {tarefa.descricao || "N/A"}
-                  </td>
-                  <td className="px-4 py-2 whitespace-nowrap">
-                    <span
-                      className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(
-                        tarefa.status
-                      )}`}
+        {/* Tabela removida (duplicada). Renderização condicional aplicada mais abaixo. */}
+        {/* Lista de Tarefas */}
+        {tarefasFiltradas.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="min-w-full table-auto divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Setor
+                  </th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Item
+                  </th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/3">
+                    Descrição
+                  </th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <button
+                      onClick={toggleOrdenacaoDataLimite}
+                      className="flex items-center gap-1 text-gray-700"
                     >
-                      {tarefa.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500">
-                    {tarefa.status === "CONCLUIDO" && 
-                     statusPrestserv && 
-                     (statusPrestserv === "CRIADO" || statusPrestserv === "INVALIDADO") && (
-                      <button
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          handleReprovarClick(tarefa.id);
-                        }}
-                        className="px-3 py-1 bg-red-600 text-white rounded-md hover:bg-red-700 mr-2 disabled:opacity-50"
-                        disabled={reprovarLoadingId === tarefa.id}
-                      >
-                        {reprovarLoadingId === tarefa.id
-                          ? "Processando..."
-                          : "Reprovar"}
-                      </button>
-                    )}
-                  </td>
+                      Data Limite
+                      {ordenacaoDataLimite === "asc"
+                        ? "▲"
+                        : ordenacaoDataLimite === "desc"
+                        ? "▼"
+                        : ""}
+                    </button>
+                  </th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-red-100 border border-gray-300">
+                    Ações
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {tarefasFiltradas.map((tarefa) => (
+                  <tr key={tarefa.id} className="align-top">
+                    <td className="px-4 py-2 text-sm text-gray-900 break-words">
+                      {tarefa.responsavel}
+                    </td>
+                    <td className="px-4 py-2 text-sm text-gray-900 break-words">
+                      {tarefa.tipo}
+                    </td>
+                    <td className="px-4 py-2 text-sm text-gray-500 break-words">
+                      {tarefa.descricao || "N/A"}
+                    </td>
+                    <td className="px-4 py-2 text-sm text-gray-900 whitespace-nowrap">
+                      {formatDate(tarefa.dataLimite)}
+                    </td>
+                    <td className="px-4 py-2 whitespace-nowrap">
+                      <span
+                        className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(
+                          tarefa.status
+                        )}`}
+                      >
+                        {tarefa.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500">
+                      {tarefa.status === "CONCLUIDO" &&
+                        statusPrestserv &&
+                        (statusPrestserv === "CRIADO" ||
+                          statusPrestserv === "INVALIDADO") && (
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleReprovarClick(tarefa.id);
+                            }}
+                            className="px-3 py-1 bg-red-600 text-white rounded-md hover:bg-red-700 mr-2 disabled:opacity-50"
+                            disabled={reprovarLoadingId === tarefa.id}
+                          >
+                            {reprovarLoadingId === tarefa.id
+                              ? "Processando..."
+                              : "Reprovar"}
+                          </button>
+                        )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="text-center py-8 text-gray-500">
+            Nenhuma tarefa encontrada.
+          </div>
+        )}
+
         {/* Modal de Justificativa (fora da tabela) */}
         {expandedTarefaId && (
           <>
@@ -531,3 +700,5 @@ export default function ListaTarefasModal({
     </div>
   );
 }
+
+// ...existing code...

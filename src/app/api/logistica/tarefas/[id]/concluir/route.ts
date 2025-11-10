@@ -8,6 +8,10 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
+
+    const { getUserFromRequest } = await import("@/utils/authUtils");
+    const usuarioAutenticado = await getUserFromRequest(request);
+
     // Obter dados do corpo da requisição
     const body = await request.json().catch(() => ({}));
     const { dataVencimento } = body;
@@ -38,6 +42,41 @@ export async function PUT(
         { error: "Tarefa não encontrada" },
         { status: 404 }
       );
+    }
+
+    // Regra de negócio: data de vencimento obrigatória exceto para RH
+    if (tarefaAtual.responsavel !== "RH" && !dataVencimento) {
+      return NextResponse.json(
+        { error: "Data de vencimento é obrigatória para concluir a tarefa (exceto RH)." },
+        { status: 400 }
+      );
+    }
+
+    // Regra D+30: data de vencimento deve ser >= hoje + 30 dias (exceto RH)
+    if (tarefaAtual.responsavel !== "RH" && dataVencimento) {
+      const parseYYYYMMDDToUTC = (s: string) => {
+        const [y, m, d] = s.split("-").map(Number);
+        return Date.UTC(y, m - 1, d);
+      };
+      const today = new Date();
+      const minLocal = new Date(
+        today.getFullYear(),
+        today.getMonth(),
+        today.getDate()
+      );
+      minLocal.setDate(minLocal.getDate() + 30);
+      const minUTC = Date.UTC(
+        minLocal.getFullYear(),
+        minLocal.getMonth(),
+        minLocal.getDate()
+      );
+      const selectedUTC = parseYYYYMMDDToUTC(dataVencimento);
+      if (selectedUTC < minUTC) {
+        return NextResponse.json(
+          { error: "Data de vencimento deve ser pelo menos 30 dias após hoje." },
+          { status: 400 }
+        );
+      }
     }
 
     // Preparar dados para atualização
@@ -91,17 +130,17 @@ export async function PUT(
           campoAlterado: "status",
           valorAnterior: tarefaAtual.status,
           valorNovo: "CONCLUIDO",
-          usuarioResponsavel: "Sistema", // Pode ser melhorado para capturar o usuário real
+          usuarioResponsavel: usuarioAutenticado?.funcionario?.nome || "Sistema",
         },
       });
     } catch (historicoError) {
       console.error("Erro ao registrar histórico:", historicoError);
-      // Não falha a atualização se o histórico falhar
     }
 
     // Atualizar o status das tarefas do funcionário
     await atualizarStatusTarefasFuncionario(
-      tarefaAtual.remanejamentoFuncionarioId
+      tarefaAtual.remanejamentoFuncionarioId,
+      usuarioAutenticado?.funcionario?.nome || "Sistema"
     );
 
     return NextResponse.json(tarefaAtualizada);
@@ -116,7 +155,8 @@ export async function PUT(
 
 // Função auxiliar para atualizar o status das tarefas do funcionário
 async function atualizarStatusTarefasFuncionario(
-  remanejamentoFuncionarioId: string
+  remanejamentoFuncionarioId: string,
+  usuarioResponsavelNome: string
 ) {
   try {
     // Buscar todas as tarefas do funcionário
@@ -152,6 +192,7 @@ async function atualizarStatusTarefasFuncionario(
     }
 
     // Atualizar o status das tarefas do funcionário
+    const statusAnterior = remanejamentoFuncionario.statusTarefas;
     await prisma.remanejamentoFuncionario.update({
       where: {
         id: remanejamentoFuncionarioId,
@@ -176,7 +217,7 @@ async function atualizarStatusTarefasFuncionario(
           } (via conclusão de tarefa)`,
           campoAlterado: "statusTarefas",
           valorNovo: todasConcluidas ? "SUBMETER RASCUNHO" : "ATENDER TAREFAS",
-          usuarioResponsavel: "Sistema",
+          usuarioResponsavel: usuarioResponsavelNome,
         },
       });
     } catch (historicoError) {

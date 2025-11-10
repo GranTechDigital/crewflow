@@ -9,7 +9,7 @@ import {
   // StatusPrestserv,
   StatusTarefa,
 } from "@/types/remanejamento-funcionario";
-import { read, utils, write } from 'xlsx';
+
 import {
   EyeIcon,
   PlusIcon,
@@ -58,6 +58,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import { ROUTE_PROTECTION } from "@/lib/permissions";
 import ListaTarefasModal from "@/components/ListaTarefasModal";
 import CheckIcon from "@heroicons/react/24/solid/CheckIcon";
+import { useAuth } from "@/app/hooks/useAuth";
 
 interface ProgressoPorSetor {
   setor: string;
@@ -80,6 +81,8 @@ interface FuncionarioTableData {
   tipoSolicitacao: string;
   contratoOrigem: string;
   contratoDestino: string;
+  contratoOrigemNome?: string;
+  contratoDestinoNome?: string;
   totalTarefas: number;
   tarefasConcluidas: number;
   dataSolicitacao: string;
@@ -105,6 +108,7 @@ export default function FuncionariosPage() {
 function FuncionariosPageContent() {
   const router = useRouter();
   const { showToast } = useToast();
+  const { usuario } = useAuth();
   const [funcionarios, setFuncionarios] = useState<FuncionarioTableData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -139,6 +143,8 @@ function FuncionariosPageContent() {
   const [dropdownPendenciasSetorOpen, setDropdownPendenciasSetorOpen] =
     useState(false);
   const [dropdownStatusOpen, setDropdownStatusOpen] = useState(false);
+  const [dropdownStatusPrestservOpen, setDropdownStatusPrestservOpen] = useState(false);
+  const [filtroStatusPrestserv, setFiltroStatusPrestserv] = useState<string[]>([]);
   const [dropdownTipoSolicitacaoOpen, setDropdownTipoSolicitacaoOpen] =
     useState(false);
   const [setoresSelecionados, setSetoresSelecionados] = useState<string[]>([]);
@@ -165,6 +171,7 @@ function FuncionariosPageContent() {
   ]);
   const [generatingTarefas, setGeneratingTarefas] = useState(false);
   const [rejectingStatus, setRejectingStatus] = useState(false);
+  const [approvingStatus, setApprovingStatus] = useState(false);
   const [activeTab, setActiveTab] = useState<
     "nominal" | "solicitacao" | "dashboard"
   >("nominal");
@@ -191,6 +198,11 @@ function FuncionariosPageContent() {
   const [aprovandoTodasTarefas, setAprovandoTodasTarefas] = useState<
     string | null
   >(null);
+
+  // Função para verificar se o usuário é administrador
+  const isAdmin = () => {
+    return usuario?.equipe === "Administração";
+  };
 
   // Função para carregar dados do dashboard com filtros aplicados
   const fetchDashboardData = async () => {
@@ -304,6 +316,7 @@ function FuncionariosPageContent() {
         setFiltroContratoOrigem(filters.filtroContratoOrigem || []);
         setFiltroContratoDestino(filters.filtroContratoDestino || []);
         setFiltroStatusGeral(filters.filtroStatusGeral || []);
+        setFiltroStatusPrestserv(filters.filtroStatusPrestserv || []);
         setFiltroAcaoNecessaria(filters.filtroAcaoNecessaria || "");
         setFiltroTipoSolicitacao(filters.filtroTipoSolicitacao || []);
         setFiltroNumeroSolicitacao(filters.filtroNumeroSolicitacao || []);
@@ -344,6 +357,7 @@ function FuncionariosPageContent() {
       const target = event.target as Element;
       if (!target.closest(".dropdown-container")) {
         setDropdownStatusOpen(false);
+        setDropdownStatusPrestservOpen(false);
         setDropdownTipoSolicitacaoOpen(false);
         setDropdownContratoOrigemOpen(false);
         setDropdownContratoDestinoOpen(false);
@@ -377,6 +391,7 @@ function FuncionariosPageContent() {
         filtroContratoOrigem,
         filtroContratoDestino,
         filtroStatusGeral,
+        filtroStatusPrestserv,
         filtroAcaoNecessaria,
         filtroTipoSolicitacao,
         filtroNumeroSolicitacao,
@@ -394,6 +409,7 @@ function FuncionariosPageContent() {
     filtroContratoOrigem,
     filtroContratoDestino,
     filtroStatusGeral,
+    filtroStatusPrestserv,
     filtroAcaoNecessaria,
     filtroTipoSolicitacao,
     filtroNumeroSolicitacao,
@@ -968,6 +984,8 @@ function FuncionariosPageContent() {
             tipoSolicitacao: solicitacao.tipo || "REMANEJAMENTO",
             contratoOrigem: solicitacao.contratoOrigem?.numero || "N/A",
             contratoDestino: solicitacao.contratoDestino?.numero || "N/A",
+            contratoOrigemNome: solicitacao.contratoOrigem?.nome || "N/A",
+            contratoDestinoNome: solicitacao.contratoDestino?.nome || "N/A",
             totalTarefas: rf.tarefas?.length || 0,
             tarefasConcluidas:
               rf.tarefas?.filter((t: any) => t.status === "CONCLUIDO").length ||
@@ -1334,7 +1352,7 @@ function FuncionariosPageContent() {
     setOrdenacao({ campo: "solicitacaoId", direcao: "asc" });
   };
 
-  const exportarParaExcel = () => {
+  const exportarParaExcel = async () => {
     const dadosParaExportar = funcionariosFiltrados.map((funcionario) => {
       // Função para determinar status do setor
       const getStatusSetor = (setor: string) => {
@@ -1352,11 +1370,15 @@ function FuncionariosPageContent() {
       return {
         ID: funcionario.remanejamentoId,
         "ID GRUPO": funcionario.solicitacaoId,
-        Contratos: `${funcionario.contratoOrigem} → ${funcionario.contratoDestino}`,
-        "FUNCIONÁRIO PRESTSERV": `${funcionario.nome} (${funcionario.matricula}) - ${funcionario.funcao}`,
+        "Contrato Origem": funcionario.contratoOrigem,
+        "Contrato Destino": funcionario.contratoDestino,
+        "Matrícula": funcionario.matricula,
+        "Nome": funcionario.nome,
+        "Função": funcionario.funcao,
         "AÇÃO NECESSÁRIA": funcionario.statusTarefas,
         Responsável: funcionario.responsavelAtual || "N/A",
-        "Progresso Setores": `${funcionario.tarefasConcluidas}/${funcionario.totalTarefas}`,
+        "Pendente": Math.max((funcionario.totalTarefas || 0) - (funcionario.tarefasConcluidas || 0), 0),
+        "Concluído": funcionario.tarefasConcluidas || 0,
         "RASCUNHO PRESTSERV": funcionario.statusPrestserv,
         RH: getStatusSetor("RH"),
         MEDICINA: getStatusSetor("MEDICINA"),
@@ -1373,11 +1395,12 @@ function FuncionariosPageContent() {
       };
     });
 
-    const ws = utils.json_to_sheet(dadosParaExportar);
-    const wb = utils.book_new();
-    utils.book_append_sheet(wb, ws, "Funcionários");
+    const XLSX = await import("xlsx");
+    const ws = XLSX.utils.json_to_sheet(dadosParaExportar);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Funcionários");
 
-    const excelBuffer = write(wb, { bookType: "xlsx", type: "array" });
+    const excelBuffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
     const data = new Blob([excelBuffer], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     });
@@ -1428,6 +1451,15 @@ function FuncionariosPageContent() {
         break;
       case "statusGeral":
         if (valor) removerFiltroStatusGeral(valor);
+        break;
+      case "statusPrestserv":
+        if (valor) {
+          setFiltroStatusPrestserv((prev) =>
+            prev.filter((status) => status !== valor)
+          );
+        } else {
+          setFiltroStatusPrestserv([]);
+        }
         break;
       case "acaoNecessaria":
         setFiltroAcaoNecessaria("");
@@ -1511,6 +1543,14 @@ function FuncionariosPageContent() {
         tipo: "statusGeral",
         valor: status,
         label: `Ação: ${getStatusSemNumeracao(status)}`,
+      });
+    });
+
+    filtroStatusPrestserv.forEach((status) => {
+      tags.push({
+        tipo: "statusPrestserv",
+        valor: status,
+        label: `Prestserv: ${getStatusSemNumeracao(status)}`,
       });
     });
 
@@ -1620,8 +1660,9 @@ function FuncionariosPageContent() {
   };
 
   const aprovarSolicitacao = async () => {
-    if (!selectedFuncionario) return;
+    if (!selectedFuncionario || approvingStatus) return;
 
+    setApprovingStatus(true);
     try {
       // Definir o status adequado com base no tipo de solicitação
       const novoStatus =
@@ -1681,6 +1722,8 @@ function FuncionariosPageContent() {
         error instanceof Error ? error.message : "Erro ao aprovar solicitação",
         "error"
       );
+    } finally {
+      setApprovingStatus(false);
     }
   };
 
@@ -2016,6 +2059,7 @@ function FuncionariosPageContent() {
       filtroContratoOrigem.length > 0 ||
       filtroContratoDestino.length > 0 ||
       filtroStatusGeral.length > 0 ||
+      filtroStatusPrestserv.length > 0 ||
       filtroAcaoNecessaria ||
       filtroTipoSolicitacao.length > 0 ||
       filtroNumeroSolicitacao.length > 0 ||
@@ -2048,6 +2092,10 @@ function FuncionariosPageContent() {
       filtroStatusGeral.length === 0 ||
       filtroStatusGeral.includes(funcionario.statusTarefas);
 
+    const matchStatusPrestserv =
+      filtroStatusPrestserv.length === 0 ||
+      filtroStatusPrestserv.includes(funcionario.statusPrestserv);
+
     const matchAcaoNecessaria =
       !filtroAcaoNecessaria ||
       funcionario.statusTarefas === filtroAcaoNecessaria;
@@ -2079,6 +2127,7 @@ function FuncionariosPageContent() {
       matchContratoOrigem &&
       matchContratoDestino &&
       matchStatusGeral &&
+      matchStatusPrestserv &&
       matchAcaoNecessaria &&
       matchTipoSolicitacao &&
       matchNumeroSolicitacao &&
@@ -3575,6 +3624,92 @@ function FuncionariosPageContent() {
               </div>
             </div>
 
+            {/* Filtro por Status Prestserv */}
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">
+                Status Prestserv
+              </label>
+              <div className="relative dropdown-container">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setDropdownStatusPrestservOpen(!dropdownStatusPrestservOpen)
+                  }
+                  className="w-full pl-8 pr-3 py-2 text-sm border-slate-800 bg-slate-100 text-slate-500 rounded-md shadow-sm focus:border-slate-300 focus:ring-slate-300 text-left flex justify-between items-center"
+                >
+                  <FunnelIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <span className="text-gray-700">
+                    {filtroStatusPrestserv.length === 0
+                      ? "Todos"
+                      : `${filtroStatusPrestserv.length} selecionado(s)`}
+                  </span>
+                  <svg
+                    className={`w-4 h-4 transition-transform ${
+                      dropdownStatusPrestservOpen ? "rotate-180" : ""
+                    }`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 9l-7 7-7-7"
+                    />
+                  </svg>
+                </button>
+                {dropdownStatusPrestservOpen && (
+                  <div className="absolute z-10 w-full mt-1 bg-slate-100 border border-slate-800 rounded-md shadow-lg">
+                    <div className="p-2 space-y-2 max-h-48 overflow-y-auto">
+                      {[...new Set([...(funcionarios.map((f) => f.statusPrestserv)),
+                        ...[
+                          "PENDENTE",
+                          "APROVADO",
+                          "REPROVADO",
+                          "CRIADO",
+                          "SUBMETIDO",
+                          "EM VALIDAÇÃO",
+                          "VALIDADO",
+                          "INVALIDADO",
+                          "CANCELADO",
+                        ],
+                      ])]
+                        .filter(Boolean)
+                        .sort()
+                        .map((status) => (
+                          <label
+                            key={status}
+                            className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-1 rounded"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={filtroStatusPrestserv.includes(status)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setFiltroStatusPrestserv([
+                                    ...filtroStatusPrestserv,
+                                    status,
+                                  ]);
+                                } else {
+                                  setFiltroStatusPrestserv(
+                                    filtroStatusPrestserv.filter((s) => s !== status)
+                                  );
+                                }
+                              }}
+                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="text-sm text-gray-700">
+                              {getStatusSemNumeracao(status)}
+                            </span>
+                          </label>
+                        ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* Filtro por Tipo de Solicitação */}
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">
@@ -3975,6 +4110,7 @@ function FuncionariosPageContent() {
                             <span className="font-mono">
                               {funcionario.contratoOrigem}
                             </span>
+                            <span className="text-gray-500 truncate max-w-[160px] inline-block align-bottom"> · {funcionario.contratoOrigemNome}</span>
                           </div>
                           <div className="text-xs">
                             <span className="font-medium text-gray-600">
@@ -3983,6 +4119,7 @@ function FuncionariosPageContent() {
                             <span className="font-mono">
                               {funcionario.contratoDestino}
                             </span>
+                            <span className="text-gray-500 truncate max-w-[160px] inline-block align-bottom"> · {funcionario.contratoDestinoNome}</span>
                           </div>
                         </div>
                       </td>
@@ -4232,9 +4369,10 @@ function FuncionariosPageContent() {
                               </button>
                             )}
 
-                          {/* Botão para aprovar todas as tarefas (apenas para teste) */}
-                          {funcionario.statusTarefas !==
-                            "APROVAR SOLICITAÇÃO" &&
+                          {/* Botão para aprovar todas as tarefas (apenas para teste, visível somente para admin) */}
+                          {isAdmin() &&
+                            funcionario.statusTarefas !==
+                              "APROVAR SOLICITAÇÃO" &&
                             funcionario.statusTarefas !== "REJEITADO" &&
                             funcionario.statusTarefas !==
                               "SOLICITAÇÃO REJEITADA" &&
@@ -4260,6 +4398,70 @@ function FuncionariosPageContent() {
                                   : "Aprovar Todas"}
                               </button>
                             )}
+                          {isAdmin() && funcionario.remanejamentoId && (
+                                <button
+                                  onClick={async () => {
+                                    const confirmar = typeof window !== 'undefined'
+                                      ? window.confirm(`Excluir remanejamento de ${funcionario.nome} (${funcionario.matricula})?`)
+                                      : true;
+                                    if (!confirmar) return;
+                                    try {
+                                      const idsToTry = [funcionario.remanejamentoId, funcionario.id].filter(Boolean);
+                                      let lastStatus = 0;
+                                      let lastDetail = '';
+                                      for (const tryId of idsToTry) {
+                                        // 1) Tentar primeiro a rota base com query param (estável em dev)
+                                        const queryUrl = `/api/logistica/remanejamentos?id=${encodeURIComponent(String(tryId))}`;
+                                        console.log('Solicitando DELETE via query param', { id: tryId, url: queryUrl });
+                                        let statusQuery = 0;
+                                        let contentTypeQuery = '';
+                                        try {
+                                          const respQuery = await fetch(queryUrl, { method: 'DELETE', credentials: 'include', headers: { 'Accept': 'application/json' } });
+                                          statusQuery = respQuery.status;
+                                          contentTypeQuery = respQuery.headers.get('content-type') || '';
+                                          if (respQuery.ok && contentTypeQuery.includes('application/json') && !contentTypeQuery.includes('text/html')) {
+                                            console.log('DELETE /logistica/remanejamentos (query) sucesso', { status: statusQuery, id: tryId, contentType: contentTypeQuery });
+                                            showToast('Remanejamento excluído com sucesso', 'success');
+                                            await fetchFuncionarios();
+                                            return;
+                                          }
+                                          let errorDetailQuery = '';
+                                          try {
+                                            const rawTextQuery = await respQuery.text();
+                                            try {
+                                              const parsedQuery = rawTextQuery && contentTypeQuery.includes('application/json') ? JSON.parse(rawTextQuery) : {};
+                                              errorDetailQuery = (parsedQuery as any).error || (parsedQuery as any).message || rawTextQuery || `HTTP ${statusQuery}`;
+                                            } catch {
+                                              errorDetailQuery = rawTextQuery || `HTTP ${statusQuery}`;
+                                            }
+                                          } catch {
+                                            errorDetailQuery = `HTTP ${statusQuery}`;
+                                          }
+                                          console.warn('DELETE /logistica/remanejamentos via query falhou', { status: statusQuery, errorDetail: errorDetailQuery, id: tryId, url: queryUrl, contentType: contentTypeQuery });
+                                          lastStatus = statusQuery;
+                                          lastDetail = errorDetailQuery || '';
+                                        } catch (errQuery) {
+                                          console.warn('DELETE /logistica/remanejamentos (query) exceção', { id: tryId, url: queryUrl, err: errQuery });
+                                          lastStatus = statusQuery;
+                                          lastDetail = (errQuery as any)?.message || 'Erro de rede';
+                                        }
+
+                                        // 2) Rota dinâmica desativada por estabilidade em dev; seguimos para o próximo ID
+                                        // tenta próximo ID (fallback)
+                                      }
+                                      throw new Error(lastDetail || `Falha ao excluir remanejamento (HTTP ${lastStatus})`);
+                                    } catch (err: any) {
+                                      console.error('Erro ao excluir remanejamento:', err);
+                                      showToast(err?.message || 'Erro ao excluir remanejamento', 'error');
+                                    }
+                                  }}
+                                  className="inline-flex items-center px-2 py-1 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded hover:bg-red-100 transition-colors focus:outline-none focus:ring-1 focus:ring-red-500"
+                                  title="Excluir remanejamento"
+                                >
+                                  <XMarkIcon className="w-3 h-3 mr-1" />
+                                  Excluir
+                                </button>
+                              )}
                         </div>
                       </td>
                     </tr>
@@ -4350,22 +4552,58 @@ function FuncionariosPageContent() {
                         />
                       </button>
 
-                      {/* Números das páginas */}
-                      {Array.from(
-                        { length: totalPaginas },
-                        (_, i) => i + 1
-                      ).map((numeroPagina) => (
-                        <button
-                          key={numeroPagina}
-                          onClick={() => setPaginaAtual(numeroPagina)}
-                          className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
-                            numeroPagina === paginaAtual
-                              ? "z-10 bg-blue-50 border-blue-500 text-blue-600"
-                              : "bg-white border-gray-300 text-gray-500 hover:bg-gray-50"
-                          }`}
-                        >
-                          {numeroPagina}
-                        </button>
+                      {/* Números das páginas - compactos com reticências */}
+                      {(() => {
+                        const delta = 1;
+                        const range: number[] = [];
+                        const result: (number | string)[] = [];
+                        let last: number | undefined;
+
+                        for (let i = 1; i <= totalPaginas; i++) {
+                          if (
+                            i === 1 ||
+                            i === totalPaginas ||
+                            (i >= paginaAtual - delta && i <= paginaAtual + delta)
+                          ) {
+                            range.push(i);
+                          }
+                        }
+
+                        for (const i of range) {
+                          if (last !== undefined) {
+                            if (i - last === 2) {
+                              result.push(last + 1);
+                            } else if (i - last > 2) {
+                              result.push("...");
+                            }
+                          }
+                          result.push(i);
+                          last = i;
+                        }
+
+                        return result;
+                      })().map((item, idx) => (
+                        typeof item === "string" ? (
+                          <span
+                            key={`ellipsis-${idx}`}
+                            className="relative inline-flex items-center px-2 py-1 text-xs text-gray-400 select-none"
+                          >
+                            …
+                          </span>
+                        ) : (
+                          <button
+                            key={item}
+                            onClick={() => setPaginaAtual(item)}
+                            className={`relative inline-flex items-center px-2 py-1 border text-xs font-medium ${
+                              item === paginaAtual
+                                ? "z-10 bg-blue-50 border-blue-500 text-blue-600"
+                                : "bg-white border-gray-300 text-gray-500 hover:bg-gray-50"
+                            }`}
+                            aria-label={`Ir para página ${item}`}
+                          >
+                            {item}
+                          </button>
+                        )
                       ))}
 
                       <button
@@ -4431,12 +4669,14 @@ function FuncionariosPageContent() {
                     >
                       Limpar Seleção
                     </button>
-                    <button
-                      onClick={abrirModalAprovacaoLote}
-                      className="px-4 py-1.5 text-xs font-medium text-white bg-green-600 border border-green-600 rounded hover:bg-green-700 transition-colors"
-                    >
-                      Aprovar Selecionados
-                    </button>
+                    {isAdmin() && (
+                      <button
+                        onClick={abrirModalAprovacaoLote}
+                        className="px-4 py-1.5 text-xs font-medium text-white bg-green-600 border border-green-600 rounded hover:bg-green-700 transition-colors"
+                      >
+                        Aprovar Selecionados
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -4960,15 +5200,22 @@ function FuncionariosPageContent() {
             <div className="space-y-3 mb-6">
               <button
                 onClick={aprovarSolicitacao}
-                className="w-full flex items-center p-3 border border-gray-200 rounded-lg hover:bg-green-50 hover:border-green-300 transition-colors focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-offset-1"
+                disabled={approvingStatus}
+                className="w-full flex items-center p-3 border border-gray-200 rounded-lg hover:bg-green-50 hover:border-green-300 transition-colors focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <div className="flex-shrink-0">
                   <div className="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center">
-                    <PlusIcon className="w-4 h-4 text-green-600" />
+                    {approvingStatus ? (
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-600"></div>
+                    ) : (
+                      <PlusIcon className="w-4 h-4 text-green-600" />
+                    )}
                   </div>
                 </div>
                 <div className="ml-3 flex-1 text-left">
-                  <h4 className="text-sm font-medium text-gray-900">Aprovar</h4>
+                  <h4 className="text-sm font-medium text-gray-900">
+                    {approvingStatus ? "Aprovando..." : "Aprovar"}
+                  </h4>
                   <p className="text-xs text-gray-500">
                     Aprovar solicitação e gerar tarefas para RH, MEDICINA e
                     TREINAMENTO (para desligamentos, irá direto para SUBMETER

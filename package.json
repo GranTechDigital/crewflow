@@ -9,14 +9,20 @@
   },
   "homepage": "https://github.com/GranTechDigital/crewflow",
   "scripts": {
-    "dev": "next dev",
+    "dev": "npm run dev:docker",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "seed": "npx prisma db seed",
     "seed:complete": "node prisma/seed-complete.cjs",
+    "seed:matriz": "node prisma/seed-fill-matriz.cjs",
     "seed:essential": "node prisma/seed-complete.cjs",
-    "init": "node scripts/init-project.cjs"
+    "init": "node scripts/init-project.cjs",
+    "dev:docker": "docker-compose -f docker-compose.dev.yml up -d",
+    "dev:docker:down": "docker-compose -f docker-compose.dev.yml down",
+    "staging:cleanup-remanejamentos": "node scripts/cleanup-remanejamentos.cjs",
+    "staging:add-funcionarios-extra": "node scripts/add-funcionarios-extra.js",
+    "open": "powershell -Command Start-Process 'http://localhost:3000'"
   },
   "prisma": {
     "seed": "node prisma/seed-complete.cjs"
@@ -30,6 +36,7 @@
     "bcryptjs": "^3.0.2",
     "chart.js": "^4.5.0",
     "chartjs-plugin-datalabels": "^2.2.0",
+    "exceljs": "^4.4.0",
     "flowbite": "^3.1.2",
     "flowbite-react": "^0.12.6",
     "form-data": "^4.0.4",

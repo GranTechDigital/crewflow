@@ -245,7 +245,11 @@ export default function NovoRemanejamentoLogisticaPage() {
       // Simula um pequeno delay para dar feedback visual ao usuário
       await new Promise(resolve => setTimeout(resolve, 300));
       
-      setFuncionariosSelecionados(prev => [...prev, funcionario]);
+      setFuncionariosSelecionados(prev => (
+        prev.some(f => f.id === funcionario.id)
+          ? prev
+          : [...prev, funcionario]
+      ));
       
       // Para remanejamentos entre contratos ou desligamentos, definir automaticamente o contrato de origem
       if ((tipoRemanejamento === 'entre_contratos' || tipoRemanejamento === 'desligamento') && !contratoOrigem) {
@@ -364,8 +368,8 @@ export default function NovoRemanejamentoLogisticaPage() {
   }
   
   return (
-    <div className="min-h-screen bg-gray-50 ">
-      <div className="bg-linear-to-r from-gray-800 to-slate-600 shadow-lg rounded-t-2xl border-slate-500 border-2">
+    <div className="min-h-screen bg-gray-50">
+      <div className="bg-gradient-to-r from-gray-800 to-slate-600 shadow-lg rounded-t-2xl border-slate-500 border-2">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="flex items-center gap-4">
@@ -747,7 +751,8 @@ export default function NovoRemanejamentoLogisticaPage() {
                     ? "Selecione os funcionários novos para alocar"
                     : tipoRemanejamento === "entre_contratos"
                     ? "Selecione os funcionários para remanejamento"
-                    : "Selecione os funcionários para desligamento"}
+                    : "Selecione os funcionários para desligamento"
+                  }
                 </h2>
               </div>
 
@@ -773,10 +778,7 @@ export default function NovoRemanejamentoLogisticaPage() {
                   )}
 
                 {/* Filtros */}
-                <div
-                  className="m
-                b-6 grid grid-cols-1 md:grid-cols-4 gap-4"
-                >
+                <div className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Buscar por nome
@@ -930,49 +932,52 @@ export default function NovoRemanejamentoLogisticaPage() {
                       </p>
                     </div>
                     <div className="max-h-96 overflow-y-auto divide-y divide-gray-200">
-                      {funcionariosSelecionados.length === 0 ? (
-                        <div className="p-4 text-center text-gray-500 text-sm">
-                          Nenhum funcionário selecionado
-                        </div>
-                      ) : (
-                        funcionariosSelecionados.map((funcionario) => (
-                          <div
-                            key={funcionario.id}
-                            className="p-3 hover:bg-gray-50 cursor-pointer transition-colors"
-                            onClick={() => removerFuncionario(funcionario.id)}
-                          >
-                            <div className="flex items-center justify-between">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2">
-                                  <UserIcon className="h-4 w-4 text-gray-400" />
-                                  <span className="font-medium text-gray-900 text-sm">
-                                    {funcionario.nome}
-                                  </span>
-                                </div>
-                                <div className="mt-1 text-xs text-gray-500 space-y-1">
-                                  <div className="flex items-center gap-4">
-                                    <span>Mat: {funcionario.matricula}</span>
-                                    {funcionario.funcao && (
-                                      <span>Função: {funcionario.funcao}</span>
-                                    )}
-                                  </div>
-                                  <div className="flex items-center gap-4">
-                                    {funcionario.centroCusto && (
-                                      <span>CC: {funcionario.centroCusto}</span>
-                                    )}
-                                    {funcionario.status && (
-                                      <span>Status: {funcionario.status}</span>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                              <button className="ml-2 p-1 text-red-600 hover:text-red-800 hover:bg-red-100 rounded">
-                                <ArrowLeftIcon className="h-4 w-4" />
-                              </button>
-                            </div>
+                      {
+                        funcionariosSelecionados.length === 0 ? (
+                          <div className="p-4 text-center text-gray-500 text-sm">
+                              Nenhum funcionário selecionado
                           </div>
-                        ))
-                      )}
+                        ) :
+                        (
+                          funcionariosSelecionados.map((funcionario) => (
+                            <div
+                              key={funcionario.id}
+                              className="p-3 hover:bg-gray-50 cursor-pointer transition-colors"
+                              onClick={() => removerFuncionario(funcionario.id)}
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <UserIcon className="h-4 w-4 text-gray-400" />
+                                    <span className="font-medium text-gray-900 text-sm">
+                                      {funcionario.nome}
+                                    </span>
+                                  </div>
+                                  <div className="mt-1 text-xs text-gray-500 space-y-1">
+                                    <div className="flex items-center gap-4">
+                                      <span>Mat: {funcionario.matricula}</span>
+                                      {funcionario.funcao && (
+                                        <span>Função: {funcionario.funcao}</span>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-4">
+                                      {funcionario.centroCusto && (
+                                        <span>CC: {funcionario.centroCusto}</span>
+                                      )}
+                                      {funcionario.status && (
+                                        <span>Status: {funcionario.status}</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                                <button className="ml-2 p-1 text-red-600 hover:text-red-800 hover:bg-red-100 rounded">
+                                  <ArrowLeftIcon className="h-4 w-4" />
+                                </button>
+                              </div>
+                            </div>
+                          ))
+                        )
+                      }
                     </div>
                   </div>
                 </div>

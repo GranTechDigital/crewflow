@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getUserFromRequest } from '@/utils/authUtils';
+import { sincronizarTarefasPadrao } from '@/lib/tarefasPadraoSync';
 
 export async function GET(
   request: NextRequest,
@@ -263,6 +264,19 @@ export async function PUT(
         },
       },
     });
+
+    // Sincronização automática após atualização da matriz
+    try {
+      const user = await getUserFromRequest(request);
+      await sincronizarTarefasPadrao({
+        setores: ['TREINAMENTO'],
+        usuarioResponsavel: user?.funcionario?.nome || 'Sistema - Matriz Atualizada',
+      });
+      console.log('✅ Sincronização automática de TREINAMENTO executada após atualização da matriz');
+    } catch (syncError) {
+      console.error('⚠️ Erro na sincronização automática após atualização da matriz:', syncError);
+      // Não falha a atualização se a sincronização falhar
+    }
 
     return NextResponse.json({
       success: true,

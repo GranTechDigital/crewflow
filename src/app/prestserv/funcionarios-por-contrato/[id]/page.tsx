@@ -21,6 +21,7 @@ import {
   TableCellsIcon,
 } from "@heroicons/react/24/outline";
 
+
 interface FuncionarioDetalhes {
   id: number;
   nome: string;
@@ -92,6 +93,8 @@ function FuncionarioDetalheContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  
+
   const funcionarioId = params.id as string;
 
   useEffect(() => {
@@ -128,6 +131,8 @@ function FuncionarioDetalheContent() {
       setLoading(false);
     }
   };
+
+  
 
   const formatarData = (data: string) => {
     return new Date(data).toLocaleDateString("pt-BR");
@@ -243,16 +248,18 @@ function FuncionarioDetalheContent() {
               </span>
             )}
           </div>
-          <div className="mt-3 sm:mt-0">
+          <div className="mt-3 sm:mt-0 flex items-center gap-2">
             <button
               onClick={() => router.back()}
-              className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors duration-200"
+              className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors duração-200"
             >
               <ArrowLeftIcon className="-ml-1 mr-2 h-4 w-4" />
               Voltar
             </button>
           </div>
         </div>
+
+        {/* Modal de remanejamento removido */}
 
         {/* Layout principal em duas colunas */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">

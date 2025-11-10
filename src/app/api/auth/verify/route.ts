@@ -11,24 +11,23 @@ export async function GET(request: NextRequest) {
     const token = authHeader?.replace('Bearer ', '') || request.cookies.get('auth-token')?.value;
 
     if (!token) {
-      console.log('DEBUG - Token não fornecido na rota verify');
+      // Debug removido: logs de token ausente
       return NextResponse.json(
         { error: 'Token não fornecido' },
         { status: 401 }
       );
     }
 
-    console.log('DEBUG - Token encontrado na rota verify');
+    // Debug removido: token encontrado
     
     // Verificar e decodificar o token usando jose
     const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret');
     const { payload: decoded } = await jwtVerify(token, secret);
+    // Debug removido: token decodificado
     
-    console.log('DEBUG - Token decodificado na rota verify:', JSON.stringify(decoded, null, 2));
-
     // Buscar dados atualizados do usuário
     const funcionarioId = decoded.funcionarioId as number;
-    console.log('DEBUG - Buscando funcionário com ID:', funcionarioId);
+    // Debug removido: buscando funcionário
     
     const funcionario = await prisma.funcionario.findUnique({
       where: { id: funcionarioId },
@@ -40,9 +39,8 @@ export async function GET(request: NextRequest) {
         }
       }
     });
+    // Debug removido: funcionário encontrado
     
-    console.log('DEBUG - Funcionário encontrado:', funcionario ? funcionario.nome : 'null');
-
     if (!funcionario || !funcionario.usuario || !funcionario.usuario.ativo) {
       return NextResponse.json(
         { error: 'Usuário não encontrado ou inativo' },

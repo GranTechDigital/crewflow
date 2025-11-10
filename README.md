@@ -10,19 +10,19 @@ Sistema de gestão desenvolvido em Next.js para controle de funcionários, reman
 
 O sistema utiliza uma arquitetura baseada em containers Docker com os seguintes componentes:
 
-| Componente | Nome do Container | Porta | Descrição |
-|------------|-------------------|-------|-----------|
-| Aplicação | `crewflow-app-production` | 3001:3000 | Aplicação Next.js principal |
-| Banco de Dados | `postgres-prod` | 5434:5432 | PostgreSQL para ambiente de produção |
-| Interface BD | `pgadmin-production` | 5050:80 | pgAdmin para gerenciamento do banco |
+| Componente     | Nome do Container         | Porta     | Descrição                            |
+| -------------- | ------------------------- | --------- | ------------------------------------ |
+| Aplicação      | `crewflow-app-production` | 3001:3000 | Aplicação Next.js principal          |
+| Banco de Dados | `postgres-prod`           | 5434:5432 | PostgreSQL para ambiente de produção |
+| Interface BD   | `pgadmin-production`      | 5050:80   | pgAdmin para gerenciamento do banco  |
 
 ### 🌐 Ambientes
 
-| Ambiente | URL | Descrição |
-|----------|-----|-----------|
-| Produção | http://46.202.146.234:3001 | Ambiente de produção |
-| Staging | Local | Ambiente de testes com PostgreSQL local |
-| Desenvolvimento | Local | Ambiente de desenvolvimento com SQLite |
+| Ambiente        | URL                                                                     | Descrição                                                      |
+| --------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------- |
+| Produção        | http://46.202.146.234:3001                                              | Ambiente de produção                                           |
+| Staging         | http://46.202.146.234:3002 (app) / http://46.202.146.234:5051 (pgAdmin) | Ambiente de testes remoto com PostgreSQL e pgAdmin no servidor |
+| Desenvolvimento | Local                                                                   | Ambiente de desenvolvimento com PostgreSQL                     |
 
 ### 🚀 Processo de Deploy
 
@@ -31,10 +31,12 @@ O sistema utiliza uma arquitetura baseada em containers Docker com os seguintes 
 O deploy é realizado automaticamente pelo GitHub Actions quando há um push para a branch `main`:
 
 1. Constrói a imagem Docker `crewflow-app:latest`
-2. Salva a imagem como `crewflow-app.tar`
-3. Envia os arquivos para o servidor via SSH
-4. Para e remove os containers existentes
-5. Inicia os novos containers com a versão atualizada
+2. Envia a imagem para o servidor via SSH e faz o `docker load`
+3. Faz backup do banco de dados (`pg_dump -Fc`) ANTES de iniciar o deploy
+4. Para e remove containers antigos e sobe a nova versão
+5. Aplica migrações do Prisma e executa seed idempotente
+
+Nota (staging): o workflow não cadastra mais funcionários extras automaticamente; quando necessário, execute manualmente dentro do container: `npm run staging:add-funcionarios-extra`.
 
 #### Configuração da Rede Docker
 
@@ -43,20 +45,22 @@ O deploy é realizado automaticamente pelo GitHub Actions quando há um push par
 docker network create projetogran_crewflow-network
 ```
 
-#### Variáveis de Ambiente de Produção
+#### Variáveis de Ambiente e Segredos (Produção)
 
-```env
-# Banco de dados
-DATABASE_URL="postgresql://crewflow_user:crewflow_production_2024@postgres-prod:5432/crewflow_production"
+- A aplicação recebe segredos via GitHub Secrets, injetados no `docker run`:
+  - `PRODUCTION_DATABASE_URL`
+  - `JWT_SECRET_PRODUCTION`
+  - `SERVER_HOST`
+- O workflow gera/atualiza um arquivo `/opt/projetogran/.env` no servidor contendo SOMENTE credenciais do Postgres/pgAdmin utilizadas pelo `docker-compose.yml` (não pela aplicação):
+  - `POSTGRES_PROD_DB`, `POSTGRES_PROD_USER`, `POSTGRES_PROD_PASSWORD`
+  - `PGADMIN_PROD_EMAIL`, `PGADMIN_PROD_PASSWORD`
+- Não existem credenciais hardcoded no repositório.
+- Credenciais do usuário administrador são parametrizadas via `ADMIN_USER`, `ADMIN_EMAIL`, `ADMIN_PASSWORD` e podem ser definidas no `.env` de cada ambiente (não são impressas em logs).
 
-# JWT Secret
-JWT_SECRET="crewflow-jwt-secret-key-2024"
+Exemplo de `DATABASE_URL` (apenas formato):
 
-# URL da aplicação
-NEXTAUTH_URL="http://localhost:3000"
-
-# Ambiente
-NODE_ENV="production"
+```
+postgresql://<user>:<password>@<host>:<port>/<db>?schema=public
 ```
 
 ### 🛠️ Scripts de Manutenção
@@ -70,7 +74,7 @@ O script `deploy-quick.bat` pode ser usado para fazer um deploy rápido em caso 
 ./deploy-quick.bat
 ```
 
-> ⚠️ **Atenção**: Use apenas em situações de emergência. O método recomendado é o deploy via GitHub Actions.
+> ⚠️ Atenção: Use apenas em situações de emergência. O método recomendado é o deploy via GitHub Actions.
 
 #### Inicialização do PostgreSQL Local (Staging)
 
@@ -79,6 +83,75 @@ Para iniciar o PostgreSQL local para testes:
 ```bash
 # Iniciar PostgreSQL para ambiente de staging
 ./start-postgres.bat
+```
+
+### Desenvolvimento Local com Docker
+
+Use apenas o ambiente de desenvolvimento dedicado via `docker-compose.dev.yml`:
+
+- Subir ambiente de desenvolvimento (app-dev + postgres-dev + pgadmin-dev):
+
+```
+docker-compose -f docker-compose.dev.yml up -d
+```
+
+- Parar todo o ambiente de desenvolvimento:
+
+```
+docker-compose -f docker-compose.dev.yml down
+```
+
+- Logs da aplicação:
+
+```
+docker logs -f crewflow-app-dev
+```
+
+- Migrações Prisma (dev):
+
+```
+docker exec crewflow-app-dev npx prisma migrate dev
+```
+
+- Criar/atualizar usuário admin:
+
+```
+docker exec crewflow-app-dev node create-admin-user.js
+```
+
+Notas importantes:
+
+- Ambiente LOCAL não utiliza termos "staging". Serviços: `app-dev`, `postgres-dev`, `pgadmin-dev`.
+- Rede: `crewflow-dev-network`. Volumes: `crewflow_postgres_dev_data`, `crewflow_pgadmin_dev_data`, `crewflow_node_modules_dev`.
+- Variáveis de ambiente via arquivo `.env.dev` (documentadas em `.env.example`).
+
+#### Comandos npm (atalhos oficiais)
+
+- Desenvolvimento com Docker:
+  - `npm run dev:docker`
+- Derrubar ambiente de desenvolvimento:
+  - `npm run dev:docker:down`
+
+#### Worker de Sincronização de Funcionários (dev)
+
+- Serviço: `func-sync-worker` no `docker-compose.dev.yml`.
+- Agendamento: horários fixos (`FUNCIONARIOS_SYNC_SCHEDULE`) ou intervalo em minutos (`FUNCIONARIOS_SYNC_INTERVAL_MINUTES`, ex.: `60`).
+- Autorização: envia `Authorization: Bearer $FUNCIONARIOS_SYNC_SERVICE_TOKEN`.
+- Variáveis necessárias (definir em `.env.dev`, documentadas em `.env.example`):
+  - `FUNCIONARIOS_SYNC_SERVICE_TOKEN`
+  - `FUNCIONARIOS_SYNC_SCHEDULE` (ex.: `07:00,12:30`)
+  - `TZ` (ex.: `America/Sao_Paulo`)
+- Subir/derrubar só o worker:
+
+```
+docker-compose -f docker-compose.dev.yml up -d func-sync-worker
+docker-compose -f docker-compose.dev.yml stop func-sync-worker
+```
+
+- Logs do worker:
+
+```
+docker logs -f crewflow-func-sync-worker
 ```
 
 ### 📋 Checklist de Verificação de Deploy
@@ -93,238 +166,76 @@ Após um deploy, verifique:
 
 ### 🔄 Histórico de Versões da Infraestrutura
 
-| Data | Versão | Descrição |
-|------|--------|-----------|
-| 2024-05-XX | 1.0 | Configuração inicial com SQLite |
-| 2024-05-XX | 1.1 | Migração para PostgreSQL |
-| 2024-05-XX | 1.2 | Padronização dos nomes dos containers |
-| 2024-05-XX | 1.3 | Correção do workflow de deploy automático |
+| Data       | Versão | Descrição                                                                            |
+| ---------- | ------ | ------------------------------------------------------------------------------------ |
+| 2024-05-XX | 1.0    | Configuração inicial                                                                 |
+| 2024-05-XX | 1.1    | Migração para PostgreSQL                                                             |
+| 2024-05-XX | 1.2    | Padronização dos nomes dos containers                                                |
+| 2024-05-XX | 1.3    | Correção do workflow de deploy automático                                            |
+| 2025-10-XX | 1.4    | Externalização de segredos (staging e produção) e backup obrigatório antes do deploy |
 
 ### 🔍 Solução de Problemas Comuns
 
-| Problema | Possível Causa | Solução |
-|----------|----------------|---------|
-| Site não acessível | Container da aplicação parado | Verificar status com `docker ps` e reiniciar se necessário |
-| Erro de conexão com banco | PostgreSQL não iniciado ou credenciais incorretas | Verificar status do container `postgres-prod` e configurações de ambiente |
-| Falha no deploy automático | Inconsistência nos nomes dos arquivos/containers | Verificar logs do GitHub Actions e corrigir o workflow |
-| Dados não persistindo | Volume do PostgreSQL não configurado | Verificar se o volume `postgres_data` está mapeado corretamente |
-| pgAdmin inacessível | Container não iniciado ou porta incorreta | Verificar status do container `pgadmin-production` e mapeamento de porta |
+| Problema                   | Possível Causa                                    | Solução                                                                   |
+| -------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------- |
+| Site não acessível         | Container da aplicação parado                     | Verificar status com `docker ps` e reiniciar se necessário                |
+| Erro de conexão com banco  | PostgreSQL não iniciado ou credenciais incorretas | Verificar status do container `postgres-prod` e configurações de ambiente |
+| Falha no deploy automático | Inconsistência nos nomes dos arquivos/containers  | Verificar logs do GitHub Actions e corrigir o workflow                    |
+| Dados não persistindo      | Volume do PostgreSQL não configurado              | Verificar se o volume `postgres_data` está mapeado corretamente           |
+| pgAdmin inacessível        | Container não iniciado ou porta incorreta         | Verificar status do container `pgadmin-production` e mapeamento de porta  |
 
-## 🚀 Tecnologias Utilizadas
+Nota (staging): o workflow não cadastra mais funcionários extras automaticamente; use apenas `npm run seed:complete` (idempotente). Quando necessário, execute `npm run staging:add-funcionarios-extra` manualmente dentro do container.
 
-- **Next.js 14** - Framework React
-- **TypeScript** - Linguagem de programação
-- **Prisma** - ORM para banco de dados
-- **SQLite** - Banco de dados
-- **Tailwind CSS** - Framework CSS
-- **JWT** - Autenticação
-- **Lucide React** - Ícones
+### 🧹 Limpeza de Remanejamentos (Staging) — Desativado
 
-## 📋 Pré-requisitos
+A partir de agora, qualquer limpeza de dados deve ser feita manualmente via pgAdmin, tanto em produção quanto em staging. Antes de cada deploy realizado via GitHub Actions, um backup completo do banco é criado automaticamente:
 
-- Node.js 18+ instalado
-- npm, yarn, pnpm ou bun
-- Git
+- Staging: `/var/backups/projetogran/staging/projetogran_YYYYMMDD_HHMMSS.dump`
+- Produção: `/var/backups/projetogran/producao/crewflow_production_YYYYMMDD_HHMMSS.dump`
 
-## 🔧 Instalação e Configuração
+Não use scripts de limpeza pela aplicação; execute operações destrutivas apenas pelo pgAdmin com confirmação manual.
 
-### 1. Clone o repositório
-```bash
-git clone https://github.com/GranTechDigital/crewflow.git
-cd crewflow
-```
+### 🧱 Padronização de Volumes (Docker)
 
-### 2. Instale as dependências
-```bash
-npm install
-# ou
-yarn install
-# ou
-pnpm install
-```
+- Staging: usar sempre os volumes `postgres-staging-data` e `pgadmin-staging-data` (compose: `docker-compose.staging-postgres.yml`).
+- Produção: manter volumes legados `postgres_data` e `pgadmin_data` até migração planejada com backup e janela de manutenção. Quando oportuno, aplicar a mesma estratégia de auditoria/migração utilizada em staging (com dry-run e backup antes).
+- Rede: `projetogran_crewflow-network` compartilhada entre app e banco em todos os ambientes.
+- Dica: valide volumes em uso no servidor com `docker inspect <container> | grep Source` antes de qualquer limpeza.
 
-### 3. Configure as variáveis de ambiente
-Crie um arquivo `.env` na raiz do projeto:
-```env
-# Banco de dados
-DATABASE_URL="file:./dev.db"
+### 🛡️ Guard Rails de Deploy e Backup
 
-# JWT Secret (altere para um valor seguro em produção)
-JWT_SECRET="seu-jwt-secret-aqui"
+- Backups obrigatórios e verificados: staging e produção realizam `pg_dump -Fc` com checagens de container, conexão ao DB e tamanho do arquivo (>0 bytes) antes do deploy.
+- Sem segredos hardcoded em compose/workflows; uso de Secrets e `.env` no servidor.
 
-# URL da aplicação
-NEXTAUTH_URL="http://localhost:3000"
-```
+### 🔧 Notas de Migração — Funções (Nov/2025)
 
-### 4. Configure o banco de dados
-```bash
-# Gerar o cliente Prisma
-npx prisma generate
-
-# Executar as migrações
-npx prisma migrate dev
-
-# Popular o banco com dados iniciais
-npm run seed
-```
-
-### 5. Inicie o servidor de desenvolvimento
-```bash
-npm run dev
-# ou
-yarn dev
-# ou
-pnpm dev
-```
-
-Acesse [http://localhost:3000](http://localhost:3000) no seu navegador.
-
-## 🔐 Credenciais de Acesso
-
-### Usuário Administrador
-- **Matrícula:** `ADMIN001`
-- **Senha:** `admin123`
-- **Permissões:** Acesso total ao sistema
-
-## 📁 Estrutura do Projeto
+- Campo `funcao_slug` agora obrigatório em `Funcao` com unicidade reforçada por `@@unique([funcao_slug, regime])` (mantida também `@@unique([funcao, regime])`).
+- Migrações versionadas criadas e aplicadas:
+  - `prisma/migrations/20251104120000_add_funcao_slug_nullable` — adiciona coluna `funcao_slug` como opcional e cria índice único `[funcao, regime]` se não existir.
+  - `prisma/migrations/20251104121500_make_funcao_slug_not_null_and_unique` — torna `funcao_slug` `NOT NULL` e cria índice único `[funcao_slug, regime]`.
+- Aplicação não interativa das migrações (dev/staging/prod):
 
 ```
-# Sistema de Proteção de Rotas - Centralizado
-
-## 🔐 **Sistema Centralizado de Permissões**
-
-### **📁 Arquivo Central:**
-- **`src/lib/permissions.ts`** - Sistema centralizado de permissões
-
-### **🎯 Permissões Padronizadas:**
-
-#### **🔧 Permissões de Administração:**
-- `admin` - Acesso total ao sistema
-- `gerenciar_usuarios` - Gerenciar usuários
-- `gerenciar_equipes` - Gerenciar equipes
-
-#### **📋 Permissões de Acesso por Módulo:**
-- `canAccessFuncionarios` - Acesso a funcionários
-- `canAccessPrestServ` - Acesso ao Prestserv
-- `canAccessPlanejamento` - Acesso ao Planejamento
-- `canAccessLogistica` - Acesso à Logística
-- `canAccessAdmin` - Acesso à Administração
-- `canAccessRH` - Acesso ao RH
-- `canAccessTreinamento` - Acesso ao Treinamento
-- `canAccessMedicina` - Acesso à Medicina
-
-### **🏢 Mapeamento de Equipes:**
-
-```typescript
-TEAM_PERMISSIONS = {
-  'Administração': [
-    'admin', 'canAccessFuncionarios', 'canAccessPrestServ',
-    'canAccessPlanejamento', 'canAccessLogistica', 'canAccessAdmin',
-    'canAccessRH', 'canAccessTreinamento', 'canAccessMedicina',
-    'gerenciar_usuarios', 'gerenciar_equipes'
-  ],
-  'RH': ['canAccessFuncionarios', 'canAccessRH'],
-  'Treinamento': ['canAccessFuncionarios', 'canAccessTreinamento'],
-  'Medicina': ['canAccessFuncionarios', 'canAccessMedicina'],
-  'Logística': ['canAccessFuncionarios', 'canAccessLogistica', 'canAccessPrestServ'],
-  'Planejamento': ['canAccessFuncionarios', 'canAccessPlanejamento'],
-  'Prestserv': ['canAccessFuncionarios', 'canAccessPrestServ']
-}
+docker exec <container_app> npx prisma migrate deploy
 ```
 
-### **🛡️ Proteção de Rotas Centralizada:**
+- Backfill (quando necessário) antes de tornar `NOT NULL`:
 
-```typescript
-ROUTE_PROTECTION = {
-  ADMIN: {
-    requiredEquipe: ['Administração'],
-    requiredPermissions: ['admin', 'gerenciar_usuarios']
-  },
-  PRESTSERV: {
-    requiredEquipe: ['LOGISTICA', 'PRESTSERV', 'Administração'],
-    requiredPermissions: ['admin', 'canAccessPrestServ']
-  },
-  LOGISTICA: {
-    requiredEquipe: ['LOGISTICA', 'Administração'],
-    requiredPermissions: ['admin', 'canAccessLogistica']
-  },
-  PLANEJAMENTO: {
-    requiredEquipe: ['PLANEJAMENTO', 'Administração'],
-    requiredPermissions: ['admin', 'canAccessPlanejamento']
-  }
-}
+```
+docker exec <container_app> node scripts/backfill-funcao-slug.cjs
 ```
 
-### **📝 Como Usar:**
+- Observações:
+  - Se existirem duplicatas em `[funcao_slug, regime]`, a migração 2 falha; revise dados antes.
+  - Evitamos `reset` de banco; dados preservados.
+  - Em ambientes com histórico divergente, utilize `migrate diff` com shadow DB para auditar antes de aplicar.
 
-#### **1. Proteção de Rotas:**
-```tsx
-import { ROUTE_PROTECTION } from '@/lib/permissions';
+### 🔄 Sincronização Manual
 
-<ProtectedRoute 
-  requiredEquipe={ROUTE_PROTECTION.PRESTSERV.requiredEquipe}
-  requiredPermissions={ROUTE_PROTECTION.PRESTSERV.requiredPermissions}
->
-  <MinhaPagina />
-</ProtectedRoute>
-```
-
-#### **2. Verificação de Permissões:**
-```tsx
-import { PERMISSIONS, hasFullAccess, hasModuleAccess } from '@/lib/permissions';
-
-// Verificar se é admin
-const isAdmin = hasFullAccess(usuario.permissoes);
-
-// Verificar acesso a módulo
-const canAccessPrestServ = hasModuleAccess(usuario.permissoes, PERMISSIONS.ACCESS_PREST_SERV);
-```
-
-#### **3. Obter Permissões por Equipe:**
-```tsx
-import { getPermissionsByTeam } from '@/lib/permissions';
-
-const permissoes = getPermissionsByTeam('Administração');
-```
-
-### **✅ Benefícios da Centralização:**
-
-1. **Consistência:** Todas as permissões definidas em um local
-2. **Manutenibilidade:** Mudanças em um lugar refletem em todo o sistema
-3. **Tipagem:** TypeScript garante uso correto das permissões
-4. **Padronização:** Nomes e estruturas consistentes
-5. **Escalabilidade:** Fácil adicionar novas permissões e equipes
-
-### **🔄 Migração Completa:**
-
-- ✅ **API de Verificação** - Usa sistema centralizado
-- ✅ **Sidebar** - Usa permissões centralizadas
-- ✅ **Páginas de Administração** - Usa ROUTE_PROTECTION
-- ✅ **Páginas do Prestserv** - Usa ROUTE_PROTECTION
-- ✅ **Páginas de Logística** - Usa ROUTE_PROTECTION
-- ✅ **Páginas de Planejamento** - Usa ROUTE_PROTECTION
-
-### **🎯 Padronização:**
-
-- **`admin`** = Acesso total (substitui `canAccessAdmin`)
-- **`canAccessX`** = Acesso específico ao módulo X
-- **`gerenciar_X`** = Permissão de gerenciamento específica
-
-### **📋 Próximos Passos:**
-
-1. **Remover** `canAccessAdmin` de todos os lugares
-2. **Usar** apenas `admin` para acesso total
-3. **Atualizar** documentação de equipes
-4. **Testar** todas as rotas com diferentes usuários
-
----
-
-## 🚀 **Como Testar:**
-
-1. **Login como Administrador** (`ADMIN001` / `admin123`)
-2. **Verificar** acesso a todas as páginas
-3. **Login como usuário específico** (RH, Logística, etc.)
-4. **Confirmar** acesso apenas às páginas da equipe
-5. **Testar** redirecionamento para `/unauthorized`
-
-O sistema agora está **completamente centralizado** e **padronizado**! 🎉# CrewFlow - Deploy Automático Ativo!
+- Funcionários:
+  - Na página `Funcionários`, use o botão `Sincronizar`. Ele dispara `POST /api/funcionarios/sincronizar` com retry/backoff e timeout, atualizando a lista e o dashboard.
+  - Alternativa via terminal (ambiente local): `curl -X POST http://localhost:3000/api/funcionarios/sincronizar`.
+- Funções:
+  - Endpoint oficial: `POST /api/dados/sincronizar-funcoes` (rota pública conforme `middleware.ts`). Deduplica por `[funcao_slug, regime]` e `[funcao, regime]`.
+  - Alternativa via terminal (ambiente local): `curl -X POST http://localhost:3000/api/dados/sincronizar-funcoes`.
+  - UI: a página `Funções` possui ação de sincronização; se não funcionar, ajuste o endpoint para `/api/dados/sincronizar-funcoes`.

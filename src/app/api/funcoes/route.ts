@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient, Prisma } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { Prisma } from '@prisma/client';
+import prisma from '@/lib/prisma';
 
 // GET - Listar todas as funções
 export async function GET(request: NextRequest) {
@@ -41,12 +40,15 @@ export async function GET(request: NextRequest) {
       prisma.funcao.count({ where }),
     ]);
 
-    // Buscar regimes únicos para filtro
-    const regimes = await prisma.funcao.findMany({
+    // Buscar regimes únicos para filtro (ordenar em memória para evitar bugs com distinct + orderBy)
+    const regimesRaw = await prisma.funcao.findMany({
       select: { regime: true },
       distinct: ['regime'],
-      orderBy: { regime: 'asc' },
     });
+    const regimes = regimesRaw
+      .map((r) => r.regime)
+      .filter((r): r is string => !!r)
+      .sort((a, b) => a.localeCompare(b));
 
     return NextResponse.json({
       success: true,
@@ -57,7 +59,7 @@ export async function GET(request: NextRequest) {
         total,
         totalPages: Math.ceil(total / limit),
       },
-      regimes: regimes.map(r => r.regime),
+      regimes,
     });
 
   } catch (error) {
@@ -70,8 +72,6 @@ export async function GET(request: NextRequest) {
       },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
 }
 
@@ -134,7 +134,5 @@ export async function POST(request: NextRequest) {
       },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
 }

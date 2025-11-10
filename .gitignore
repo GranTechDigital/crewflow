@@ -25,7 +25,15 @@ yarn-debug.log*
 yarn-error.log*
 
 # local env files
+.env
 .env*.local
+# Excluir envs específicos de dev/staging (não versionar)
+.env.dev
+.env.staging
+.env.production
+
+# Docker local configs with credentials
+docker-compose.local.yml
 
 # vercel
 .vercel
@@ -40,3 +48,5 @@ next-env.d.ts
 # Prisma
 prisma/prisma/
 ~.xlsx
+# backups dumps
+backups/

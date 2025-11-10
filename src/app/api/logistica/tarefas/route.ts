@@ -13,7 +13,10 @@ export async function GET(request: NextRequest) {
     const responsavel = searchParams.get("responsavel");
     const status = searchParams.get("status");
 
-    const where: Prisma.TarefaRemanejamentoWhereInput = {};
+    const where: Prisma.TarefaRemanejamentoWhereInput = {
+      // Não retornar tarefas canceladas
+      status: { not: "CANCELADO" },
+    };
 
     if (remanejamentoFuncionarioId) {
       where.remanejamentoFuncionarioId = remanejamentoFuncionarioId;
@@ -24,7 +27,8 @@ export async function GET(request: NextRequest) {
     }
 
     if (status) {
-      where.status = status;
+      // Mantém filtro adicional de status, mas sempre exclui CANCELADO
+      where.status = { equals: status, not: "CANCELADO" } as any;
     }
 
     const tarefas = await prisma.tarefaRemanejamento.findMany({
@@ -68,14 +72,12 @@ export async function GET(request: NextRequest) {
           },
         },
       },
-      orderBy: {
-        dataCriacao: "desc",
-      },
+      orderBy: { dataCriacao: "desc" },
     });
 
     return NextResponse.json(tarefas);
   } catch (error) {
-    console.error("Erro ao buscar tarefas:", error);
+    console.error("Erro ao listar tarefas:", error);
     return NextResponse.json(
       { error: "Erro interno do servidor" },
       { status: 500 }
@@ -85,6 +87,8 @@ export async function GET(request: NextRequest) {
 
 // POST - Criar nova tarefa de remanejamento
 export async function POST(request: NextRequest) {
+  const { getUserFromRequest } = await import("@/utils/authUtils");
+  const usuarioAutenticado = await getUserFromRequest(request);
   try {
     const body: NovaTarefaRemanejamento = await request.json();
 
@@ -93,7 +97,7 @@ export async function POST(request: NextRequest) {
       tipo,
       descricao,
       responsavel,
-      prioridade = "Normal",
+      prioridade,
       dataLimite,
       dataVencimento,
     } = body;
@@ -126,6 +130,9 @@ export async function POST(request: NextRequest) {
         where: {
           id: remanejamentoFuncionarioId,
         },
+        include: {
+          solicitacao: true,
+        },
       });
 
     if (!remanejamentoFuncionario) {
@@ -156,7 +163,15 @@ export async function POST(request: NextRequest) {
         tipo,
         descricao,
         responsavel,
-        prioridade,
+        prioridade: (() => {
+          const base = prioridade || remanejamentoFuncionario.solicitacao?.prioridade || "media";
+          const v = base.toString().toLowerCase();
+          if (v === "baixa") return "BAIXA";
+          if (v === "media" || v === "normal") return "MEDIA";
+          if (v === "alta") return "ALTA";
+          if (v === "urgente") return "URGENTE";
+          return "MEDIA";
+        })(),
         ...(dataLimite && { dataLimite: new Date(dataLimite) }),
         ...(dataVencimento && { dataVencimento: new Date(dataVencimento) }),
       },
@@ -195,7 +210,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Atualizar o status das tarefas do funcionário
-    await atualizarStatusTarefasFuncionario(remanejamentoFuncionarioId);
+    await atualizarStatusTarefasFuncionario(
+      remanejamentoFuncionarioId,
+      usuarioAutenticado?.funcionario?.nome || "Sistema"
+    );
 
     return NextResponse.json(tarefa, { status: 201 });
   } catch (error) {
@@ -209,7 +227,8 @@ export async function POST(request: NextRequest) {
 
 // Função auxiliar para atualizar o status das tarefas do funcionário
 async function atualizarStatusTarefasFuncionario(
-  remanejamentoFuncionarioId: string
+  remanejamentoFuncionarioId: string,
+  usuarioResponsavelNome: string
 ) {
   try {
     // Buscar todas as tarefas do funcionário
@@ -259,7 +278,7 @@ async function atualizarStatusTarefasFuncionario(
             valorNovo: todasConcluidas
               ? "SOLICITAÇÃO CONCLUÍDA"
               : "ATENDER TAREFAS",
-            usuarioResponsavel: "Sistema",
+            usuarioResponsavel: usuarioResponsavelNome,
           },
         });
       } catch (historicoError) {

@@ -1,132 +1,359 @@
 name: Deploy CrewFlow to Staging
-run-name: "Staging: ${{ github.event_name == 'pull_request' && github.event.pull_request.title || github.event.head_commit.message || github.ref_name }}"
 
 on:
   push:
-    branches: [ develop, staging ]
+    branches: [develop, staging]
   pull_request:
-    branches: [ main ]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      run_name:
+        description: "Nome do run (opcional) — deixe vazio para usar branch/autor"
+        type: string
+        required: false
+      skip_db_backup:
+        description: "Pular backup do banco antes do deploy? (false recomendado)"
+        type: boolean
+        required: false
+        default: false
 
 jobs:
   deploy-staging:
     runs-on: ubuntu-latest
     environment: staging
-    
+
     steps:
-    - name: 📥 Checkout code
-      uses: actions/checkout@v4
-      
-    - name: 🐳 Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-      
-    - name: 🔧 Build Docker image
-      run: |
-        docker build -t crewflow-app:staging .
-        
-    - name: 💾 Save Docker image
-      run: |
-        docker save crewflow-app:staging > crewflow-app-staging.tar
-        
-    - name: 🔑 Setup SSH
-      run: |
-        mkdir -p ~/.ssh
-        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-        chmod 600 ~/.ssh/id_rsa
-        ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
-        
-    - name: 📤 Upload image to server
-      run: |
-        # Clean up any existing staging tar file first
-        ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} "rm -f /tmp/crewflow-app-staging.tar"
-        
-        # Upload new image
-        scp -o StrictHostKeyChecking=no crewflow-app-staging.tar root@${{ secrets.SERVER_HOST }}:/tmp/
-        
-        # Ensure application directory exists and upload staging Postgres compose
-        ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} "mkdir -p /opt/projetogran"
-        scp -o StrictHostKeyChecking=no docker-compose.staging-postgres.yml root@${{ secrets.SERVER_HOST }}:/opt/projetogran/
-        
-    - name: 🚀 Deploy to staging
-      run: |
-        ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
-          set -e
-          # Clean up Docker system before deployment
-          docker system prune -f || true
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
 
-          # Load new image
-          docker load < /tmp/crewflow-app-staging.tar
+      - name: 🐳 Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-          # Ensure Postgres staging is up via compose
-          cd /opt/projetogran
-          docker network create projetogran_crewflow-network 2>/dev/null || true
-          docker compose -f docker-compose.staging-postgres.yml up -d
+      - name: 🔧 Build Docker image
+        run: |
+          docker build --no-cache -t crewflow-app:staging .
 
-          # Stop and remove old staging container
-          docker stop crewflow-app-staging 2>/dev/null || true
-          docker rm crewflow-app-staging 2>/dev/null || true
+      - name: 💾 Save Docker image
+        run: |
+          docker save crewflow-app:staging > crewflow-app-staging.tar
 
-          # Start new staging container (different port, correct internal port)
-          docker run -d --name crewflow-app-staging \
-            --network projetogran_crewflow-network \
-            -p 3002:3001 \
-            -e DATABASE_URL='postgresql://postgres:senha_segura_aqui@postgres-staging:5432/projetogran?schema=public' \
-            -e JWT_SECRET='crewflow-jwt-secret-staging-2024' \
-            -e NEXTAUTH_URL='http://${{ secrets.SERVER_HOST }}:3002' \
-            -e NODE_ENV='production' \
-            crewflow-app:staging
+      - name: 🔑 Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
 
-          # Clean up
-          rm /tmp/crewflow-app-staging.tar
+      - name: 💾 Backup do banco de dados (staging) antes do deploy
+        if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.skip_db_backup != 'true' }}
+        run: |
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
+            set -e
+            mkdir -p /var/backups/projetogran/staging
+            TS=$(date -u +%Y%m%d_%H%M%S)
+            FILE="/var/backups/projetogran/staging/projetogran_${TS}.dump"
+            echo "🔎 Sanity-check container e DB antes do dump..."
+            docker ps --format '{{.Names}}' | grep -q '^postgres-staging$' || { echo '❌ Container postgres-staging não está em execução'; exit 1; }
+            # Descobrir usuário/senha primeiro; evitar defaults inseguros (ex.: 'root')
+            DB_USER=$(docker exec postgres-staging bash -lc 'echo -n "${POSTGRES_USER:-postgres}"')
+            DB_PASS=$(docker exec postgres-staging bash -lc 'echo -n "${POSTGRES_PASSWORD:-}"')
+            [ -z "$DB_PASS" ] && DB_PASS="${{ secrets.POSTGRES_PASSWORD }}"
+            [ -z "$DB_PASS" ] && DB_PASS="postgres"
+            # Descobrir DB de trabalho: priorizar maior DB não-template; fallback para POSTGRES_DB
+            DB_NAME=$(docker exec postgres-staging env PGPASSWORD="$DB_PASS" psql -h localhost -U "$DB_USER" -d postgres -tAc "SELECT datname FROM pg_database WHERE datistemplate = false AND datname NOT IN ('postgres') ORDER BY pg_database_size(datname) DESC LIMIT 1;" | tr -d "\r\n")
+            if [ -z "$DB_NAME" ]; then
+              DB_NAME=$(docker exec postgres-staging bash -lc 'echo -n "${POSTGRES_DB:-projetogran}"')
+            fi
+            [ -z "$DB_PASS" ] && DB_PASS="${{ secrets.POSTGRES_PASSWORD }}"
+            [ -z "$DB_PASS" ] && DB_PASS="postgres"
+            echo "🔎 Validando conexão ao DB '${DB_NAME}' com usuário '${DB_USER}'..."
+            docker exec postgres-staging env PGPASSWORD="$DB_PASS" psql -h localhost -U "$DB_USER" -d "$DB_NAME" -tAc "SELECT current_database();" | grep -q "^${DB_NAME}$" || { echo "❌ Conexão ao DB ${DB_NAME} falhou"; exit 1; }
+            echo "🔎 Realizando pg_dump (custom format) do banco '${DB_NAME}'..."
+            docker exec postgres-staging env PGPASSWORD="$DB_PASS" pg_dump -h localhost -U "$DB_USER" -d "$DB_NAME" -Fc > "$FILE"
+            ls -lh "$FILE" || true
+            # Guard rail: validar arquivo gerado (não-vazio)
+            if [ ! -s "$FILE" ]; then
+              echo "❌ Backup vazio ou não encontrado: $FILE"; exit 1; fi
+            echo "✅ Backup criado: $FILE"
+            # Retenção opcional: manter apenas 30 backups mais recentes
+            ls -1t /var/backups/projetogran/staging/projetogran_*.dump | tail -n +31 | xargs -r rm -f
+          EOF
 
-          # Wait for container to start
-          sleep 10
+      - name: 📤 Upload image and compose to server
+        run: |
+          # Clean up any existing staging tar file first
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} "rm -f /tmp/crewflow-app-staging.tar"
 
-          # Check if container is running
-          if docker ps | grep -q crewflow-app-staging; then
-            echo "✅ Staging container started successfully"
-          else
-            echo "❌ Staging container failed to start"
-            docker logs crewflow-app-staging
-            exit 1
-          fi
+          # Upload new image
+          scp -o StrictHostKeyChecking=no crewflow-app-staging.tar root@${{ secrets.SERVER_HOST }}:/tmp/
 
-          # Setup Prisma inside container
-          docker exec crewflow-app-staging npx prisma generate || true
-          docker exec crewflow-app-staging npx prisma migrate deploy || true
-        EOF
-        
-    - name: 🧪 Run tests (optional)
-      run: |
-        ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
-          # Basic health check using logout endpoint
-          sleep 5
-          if curl -s -o /dev/null -w "%{http_code}" -X POST http://localhost:3002/api/auth/logout | grep -q "200"; then
-            echo "✅ Logout endpoint responded with 200"
-          else
-            echo "⚠️ Logout health check failed (verify container logs)"
-            docker logs crewflow-app-staging || true
-          fi
-        EOF
-        
-    - name: 📝 Comment PR (if PR)
-      if: github.event_name == 'pull_request'
-      uses: actions/github-script@v7
-      with:
-        script: |
-          github.rest.issues.createComment({
-            issue_number: context.issue.number,
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            body: `🚀 **CrewFlow Staging Deploy Successful!**
+          # Ensure application directory exists and upload staging Postgres compose
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} "mkdir -p /opt/projetogran"
+          scp -o StrictHostKeyChecking=no docker-compose.staging-postgres.yml root@${{ secrets.SERVER_HOST }}:/opt/projetogran/
+          # Garantir .env.staging com variáveis obrigatórias a partir dos Secrets (staging)
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOS'
+            set -e
+            POSTGRES_PASSWORD_VALUE='${{ secrets.POSTGRES_PASSWORD }}'
+            PGADMIN_EMAIL_VALUE='${{ secrets.PGADMIN_EMAIL }}'
+            PGADMIN_PASSWORD_VALUE='${{ secrets.PGADMIN_PASSWORD }}'
+            ENV_FILE=/opt/projetogran/.env.staging
+            mkdir -p /opt/projetogran
+            [ -f "$ENV_FILE" ] || touch "$ENV_FILE"
+            chmod 600 "$ENV_FILE"
+            # Defaults se secrets vazios
+            [ -z "$POSTGRES_PASSWORD_VALUE" ] && POSTGRES_PASSWORD_VALUE=postgres
+            [ -z "$PGADMIN_EMAIL_VALUE" ] && PGADMIN_EMAIL_VALUE=admin@gransystem.com
+            [ -z "$PGADMIN_PASSWORD_VALUE" ] && PGADMIN_PASSWORD_VALUE=admin123
+            ensure_var() {
+              key="$1"; val="$2"
+              if grep -q "^${key}=" "$ENV_FILE"; then
+                sed -i "s/^${key}=.*/${key}=${val}/" "$ENV_FILE"
+              else
+                echo "${key}=${val}" >> "$ENV_FILE"
+              fi
+            }
+            ensure_var POSTGRES_USER postgres
+            ensure_var POSTGRES_PASSWORD "$POSTGRES_PASSWORD_VALUE"
+            ensure_var POSTGRES_DB projetogran
+            ensure_var PGADMIN_DEFAULT_EMAIL "$PGADMIN_EMAIL_VALUE"
+            ensure_var PGADMIN_DEFAULT_PASSWORD "$PGADMIN_PASSWORD_VALUE"
+          EOS
+      - name: 🚀 Deploy to staging
+        run: |
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
+            set -e
+            # Clean up Docker system before deployment
+            docker system prune -f || true
+
+            # Load new image
+            docker load < /tmp/crewflow-app-staging.tar
+
+            # Ensure Postgres staging is up via compose
+            docker network create projetogran_crewflow-network 2>/dev/null || true
+            cd /opt/projetogran
+            docker rm -f postgres-staging 2>/dev/null || true
+            docker rm -f pgadmin-staging 2>/dev/null || true
+            if docker compose version >/dev/null 2>&1; then
+              docker compose --env-file /opt/projetogran/.env.staging -f /opt/projetogran/docker-compose.staging-postgres.yml down || true
+              docker compose --env-file /opt/projetogran/.env.staging -f /opt/projetogran/docker-compose.staging-postgres.yml up -d
+            else
+              echo "ℹ️ Docker Compose v2 not found. Installing plugin..."
+              ARCH=$(uname -m)
+              COMPOSE_URL=""
+              if [ "$ARCH" = "x86_64" ]; then
+                COMPOSE_URL="https://github.com/docker/compose/releases/download/v2.27.0/docker-compose-linux-x86_64"
+              elif [ "$ARCH" = "aarch64" ]; then
+                COMPOSE_URL="https://github.com/docker/compose/releases/download/v2.27.0/docker-compose-linux-aarch64"
+              elif [ "$ARCH" = "armv7l" ]; then
+                COMPOSE_URL="https://github.com/docker/compose/releases/download/v2.27.0/docker-compose-linux-armv7"
+              else
+                echo "❌ Unsupported architecture: $ARCH"
+                uname -a || true
+                exit 125
+              fi
+              mkdir -p ~/.docker/cli-plugins
+              if command -v curl >/dev/null 2>&1; then
+                curl -fsSL "$COMPOSE_URL" -o ~/.docker/cli-plugins/docker-compose
+              elif command -v wget >/dev/null 2>&1; then
+                wget -qO ~/.docker/cli-plugins/docker-compose "$COMPOSE_URL"
+              else
+                echo "❌ Neither curl nor wget is available to download Docker Compose."
+                exit 125
+              fi
+              chmod +x ~/.docker/cli-plugins/docker-compose
+              if docker compose version >/dev/null 2>&1; then
+                echo "✅ Docker Compose v2 installed."
+              else
+                echo "❌ Failed to install Docker Compose v2."
+                exit 125
+              fi
+              docker compose --env-file /opt/projetogran/.env.staging -f /opt/projetogran/docker-compose.staging-postgres.yml down || true
+              docker compose --env-file /opt/projetogran/.env.staging -f /opt/projetogran/docker-compose.staging-postgres.yml up -d
+            fi
+
+            # Stop and remove old staging container
+            docker stop crewflow-app-staging 2>/dev/null || true
+            docker rm crewflow-app-staging 2>/dev/null || true
+
+            # Montar DATABASE_URL preferindo o maior DB existente (não-template); fallback para POSTGRES_DB
+            DB_NAME=$(docker exec postgres-staging bash -lc 'export PGPASSWORD="$POSTGRES_PASSWORD"; psql -h localhost -U "$POSTGRES_USER" -d postgres -tAc "SELECT datname FROM pg_database WHERE datistemplate = false AND datname NOT IN ('\''postgres'\'') ORDER BY pg_database_size(datname) DESC LIMIT 1;" | tr -d "\r\n"')
+            if [ -z "$DB_NAME" ]; then
+              DB_NAME=$(docker exec postgres-staging bash -lc 'echo -n "${POSTGRES_DB:-projetogran}"')
+            fi
+            # Usuário do DB
+            DB_USER=$(docker exec postgres-staging bash -lc 'echo -n "${POSTGRES_USER:-postgres}"')
+            # Descobrir senha válida testando candidatos (env do container, Secret do .env.staging no servidor, default)
+            CANDIDATE_ENV=$(docker exec postgres-staging bash -lc 'echo -n "${POSTGRES_PASSWORD:-}"')
+            CANDIDATE_SECRET=$(grep -E '^POSTGRES_PASSWORD=' /opt/projetogran/.env.staging | head -n1 | cut -d= -f2- | tr -d '\r' | sed -E 's/^"(.*)"$/\1/; s/^\047(.*)\047$/\1/; s/^[[:space:]]+|[[:space:]]+$//g')
+            CANDIDATE_DEFAULT='postgres'
+            DB_PASS=""; DB_PASS_SOURCE=""
+            for SRC in env secret default; do
+              case "$SRC" in
+                env) CAND="$CANDIDATE_ENV" ;;
+                secret) CAND="$CANDIDATE_SECRET" ;;
+                default) CAND="$CANDIDATE_DEFAULT" ;;
+              esac
+              if [ -n "$CAND" ]; then
+                if docker exec postgres-staging env PGPASSWORD="$CAND" psql -h localhost -U "$DB_USER" -d "$DB_NAME" -tAc "SELECT 1;" >/dev/null 2>&1; then
+                  DB_PASS="$CAND"; DB_PASS_SOURCE="$SRC"; break
+                fi
+              fi
+            done
+            if [ -z "$DB_PASS" ]; then
+              echo "❌ Não foi possível validar credenciais do Postgres (todas candidatas falharam)."; exit 1
+            fi
+            echo "ℹ️ Senha do Postgres validada (fonte): $DB_PASS_SOURCE"
+            echo "🔎 DB_USER=$DB_USER DB_NAME=$DB_NAME"
+            echo "🔎 Validando autenticação remota via psql para postgres-staging:5432"
+            if ! docker run --rm --network projetogran_crewflow-network -e PGPASSWORD="$DB_PASS" postgres:15 psql -h postgres-staging -U "$DB_USER" -d "$DB_NAME" -tAc "SELECT 1;" >/dev/null 2>&1; then
+              echo "⚠️ Falha na autenticação remota. Aplicando correção de pg_hba.conf e alinhando senha do usuário ($DB_USER)."
+              TARGET_PASS="$CANDIDATE_SECRET"; [ -z "$TARGET_PASS" ] && TARGET_PASS="$DB_PASS"
+              # Habilitar autenticação por senha em conexões remotas e escuta em todas interfaces
+              docker exec postgres-staging bash -lc "set -e
+                PGDATA=\${PGDATA:-/var/lib/postgresql/data}
+                grep -q '^host .*0.0.0.0/0 .*md5' \"$PGDATA/pg_hba.conf\" || echo 'host all all 0.0.0.0/0 md5' >> \"$PGDATA/pg_hba.conf\"
+                grep -q '^host .*::/0 .*md5' \"$PGDATA/pg_hba.conf\" || echo 'host all all ::/0 md5' >> \"$PGDATA/pg_hba.conf\"
+                echo \"listen_addresses = '*'\" >> \"$PGDATA/postgresql.auto.conf\"
+              "
+              # Reload das configs
+              docker exec postgres-staging bash -lc "export PGPASSWORD=\"$DB_PASS\"; psql -U \"$DB_USER\" -d \"$DB_NAME\" -tAc 'SELECT pg_reload_conf();'"
+              # Ajuste/Padronização da senha do usuário alvo para permitir acesso remoto
+              docker exec postgres-staging bash -lc "export PGPASSWORD=\"$DB_PASS\"; psql -U \"$DB_USER\" -d \"$DB_NAME\" -c \"ALTER ROLE \\\"$DB_USER\\\" WITH PASSWORD '$TARGET_PASS';\""
+              # Re-teste remoto com senha alvo
+              if ! docker run --rm --network projetogran_crewflow-network -e PGPASSWORD=\"$TARGET_PASS\" postgres:15 psql -h postgres-staging -U \"$DB_USER\" -d \"$DB_NAME\" -tAc \"SELECT 1;\" >/dev/null 2>&1; then
+                echo \"❌ Correção não aplicada: autenticação remota ainda falhou. Verificar pg_hba.conf e senha.\"; exit 1
+              fi
+              DB_PASS="$TARGET_PASS"
+              echo "✅ Autenticação remota habilitada e senha alinhada (user=$DB_USER)."
+            fi
+            # Codificar credenciais para URL (evita quebra com caracteres especiais)
+            urlencode() {
+              local LANG=C s="$1" i c out=""
+              for ((i=0; i<${#s}; i++)); do
+                c=${s:i:1}
+                case "$c" in [a-zA-Z0-9.~_-]) out+="$c" ;; *)
+                  printf -v hex '%02X' "'$c" 
+                  out+="%$hex"
+                esac
+              done
+              echo -n "$out"
+            }
+            DB_USER_ENC="$(urlencode "$DB_USER")"
+            DB_PASS_ENC="$(urlencode "$DB_PASS")"
+            DATABASE_URL="postgresql://${DB_USER_ENC}:${DB_PASS_ENC}@postgres-staging:5432/${DB_NAME}?schema=public"
+            # Gerar JWT_SECRET e CLEANUP_ADMIN_TOKEN efêmeros
+            if command -v openssl >/dev/null 2>&1; then
+              JWT_SECRET=$(openssl rand -hex 32)
+              CLEANUP_ADMIN_TOKEN=$(openssl rand -hex 32)
+            else
+              JWT_SECRET=$(date +%s%N | sha256sum | cut -c1-64)
+              CLEANUP_ADMIN_TOKEN=$(date +%s%N | sha256sum | cut -c1-64)
+            fi
+
+            # Start new staging container (different port, correct internal port)
+            docker run -d --name crewflow-app-staging \
+              --network projetogran_crewflow-network \
+              -p 3002:3001 \
+              -e DATABASE_URL="$DATABASE_URL" \
+              -e JWT_SECRET="$JWT_SECRET" \
+              -e NEXTAUTH_URL='http://${{ secrets.SERVER_HOST }}:3002' \
+              -e NODE_ENV='production' \
+              -e CLEANUP_ADMIN_TOKEN="$CLEANUP_ADMIN_TOKEN" \
+              crewflow-app:staging
+
+            # Clean up
+            rm /tmp/crewflow-app-staging.tar
+
+            # Wait for container to start
+            sleep 10
+
+            # Check if container is running
+            if docker ps | grep -q crewflow-app-staging; then
+              echo "✅ Staging container started successfully"
+            else
+              echo "❌ Staging container failed to start"
+              docker logs crewflow-app-staging
+              exit 1
+            fi
+
+            # Debug DATABASE_URL dentro do container da app
+            docker exec crewflow-app-staging sh -lc 'echo "DEBUG DATABASE_URL=$DATABASE_URL"'
+            docker exec crewflow-app-staging node -e 'console.log("DEBUG process.env.DATABASE_URL=", process.env.DATABASE_URL)'
+            # Setup Prisma dentro do container (falha em erro)
+            docker exec -e DATABASE_URL="$DATABASE_URL" crewflow-app-staging npx prisma generate
+            # Ensure migration_lock provider is Postgres
+            docker exec crewflow-app-staging sh -lc "if grep -q 'provider = \"sqlite\"' prisma/migrations/migration_lock.toml; then echo '⚠️ Fixing migration_lock provider from sqlite to postgresql'; printf '# Please do not edit this file manually\n# It should be added in your version-control system (e.g., Git)\nprovider = \"postgresql\"\n' > prisma/migrations/migration_lock.toml; fi; echo '🔎 Current migration_lock:'; cat prisma/migrations/migration_lock.toml"
+
+            # Baseline check: mark init as applied only if DB already has migration table
+            echo "🔎 Checking migration baseline in Postgres (_prisma_migrations)..."
+            MIG_TABLE_EXISTS=$(docker exec postgres-staging bash -lc "export PGPASSWORD=\"$DB_PASS\"; psql -U \"$DB_USER\" -d \"$DB_NAME\" -tAc \"SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='_prisma_migrations');\"")
+            # Se não tem _prisma_migrations mas já existem tabelas, marcar baseline como aplicada (não destruir dados)
+            HAS_TABLES=$(docker exec postgres-staging bash -lc "export PGPASSWORD=\"$DB_PASS\"; psql -U \"$DB_USER\" -d \"$DB_NAME\" -tAc \"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';\"")
+            if [ "$MIG_TABLE_EXISTS" != "t" ] && [ "${HAS_TABLES:-0}" -gt 0 ]; then
+              echo "ℹ️ Detected existing tables without _prisma_migrations. Marking baseline as applied."
+              docker exec crewflow-app-staging npx prisma migrate resolve --applied "20251013111730_init" || true
+            fi
+            if [ "$MIG_TABLE_EXISTS" = "t" ]; then
+              INIT_APPLIED=$(docker exec postgres-staging bash -lc "export PGPASSWORD=\"$DB_PASS\"; psql -U \"$DB_USER\" -d \"$DB_NAME\" -tAc \"SELECT EXISTS (SELECT 1 FROM public._prisma_migrations WHERE migration_name = '20251013111730_init');\"")
+              if [ "$INIT_APPLIED" != "t" ]; then
+                echo "ℹ️ Marking baseline migration '20251013111730_init' as applied (existing DB)"
+                docker exec crewflow-app-staging npx prisma migrate resolve --applied "20251013111730_init" || true
+              else
+                echo "✅ Baseline migration already applied"
+              fi
+            else
+              echo "ℹ️ Either baseline was marked above or fresh database. Proceeding with migrate deploy."
+            fi
+
+            # Apply Postgres migrations only (forçar env)
+            docker exec -e DATABASE_URL="$DATABASE_URL" crewflow-app-staging npx prisma migrate deploy
             
-            📍 **Staging URL:** http://${{ secrets.SERVER_HOST }}:3002
-            🔐 **Login:** ADMIN001 / admin123
-            
-            ✅ Ready for testing!`
-          })
-        
-    - name: 🎉 Staging deployment complete
-      run: |
-        echo "🚀 CrewFlow staging deployment completed successfully!"
-        echo "🌐 Staging available at: http://${{ secrets.SERVER_HOST }}:3002"
-        echo "🔐 Login: ADMIN001 / admin123"
+            # Conditionally run seed only if database is empty (avoid overwriting migrated data)
+            # Seed idempotente
+            echo "🌱 Seeding database (idempotente) ..."
+            if docker exec crewflow-app-staging npm run seed:complete 2>/dev/null; then
+              echo "✅ Seed aplicado ou ignorado de forma segura (idempotente)"
+            else
+              echo "ℹ️ Seed falhou ou foi ignorado; verificar logs do container se necessário"
+            fi
+
+            # Verify tables exist
+            echo "🔎 Verificando tabelas no banco..."
+            docker exec postgres-staging bash -lc "export PGPASSWORD=\"$DB_PASS\"; psql -U \"$DB_USER\" -d \"$DB_NAME\" -c \"\\dt\""
+          EOF
+
+      - name: 🧪 Run tests (optional)
+        run: |
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
+            # Basic health check
+            sleep 5
+            if curl -f http://localhost:3002/api/health 2>/dev/null; then
+              echo "✅ Health check passed"
+            else
+              echo "⚠️ Health check failed (normal if no health endpoint)"
+            fi
+          EOF
+
+      - name: 📝 Comment PR (if PR)
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `🚀 **CrewFlow Staging Deploy Successful!**
+              
+              📍 **Staging URL:** http://${{ secrets.SERVER_HOST }}:3002
+              -              🔐 **Login:** ADMIN001 / admin123
+              +              🔐 **Login:** usuário administrador configurado via ambiente
+              
+              ✅ Ready for testing!`
+            })
+
+      - name: 🎉 Staging deployment complete
+        run: |
+          echo "🚀 CrewFlow staging deployment completed successfully!"
+          echo "🌐 Staging available at: http://${{ secrets.SERVER_HOST }}:3002"
+          echo "🔐 Login: usuário administrador configurado via variáveis de ambiente"

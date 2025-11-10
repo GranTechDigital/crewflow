@@ -23,7 +23,7 @@ if %errorlevel% neq 0 (
 
 REM 3. Atualizar container
 echo 🔄 Atualizando container...
-ssh root@46.202.146.234 "docker stop crewflow-app-production 2>/dev/null || true && docker rm crewflow-app-production 2>/dev/null || true && docker run -d --name crewflow-app-production -p 3001:3000 -e DATABASE_URL='file:./dev.db' -e JWT_SECRET='crewflow-jwt-secret-key-2024' -e NEXTAUTH_URL='http://localhost:3000' -e NODE_ENV='development' crewflow-app:latest"
+ssh root@46.202.146.234 "docker stop crewflow-app-production 2>/dev/null || true && docker rm crewflow-app-production 2>/dev/null || true && docker run -d --name crewflow-app-production -p 3001:3000 -e DATABASE_URL='postgresql://crewflow_user:crewflow_production_2024@postgres-prod:5432/crewflow_production?schema=public' -e JWT_SECRET='crewflow-jwt-secret-key-2024' -e NEXTAUTH_URL='http://46.202.146.234:3001' -e NODE_ENV='production' crewflow-app:latest"
 
 if %errorlevel% neq 0 (
     echo ❌ Erro ao atualizar container!
@@ -34,7 +34,7 @@ if %errorlevel% neq 0 (
 echo.
 echo ✅ Deploy do CrewFlow concluído com sucesso!
 echo 🌐 Aplicação disponível em: http://46.202.146.234:3001
-echo 🔐 Login: ADMIN001 / admin123
+echo Login admin configurado via variáveis de ambiente (ADMIN_USER/ADMIN_PASSWORD)
 echo.
 echo 🔍 Para verificar status:
 echo    ssh root@46.202.146.234 "docker ps | grep crewflow"

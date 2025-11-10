@@ -120,6 +120,10 @@ export default function Sidebar() {
           label: "Upload da Planilha (Uptime)",
           href: "/uptime",
         },
+        {
+          label: "Sincronizar Lista de Funcionários",
+          href: "/funcionarios",
+        },
         // {
         //   label: "Upload do Downtime",
         //   href: "/downtime",
@@ -157,6 +161,7 @@ export default function Sidebar() {
       items: [
         { label: "Minhas Tarefas", href: "/tarefas?setor=treinamento" },
         { label: "Matriz de Treinamento", href: "/matriz-treinamento/contratos" },
+        { label: "Cadastrar Treinamentos", href: "/treinamentos" },
       ],
       permission: "canAccessTreinamento",
     },

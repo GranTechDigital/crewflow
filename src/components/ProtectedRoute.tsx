@@ -38,7 +38,7 @@ export default function ProtectedRoute({
 
       // Verificar permissões se especificadas
       if (requiredPermissions.length > 0 && !hasAnyPermission(requiredPermissions)) {
-        router.push('/unauthorized');
+        // Não navegar para /unauthorized; deixar o fallback/inlined UI assumir
         return;
       }
 
@@ -47,8 +47,8 @@ export default function ProtectedRoute({
         const equipesNormalizadas = requiredEquipe.map(normalize);
         const usuarioEquipeNormalizada = normalize(usuario.equipe);
         if (!equipesNormalizadas.includes(usuarioEquipeNormalizada)) {
-        router.push('/unauthorized');
-        return;
+          // Não navegar para /unauthorized; deixar o fallback/inlined UI assumir
+          return;
         }
       }
     }
@@ -94,20 +94,20 @@ export default function ProtectedRoute({
     const equipesNormalizadas = requiredEquipe.map(normalize);
     const usuarioEquipeNormalizada = normalize(usuario.equipe);
     if (!equipesNormalizadas.includes(usuarioEquipeNormalizada)) {
-    return fallback || (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-red-600 text-xl mb-4">❌ Acesso Negado</div>
-          <p className="text-gray-600">Esta página é restrita para sua equipe.</p>
-          <button 
-            onClick={() => router.push('/')}
-            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-          >
-            Voltar ao Início
-          </button>
+      return fallback || (
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="text-center">
+            <div className="text-red-600 text-xl mb-4">❌ Acesso Negado</div>
+            <p className="text-gray-600">Esta página é restrita para sua equipe.</p>
+            <button 
+              onClick={() => router.push('/')}
+              className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              Voltar ao Início
+            </button>
+          </div>
         </div>
-      </div>
-    );
+      );
     }
   }
 
