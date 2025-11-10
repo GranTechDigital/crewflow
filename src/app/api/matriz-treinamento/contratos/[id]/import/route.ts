@@ -45,15 +45,15 @@ export async function POST(
 
     const form = await request.formData();
     const file = form.get("file");
-    // Em runtime Node.js, File pode não existir; aceitar Blob/Undici File
-    if (!file || typeof (file as any).arrayBuffer !== "function") {
-      return NextResponse.json(
-        { success: false, error: "Arquivo XLSX não enviado ou inválido (campo file)" },
-        { status: 400 }
-      );
-    }
+// Em runtime Node.js, garantir Blob/File para usar arrayBuffer
+if (!(file instanceof Blob)) {
+  return NextResponse.json(
+    { success: false, error: "Arquivo XLSX não enviado ou inválido (campo file)" },
+    { status: 400 }
+  );
+}
 
-    const arrayBuffer = await file.arrayBuffer();
+const arrayBuffer = await (file as Blob).arrayBuffer();
     if (!arrayBuffer || arrayBuffer.byteLength === 0) {
       return NextResponse.json(
         { success: false, error: "Arquivo XLSX vazio ou não lido." },

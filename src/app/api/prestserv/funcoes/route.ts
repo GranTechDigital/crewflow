@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
+import { toSlug } from '@/utils/slug';
 
 const prisma = new PrismaClient()
 
@@ -56,8 +57,9 @@ export async function POST(request: NextRequest) {
 
     const novaFuncao = await prisma.funcao.create({
       data: {
-        funcao: nomeFuncao,
-        regime: regime && typeof regime === 'string' ? regime.trim() : null,
+        funcao: nomeFuncao.trim(),
+        regime: typeof regime === 'string' ? regime.trim() : 'N/A',
+        funcao_slug: toSlug(nomeFuncao.trim()),
         ativo: Boolean(ativo)
       }
     });

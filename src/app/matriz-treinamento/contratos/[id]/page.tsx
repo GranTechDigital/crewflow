@@ -67,6 +67,7 @@ interface ApiResponse {
     tiposObrigatoriedade: TipoObrigatoriedade[];
   };
   message?: string;
+  error?: string;
 }
 
 export default function ContratoDetalhePage() {
@@ -818,7 +819,7 @@ function ContratoDetalheContent() {
                       {todasFuncoes.filter(funcao => {
                         const searchTerm = buscaFuncao.toLowerCase();
                         return funcao.funcao.toLowerCase().includes(searchTerm) ||
-                               funcao.regime.toLowerCase().includes(searchTerm) ||
+                               (funcao.regime ?? '').toLowerCase().includes(searchTerm) ||
                                funcao.id.toString().includes(searchTerm);
                       }).filter(funcao => filtroRegime === '' || funcao.regime === filtroRegime).length} funções
                     </div>
@@ -903,7 +904,7 @@ function ContratoDetalheContent() {
                     {todasFuncoes.filter(funcao => {
                       const searchTerm = buscaFuncao.toLowerCase();
                       return funcao.funcao.toLowerCase().includes(searchTerm) ||
-                             funcao.regime.toLowerCase().includes(searchTerm) ||
+                             (funcao.regime ?? '').toLowerCase().includes(searchTerm) ||
                              funcao.id.toString().includes(searchTerm);
                     }).filter(funcao => filtroRegime === '' || funcao.regime === filtroRegime).length === 0 && (
                       <div className="text-center py-6 text-gray-500">
