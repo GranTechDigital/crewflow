@@ -1762,13 +1762,21 @@ export default function TarefasPage() {
                         : 0;
                     const expandido = funcionariosExpandidos.has(chaveGrupo);
 
-                    // Determinar se as tarefas do funcionário foram criadas há menos de 48h
-                    const grupoNovo = tarefas.some(
-                      (t) =>
-                        t.dataCriacao &&
-                        Date.now() - new Date(t.dataCriacao).getTime() <=
-                          48 * 60 * 60 * 1000
-                    );
+                    // Determinar data de admissão (uptimeSheets mais recente com data)
+                    const sheets = (funcionario as any)?.uptimeSheets || [];
+                    const dataAdmissao: Date | null = (() => {
+                      if (!Array.isArray(sheets) || sheets.length === 0) return null;
+                      const sorted = [...sheets].sort(
+                        (a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+                      );
+                      const found = sorted.find((s: any) => !!s?.dataAdmissao);
+                      return found?.dataAdmissao ? new Date(found.dataAdmissao) : null;
+                    })();
+
+                    const nowMs = Date.now();
+                    const isAdmissaoFutura = !!dataAdmissao && dataAdmissao.getTime() > nowMs;
+                    // "Novo" se admitido há <= 48h
+                    const grupoNovo = !!dataAdmissao && !isAdmissaoFutura && (nowMs - dataAdmissao.getTime() <= 48 * 60 * 60 * 1000);
 
                     // Determinar status geral e classes de borda
                     const statusGeral = getStatusGeralFuncionario(tarefas);
@@ -1824,13 +1832,22 @@ export default function TarefasPage() {
                                       Matrícula: {funcionario.matricula}
                                     </span>
                                   )}
-                                  {grupoNovo && (
+                                  {isAdmissaoFutura ? (
                                     <span
-                                      className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-100 text-emerald-800"
-                                      title="Tarefas criadas há menos de 48h"
+                                      className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-800"
+                                      title="Admissão futura (ainda não admitido)"
                                     >
-                                      Novo
+                                      Admissão futura
                                     </span>
+                                  ) : (
+                                    grupoNovo && (
+                                      <span
+                                        className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-100 text-emerald-800"
+                                        title="Admitido há menos de 48h"
+                                      >
+                                        Novo
+                                      </span>
+                                    )
                                   )}
                                 </div>
                                 <div className="text-[11px] text-gray-500">

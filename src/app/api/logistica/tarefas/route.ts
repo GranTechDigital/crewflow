@@ -132,6 +132,11 @@ export async function POST(request: NextRequest) {
         },
         include: {
           solicitacao: true,
+          funcionario: {
+            include: {
+              uptimeSheets: true,
+            },
+          },
         },
       });
 
@@ -156,6 +161,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Calcular dataLimite padrão quando não informada: admissão futura +48h; caso contrário, criação +48h
+    let defaultDataLimite: Date | undefined = undefined;
+    try {
+      const now = new Date();
+      const sheets = (remanejamentoFuncionario as any)?.funcionario?.uptimeSheets || [];
+      let dataAdmissao: Date | null = null;
+      if (Array.isArray(sheets) && sheets.length > 0) {
+        const sorted = [...sheets].sort(
+          (a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+        const found = sorted.find((s: any) => !!s?.dataAdmissao);
+        dataAdmissao = found?.dataAdmissao ? new Date(found.dataAdmissao) : null;
+      }
+      if (dataAdmissao && dataAdmissao.getTime() > now.getTime()) {
+        defaultDataLimite = new Date(dataAdmissao.getTime() + 48 * 60 * 60 * 1000);
+      } else {
+        defaultDataLimite = new Date(now.getTime() + 48 * 60 * 60 * 1000);
+      }
+    } catch (e) {
+      console.warn("Falha ao calcular dataLimite padrão; usando criação +48h.", e);
+      defaultDataLimite = new Date(Date.now() + 48 * 60 * 60 * 1000);
+    }
+
     // Criar a tarefa
     const tarefa = await prisma.tarefaRemanejamento.create({
       data: {
@@ -172,7 +200,7 @@ export async function POST(request: NextRequest) {
           if (v === "urgente") return "URGENTE";
           return "MEDIA";
         })(),
-        ...(dataLimite && { dataLimite: new Date(dataLimite) }),
+        dataLimite: dataLimite ? new Date(dataLimite) : defaultDataLimite,
         ...(dataVencimento && { dataVencimento: new Date(dataVencimento) }),
       },
       include: {
