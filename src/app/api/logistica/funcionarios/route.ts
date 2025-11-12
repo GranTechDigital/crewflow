@@ -82,20 +82,14 @@ export async function GET(request: NextRequest) {
     if (tipo === 'alocacao') {
       // Para alocação: funcionários com statusPrestserv SEM_CADASTRO
       whereClause.statusPrestserv = 'SEM_CADASTRO';
-      // Garantir que não possuem contrato vinculado
-      whereClause.contratoId = null;
     } else if (tipo === 'realocacao') {
       // Para realocação: funcionários com statusPrestserv ATIVO ou INATIVO
       whereClause.statusPrestserv = {
         in: ['ATIVO', 'INATIVO']
       };
-      // Garantir que já possuem contrato vinculado
-      whereClause.contratoId = { not: null };
     } else if (tipo === 'desligamento') {
       // Para desligamento: apenas funcionários com statusPrestserv ATIVO
       whereClause.statusPrestserv = 'ATIVO';
-      // Considerar apenas funcionários com contrato
-      whereClause.contratoId = { not: null };
     }
 
     // Se contratoId for fornecido, filtrar por contrato
@@ -103,7 +97,7 @@ export async function GET(request: NextRequest) {
       whereClause.contratoId = parseInt(contratoId);
     }
 
-    const funcionariosRaw = await prisma.funcionario.findMany({
+    const funcionarios = await prisma.funcionario.findMany({
       where: whereClause,
       select: {
         id: true,
@@ -126,14 +120,6 @@ export async function GET(request: NextRequest) {
       orderBy: {
         nome: 'asc'
       }
-    });
-
-    // Filtrar demitidos e admissões do próximo mês para não aparecerem na lista
-    const funcionarios = funcionariosRaw.filter(f => {
-      const s = (f.status ?? '').toLowerCase();
-      const demitidoOuRescisao = s.includes('demit') || s.includes('rescis');
-      const admissaoProxMes = s.includes('admiss') && (s.includes('prox') || s.includes('próx'));
-      return !(demitidoOuRescisao || admissaoProxMes);
     });
 
     return Response.json(funcionarios);

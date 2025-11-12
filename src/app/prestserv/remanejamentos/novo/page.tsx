@@ -188,8 +188,8 @@ export default function NovoRemanejamentoLogisticaPage() {
           if (contratoOrigem) {
             return f.contratoId === contratoOrigem.id;
           }
-          // Se contratoOrigem não estiver definido, mostrar apenas quem já possui contrato
-          return f.contratoId != null;
+          // Se contratoOrigem não estiver definido, mostrar todos os funcionários
+          return true;
         }
         return true;
       });
@@ -202,14 +202,8 @@ export default function NovoRemanejamentoLogisticaPage() {
         const centroCustoMatch = !filtroCentroCusto || funcionario.centroCusto === filtroCentroCusto;
         const statusMatch = !filtroStatus || funcionario.status === filtroStatus;
         const naoSelecionado = !funcionariosSelecionados.some(sel => sel.id === parseInt(funcionario.id));
-
-        // Ocultar demitidos e admissões do próximo mês
-        const statusVal = (funcionario.status || '').toLowerCase();
-        const isDemitido = statusVal.includes('demit') || statusVal.includes('rescis');
-        const isAdmissaoProxMes = statusVal.includes('admiss') && (statusVal.includes('prox') || statusVal.includes('próx'));
-        const aptoFolha = !(isDemitido || isAdmissaoProxMes);
         
-        return nomeMatch && funcaoMatch && centroCustoMatch && statusMatch && naoSelecionado && aptoFolha;
+        return nomeMatch && funcaoMatch && centroCustoMatch && statusMatch && naoSelecionado;
       })
       .map(funcionario => ({
         id: parseInt(funcionario.id),
@@ -224,7 +218,6 @@ export default function NovoRemanejamentoLogisticaPage() {
   
   const funcoesDisponiveis = useMemo(() => {
     const funcoes = new Set<string>();
-
     funcionariosDisponiveis.forEach(f => f.funcao && funcoes.add(f.funcao));
     return Array.from(funcoes).sort();
   }, [funcionariosDisponiveis]);

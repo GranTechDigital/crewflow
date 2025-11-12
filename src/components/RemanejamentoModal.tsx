@@ -131,12 +131,6 @@ export default function RemanejamentoModal({
           return false;
         // Filtro por função
         if (filtroFuncao && f.funcao !== filtroFuncao) return false;
-        // Ocultar demitidos e admissões do próximo mês
-        const statusVal = (f.status || "").toLowerCase();
-        const isDemitido = statusVal.includes("demit") || statusVal.includes("rescis");
-        const isAdmissaoProxMes = statusVal.includes("admiss") && (statusVal.includes("prox") || statusVal.includes("próx"));
-        const aptoFolha = !(isDemitido || isAdmissaoProxMes);
-        if (!aptoFolha) return false;
         // Filtro por nome
         if (
           buscaNome &&
