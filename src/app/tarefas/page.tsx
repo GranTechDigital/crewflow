@@ -1762,16 +1762,21 @@ export default function TarefasPage() {
                         : 0;
                     const expandido = funcionariosExpandidos.has(chaveGrupo);
 
-                    // Determinar data de admissão (uptimeSheets mais recente com data)
+                    // Determinar data de admissão (prioriza campo em Funcionario, fallback para uptimeSheets mais recente com data)
+                    const admFromFuncionario = (funcionario as any)?.dataAdmissao
+                      ? new Date((funcionario as any).dataAdmissao)
+                      : null;
                     const sheets = (funcionario as any)?.uptimeSheets || [];
-                    const dataAdmissao: Date | null = (() => {
-                      if (!Array.isArray(sheets) || sheets.length === 0) return null;
-                      const sorted = [...sheets].sort(
-                        (a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-                      );
-                      const found = sorted.find((s: any) => !!s?.dataAdmissao);
-                      return found?.dataAdmissao ? new Date(found.dataAdmissao) : null;
-                    })();
+                    const dataAdmissao: Date | null =
+                      admFromFuncionario ||
+                      (() => {
+                        if (!Array.isArray(sheets) || sheets.length === 0) return null;
+                        const sorted = [...sheets].sort(
+                          (a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+                        );
+                        const found = sorted.find((s: any) => !!s?.dataAdmissao);
+                        return found?.dataAdmissao ? new Date(found.dataAdmissao) : null;
+                      })();
 
                     const nowMs = Date.now();
                     const isAdmissaoFutura = !!dataAdmissao && dataAdmissao.getTime() > nowMs;

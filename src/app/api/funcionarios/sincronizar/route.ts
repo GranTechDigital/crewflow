@@ -3,16 +3,40 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sincronizarTarefasPadrao } from "@/lib/tarefasPadraoSync";
 
+const RM_API_URL =
+  process.env.RM_API_URL ||
+  "https://granihcservices145382.rm.cloudtotvs.com.br:8051/api/framework/v1/consultaSQLServer/RealizaConsulta/GS.INT.0005/1/P";
+const RM_API_AUTH =
+  process.env.RM_API_AUTH ||
+  "Basic SW50ZWdyYS5BZG1pc3NhbzpHckBuIWhjMjAyMg==";
+
 function parseDate(dateStr: string): Date | null {
   const date = new Date(dateStr);
   return isNaN(date.getTime()) ? null : date;
 }
 
+// Fonte de data de admissão: tenta várias chaves comuns da API externa
+function getDataAdmissaoFromApi(item: Record<string, unknown>): Date | null {
+  const possibleKeys = [
+    "DATA_ADMISSAO",
+    "DT_ADMISSAO",
+    "DATA_ADM",
+    "ADMISSAO",
+  ];
+  for (const k of possibleKeys) {
+    const v = (item as any)[k];
+    if (v) {
+      const d = parseDate(String(v));
+      if (d) return d;
+    }
+  }
+  return null;
+}
+
 async function fetchExternalDataWithRetry(maxRetries = 3, timeout = 15000) {
-  const url =
-    "https://granihcservices145382.rm.cloudtotvs.com.br:8051/api/framework/v1/consultaSQLServer/RealizaConsulta/GS.INT.0005/1/P";
+  const url = RM_API_URL;
   const headers = {
-    Authorization: "Basic SW50ZWdyYS5BZG1pc3NhbzpHckBuIWhjMjAyMg==",
+    Authorization: RM_API_AUTH,
   };
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -121,6 +145,8 @@ export async function POST() {
           dataNascimento: item.DATA_NASCIMENTO
             ? parseDate(String(item.DATA_NASCIMENTO))
             : null,
+          // nova coluna: data de admissão
+          dataAdmissao: getDataAdmissaoFromApi(item),
           email: item.EMAIL ? String(item.EMAIL) : null,
           telefone: item.TELEFONE,
           centroCusto: item.CENTRO_CUSTO,
@@ -142,6 +168,8 @@ export async function POST() {
       status: string;
       statusPrestserv?: string;
       funcao?: string | null;
+      // nova coluna: data de admissão opcional em updates
+      dataAdmissao?: Date | null;
       atualizadoEm: Date;
       excluidoEm?: Date | null;
     }> = [];
@@ -159,6 +187,10 @@ export async function POST() {
         : null;
       const funcaoApi = funcaoApiRaw ? funcaoApiRaw.trim() : null;
       const funcaoBancoNorm = (func.funcao || "").trim();
+
+      // data de admissão vinda da API
+      const admApi = getDataAdmissaoFromApi(dadosApi as any);
+      const admBanco = func.dataAdmissao || null;
 
       const isRhudson = (func.nome || "").toLowerCase().includes("rhudson");
       if (isRhudson) {
@@ -207,6 +239,17 @@ export async function POST() {
         }
       }
 
+      // Atualizar data de admissão quando disponível na API e diferente do banco
+      if (admApi && (!admBanco || admBanco.getTime() !== admApi.getTime())) {
+        paraAtualizar.push({
+          matricula: func.matricula,
+          status: func.status || "ATIVO",
+          dataAdmissao: admApi,
+          atualizadoEm: now,
+          excluidoEm: null,
+        });
+      }
+
       // Mudança de função (normalizada com trim)
       if (funcaoApi && funcaoBancoNorm !== funcaoApi) {
         if (isRhudson)
@@ -235,6 +278,8 @@ export async function POST() {
           status: f.status,
           statusPrestserv: f.statusPrestserv, // Incluir statusPrestserv se estiver definido
           funcao: f.funcao !== undefined ? f.funcao : undefined,
+          // nova coluna
+          dataAdmissao: f.dataAdmissao !== undefined ? f.dataAdmissao : undefined,
           atualizadoEm: f.atualizadoEm,
           excluidoEm: f.excluidoEm,
         },
@@ -262,8 +307,29 @@ export async function POST() {
       }
     }
 
+    // Backfill: preencher dataAdmissao a partir de UptimeSheet para quem estiver nulo
+    let backfillAtualizados = 0;
+    const semAdmissao = await prisma.funcionario.findMany({
+      where: { dataAdmissao: null },
+      select: { id: true, matricula: true },
+    });
+    for (const f of semAdmissao) {
+      const ultimoComAdmissao = await prisma.uptimeSheet.findFirst({
+        where: { matricula: f.matricula, NOT: { dataAdmissao: null } },
+        orderBy: { createdAt: "desc" },
+        select: { dataAdmissao: true },
+      });
+      if (ultimoComAdmissao?.dataAdmissao) {
+        await prisma.funcionario.update({
+          where: { id: f.id },
+          data: { dataAdmissao: ultimoComAdmissao.dataAdmissao },
+        });
+        backfillAtualizados++;
+      }
+    }
+
     console.log(
-      `Sincronização de funcionários concluída: ${matriculasParaDemitir.length} demitidos, ${novosFuncionarios.length} adicionados, ${paraAtualizar.length} atualizados`
+      `Sincronização de funcionários concluída: ${matriculasParaDemitir.length} demitidos, ${novosFuncionarios.length} adicionados, ${paraAtualizar.length} atualizados, ${backfillAtualizados} backfill`
     );
 
     return NextResponse.json({
@@ -271,6 +337,7 @@ export async function POST() {
       demitidos: matriculasParaDemitir.length,
       adicionados: novosFuncionarios.length,
       atualizados: paraAtualizar.length,
+      backfill: backfillAtualizados,
     });
   } catch (error) {
     console.error("Erro na sincronização de funcionários:", error);

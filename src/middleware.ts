@@ -68,6 +68,15 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Permitir backfill de data de admissão via token de serviço
+  if (
+    pathname.startsWith("/api/funcionarios/backfill-admissao") &&
+    serviceToken &&
+    authHeader === `Bearer ${serviceToken}`
+  ) {
+    return NextResponse.next();
+  }
+
   // Permitir manutenção (deduplicação de tarefas) via token de serviço
   const manutencaoToken = process.env.MANTENCAO_SERVICE_TOKEN;
   if (
