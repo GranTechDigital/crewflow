@@ -16,7 +16,6 @@ type Pessoa = {
   orgaoEmissor: string | null;
   uf: string | null;
   dataNascimento: string | null;
-  dataAdmissao: string | null;
   email: string | null;
   telefone: string | null;
   centroCusto: string | null;
@@ -258,34 +257,30 @@ export default function Home() {
         if (aValue === null) return sortConfig.direction === "asc" ? 1 : -1;
         if (bValue === null) return sortConfig.direction === "asc" ? -1 : 1;
 
-        // Tratamento específico para campos de data
-        const dateKeys = [
-          "dataAdmissao",
-          "dataNascimento",
-          "dataExclusao",
-          "dataCriacao",
-          "dataAtualizacao",
-        ] as const;
-        if (dateKeys.includes(sortConfig.key as typeof dateKeys[number])) {
-          const dateA = new Date(aValue as string);
-          const dateB = new Date(bValue as string);
-          const timeA = isNaN(dateA.getTime()) ? 0 : dateA.getTime();
-          const timeB = isNaN(dateB.getTime()) ? 0 : dateB.getTime();
-          return sortConfig.direction === "asc" ? timeA - timeB : timeB - timeA;
-        }
-
         // Comparação de strings (case insensitive)
         if (typeof aValue === "string" && typeof bValue === "string") {
           return sortConfig.direction === "asc"
-            ? (aValue as string).localeCompare(bValue as string, "pt-BR", { sensitivity: "base" })
-            : (bValue as string).localeCompare(aValue as string, "pt-BR", { sensitivity: "base" });
+            ? aValue.localeCompare(bValue, "pt-BR", { sensitivity: "base" })
+            : bValue.localeCompare(aValue, "pt-BR", { sensitivity: "base" });
         }
 
         // Comparação de números
         if (typeof aValue === "number" && typeof bValue === "number") {
           return sortConfig.direction === "asc"
-            ? (aValue as number) - (bValue as number)
-            : (bValue as number) - (aValue as number);
+            ? aValue - bValue
+            : bValue - aValue;
+        }
+
+        // Comparação de datas
+        if (typeof aValue === "string" && typeof bValue === "string") {
+          // Verifica se as strings são datas válidas
+          const dateA = new Date(aValue);
+          const dateB = new Date(bValue);
+          if (!isNaN(dateA.getTime()) && !isNaN(dateB.getTime())) {
+            return sortConfig.direction === "asc"
+              ? dateA.getTime() - dateB.getTime()
+              : dateB.getTime() - dateA.getTime();
+          }
         }
 
         // Comparação padrão para outros tipos
@@ -765,25 +760,6 @@ export default function Home() {
                   <th
                     scope="col"
                     className="px-0.5 py-0.5 text-left text-[10px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 group"
-                    onClick={() => handleSort("dataAdmissao")}
-                  >
-                    <div className="flex items-center">
-                      Data de Admissão
-                      {sortConfig.key === "dataAdmissao" && (
-                        <span className="ml-1">
-                          {sortConfig.direction === "asc" ? "↑" : "↓"}
-                        </span>
-                      )}
-                      {sortConfig.key !== "dataAdmissao" && (
-                        <span className="ml-1 opacity-0 group-hover:opacity-30">
-                          ↕
-                        </span>
-                      )}
-                    </div>
-                  </th>
-                  <th
-                    scope="col"
-                    className="px-0.5 py-0.5 text-left text-[10px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 group"
                     onClick={() => handleSort("status")}
                   >
                     <div className="flex items-center">
@@ -825,9 +801,6 @@ export default function Home() {
                     </td>
                     <td className="px-2 py-1.5 whitespace-nowrap text-xs text-gray-900">
                       {pessoa.centroCusto}
-                    </td>
-                    <td className="px-2 py-1.5 whitespace-nowrap text-xs text-gray-900">
-                      {pessoa.dataAdmissao ? formatarDataBR(pessoa.dataAdmissao) : "-"}
                     </td>
                     <td className="px-2 py-1.5 whitespace-nowrap text-xs">
                       <span

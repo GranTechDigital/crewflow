@@ -54,7 +54,6 @@ model Funcionario {
   orgaoEmissor              String?
   uf                        String?
   dataNascimento            DateTime?
-  dataAdmissao              DateTime?
   email                     String?
   telefone                  String?
   centroCusto               String?

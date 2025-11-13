@@ -398,7 +398,6 @@ async function buscarRemanejamentos(
             status: true,
             statusPrestserv: true,
             emMigracao: true,
-            // dataAdmissao removido para evitar erro enquanto migração não foi aplicada
           },
         },
       },
@@ -630,51 +629,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: "Um ou mais funcionários não foram encontrados" },
         { status: 400 }
-      );
-    }
-
-    // Validação: impedir criação para funcionários com status folha inadmissível
-    try {
-      const matriculas = funcionarios.map((f) => f.matricula).filter(Boolean);
-      const folhaRegistros = await prisma.periodoSheet.findMany({
-        where: { matricula: { in: matriculas } },
-        select: { matricula: true, statusFolha: true, createdAt: true },
-        orderBy: { createdAt: "desc" },
-      });
-      const statusFolhaMap = new Map<string, string>();
-      for (const reg of folhaRegistros) {
-        if (!statusFolhaMap.has(reg.matricula)) {
-          statusFolhaMap.set(reg.matricula, reg.statusFolha || "");
-        }
-      }
-      const isFolhaInvalida = (s?: string | null) => {
-        return false;
-      };
-      const inaptos = funcionarios.filter((f) => {
-        const sf = statusFolhaMap.get(f.matricula) || "";
-        return isFolhaInvalida(sf) || isFolhaInvalida(f.status || "");
-      });
-      if (inaptos.length > 0) {
-        return NextResponse.json(
-          {
-            error:
-              "Um ou mais funcionários estão inaptos para remanejamento por status de folha (demitido/rescisão)",
-            detalhes: inaptos.map((f) => ({
-              id: f.id,
-              nome: f.nome,
-              matricula: f.matricula,
-              statusFolha: statusFolhaMap.get(f.matricula) || null,
-              statusFuncionario: f.status || null,
-            })),
-          },
-          { status: 400 }
-        );
-      }
-    } catch (validacaoError) {
-      console.error("Falha ao validar status folha dos funcionários:", validacaoError);
-      return NextResponse.json(
-        { error: "Falha ao validar status folha dos funcionários" },
-        { status: 500 }
       );
     }
 
