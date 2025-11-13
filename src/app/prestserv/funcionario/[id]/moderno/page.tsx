@@ -182,6 +182,9 @@ function DetalheFuncionarioContent() {
         "EM VALIDAÇÃO": "Prestserv em validação!",
         INVALIDADO: "Prestserv invalidado!",
         VALIDADO: "Prestserv validado com sucesso!",
+        "SISPAT BLOQUEADO": "SISPAT bloqueado — seguir para rascunho",
+        "PENDENTE DE DESLIGAMENTO": "Marcado como pendente de desligamento",
+        "DESLIGAMENTO SOLICITADO": "Desligamento solicitado",
         SOLICITAR_DESLIGAMENTO:
           "Solicitação de desligamento registrada com sucesso!",
         SUBMETIDO: "Prestserv submetido para aprovação com sucesso!",

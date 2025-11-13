@@ -89,7 +89,10 @@ export type StatusPrestserv =
   | "EM VALIDAÇÃO"
   | "INVALIDADO"
   | "VALIDADO"
-  | "CANCELADO";
+  | "CANCELADO"
+  | "SISPAT BLOQUEADO"
+  | "PENDENTE DE DESLIGAMENTO"
+  | "DESLIGAMENTO SOLICITADO";
 export type StatusTarefa =
   | "APROVAR SOLICITACAO"
   | "REPROVADO"

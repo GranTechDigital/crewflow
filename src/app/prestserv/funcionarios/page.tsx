@@ -800,6 +800,9 @@ function FuncionariosPageContent() {
       VALIDADO: "8. VALIDADO",
       INVALIDADO: "9. CORREÇÃO",
       CANCELADO: "10. CANCELADO",
+      "SISPAT BLOQUEADO": "7. SISPAT BLOQUEADO",
+      "PENDENTE DE DESLIGAMENTO": "11. PENDENTE DE DESLIGAMENTO",
+      "DESLIGAMENTO SOLICITADO": "12. DESLIGAMENTO SOLICITADO",
     };
     return statusMap[status] || status;
   };
@@ -830,6 +833,9 @@ function FuncionariosPageContent() {
       "VALIDADO",
       "INVALIDADO",
       "CANCELADO",
+      "SISPAT BLOQUEADO",
+      "PENDENTE DE DESLIGAMENTO",
+      "DESLIGAMENTO SOLICITADO",
     ];
 
     // Status de tarefas
@@ -860,14 +866,19 @@ function FuncionariosPageContent() {
     if (statusTarefas === "APROVAR SOLICITAÇÃO") {
     } else if (prestservStatus === "PENDENTE") {
       options.push("CRIADO");
+      options.push("SISPAT BLOQUEADO");
     } else if (prestservStatus === "PENDENTE") {
       options.push("INVALIDADO");
+    } else if (prestservStatus === "SISPAT BLOQUEADO") {
+      options.push("CRIADO");
     } else if (prestservStatus === "EM VALIDAÇÃO") {
       options.push("VALIDADO");
       options.push("INVALIDADO");
     } else if (statusTarefas === "SUBMETER RASCUNHO") {
       options.push("INVALIDADO");
       options.push("EM VALIDAÇÃO");
+      options.push("PENDENTE DE DESLIGAMENTO");
+      options.push("DESLIGAMENTO SOLICITADO");
     }
 
     options.push("CANCELADO");
@@ -2038,6 +2049,9 @@ function FuncionariosPageContent() {
       CANCELADO: "bg-red-100 text-red-700",
       "EM VALIDAÇÃO": "bg-blue-100 text-blue-700",
       VALIDADO: "bg-green-100 text-green-700",
+      "SISPAT BLOQUEADO": "bg-gray-100 text-gray-700",
+      "PENDENTE DE DESLIGAMENTO": "bg-gray-100 text-gray-700",
+      "DESLIGAMENTO SOLICITADO": "bg-gray-100 text-gray-700",
       //Status Funcionário
       SEM_CADASTRO: "bg-gray-100 text-gray-700",
       // Status de solicitação
@@ -3673,6 +3687,9 @@ function FuncionariosPageContent() {
                           "VALIDADO",
                           "INVALIDADO",
                           "CANCELADO",
+                          "SISPAT BLOQUEADO",
+                          "PENDENTE DE DESLIGAMENTO",
+                          "DESLIGAMENTO SOLICITADO",
                         ],
                       ])]
                         .filter(Boolean)
@@ -5531,4 +5548,3 @@ function FuncionariosPageContent() {
     </div>
   );
 }
-

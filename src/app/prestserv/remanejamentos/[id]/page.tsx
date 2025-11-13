@@ -266,6 +266,9 @@ function FuncionarioModernoContent() {
         INVALIDADO: "Prestserv enviado para correção com sucesso!",
         VALIDADO: "Prestserv validado com sucesso!",
         CANCELADO: "Prestserv cancelado com sucesso!",
+        "SISPAT BLOQUEADO": "SISPAT bloqueado — criar rascunho em seguida",
+        "PENDENTE DE DESLIGAMENTO": "Registro marcado como pendente de desligamento",
+        "DESLIGAMENTO SOLICITADO": "Solicitação de desligamento registrada",
       };
 
       const mensagem =
