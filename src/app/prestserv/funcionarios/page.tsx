@@ -1034,12 +1034,15 @@ function FuncionariosPageContent() {
                 setor: "TREINAMENTO",
                 total:
                   rf.tarefas?.filter(
-                    (t: any) => t.responsavel === "TREINAMENTO"
+                    (t: any) =>
+                      t.responsavel === "TREINAMENTO" &&
+                      (t.descricao?.includes("Tipo: AP") || false)
                   ).length || 0,
                 concluidas:
                   rf.tarefas?.filter(
                     (t: any) =>
                       t.responsavel === "TREINAMENTO" &&
+                      (t.descricao?.includes("Tipo: AP") || false) &&
                       t.status === "CONCLUIDO"
                   ).length || 0,
                 percentual: 0,
