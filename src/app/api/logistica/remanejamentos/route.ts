@@ -446,6 +446,43 @@ async function buscarRemanejamentos(
     },
   });
 
+  // Badge: função alterada recentemente (últimos 30 dias) para RFs em processo
+  try {
+    const rfIds: string[] = [];
+    solicitacoes.forEach((s: any) => s.funcionarios?.forEach((rf: any) => rfIds.push(rf.id)));
+    if (rfIds.length > 0) {
+      const limite = new Date();
+      limite.setDate(limite.getDate() - 30);
+      const historicos = await prisma.historicoRemanejamento.findMany({
+        where: {
+          remanejamentoFuncionarioId: { in: rfIds },
+          entidade: "FUNCIONARIO",
+          campoAlterado: "funcao",
+          dataAcao: { gte: limite },
+        },
+        select: { remanejamentoFuncionarioId: true, dataAcao: true },
+        orderBy: { dataAcao: "desc" },
+      });
+      const map = new Map<string, string>();
+      historicos.forEach((h) => {
+        if (!map.has(h.remanejamentoFuncionarioId!)) {
+          map.set(h.remanejamentoFuncionarioId!, h.dataAcao.toISOString());
+        }
+      });
+      solicitacoes.forEach((s: any) =>
+        s.funcionarios?.forEach((rf: any) => {
+          const dt = map.get(rf.id);
+          if (dt) {
+            (rf as any).funcaoAlteradaRecentemente = true;
+            (rf as any).dataMudancaFuncao = dt;
+          }
+        })
+      );
+    }
+  } catch (e) {
+    console.warn("Falha ao calcular badge de função alterada recentemente:", e);
+  }
+
   // Filtrar solicitações que não têm funcionários (após a filtragem)
   let solicitacoesFiltradas = solicitacoes.filter(
     (s) => s.funcionarios.length > 0

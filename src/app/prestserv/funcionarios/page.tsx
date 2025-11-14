@@ -92,6 +92,8 @@ interface FuncionarioTableData {
   statusFuncionario?: string;
   responsavelAtual?: string;
   sispat?: string;
+  funcaoAlteradaRecentemente?: boolean;
+  dataMudancaFuncao?: string;
 }
 
 export default function FuncionariosPage() {
@@ -1008,6 +1010,8 @@ function FuncionariosPageContent() {
             createdAt: solicitacao.createdAt,
             updatedAt: solicitacao.updatedAt,
             statusFuncionario: rf.statusFuncionario,
+            funcaoAlteradaRecentemente: rf.funcaoAlteradaRecentemente || false,
+            dataMudancaFuncao: rf.dataMudancaFuncao || undefined,
             progressoPorSetor: [
               {
                 setor: "RH",
@@ -4507,6 +4511,11 @@ function FuncionariosPageContent() {
                             <div className="font-medium text-xs">
                               <span>
                                 Nome: {funcionario.nome}
+                                {funcionario.funcaoAlteradaRecentemente && (
+                                  <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-yellow-100 text-yellow-800 px-2 py-0.5 text-[10px] font-semibold">
+                                    ⚠️ Função alterada recentemente
+                                  </span>
+                                )}
                                 {(() => {
                                   const precisaAtencao =
                                     funcionarioDemitidoPrecisaAtencao(
