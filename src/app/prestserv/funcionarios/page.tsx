@@ -94,6 +94,7 @@ interface FuncionarioTableData {
   sispat?: string;
   funcaoAlteradaRecentemente?: boolean;
   dataMudancaFuncao?: string;
+  observacoesPrestserv?: string;
 }
 
 export default function FuncionariosPage() {
@@ -185,6 +186,9 @@ function FuncionariosPageContent() {
   const [dashboardError, setDashboardError] = useState<string | null>(null);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [isInitialized, setIsInitialized] = useState(false);
+  const [showObsModal, setShowObsModal] = useState(false);
+  const [obsTexto, setObsTexto] = useState("");
+  const [obsTitulo, setObsTitulo] = useState("");
 
   // Estados para aprovação em lote
   const [funcionariosSelecionados, setFuncionariosSelecionados] = useState<
@@ -1009,6 +1013,7 @@ function FuncionariosPageContent() {
             dataSolicitacao: solicitacao.dataSolicitacao,
             createdAt: solicitacao.createdAt,
             updatedAt: solicitacao.updatedAt,
+            observacoesPrestserv: rf.observacoesPrestserv || "",
             statusFuncionario: rf.statusFuncionario,
             funcaoAlteradaRecentemente: rf.funcaoAlteradaRecentemente || false,
             dataMudancaFuncao: rf.dataMudancaFuncao || undefined,
@@ -4564,8 +4569,28 @@ function FuncionariosPageContent() {
                                 })()}
                               </span>
                             </div>
-                            <div className="text-xs text-gray-500">
-                              Matrícula: {funcionario.matricula}
+                            <div className="text-xs text-gray-500 flex items-center gap-2">
+                              <span>Matricula: {funcionario.matricula}</span>
+                              {funcionario.observacoesPrestserv && (
+                                <button
+                                  className="inline-flex items-center gap-1 text-yellow-700 bg-yellow-50 border border-yellow-200 px-1.5 py-0.5 rounded hover:bg-yellow-100"
+                                  title="Inconsistência informada por setor"
+                                  onClick={() => {
+                                    setObsTitulo(
+                                      `${funcionario.nome} (${funcionario.matricula})`
+                                    );
+                                    setObsTexto(
+                                      funcionario.observacoesPrestserv || ""
+                                    );
+                                    setShowObsModal(true);
+                                  }}
+                                >
+                                  <ExclamationTriangleIcon className="w-4 h-4" />
+                                  <span className="text-[10px] font-semibold">
+                                    Atenção
+                                  </span>
+                                </button>
+                              )}
                             </div>
                             <div className="text-xs text-gray-500">
                               Sispat: {funcionario.sispat || "-"},
@@ -5813,6 +5838,36 @@ function FuncionariosPageContent() {
                   ) : (
                     "Gerar Tarefas"
                   )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showObsModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-4 w-full max-w-2xl mx-4">
+              <div className="flex justify-between items-center mb-2">
+                <h3 className="text-sm font-semibold text-gray-900">
+                  Observações de Inconsistência
+                </h3>
+                <button
+                  onClick={() => setShowObsModal(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <XMarkIcon className="h-5 w-5" />
+                </button>
+              </div>
+              <div className="text-xs text-gray-600 mb-3">{obsTitulo}</div>
+              <pre className="whitespace-pre-wrap text-xs text-gray-800 max-h-[60vh] overflow-auto border border-gray-200 rounded p-3 bg-gray-50">
+                {obsTexto}
+              </pre>
+              <div className="mt-3 flex justify-end">
+                <button
+                  onClick={() => setShowObsModal(false)}
+                  className="px-3 py-1.5 text-xs rounded border border-gray-300 text-gray-700 hover:bg-gray-50"
+                >
+                  Fechar
                 </button>
               </div>
             </div>

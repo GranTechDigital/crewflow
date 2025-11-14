@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import {
   ArrowRightIcon,
   UserGroupIcon,
@@ -21,9 +21,10 @@ import {
   ArrowLeftIcon,
   XMarkIcon,
   CalendarIcon,
-  ClockIcon
-} from '@heroicons/react/24/outline';
-import { useToast } from '@/components/Toast';
+  ClockIcon,
+} from "@heroicons/react/24/outline";
+import { useToast } from "@/components/Toast";
+import { useAuth } from "@/app/hooks/useAuth";
 
 interface Contrato {
   id: number;
@@ -67,124 +68,138 @@ interface ResumoRemanejamento {
 export default function NovoRemanejamentoLogisticaPage() {
   const router = useRouter();
   const { showToast } = useToast();
-  
+  const { usuario } = useAuth();
+
   // Estados de dados
   const [contratos, setContratos] = useState<Contrato[]>([]);
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
   const [funcionariosNovos, setFuncionariosNovos] = useState<Funcionario[]>([]);
-  
+
   const [loading, setLoading] = useState(true);
-  
+
   // Estados principais
-  const [tipoRemanejamento, setTipoRemanejamento] = useState<'funcionarios_novos' | 'entre_contratos' | 'desligamento' | ''>('');
-  const [funcionariosSelecionados, setFuncionariosSelecionados] = useState<FuncionarioSelecionado[]>([]);
+  const [tipoRemanejamento, setTipoRemanejamento] = useState<
+    "funcionarios_novos" | "entre_contratos" | "desligamento" | ""
+  >("");
+  const [funcionariosSelecionados, setFuncionariosSelecionados] = useState<
+    FuncionarioSelecionado[]
+  >([]);
   const [contratoOrigem, setContratoOrigem] = useState<Contrato | null>(null);
   const [contratoDestino, setContratoDestino] = useState<Contrato | null>(null);
-  const [justificativa, setJustificativa] = useState('');
-  const [prioridade, setPrioridade] = useState<'BAIXA' | 'MEDIA' | 'ALTA'>('MEDIA');
+  const [justificativa, setJustificativa] = useState("");
+  const [prioridade, setPrioridade] = useState<"BAIXA" | "MEDIA" | "ALTA">(
+    "MEDIA"
+  );
   const [submitting, setSubmitting] = useState(false);
-  
+
   // Estados de exibição
-  const [etapaAtual, setEtapaAtual] = useState<'tipo' | 'contrato' | 'selecao' | 'confirmacao'>('tipo');
+  const [etapaAtual, setEtapaAtual] = useState<
+    "tipo" | "contrato" | "selecao" | "confirmacao"
+  >("tipo");
   const [mostrarFuncionarios, setMostrarFuncionarios] = useState(false);
-  
+
   // Estados de filtros
-  const [filtroNome, setFiltroNome] = useState('');
-  const [filtroFuncao, setFiltroFuncao] = useState('');
-  const [filtroCentroCusto, setFiltroCentroCusto] = useState('');
-  const [filtroStatus, setFiltroStatus] = useState('');
-  
+  const [filtroNome, setFiltroNome] = useState("");
+  const [filtroFuncao, setFiltroFuncao] = useState("");
+  const [filtroCentroCusto, setFiltroCentroCusto] = useState("");
+  const [filtroStatus, setFiltroStatus] = useState("");
+
   // Funções para manipular seleção de funcionários
 
-  
   useEffect(() => {
     const fetchContratos = async () => {
       try {
         setLoading(true);
-        const contratosRes = await fetch('/api/logistica/contratos');
-        
+        const contratosRes = await fetch("/api/logistica/contratos");
+
         if (contratosRes.ok) {
           const contratosData = await contratosRes.json();
           setContratos(contratosData);
         }
       } catch (error) {
-        console.error('Erro ao carregar contratos:', error);
-        showToast('Erro ao carregar contratos', 'error');
+        console.error("Erro ao carregar contratos:", error);
+        showToast("Erro ao carregar contratos", "error");
       } finally {
         setLoading(false);
       }
     };
-    
+
     fetchContratos();
   }, [showToast]);
-  
+
   const carregarFuncionarios = async () => {
     try {
       setLoading(true);
-      
+
       // Limpar estados anteriores para evitar conflitos
       setFuncionarios([]);
       setFuncionariosNovos([]);
       setFuncionariosSelecionados([]);
-      
+
       // Limpar filtros para evitar que funcionários sejam escondidos
-      setFiltroNome('');
-      setFiltroFuncao('');
-      setFiltroCentroCusto('');
-      setFiltroStatus('');
-      
+      setFiltroNome("");
+      setFiltroFuncao("");
+      setFiltroCentroCusto("");
+      setFiltroStatus("");
+
       // Para alocação, limpar contrato origem pois não é necessário
-      if (tipoRemanejamento === 'funcionarios_novos') {
+      if (tipoRemanejamento === "funcionarios_novos") {
         setContratoOrigem(null);
       }
-      
-      if (tipoRemanejamento === 'funcionarios_novos') {
-        const funcionariosNovosRes = await fetch('/api/logistica/funcionarios?tipo=alocacao');
-        
+
+      if (tipoRemanejamento === "funcionarios_novos") {
+        const funcionariosNovosRes = await fetch(
+          "/api/logistica/funcionarios?tipo=alocacao"
+        );
+
         if (funcionariosNovosRes.ok) {
           const funcionariosNovosData = await funcionariosNovosRes.json();
           setFuncionariosNovos(funcionariosNovosData);
         }
-      } else if (tipoRemanejamento === 'entre_contratos') {
-        const funcionariosRes = await fetch('/api/logistica/funcionarios?tipo=realocacao');
-        
+      } else if (tipoRemanejamento === "entre_contratos") {
+        const funcionariosRes = await fetch(
+          "/api/logistica/funcionarios?tipo=realocacao"
+        );
+
         if (funcionariosRes.ok) {
           const funcionariosData = await funcionariosRes.json();
           setFuncionarios(funcionariosData);
         }
-      } else if (tipoRemanejamento === 'desligamento') {
-        const funcionariosRes = await fetch('/api/logistica/funcionarios?tipo=desligamento');
-        
+      } else if (tipoRemanejamento === "desligamento") {
+        const funcionariosRes = await fetch(
+          "/api/logistica/funcionarios?tipo=desligamento"
+        );
+
         if (funcionariosRes.ok) {
           const funcionariosData = await funcionariosRes.json();
           setFuncionarios(funcionariosData);
         }
       }
     } catch (error) {
-      console.error('Erro ao carregar funcionários:', error);
-      showToast('Erro ao carregar funcionários', 'error');
+      console.error("Erro ao carregar funcionários:", error);
+      showToast("Erro ao carregar funcionários", "error");
     } finally {
       setLoading(false);
     }
   };
-  
+
   const contratosUnicos = useMemo(() => {
     const uniqueContratos = new Map();
-    contratos.forEach(contrato => {
+    contratos.forEach((contrato) => {
       uniqueContratos.set(contrato.id, contrato);
     });
     return Array.from(uniqueContratos.values());
   }, [contratos]);
-  
+
   const funcionariosDisponiveis = useMemo(() => {
     let funcionariosParaFiltrar: Funcionario[] = [];
-    
-    if (tipoRemanejamento === 'funcionarios_novos') {
+
+    if (tipoRemanejamento === "funcionarios_novos") {
       funcionariosParaFiltrar = funcionariosNovos;
     } else {
-      funcionariosParaFiltrar = funcionarios.filter(f => {
+      funcionariosParaFiltrar = funcionarios.filter((f) => {
         // Para remanejamento entre contratos, só filtrar por contrato se contratoOrigem estiver definido
-        if (tipoRemanejamento === 'entre_contratos') {
+        if (tipoRemanejamento === "entre_contratos") {
           if (contratoOrigem) {
             return f.contratoId === contratoOrigem.id;
           }
@@ -194,69 +209,102 @@ export default function NovoRemanejamentoLogisticaPage() {
         return true;
       });
     }
-    
+
     return funcionariosParaFiltrar
-      .filter(funcionario => {
-        const nomeMatch = funcionario.nome.toLowerCase().includes(filtroNome.toLowerCase());
-        const funcaoMatch = !filtroFuncao || funcionario.funcao === filtroFuncao;
-        const centroCustoMatch = !filtroCentroCusto || funcionario.centroCusto === filtroCentroCusto;
-        const statusMatch = !filtroStatus || funcionario.status === filtroStatus;
-        const naoSelecionado = !funcionariosSelecionados.some(sel => sel.id === parseInt(funcionario.id));
-        
-        return nomeMatch && funcaoMatch && centroCustoMatch && statusMatch && naoSelecionado;
+      .filter((funcionario) => {
+        const nomeMatch = funcionario.nome
+          .toLowerCase()
+          .includes(filtroNome.toLowerCase());
+        const funcaoMatch =
+          !filtroFuncao || funcionario.funcao === filtroFuncao;
+        const centroCustoMatch =
+          !filtroCentroCusto || funcionario.centroCusto === filtroCentroCusto;
+        const statusMatch =
+          !filtroStatus || funcionario.status === filtroStatus;
+        const naoSelecionado = !funcionariosSelecionados.some(
+          (sel) => sel.id === parseInt(funcionario.id)
+        );
+
+        return (
+          nomeMatch &&
+          funcaoMatch &&
+          centroCustoMatch &&
+          statusMatch &&
+          naoSelecionado
+        );
       })
-      .map(funcionario => ({
+      .map((funcionario) => ({
         id: parseInt(funcionario.id),
         nome: funcionario.nome,
         matricula: funcionario.id,
         funcao: funcionario.funcao || null,
         centroCusto: funcionario.centroCusto || null,
         status: funcionario.status || null,
-        selecionado: false
+        selecionado: false,
       }));
-  }, [funcionarios, funcionariosNovos, tipoRemanejamento, contratoOrigem, filtroNome, filtroFuncao, filtroCentroCusto, filtroStatus, funcionariosSelecionados]);
-  
+  }, [
+    funcionarios,
+    funcionariosNovos,
+    tipoRemanejamento,
+    contratoOrigem,
+    filtroNome,
+    filtroFuncao,
+    filtroCentroCusto,
+    filtroStatus,
+    funcionariosSelecionados,
+  ]);
+
   const funcoesDisponiveis = useMemo(() => {
     const funcoes = new Set<string>();
-    funcionariosDisponiveis.forEach(f => f.funcao && funcoes.add(f.funcao));
+    funcionariosDisponiveis.forEach((f) => f.funcao && funcoes.add(f.funcao));
     return Array.from(funcoes).sort();
   }, [funcionariosDisponiveis]);
-  
+
   const centrosCustoDisponiveis = useMemo(() => {
     const centros = new Set<string>();
-    funcionariosDisponiveis.forEach(f => f.centroCusto && centros.add(f.centroCusto));
+    funcionariosDisponiveis.forEach(
+      (f) => f.centroCusto && centros.add(f.centroCusto)
+    );
     return Array.from(centros).sort();
   }, [funcionariosDisponiveis]);
-  
+
   const statusDisponiveis = useMemo(() => {
     const status = new Set<string>();
-    funcionariosDisponiveis.forEach(f => f.status && status.add(f.status));
+    funcionariosDisponiveis.forEach((f) => f.status && status.add(f.status));
     return Array.from(status).sort();
   }, [funcionariosDisponiveis]);
-  
+
   // Estado para controlar o loading ao selecionar funcionário
   const [loadingSelecao, setLoadingSelecao] = useState<number | null>(null);
 
   const adicionarFuncionario = async (funcionario: FuncionarioSelecionado) => {
     // Ativa o loading para este funcionário específico
     setLoadingSelecao(funcionario.id);
-    
+
     try {
       // Simula um pequeno delay para dar feedback visual ao usuário
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      setFuncionariosSelecionados(prev => (
-        prev.some(f => f.id === funcionario.id)
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      setFuncionariosSelecionados((prev) =>
+        prev.some((f) => f.id === funcionario.id)
           ? prev
           : [...prev, funcionario]
-      ));
-      
+      );
+
       // Para remanejamentos entre contratos ou desligamentos, definir automaticamente o contrato de origem
-      if ((tipoRemanejamento === 'entre_contratos' || tipoRemanejamento === 'desligamento') && !contratoOrigem) {
+      if (
+        (tipoRemanejamento === "entre_contratos" ||
+          tipoRemanejamento === "desligamento") &&
+        !contratoOrigem
+      ) {
         // Buscar o funcionário original para obter o contratoId
-        const funcionarioOriginal = funcionarios.find(f => f.id === funcionario.id.toString());
+        const funcionarioOriginal = funcionarios.find(
+          (f) => f.id === funcionario.id.toString()
+        );
         if (funcionarioOriginal && funcionarioOriginal.contratoId) {
-          const contratoDoFuncionario = contratos.find(c => c.id === funcionarioOriginal.contratoId);
+          const contratoDoFuncionario = contratos.find(
+            (c) => c.id === funcionarioOriginal.contratoId
+          );
           if (contratoDoFuncionario) {
             setContratoOrigem(contratoDoFuncionario);
           }
@@ -267,95 +315,114 @@ export default function NovoRemanejamentoLogisticaPage() {
       setLoadingSelecao(null);
     }
   };
-  
+
   const removerFuncionario = (funcionarioId: number) => {
-    setFuncionariosSelecionados(prev => prev.filter(f => f.id !== funcionarioId));
+    setFuncionariosSelecionados((prev) =>
+      prev.filter((f) => f.id !== funcionarioId)
+    );
   };
-  
+
   const adicionarTodosDaFuncao = (funcao: string) => {
-    const funcionariosDaFuncao = funcionariosDisponiveis.filter(f => f.funcao === funcao);
-    setFuncionariosSelecionados(prev => [...prev, ...funcionariosDaFuncao]);
+    const funcionariosDaFuncao = funcionariosDisponiveis.filter(
+      (f) => f.funcao === funcao
+    );
+    setFuncionariosSelecionados((prev) => [...prev, ...funcionariosDaFuncao]);
   };
-  
+
   const getResumo = (): ResumoRemanejamento => {
     const porFuncao = funcionariosSelecionados.reduce((acc, funcionario) => {
-      const funcao = funcionario.funcao || 'Sem função';
+      const funcao = funcionario.funcao || "Sem função";
       acc[funcao] = (acc[funcao] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
-    
+
     return {
       totalSelecionados: funcionariosSelecionados.length,
       porFuncao,
       funcionarios: funcionariosSelecionados,
       origem: {
-        contrato: contratoOrigem?.nome
+        contrato: contratoOrigem?.nome,
       },
       destino: {
-        contrato: contratoDestino?.nome || ''
-      }
+        contrato: contratoDestino?.nome || "",
+      },
     };
   };
-  
+
   const handleSubmit = async () => {
     // Validações básicas
     if (funcionariosSelecionados.length === 0 || !justificativa.trim()) {
-      showToast('Preencha todos os campos obrigatórios', 'error');
+      showToast("Preencha todos os campos obrigatórios", "error");
       return;
     }
-    
+
     // Para desligamento, não precisa de contrato de destino
-    if (tipoRemanejamento !== 'desligamento' && !contratoDestino) {
-      showToast('Selecione o contrato de destino', 'error');
+    if (tipoRemanejamento !== "desligamento" && !contratoDestino) {
+      showToast("Selecione o contrato de destino", "error");
       return;
     }
-    
+
     setSubmitting(true);
-    
+
     try {
       const payload: any = {
-        tipo: tipoRemanejamento === 'funcionarios_novos' ? 'ALOCACAO' : 
-              tipoRemanejamento === 'entre_contratos' ? 'REMANEJAMENTO' : 'DESLIGAMENTO',
+        tipo:
+          tipoRemanejamento === "funcionarios_novos"
+            ? "ALOCACAO"
+            : tipoRemanejamento === "entre_contratos"
+            ? "REMANEJAMENTO"
+            : "DESLIGAMENTO",
         contratoOrigemId: contratoOrigem?.id,
-        funcionarioIds: funcionariosSelecionados.map(f => f.id),
+        funcionarioIds: funcionariosSelecionados.map((f) => f.id),
         justificativa,
         prioridade,
-        solicitadoPor: 'Usuário Prestserv'
+        solicitadoPor: usuario?.nome || usuario?.matricula || "Sistema",
       };
-      
+
+      payload.usuarioContexto = {
+        id: usuario?.id,
+        nome: usuario?.nome,
+        email: usuario?.email,
+        equipe: usuario?.equipe,
+        matricula: usuario?.matricula,
+      };
+
       // Só incluir contratoDestinoId se não for desligamento
-      if (tipoRemanejamento !== 'desligamento' && contratoDestino) {
+      if (tipoRemanejamento !== "desligamento" && contratoDestino) {
         payload.contratoDestinoId = contratoDestino.id;
       }
-      
-      const response = await fetch('/api/logistica/remanejamentos', {
-        method: 'POST',
+
+      const response = await fetch("/api/logistica/remanejamentos", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(payload),
       });
-      
+
       if (response.ok) {
-        showToast('Solicitação de remanejamento enviada com sucesso!', 'success');
-        
+        showToast(
+          "Solicitação de remanejamento enviada com sucesso!",
+          "success"
+        );
+
         // Aguardar um momento para o toast ser exibido e então redirecionar
         // Mantém o loading ativo durante todo o processo
         setTimeout(() => {
-          window.location.href = '/prestserv/funcionarios';
+          window.location.href = "/prestserv/funcionarios";
         }, 1500);
       } else {
         const error = await response.json();
-        showToast(error.message || 'Erro ao enviar solicitação', 'error');
+        showToast(error.message || "Erro ao enviar solicitação", "error");
         setSubmitting(false);
       }
     } catch (error) {
-      console.error('Erro ao enviar solicitação:', error);
-      showToast('Erro ao enviar solicitação', 'error');
+      console.error("Erro ao enviar solicitação:", error);
+      showToast("Erro ao enviar solicitação", "error");
       setSubmitting(false);
     }
   };
-  
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -366,7 +433,7 @@ export default function NovoRemanejamentoLogisticaPage() {
       </div>
     );
   }
-  
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="bg-gradient-to-r from-gray-800 to-slate-600 shadow-lg rounded-t-2xl border-slate-500 border-2">
@@ -751,8 +818,7 @@ export default function NovoRemanejamentoLogisticaPage() {
                     ? "Selecione os funcionários novos para alocar"
                     : tipoRemanejamento === "entre_contratos"
                     ? "Selecione os funcionários para remanejamento"
-                    : "Selecione os funcionários para desligamento"
-                  }
+                    : "Selecione os funcionários para desligamento"}
                 </h2>
               </div>
 
@@ -932,52 +998,49 @@ export default function NovoRemanejamentoLogisticaPage() {
                       </p>
                     </div>
                     <div className="max-h-96 overflow-y-auto divide-y divide-gray-200">
-                      {
-                        funcionariosSelecionados.length === 0 ? (
-                          <div className="p-4 text-center text-gray-500 text-sm">
-                              Nenhum funcionário selecionado
-                          </div>
-                        ) :
-                        (
-                          funcionariosSelecionados.map((funcionario) => (
-                            <div
-                              key={funcionario.id}
-                              className="p-3 hover:bg-gray-50 cursor-pointer transition-colors"
-                              onClick={() => removerFuncionario(funcionario.id)}
-                            >
-                              <div className="flex items-center justify-between">
-                                <div className="flex-1">
-                                  <div className="flex items-center gap-2">
-                                    <UserIcon className="h-4 w-4 text-gray-400" />
-                                    <span className="font-medium text-gray-900 text-sm">
-                                      {funcionario.nome}
-                                    </span>
+                      {funcionariosSelecionados.length === 0 ? (
+                        <div className="p-4 text-center text-gray-500 text-sm">
+                          Nenhum funcionário selecionado
+                        </div>
+                      ) : (
+                        funcionariosSelecionados.map((funcionario) => (
+                          <div
+                            key={funcionario.id}
+                            className="p-3 hover:bg-gray-50 cursor-pointer transition-colors"
+                            onClick={() => removerFuncionario(funcionario.id)}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                  <UserIcon className="h-4 w-4 text-gray-400" />
+                                  <span className="font-medium text-gray-900 text-sm">
+                                    {funcionario.nome}
+                                  </span>
+                                </div>
+                                <div className="mt-1 text-xs text-gray-500 space-y-1">
+                                  <div className="flex items-center gap-4">
+                                    <span>Mat: {funcionario.matricula}</span>
+                                    {funcionario.funcao && (
+                                      <span>Função: {funcionario.funcao}</span>
+                                    )}
                                   </div>
-                                  <div className="mt-1 text-xs text-gray-500 space-y-1">
-                                    <div className="flex items-center gap-4">
-                                      <span>Mat: {funcionario.matricula}</span>
-                                      {funcionario.funcao && (
-                                        <span>Função: {funcionario.funcao}</span>
-                                      )}
-                                    </div>
-                                    <div className="flex items-center gap-4">
-                                      {funcionario.centroCusto && (
-                                        <span>CC: {funcionario.centroCusto}</span>
-                                      )}
-                                      {funcionario.status && (
-                                        <span>Status: {funcionario.status}</span>
-                                      )}
-                                    </div>
+                                  <div className="flex items-center gap-4">
+                                    {funcionario.centroCusto && (
+                                      <span>CC: {funcionario.centroCusto}</span>
+                                    )}
+                                    {funcionario.status && (
+                                      <span>Status: {funcionario.status}</span>
+                                    )}
                                   </div>
                                 </div>
-                                <button className="ml-2 p-1 text-red-600 hover:text-red-800 hover:bg-red-100 rounded">
-                                  <ArrowLeftIcon className="h-4 w-4" />
-                                </button>
                               </div>
+                              <button className="ml-2 p-1 text-red-600 hover:text-red-800 hover:bg-red-100 rounded">
+                                <ArrowLeftIcon className="h-4 w-4" />
+                              </button>
                             </div>
-                          ))
-                        )
-                      }
+                          </div>
+                        ))
+                      )}
                     </div>
                   </div>
                 </div>
