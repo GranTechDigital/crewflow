@@ -1,4 +1,3 @@
-version: '3.8'
 services:
   app-dev:
     image: node:18-alpine

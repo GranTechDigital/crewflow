@@ -1,4 +1,3 @@
-version: '3.8'
 services:
   func-sync-worker:
     image: node:18-alpine

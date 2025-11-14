@@ -41,6 +41,7 @@ import {
   XMarkIcon,
   PlusIcon,
   EyeIcon,
+  EllipsisVerticalIcon,
 } from "@heroicons/react/24/outline";
 import ClipboardDocumentCheckIcon from "@heroicons/react/24/solid/ClipboardDocumentCheckIcon";
 
@@ -221,6 +222,19 @@ export default function TarefasPage() {
   const [abaAtiva, setAbaAtiva] = useState<"observacoes" | "dataLimite">(
     "observacoes"
   );
+
+  const [menuFuncionarioAtivo, setMenuFuncionarioAtivo] = useState<string | null>(null);
+  const [mostrarModalInconsistencia, setMostrarModalInconsistencia] = useState(false);
+  const [textoInconsistencia, setTextoInconsistencia] = useState("");
+  const [remanejamentoSelecionado, setRemanejamentoSelecionado] = useState<{
+    id: string;
+    nome: string;
+    matricula?: string;
+  } | null>(null);
+  const [salvandoInconsistencia, setSalvandoInconsistencia] = useState(false);
+  const [mostrarModalVerObs, setMostrarModalVerObs] = useState(false);
+  const [textoVerObs, setTextoVerObs] = useState("");
+  const [tituloVerObs, setTituloVerObs] = useState("");
 
   useEffect(() => {
     // Detectar o setor com base nos parâmetros da URL atual
@@ -1159,6 +1173,47 @@ export default function TarefasPage() {
     }
   };
 
+  const salvarInconsistencia = async () => {
+    if (!remanejamentoSelecionado || !textoInconsistencia.trim()) {
+      toast.error("Descreva a inconsistência");
+      return;
+    }
+    try {
+      setSalvandoInconsistencia(true);
+      const respGet = await fetch(`/api/logistica/funcionario/${remanejamentoSelecionado.id}`);
+      if (!respGet.ok) {
+        toast.error("Falha ao carregar dados do funcionário");
+        return;
+      }
+      const dados = await respGet.json();
+      const anterior: string = dados?.observacoesPrestserv || "";
+      const agora = new Date();
+      const stamp = agora.toLocaleString("pt-BR", { hour12: false });
+      const setor = usuario?.equipe || setorAtual || "SETOR";
+      const header = `[${stamp}] ${setor} - ${usuario?.nome || ""} (${usuario?.matricula || ""})`;
+      const entrada = `${header}\n${textoInconsistencia.trim()}`;
+      const novoTexto = anterior ? `${anterior}\n\n---\n${entrada}` : entrada;
+      const respPatch = await fetch(`/api/logistica/funcionario/${remanejamentoSelecionado.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ observacoesPrestserv: novoTexto })
+      });
+      if (!respPatch.ok) {
+        const err = await respPatch.json().catch(() => ({}));
+        toast.error(err?.error || "Falha ao salvar observação");
+        return;
+      }
+      toast.success("Inconsistência notificada");
+      setMostrarModalInconsistencia(false);
+      setRemanejamentoSelecionado(null);
+      setTextoInconsistencia("");
+    } catch (e) {
+      toast.error("Erro ao salvar observação");
+    } finally {
+      setSalvandoInconsistencia(false);
+    }
+  };
+
   const atualizarDataLimite = async () => {
     if (!tarefaSelecionada) return;
 
@@ -1757,6 +1812,12 @@ export default function TarefasPage() {
                   >
                     Contrato (De → Para)
                   </th>
+                  <th
+                    scope="col"
+                    className="px-6 py-3 text-right text-xs font-medium text-gray-600 uppercase tracking-wider"
+                  >
+                    Ações
+                  </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -1822,7 +1883,7 @@ export default function TarefasPage() {
                           }}
                         >
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center space-x-3">
+                            <div className="flex items-center space-x-3 relative">
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -1867,6 +1928,23 @@ export default function TarefasPage() {
                                         Novo
                                       </span>
                                     )
+                                  )}
+                                  {remanejamento?.observacoesPrestserv && (
+                                    <button
+                                      data-no-expand
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setTituloVerObs(`${funcionario.nome}${funcionario.matricula ? ` (${funcionario.matricula})` : ""}`);
+                                        setTextoVerObs(remanejamento.observacoesPrestserv || "");
+                                        setMostrarModalVerObs(true);
+                                      }}
+                                      className="inline-flex items-center gap-1 text-yellow-700 bg-yellow-50 border border-yellow-200 px-1.5 py-0.5 rounded hover:bg-yellow-100"
+                                      title="Inconsistência informada por setor"
+                                    >
+                                      <ExclamationTriangleIcon className="w-4 h-4" />
+                                      <span className="text-[10px] font-semibold">Atenção</span>
+                                    </button>
                                   )}
                                 </div>
                                 <div className="text-[11px] text-gray-500">
@@ -1917,12 +1995,48 @@ export default function TarefasPage() {
                               {solicitacao?.contratoDestino?.numero || "-"}
                             </span>
                           </td>
+                          {/* Ações */}
+                          <td className="px-6 py-4 whitespace-nowrap text-right relative" data-no-expand onMouseDown={(e)=>{e.preventDefault(); e.stopPropagation();}}>
+                            <button
+                              type="button"
+                              data-no-expand
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setMenuFuncionarioAtivo(prev => prev === chaveGrupo ? null : chaveGrupo);
+                              }}
+                              onMouseDown={(e)=>{e.preventDefault(); e.stopPropagation();}}
+                              className="inline-flex p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-gray-700"
+                              title="Mais ações"
+                            >
+                              <EllipsisVerticalIcon className="h-5 w-5" />
+                            </button>
+                            {menuFuncionarioAtivo === chaveGrupo && (
+                              <div className="absolute right-6 mt-2 z-20 bg-white border border-gray-200 rounded shadow-md w-56" data-no-expand>
+                                <button
+                                  type="button"
+                                  className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setMenuFuncionarioAtivo(null);
+                                    setRemanejamentoSelecionado({ id: remanejamento.id, nome: funcionario.nome, matricula: (funcionario as any).matricula });
+                                    setTextoInconsistencia("");
+                                    setMostrarModalInconsistencia(true);
+                                  }}
+                                  onMouseDown={(e)=>{e.preventDefault(); e.stopPropagation();}}
+                                >
+                                  Notificar Inconsistência
+                                </button>
+                              </div>
+                            )}
+                          </td>
                         </tr>
 
                         {/* Detalhes expandidos das tarefas */}
                         {expandido && (
                           <tr>
-                            <td colSpan={5} className="px-0 py-0">
+                            <td colSpan={6} className="px-0 py-0">
                               <div className="bg-gray-50 border-t border-gray-200">
                                 <div className="px-6 py-4">
                                   <div className="mb-3">
@@ -2687,6 +2801,93 @@ export default function TarefasPage() {
     );
   };
 
+  const ModalInconsistencia = () => {
+    if (!mostrarModalInconsistencia || !remanejamentoSelecionado) return null;
+    return (
+      <div
+        className="fixed inset-0 z-30 flex items-center justify-center bg-black/40"
+        onClick={() => setMostrarModalInconsistencia(false)}
+        onMouseDownCapture={(e) => e.stopPropagation()}
+      >
+        <div
+          className="bg-white rounded-lg shadow-lg w-full max-w-md p-4"
+          onClick={(e) => e.stopPropagation()}
+          onMouseDownCapture={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-semibold text-gray-800">Notificar Inconsistência</h3>
+            <button className="text-gray-500 hover:text-gray-700" onClick={() => setMostrarModalInconsistencia(false)}>
+              <XMarkIcon className="h-5 w-5" />
+            </button>
+          </div>
+          <div className="text-xs text-gray-600 mb-3">
+            {remanejamentoSelecionado.nome}
+            {remanejamentoSelecionado.matricula ? ` (${remanejamentoSelecionado.matricula})` : ""}
+          </div>
+          <textarea
+            value={textoInconsistencia}
+            onChange={(e) => setTextoInconsistencia(e.target.value)}
+            className="w-full border border-gray-300 rounded p-2 text-sm h-28"
+            placeholder="Descreva a inconsistência de forma objetiva"
+            autoFocus
+            onBlur={(e) => {
+              if (mostrarModalInconsistencia) {
+                e.preventDefault();
+                e.currentTarget.focus();
+              }
+            }}
+            onKeyDownCapture={(e) => e.stopPropagation()}
+            onInputCapture={(e) => e.stopPropagation()}
+          />
+          <div className="mt-3 flex justify-end gap-2">
+            <button
+              onClick={() => setMostrarModalInconsistencia(false)}
+              className="px-3 py-1.5 text-xs rounded border border-gray-300 text-gray-700 hover:bg-gray-50"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={salvarInconsistencia}
+              disabled={salvandoInconsistencia}
+              className="px-3 py-1.5 text-xs rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {salvandoInconsistencia ? "Salvando..." : "Salvar"}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const ModalVerObservacoes = () => {
+    if (!mostrarModalVerObs) return null;
+    return (
+      <div
+        className="fixed inset-0 z-30 flex items-center justify-center bg-black/40"
+        onClick={() => setMostrarModalVerObs(false)}
+        onMouseDownCapture={(e) => e.stopPropagation()}
+      >
+        <div
+          className="bg-white rounded-lg shadow-lg w-full max-w-2xl p-4"
+          onClick={(e) => e.stopPropagation()}
+          onMouseDownCapture={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-semibold text-gray-800">Observações de Inconsistência</h3>
+            <button className="text-gray-500 hover:text-gray-700" onClick={() => setMostrarModalVerObs(false)}>
+              <XMarkIcon className="h-5 w-5" />
+            </button>
+          </div>
+          <div className="text-xs text-gray-600 mb-3">{tituloVerObs}</div>
+          <pre className="whitespace-pre-wrap text-xs text-gray-800 max-h-[60vh] overflow-auto border border-gray-200 rounded p-3 bg-gray-50">{textoVerObs}</pre>
+          <div className="mt-3 flex justify-end">
+            <button onClick={() => setMostrarModalVerObs(false)} className="px-3 py-1.5 text-xs rounded border border-gray-300 text-gray-700 hover:bg-gray-50">Fechar</button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // Modal para criar nova tarefa
   const NovaTarefaModal = () => {
     if (!mostrarFormTarefa) return null;
@@ -3054,7 +3255,7 @@ export default function TarefasPage() {
 
   // Render do componente principal
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto px-4 py-8" style={{ overflowAnchor: 'none' as any }}>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-slate-600">
           {getTituloPagina()}
@@ -3499,6 +3700,8 @@ export default function TarefasPage() {
           </div>
         </div>
       )}
+      <ModalVerObservacoes />
+      <ModalInconsistencia />
     </div>
   );
 }

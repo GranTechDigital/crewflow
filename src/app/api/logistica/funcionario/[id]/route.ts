@@ -415,14 +415,15 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params;
-    const body = await request.json();
-    const {
+  const body = await request.json();
+  const {
       statusPrestserv,
       statusFuncionario,
       statusTarefas,
       emMigracao,
       contratoId,
       sispat,
+      observacoesPrestserv,
     } = body;
 
     // Permitir atualizar statusTarefas, statusPrestserv, statusFuncionario, emMigracao, contratoId ou sispat
@@ -432,7 +433,8 @@ export async function PATCH(
       !statusTarefas &&
       emMigracao === undefined &&
       contratoId === undefined &&
-      !sispat
+      !sispat &&
+      !observacoesPrestserv
     ) {
       return NextResponse.json(
         {
@@ -499,6 +501,7 @@ export async function PATCH(
     if (statusPrestserv) updateData.statusPrestserv = statusPrestserv;
     if (statusFuncionario) updateData.statusFuncionario = statusFuncionario;
     if (statusTarefas) updateData.statusTarefas = statusTarefas;
+    if (observacoesPrestserv) updateData.observacoesPrestserv = observacoesPrestserv;
 
     // Adicionar datas automaticamente conforme o statusPrestserv
     if (statusPrestserv) {
