@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { read, utils, writeFile } from "xlsx";
+import ExcelJS from "exceljs";
 import { toast } from "react-hot-toast";
 import { useAuth } from "@/app/hooks/useAuth";
 import {
@@ -594,50 +594,20 @@ export default function TarefasPage() {
   const exportarParaExcel = async () => {
     const tarefasFiltradas = getTarefasFiltradas();
 
-    // Buscar última observação em lote para todas as tarefas filtradas (com chunking para evitar URL longa)
+    // Buscar últimas observações em um único request (POST)
     const ids = Array.from(new Set((tarefasFiltradas || []).map((t) => t.id)));
-    let ultimaObsMap: Record<string, { texto?: string; criadoEm?: string; criadoPor?: string }> = {};
+    let ultimaObsMap: Record<string, { texto?: string; criadoEm?: string; criadoPor?: string; modificadoEm?: string; modificadoPor?: string }> = {};
     try {
       if (ids.length > 0) {
-        const chunkSize = 100;
-        for (let i = 0; i < ids.length; i += chunkSize) {
-          const chunk = ids.slice(i, i + chunkSize);
-          const qs = encodeURIComponent(chunk.join(","));
-          const resp = await fetch(`/api/logistica/tarefas/observacoes/ultima?ids=${qs}`);
-          if (resp.ok) {
-            const partial = await resp.json();
-            ultimaObsMap = { ...ultimaObsMap, ...partial };
-          } else {
-            console.warn("Falha ao obter última observação (status):", resp.status);
-          }
-        }
-        console.log("[exportacao] totalIds:", ids.length, "mapKeys:", Object.keys(ultimaObsMap).length);
-
-        // Fallback: para IDs sem retorno no lote, buscar via endpoint do modal
-        const missingIds = ids.filter((id) => !ultimaObsMap[id]);
-        if (missingIds.length > 0) {
-          console.log("[exportacao] missingIds:", missingIds.length);
-          for (const id of missingIds) {
-            try {
-              const respInd = await fetch(`/api/logistica/tarefas/${id}/observacoes`);
-              if (respInd.ok) {
-                const obsArr: Array<{ texto?: string; criadoEm?: string; criadoPor?: string }> = await respInd.json();
-                if (Array.isArray(obsArr) && obsArr.length > 0) {
-                  const ultima = obsArr[0]; // Já vem ordenado por dataCriacao desc
-                  ultimaObsMap[id] = {
-                    texto: ultima?.texto,
-                    criadoEm: ultima?.criadoEm,
-                    criadoPor: ultima?.criadoPor,
-                  };
-                }
-              } else {
-                console.warn("Falha ao obter observação individual (status):", respInd.status);
-              }
-            } catch (e) {
-              console.warn("Erro ao obter observação individual:", e);
-            }
-          }
-          console.log("[exportacao] mapKeys pós-fallback:", Object.keys(ultimaObsMap).length);
+        const resp = await fetch(`/api/logistica/tarefas/observacoes/ultima`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ids }),
+        });
+        if (resp.ok) {
+          ultimaObsMap = await resp.json();
+        } else {
+          console.warn("Falha ao obter última observação (status):", resp.status);
         }
       }
     } catch (err) {
@@ -661,10 +631,59 @@ export default function TarefasPage() {
       "Última Observação": ultimaObsMap[tarefa.id]?.texto || "N/A",
     }));
 
-    const wb = utils.book_new();
-    const ws = utils.json_to_sheet(dadosExcel);
-    utils.book_append_sheet(wb, ws, "Tarefas");
-    writeFile(wb, "Tarefas_Exportadas.xlsx");
+    // Gerar Excel com exceljs e auto largura de colunas
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("Tarefas");
+
+    const headers = [
+      "ID",
+      "Tipo",
+      "Descrição",
+      "Status",
+      "Prioridade",
+      "Data Limite",
+      "Data Criação",
+      "Funcionário",
+      "Matrícula",
+      "Função",
+      "Setor Responsável",
+      "Última Observação",
+    ];
+
+    ws.addRow(headers);
+    dadosExcel.forEach((row) => {
+      ws.addRow(headers.map((h) => String((row as any)[h] ?? "")));
+    });
+
+    // Estilo simples do header
+    const headerRow = ws.getRow(1);
+    headerRow.font = { bold: true };
+    headerRow.alignment = { vertical: "middle", horizontal: "left" } as any;
+
+    // Auto largura baseado no maior conteúdo de cada coluna
+    for (let colIndex = 1; colIndex <= headers.length; colIndex++) {
+      let maxLen = String(headers[colIndex - 1] || "").length;
+      ws.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+        const cell = row.getCell(colIndex);
+        const v = cell.value as string | number | boolean | Date | null | undefined;
+        const text = v instanceof Date ? v.toLocaleDateString("pt-BR") : String(v ?? "");
+        if (text.length > maxLen) maxLen = text.length;
+      });
+      ws.getColumn(colIndex).width = Math.min(60, maxLen + 2);
+    }
+
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "Tarefas_Exportadas.xlsx";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
 
     toast.success("Tarefas exportadas com sucesso!");
   };
