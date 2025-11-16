@@ -594,13 +594,14 @@ export default function TarefasPage() {
     const remanejamentosFiltrados = getRemanejamentosFiltrados();
 
     // Extrair todas as tarefas dos remanejamentos filtrados
-    const todasTarefas: (TarefaRemanejamento & { funcionario?: any })[] = [];
+    const todasTarefas: (TarefaRemanejamento & { funcionario?: any; statusPrestserv?: string })[] = [];
     remanejamentosFiltrados.forEach((remanejamento) => {
       if (remanejamento.tarefas) {
         // Add funcionario data to each tarefa
         const tarefasComFuncionario = remanejamento.tarefas.map((tarefa) => ({
           ...tarefa,
           funcionario: remanejamento.funcionario,
+          statusPrestserv: (remanejamento as any)?.statusPrestserv,
         }));
         todasTarefas.push(...tarefasComFuncionario);
       }
@@ -645,6 +646,7 @@ export default function TarefasPage() {
       Funcionário: tarefa.funcionario?.nome || "N/A",
       Matrícula: tarefa.funcionario?.matricula || "N/A",
       Função: tarefa.funcionario?.funcao || "N/A",
+      "Status Prestserv": tarefa.statusPrestserv || "N/A",
       "Setor Responsável": tarefa.responsavel,
       "Última Observação": ultimaObsMap[tarefa.id]?.texto || "N/A",
     }));
@@ -664,30 +666,35 @@ export default function TarefasPage() {
       "Funcionário",
       "Matrícula",
       "Função",
+      "Status Prestserv",
       "Setor Responsável",
       "Última Observação",
     ];
 
-    ws.addRow(headers);
-    dadosExcel.forEach((row) => {
-      ws.addRow(headers.map((h) => String((row as any)[h] ?? "")));
+    ws.addTable({
+      name: "TabelaTarefas",
+      ref: "A1",
+      headerRow: true,
+      columns: headers.map((h) => ({ name: h, filterButton: true })),
+      rows: dadosExcel.map((row) => headers.map((h) => String((row as any)[h] ?? ""))),
+      style: { theme: "TableStyleMedium9", showRowStripes: true, showColumnStripes: false },
     });
 
-    // Estilo simples do header
     const headerRow = ws.getRow(1);
-    headerRow.font = { bold: true };
+    headerRow.font = { bold: true, color: { argb: "FFFFFFFF" } } as any;
     headerRow.alignment = { vertical: "middle", horizontal: "left" } as any;
+    headerRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1F2937" } } as any;
 
     // Auto largura baseado no maior conteúdo de cada coluna
     for (let colIndex = 1; colIndex <= headers.length; colIndex++) {
       let maxLen = String(headers[colIndex - 1] || "").length;
-      ws.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+      ws.eachRow({ includeEmpty: false }, (row) => {
         const cell = row.getCell(colIndex);
         const v = cell.value as string | number | boolean | Date | null | undefined;
         const text = v instanceof Date ? v.toLocaleDateString("pt-BR") : String(v ?? "");
         if (text.length > maxLen) maxLen = text.length;
       });
-      ws.getColumn(colIndex).width = Math.min(60, maxLen + 2);
+      ws.getColumn(colIndex).width = Math.max(10, maxLen + 2);
     }
 
     const buffer = await wb.xlsx.writeBuffer();
