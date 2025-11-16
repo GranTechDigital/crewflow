@@ -41,6 +41,7 @@ import {
 } from "chart.js";
 import { Bar, Doughnut, Line } from "react-chartjs-2";
 import ChartDataLabels from "chartjs-plugin-datalabels";
+import ExcelJS from "exceljs";
 
 ChartJS.register(
   CategoryScale,
@@ -1424,13 +1425,52 @@ function FuncionariosPageContent() {
       };
     });
 
-    const XLSX = await import("xlsx");
-    const ws = XLSX.utils.json_to_sheet(dadosParaExportar);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Funcionários");
-
-    const excelBuffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-    const data = new Blob([excelBuffer], {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("Funcionários");
+    const headers = Object.keys(dadosParaExportar[0] || {});
+    ws.addTable({
+      name: "TabelaFuncionarios",
+      ref: "A1",
+      headerRow: true,
+      columns: headers.map((h) => ({ name: h, filterButton: true })),
+      rows: dadosParaExportar.map((row) =>
+        headers.map((h) => String((row as any)[h] ?? ""))
+      ),
+      style: {
+        theme: "TableStyleMedium9",
+        showRowStripes: true,
+        showColumnStripes: false,
+      },
+    });
+    for (let i = 1; i <= headers.length; i++) {
+      const cell = ws.getRow(1).getCell(i);
+      (cell as any).font = { bold: true, color: { argb: "FFFFFFFF" } };
+      (cell as any).alignment = { vertical: "middle", horizontal: "left" };
+      (cell as any).fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FF1F2937" },
+      };
+    }
+    for (let colIndex = 1; colIndex <= headers.length; colIndex++) {
+      let maxLen = String(headers[colIndex - 1] || "").length;
+      ws.eachRow({ includeEmpty: false }, (row) => {
+        const cell = row.getCell(colIndex);
+        const v = cell.value as
+          | string
+          | number
+          | boolean
+          | Date
+          | null
+          | undefined;
+        const text =
+          v instanceof Date ? v.toLocaleDateString("pt-BR") : String(v ?? "");
+        if (text.length > maxLen) maxLen = text.length;
+      });
+      ws.getColumn(colIndex).width = Math.max(10, maxLen + 2);
+    }
+    const buffer = await wb.xlsx.writeBuffer();
+    const data = new Blob([buffer], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     });
     const url = window.URL.createObjectURL(data);
