@@ -864,14 +864,36 @@ export default function TarefasPage() {
 
   // Estado para data de vencimento no modal de conclusão
   const [dataVencimento, setDataVencimento] = useState("");
+  const [isTreinamentoVitalicio, setIsTreinamentoVitalicio] = useState(false);
   const [erroDataVencimento, setErroDataVencimento] = useState<string>("");
 
   // Funções para o modal de conclusão de tarefa
   const abrirModalConcluir = (tarefa: TarefaRemanejamento) => {
     setTarefaSelecionada(tarefa);
-    setDataVencimento(""); // Resetar a data de vencimento
+    setDataVencimento("");
     setErroDataVencimento("");
-    setMostrarModalConcluir(true);
+    if (tarefa.responsavel === "TREINAMENTO") {
+      (async () => {
+        try {
+          const resp = await fetch(`/api/treinamentos?search=${encodeURIComponent(tarefa.tipo)}&limit=1`);
+          if (resp.ok) {
+            const js = await resp.json();
+            const arr = js?.data || [];
+            const item = Array.isArray(arr) ? arr.find((t: any) => (t?.treinamento || "") === tarefa.tipo) || arr[0] : null;
+            const unidade = (item?.validadeUnidade || "").toLowerCase();
+            setIsTreinamentoVitalicio(unidade === "unico" || unidade === "unicos");
+          } else {
+            setIsTreinamentoVitalicio(false);
+          }
+        } catch {
+          setIsTreinamentoVitalicio(false);
+        }
+        setMostrarModalConcluir(true);
+      })();
+    } else {
+      setIsTreinamentoVitalicio(false);
+      setMostrarModalConcluir(true);
+    }
   };
 
   const fecharModalConcluir = () => {
@@ -885,8 +907,8 @@ export default function TarefasPage() {
     if (!tarefaSelecionada) return;
 
     try {
-      // Validação local da data de vencimento (apenas se não for responsabilidade do RH)
-      if (tarefaSelecionada.responsavel !== "RH") {
+      // Validação local da data de vencimento (apenas se não for RH e não for Treinamento vitalício)
+      if (tarefaSelecionada.responsavel !== "RH" && !isTreinamentoVitalicio) {
         if (!dataVencimento) {
           setErroDataVencimento("Informe a data de vencimento.");
           return;
@@ -914,7 +936,7 @@ export default function TarefasPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             dataVencimento:
-              tarefaSelecionada.responsavel !== "RH"
+              tarefaSelecionada.responsavel !== "RH" && !isTreinamentoVitalicio
                 ? dataVencimento || null
                 : null,
           }),
@@ -3325,8 +3347,8 @@ export default function TarefasPage() {
                 </p>
               </div>
 
-              {/* Campo de Data de Vencimento - Oculto para RH */}
-              {tarefaSelecionada.responsavel !== "RH" && (
+              {/* Campo de Data de Vencimento - Oculto para RH e Treinamento vitalício */}
+              {tarefaSelecionada.responsavel !== "RH" && !isTreinamentoVitalicio && (
                 <div className="mt-4">
                   <label
                     htmlFor="dataVencimento"

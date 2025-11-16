@@ -44,16 +44,31 @@ export async function PUT(
       );
     }
 
-    // Regra de negócio: data de vencimento obrigatória exceto para RH
-    if (tarefaAtual.responsavel !== "RH" && !dataVencimento) {
+    // Verificar exceção para Treinamento vitalício (validadeUnidade = "unico")
+    let isTreinamentoVitalicio = false;
+    if (tarefaAtual.responsavel === "TREINAMENTO") {
+      try {
+        const treinamento = await prisma.treinamentos.findFirst({
+          where: { treinamento: tarefaAtual.tipo },
+          select: { validadeUnidade: true },
+        });
+        const unidade = (treinamento?.validadeUnidade || "").toLowerCase();
+        isTreinamentoVitalicio = unidade === "unico" || unidade === "unicos";
+      } catch (e) {
+        console.warn("Falha ao verificar validade do treinamento:", e);
+      }
+    }
+
+    // Regra de negócio: data de vencimento obrigatória exceto para RH e Treinamento vitalício
+    if (tarefaAtual.responsavel !== "RH" && !isTreinamentoVitalicio && !dataVencimento) {
       return NextResponse.json(
-        { error: "Data de vencimento é obrigatória para concluir a tarefa (exceto RH)." },
+        { error: "Data de vencimento é obrigatória para concluir a tarefa (exceto RH e treinamentos vitalícios)." },
         { status: 400 }
       );
     }
 
-    // Regra D+30: data de vencimento deve ser >= hoje + 30 dias (exceto RH)
-    if (tarefaAtual.responsavel !== "RH" && dataVencimento) {
+    // Regra D+30: data de vencimento deve ser >= hoje + 30 dias (exceto RH e treinamentos vitalícios)
+    if (tarefaAtual.responsavel !== "RH" && !isTreinamentoVitalicio && dataVencimento) {
       const parseYYYYMMDDToUTC = (s: string) => {
         const [y, m, d] = s.split("-").map(Number);
         return Date.UTC(y, m - 1, d);
