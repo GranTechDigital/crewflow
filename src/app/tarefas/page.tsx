@@ -424,6 +424,10 @@ export default function TarefasPage() {
                 matchStatus =
                   tarefa.status === "CONCLUIDO" ||
                   tarefa.status === "CONCLUIDA";
+              } else if (filtroStatus === "PENDENTE") {
+                matchStatus =
+                  tarefa.status === "PENDENTE" ||
+                  tarefa.status === "EM_ANDAMENTO";
               } else if (filtroStatus) {
                 matchStatus = tarefa.status === filtroStatus;
               }
@@ -769,11 +773,10 @@ export default function TarefasPage() {
             }
             // Função para obter prioridade do status
             const getStatusPriority = (status: string) => {
-              if (status === "REPROVADO") return 0; // Maior prioridade
-              if (status === "EM_ANDAMENTO") return 1;
-              if (status === "PENDENTE") return 2;
-              if (status === "CONCLUIDA" || status === "CONCLUIDO") return 3; // Menor prioridade
-              return 4; // Outros status
+              if (status === "REPROVADO") return 0;
+              if (status === "PENDENTE" || status === "EM_ANDAMENTO") return 1;
+              if (status === "CONCLUIDA" || status === "CONCLUIDO") return 2;
+              return 3;
             };
 
             const priorityA = getStatusPriority(a.status);
@@ -814,40 +817,23 @@ export default function TarefasPage() {
       const isConcluido_B =
         tarefasConcluidas_B === totalTarefas_B && totalTarefas_B > 0;
 
-      // Calcular se está em andamento (algumas tarefas concluídas, mas não todas)
-      const isEmAndamento_A =
-        tarefasConcluidas_A > 0 &&
-        tarefasConcluidas_A < totalTarefas_A &&
-        !hasReprovado_A;
-      const isEmAndamento_B =
-        tarefasConcluidas_B > 0 &&
-        tarefasConcluidas_B < totalTarefas_B &&
-        !hasReprovado_B;
-
       // Calcular se está pendente (nenhuma tarefa concluída e não tem reprovadas)
       const isPendente_A = tarefasConcluidas_A === 0 && !hasReprovado_A;
       const isPendente_B = tarefasConcluidas_B === 0 && !hasReprovado_B;
 
       // Prioridade de ordenação:
       // 1. Reprovado (tem pelo menos uma tarefa reprovada)
-      // 2. Em andamento (algumas tarefas concluídas, mas não todas, sem reprovadas)
-      // 3. Pendente (nenhuma tarefa concluída e não tem reprovadas)
-      // 4. Concluído (todas as tarefas concluídas)
+      // 2. Pendente (nenhuma tarefa concluída e não tem reprovadas)
+      // 3. Concluído (todas as tarefas concluídas)
 
       if (hasReprovado_A && !hasReprovado_B) return -1;
       if (!hasReprovado_A && hasReprovado_B) return 1;
 
       if (!hasReprovado_A && !hasReprovado_B) {
-        if (isEmAndamento_A && !isEmAndamento_B) return -1;
-        if (!isEmAndamento_A && isEmAndamento_B) return 1;
-
-        if (!isEmAndamento_A && !isEmAndamento_B) {
-          if (isPendente_A && !isPendente_B) return -1;
-          if (!isPendente_A && isPendente_B) return 1;
-
-          if (isConcluido_A && !isConcluido_B) return 1;
-          if (!isConcluido_A && isConcluido_B) return -1;
-        }
+        if (isPendente_A && !isPendente_B) return -1;
+        if (!isPendente_A && isPendente_B) return 1;
+        if (isConcluido_A && !isConcluido_B) return 1;
+        if (!isConcluido_A && isConcluido_B) return -1;
       }
 
       // Se mesmo status, ordenar por nome
@@ -1704,14 +1690,9 @@ export default function TarefasPage() {
     ).length;
     const totalTarefas = tarefas.length;
 
-    // Se todas concluídas
     if (tarefasConcluidas === totalTarefas) return "CONCLUIDO";
-
-    // Se nenhuma concluída
     if (tarefasConcluidas === 0) return "PENDENTE";
-
-    // Se algumas concluídas (em andamento)
-    return "EM_ANDAMENTO";
+    return "PENDENTE";
   };
 
   // Função para obter classes de borda baseadas no status
@@ -1719,8 +1700,6 @@ export default function TarefasPage() {
     switch (status) {
       case "REPROVADO":
         return "border-l-4 border-l-red-500 bg-red-50/20";
-      case "EM_ANDAMENTO":
-        return "border-l-4 border-l-blue-500 bg-blue-50/20";
       case "CONCLUIDO":
         return "border-l-4 border-l-green-500 bg-green-50/20";
       case "PENDENTE":
@@ -1806,6 +1785,14 @@ export default function TarefasPage() {
                   >
                     Progresso
                   </th>
+                  {(!setorAtual) && (
+                    <th
+                      scope="col"
+                      className="px-6 py-3 text-center text-xs font-medium text-gray-600 uppercase tracking-wider"
+                    >
+                      Setores
+                    </th>
+                  )}
                   <th
                     scope="col"
                     className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider"
@@ -1973,20 +1960,102 @@ export default function TarefasPage() {
                             </div>
                           </td>
 
-                          {/* Barra de Progresso */}
                           <td className="px-6 py-4 whitespace-nowrap text-center">
-                            <div className="flex items-center justify-center space-x-2">
-                              <div className="w-16 bg-gray-200 rounded-full h-2">
-                                <div
-                                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                                  style={{ width: `${progresso}%` }}
-                                ></div>
+                            <div className="flex items-center justify-center">
+                              <div className="w-14 h-14">
+                                {(() => {
+                                  const centerText = {
+                                    id: `center-text-${chaveGrupo}`,
+                                    afterDraw: (chart: any) => {
+                                      const { ctx, chartArea } = chart;
+                                      if (!chartArea) return;
+                                      const x = (chartArea.left + chartArea.right) / 2;
+                                      const y = (chartArea.top + chartArea.bottom) / 2;
+                                      const size = Math.min(chart.width, chart.height);
+                                      const fontSize = Math.max(9, Math.floor(size / 3.8));
+                                      ctx.save();
+                                      ctx.font = `600 ${fontSize}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto`;
+                                      ctx.fillStyle = "#374151";
+                                      ctx.textAlign = "center";
+                                      ctx.textBaseline = "middle";
+                                      ctx.fillText(`${progresso}%`, x, y);
+                                      ctx.restore();
+                                    },
+                                  };
+                                  return (
+                                    <Doughnut
+                                      data={{
+                                        labels: ["Pendentes", "Concluídas"],
+                                        datasets: [
+                                          {
+                                            data: [
+                                              Math.max(tarefas.length - tarefasConcluidas.length, 0),
+                                              tarefasConcluidas.length,
+                                            ],
+                                            backgroundColor: ["#f59e0b", "#10b981"],
+                                            borderWidth: 0,
+                                          },
+                                        ],
+                                      }}
+                                      options={{
+                                        cutout: "65%",
+                                        plugins: { legend: { display: false }, tooltip: { enabled: true }, datalabels: { display: false } },
+                                        maintainAspectRatio: false,
+                                      }}
+                                      plugins={[centerText as any]}
+                                    />
+                                  );
+                                })()}
                               </div>
-                              <span className="text-xs font-medium text-gray-700">
-                                {progresso}%
-                              </span>
                             </div>
                           </td>
+
+                          {!setorAtual && (
+                            <td className="px-6 py-4 whitespace-nowrap text-center">
+                              {(() => {
+                                  const setores = ["RH", "MEDICINA", "TREINAMENTO"] as const;
+                                  const bySetor = setores.map((s) => {
+                                    const ts = tarefas.filter((t) => t.responsavel === s);
+                                    const concl = ts.filter((t) => t.status === "CONCLUIDO" || t.status === "CONCLUIDA").length;
+                                    return ts.length > 0 && concl === ts.length;
+                                  });
+                                  const completos = bySetor.filter(Boolean).length;
+                                  return (
+                                    <div className="flex items-center justify-center gap-3">
+                                      <div className="w-14 h-14">
+                                        <Doughnut
+                                          data={{
+                                            labels: ["Concluídos", "Restantes"],
+                                            datasets: [
+                                              {
+                                                data: [completos, 3 - completos],
+                                                backgroundColor: ["#22c55e", "#e5e7eb"],
+                                                borderWidth: 0,
+                                              },
+                                            ],
+                                          }}
+                                          options={{
+                                            cutout: "65%",
+                                            plugins: { legend: { display: false }, tooltip: { enabled: false }, datalabels: { display: false } },
+                                            maintainAspectRatio: false,
+                                          }}
+                                        />
+                                      </div>
+                                      <div className="flex gap-1">
+                                        {setores.map((s, idx) => (
+                                          <span
+                                            key={s}
+                                            className={`px-1.5 py-0.5 text-[10px] rounded-full border ${bySetor[idx] ? "bg-green-100 text-green-700 border-green-200" : "bg-gray-100 text-gray-500 border-gray-200"}`}
+                                          >
+                                            {s === "RH" ? "RH" : s === "MEDICINA" ? "MED" : "TREI"}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  );
+                              })()}
+                            </td>
+                          )}
 
                           {/* Contrato (De → Para) */}
                           <td className="px-6 py-4 whitespace-nowrap">
@@ -2036,7 +2105,7 @@ export default function TarefasPage() {
                         {/* Detalhes expandidos das tarefas */}
                         {expandido && (
                           <tr>
-                            <td colSpan={6} className="px-0 py-0">
+                            <td colSpan={setorAtual ? 6 : 7} className="px-0 py-0">
                               <div className="bg-gray-50 border-t border-gray-200">
                                 <div className="px-6 py-4">
                                   <div className="mb-3">
@@ -2123,18 +2192,10 @@ export default function TarefasPage() {
                                             const getStatusPriority = (
                                               status: string
                                             ) => {
-                                              if (status === "REPROVADO")
-                                                return 0; // Maior prioridade
-                                              if (status === "EM_ANDAMENTO")
-                                                return 1;
-                                              if (status === "PENDENTE")
-                                                return 2;
-                                              if (
-                                                status === "CONCLUIDA" ||
-                                                status === "CONCLUIDO"
-                                              )
-                                                return 3; // Menor prioridade
-                                              return 4; // Outros status
+                                              if (status === "REPROVADO") return 0;
+                                              if (status === "PENDENTE" || status === "EM_ANDAMENTO") return 1;
+                                              if (status === "CONCLUIDA" || status === "CONCLUIDO") return 2;
+                                              return 3;
                                             };
 
                                             const priorityA = getStatusPriority(
@@ -2150,7 +2211,7 @@ export default function TarefasPage() {
                                             // Classes de status
                                             let statusClasses =
                                               "px-2 py-1 text-xs rounded-full";
-                                            if (tarefa.status === "PENDENTE")
+                                            if (tarefa.status === "PENDENTE" || tarefa.status === "EM_ANDAMENTO")
                                               statusClasses +=
                                                 " bg-yellow-100 text-yellow-800";
                                             else if (
@@ -2164,11 +2225,6 @@ export default function TarefasPage() {
                                             )
                                               statusClasses +=
                                                 " bg-red-100 text-red-800";
-                                            else if (
-                                              tarefa.status === "EM_ANDAMENTO"
-                                            )
-                                              statusClasses +=
-                                                " bg-blue-100 text-blue-800";
                                             else
                                               statusClasses +=
                                                 " bg-slate-100 text-slate-800";
@@ -2239,17 +2295,13 @@ export default function TarefasPage() {
                                                   {tarefa.descricao}
                                                 </td>
                                                 <td className="px-4 py-3 text-xs whitespace-nowrap">
-                                                  <span
-                                                    className={statusClasses}
-                                                  >
-                                                    {tarefa.status ===
-                                                    "PENDENTE"
+                                                  <span className={statusClasses}>
+                                                    {tarefa.status === "PENDENTE" || tarefa.status === "EM_ANDAMENTO"
                                                       ? "Pendente"
-                                                      : tarefa.status ===
-                                                          "CONCLUIDA" ||
-                                                        tarefa.status ===
-                                                          "CONCLUIDO"
+                                                      : tarefa.status === "CONCLUIDA" || tarefa.status === "CONCLUIDO"
                                                       ? "Concluída"
+                                                      : tarefa.status === "REPROVADO"
+                                                      ? "Reprovado"
                                                       : tarefa.status}
                                                   </span>
                                                 </td>
@@ -2498,10 +2550,8 @@ export default function TarefasPage() {
         const status =
           tarefa.status === "CONCLUIDO" || tarefa.status === "CONCLUIDA"
             ? "CONCLUIDA"
-            : tarefa.status === "PENDENTE"
+            : tarefa.status === "PENDENTE" || tarefa.status === "EM_ANDAMENTO"
             ? "PENDENTE"
-            : tarefa.status === "EM_ANDAMENTO"
-            ? "EM_ANDAMENTO"
             : "OUTROS";
         acc[status] = (acc[status] || 0) + 1;
         return acc;
@@ -2509,7 +2559,6 @@ export default function TarefasPage() {
 
       return {
         pendentes: stats.PENDENTE || 0,
-        emAndamento: stats.EM_ANDAMENTO || 0,
         concluidas: stats.CONCLUIDA || 0,
         outros: stats.OUTROS || 0,
       };
@@ -2584,182 +2633,103 @@ export default function TarefasPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Distribuição por Status */}
           <div className="bg-white p-6 rounded-lg shadow-lg">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">
-              Distribuição por Status
-            </h3>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-600">Pendentes</span>
-                <div className="flex items-center space-x-2">
-                  <div className="w-32 bg-gray-200 rounded-full h-2">
-                    <div
-                      className="bg-yellow-500 h-2 rounded-full"
-                      style={{
-                        width: `${
-                          tarefasFiltradas.length > 0
-                            ? (statsStatus.pendentes /
-                                tarefasFiltradas.length) *
-                              100
-                            : 0
-                        }%`,
-                      }}
-                    ></div>
-                  </div>
-                  <span className="text-xs font-medium text-gray-800">
-                    {statsStatus.pendentes}
-                  </span>
-                </div>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-600">Em Andamento</span>
-                <div className="flex items-center space-x-2">
-                  <div className="w-32 bg-gray-200 rounded-full h-2">
-                    <div
-                      className="bg-purple-500 h-2 rounded-full"
-                      style={{
-                        width: `${
-                          tarefasFiltradas.length > 0
-                            ? (statsStatus.emAndamento /
-                                tarefasFiltradas.length) *
-                              100
-                            : 0
-                        }%`,
-                      }}
-                    ></div>
-                  </div>
-                  <span className="text-xs font-medium text-gray-800">
-                    {statsStatus.emAndamento}
-                  </span>
-                </div>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-600">Concluídas</span>
-                <div className="flex items-center space-x-2">
-                  <div className="w-32 bg-gray-200 rounded-full h-2">
-                    <div
-                      className="bg-green-500 h-2 rounded-full"
-                      style={{
-                        width: `${
-                          tarefasFiltradas.length > 0
-                            ? (statsStatus.concluidas /
-                                tarefasFiltradas.length) *
-                              100
-                            : 0
-                        }%`,
-                      }}
-                    ></div>
-                  </div>
-                  <span className="text-xs font-medium text-gray-800">
-                    {statsStatus.concluidas}
-                  </span>
-                </div>
-              </div>
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">Distribuição por Status</h3>
+            <div className="h-64">
+              <Doughnut
+                data={{
+                  labels: ["Pendentes", "Concluídas"],
+                  datasets: [
+                    {
+                      data: [statsStatus.pendentes, statsStatus.concluidas],
+                      backgroundColor: ["#f59e0b", "#10b981"],
+                      borderWidth: 0,
+                    },
+                  ],
+                }}
+                options={{ plugins: { legend: { position: "bottom" }, datalabels: { display: false } }, maintainAspectRatio: false, cutout: "55%" }}
+              />
             </div>
           </div>
 
           {/* Distribuição por Prioridade */}
           <div className="bg-white p-6 rounded-lg shadow-lg">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">
-              Distribuição por Prioridade
-            </h3>
-            <div className="space-y-3">
-              {Object.entries(statsPrioridade).map(([prioridade, count]) => {
-                const cores = {
-                  BAIXA: "bg-green-400",
-                  MEDIA: "bg-yellow-400",
-                  ALTA: "bg-orange-400",
-                  URGENTE: "bg-red-500",
-                };
-                const cor =
-                  cores[prioridade as keyof typeof cores] || "bg-gray-400";
-
-                return (
-                  <div
-                    key={prioridade}
-                    className="flex items-center justify-between"
-                  >
-                    <span className="text-xs text-gray-600">
-                      {prioridade === "BAIXA"
-                        ? "Baixa"
-                        : prioridade === "MEDIA"
-                        ? "Média"
-                        : prioridade === "ALTA"
-                        ? "Alta"
-                        : prioridade === "URGENTE"
-                        ? "Urgente"
-                        : prioridade}
-                    </span>
-                    <div className="flex items-center space-x-2">
-                      <div className="w-32 bg-gray-200 rounded-full h-2">
-                        <div
-                          className={`${cor} h-2 rounded-full`}
-                          style={{
-                            width: `${
-                              tarefasFiltradas.length > 0
-                                ? (count / tarefasFiltradas.length) * 100
-                                : 0
-                            }%`,
-                          }}
-                        ></div>
-                      </div>
-                      <span className="text-xs font-medium text-gray-800">
-                        {count}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">Distribuição por Prioridade</h3>
+            <div className="h-64">
+              <Bar
+                data={{
+                  labels: ["Baixa", "Média", "Alta", "Urgente"],
+                  datasets: [
+                    {
+                      label: "Tarefas",
+                      data: [
+                        statsPrioridade.BAIXA || 0,
+                        statsPrioridade.MEDIA || 0,
+                        statsPrioridade.ALTA || 0,
+                        statsPrioridade.URGENTE || 0,
+                      ],
+                      backgroundColor: ["#34d399", "#fbbf24", "#fb923c", "#ef4444"],
+                    },
+                  ],
+                }}
+                options={{
+                  plugins: { legend: { display: false } },
+                  maintainAspectRatio: false,
+                  scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } },
+                }}
+              />
             </div>
           </div>
 
           {/* Distribuição por Setor */}
           <div className="bg-white p-6 rounded-lg shadow-lg">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">
-              Distribuição por Setor
-            </h3>
-            <div className="space-y-3">
-              {Object.entries(statsSetor).map(([setor, count]) => {
-                const cores = {
-                  RH: "bg-blue-500",
-                  MEDICINA: "bg-red-500",
-                  TREINAMENTO: "bg-green-500",
-                };
-                const cor = cores[setor as keyof typeof cores] || "bg-gray-400";
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">Distribuição por Setor</h3>
+            <div className="h-64">
+              <Bar
+                data={{
+                  labels: ["RH", "Medicina", "Treinamento"],
+                  datasets: [
+                    {
+                      label: "Tarefas",
+                      data: [statsSetor.RH || 0, statsSetor.MEDICINA || 0, statsSetor.TREINAMENTO || 0],
+                      backgroundColor: ["#3b82f6", "#ef4444", "#22c55e"],
+                    },
+                  ],
+                }}
+                options={{
+                  plugins: { legend: { display: false } },
+                  maintainAspectRatio: false,
+                  scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } },
+                }}
+              />
+            </div>
+          </div>
 
-                return (
-                  <div
-                    key={setor}
-                    className="flex items-center justify-between"
-                  >
-                    <span className="text-xs text-gray-600">
-                      {setor === "RH"
-                        ? "RH"
-                        : setor === "MEDICINA"
-                        ? "Medicina"
-                        : setor === "TREINAMENTO"
-                        ? "Treinamento"
-                        : setor}
-                    </span>
-                    <div className="flex items-center space-x-2">
-                      <div className="w-32 bg-gray-200 rounded-full h-2">
-                        <div
-                          className={`${cor} h-2 rounded-full`}
-                          style={{
-                            width: `${
-                              tarefasFiltradas.length > 0
-                                ? (count / tarefasFiltradas.length) * 100
-                                : 0
-                            }%`,
-                          }}
-                        ></div>
-                      </div>
-                      <span className="text-xs font-medium text-gray-800">
-                        {count}
-                      </span>
-                    </div>
-                  </div>
+          <div className="bg-white p-6 rounded-lg shadow-lg">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">Funcionários com setor 100% concluído</h3>
+            <div className="h-64">
+              {(() => {
+                const rems = getRemanejamentosParaVisaoFuncionarios();
+                const setores = ["RH", "MEDICINA", "TREINAMENTO"] as const;
+                const counts = setores.map((s) =>
+                  rems.filter((r) => {
+                    const ts = r.tarefas.filter((t) => t.responsavel === s);
+                    if (ts.length === 0) return false;
+                    const concl = ts.filter((t) => t.status === "CONCLUIDO" || t.status === "CONCLUIDA").length;
+                    return concl === ts.length;
+                  }).length
                 );
-              })}
+                return (
+                  <Bar
+                    data={{
+                      labels: ["RH", "Medicina", "Treinamento"],
+                      datasets: [
+                        { label: "Funcionários", data: counts, backgroundColor: ["#3b82f6", "#ef4444", "#22c55e"] },
+                      ],
+                    }}
+                    options={{ plugins: { legend: { display: false } }, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }}
+                  />
+                );
+              })()}
             </div>
           </div>
 
