@@ -68,6 +68,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+
   // Permitir manutenção (deduplicação de tarefas) via token de serviço
   const manutencaoToken = process.env.MANTENCAO_SERVICE_TOKEN;
   if (

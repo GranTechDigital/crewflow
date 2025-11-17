@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sincronizarTarefasPadrao } from "@/lib/tarefasPadraoSync";
+ 
 
 function parseDate(dateStr: string): Date | null {
   const date = new Date(dateStr);
@@ -48,9 +49,29 @@ async function fetchExternalDataWithRetry(maxRetries = 3, timeout = 15000) {
   }
 }
 
-export async function POST() {
+export async function POST(req: Request) {
+  let runId: string | null = null;
   try {
     console.log("Iniciando sincronização de funcionários...");
+    let source: "worker" | "auto" | "manual" = "manual";
+    let requestId: string | undefined = undefined;
+    try {
+      const body = await req.json();
+      if (body && (body.source === "worker" || body.source === "auto")) {
+        source = body.source;
+      }
+      if (body && typeof body.requestId === "string" && body.requestId.length > 0) {
+        requestId = body.requestId;
+      }
+    } catch {}
+    const syncRun = await prisma.funcionarioSyncRun.create({
+      data: {
+        source,
+        status: "EM_ANDAMENTO",
+        requestId,
+      },
+    });
+    runId = syncRun.id;
 
     // Buscar dados da API externa com retry
     const dadosExternos = await fetchExternalDataWithRetry();
@@ -73,10 +94,7 @@ export async function POST() {
       mapApi.set(String(item.MATRICULA), item)
     );
 
-    const mapBanco = new Map<
-      string,
-      { matricula: string; status: string | null }
-    >();
+    const mapBanco = new Map<string, (typeof dadosBanco)[number]>();
     dadosBanco.forEach((item) => mapBanco.set(item.matricula, item));
 
     // 1) Atualizar status para "DEMITIDO" para funcionários que tem no banco mas NÃO tem na API
@@ -99,6 +117,22 @@ export async function POST() {
           excluidoEm: now,
         },
       });
+      const demitidosItemsData = matriculasParaDemitir.map((m) => {
+        const prev = mapBanco.get(m);
+        return {
+          runId: syncRun.id,
+          funcionarioId: prev?.id,
+          matricula: m,
+          tipo: "DEMITIDO",
+          changes: {
+            campos: [
+              { campo: "status", antes: prev?.status ?? null, depois: "DEMITIDO" },
+              { campo: "excluidoEm", antes: null, depois: now.toISOString() },
+            ],
+          },
+        } as const;
+      });
+      await prisma.funcionarioSyncItem.createMany({ data: demitidosItemsData as any });
     }
 
     // 2) Inserir funcionários que tem na API mas NÃO tem no banco
@@ -134,6 +168,19 @@ export async function POST() {
       );
 
       await prisma.funcionario.createMany({ data: dadosParaInserir });
+      const novasMatriculas = novosFuncionarios.map((i: any) => String(i.MATRICULA));
+      const inseridos = await prisma.funcionario.findMany({
+        where: { matricula: { in: novasMatriculas } },
+        select: { id: true, matricula: true },
+      });
+      const itemsData = inseridos.map((f) => ({
+        runId: syncRun.id,
+        funcionarioId: f.id,
+        matricula: f.matricula,
+        tipo: "ADICIONADO",
+        changes: null,
+      }));
+      await prisma.funcionarioSyncItem.createMany({ data: itemsData });
     }
 
     // 3) Atualizar funcionários cujo status mudou e/ou função mudou
@@ -243,6 +290,34 @@ export async function POST() {
       });
     }
     console.log("[SYNC] total atualizações aplicadas:", paraAtualizar.length);
+    const changesByMatricula = new Map<string, Array<{ campo: string; antes: any; depois: any }>>();
+    for (const f of paraAtualizar) {
+      const prev = mapBanco.get(f.matricula);
+      const arr = changesByMatricula.get(f.matricula) ?? [];
+      if (f.status !== undefined && prev?.status !== f.status) {
+        arr.push({ campo: "status", antes: prev?.status ?? null, depois: f.status });
+      }
+      if (f.statusPrestserv !== undefined && prev?.statusPrestserv !== f.statusPrestserv) {
+        arr.push({ campo: "statusPrestserv", antes: prev?.statusPrestserv ?? null, depois: f.statusPrestserv });
+      }
+      if (f.funcao !== undefined && prev?.funcao !== f.funcao) {
+        arr.push({ campo: "funcao", antes: prev?.funcao ?? null, depois: f.funcao });
+      }
+      if (arr.length > 0) changesByMatricula.set(f.matricula, arr);
+    }
+    if (changesByMatricula.size > 0) {
+      const itemsData = Array.from(changesByMatricula.entries()).map(([matricula, campos]) => {
+        const prev = mapBanco.get(matricula);
+        return {
+          runId: syncRun.id,
+          funcionarioId: prev?.id,
+          matricula,
+          tipo: "ATUALIZADO",
+          changes: { campos },
+        };
+      });
+      await prisma.funcionarioSyncItem.createMany({ data: itemsData });
+    }
 
     // Registrar histórico de mudança de função para RFs em processo
     if (funcoesAlteradasDetalhes.length > 0) {
@@ -305,14 +380,25 @@ export async function POST() {
     }
 
     console.log(
-      `Sincronização de funcionários concluída: ${matriculasParaDemitir.length} demitidos, ${novosFuncionarios.length} adicionados, ${paraAtualizar.length} atualizados`
+      `Sincronização de funcionários concluída: ${matriculasParaDemitir.length} demitidos, ${novosFuncionarios.length} adicionados, ${changesByMatricula.size} atualizados`
     );
+    await prisma.funcionarioSyncRun.update({
+      where: { id: syncRun.id },
+      data: {
+        finishedAt: new Date(),
+        status: "SUCESSO",
+        adicionados: novosFuncionarios.length,
+        atualizados: changesByMatricula.size,
+        demitidos: matriculasParaDemitir.length,
+      },
+    });
 
     return NextResponse.json({
       message: "Sincronização concluída",
       demitidos: matriculasParaDemitir.length,
       adicionados: novosFuncionarios.length,
-      atualizados: paraAtualizar.length,
+      atualizados: changesByMatricula.size,
+      runId: syncRun.id,
     });
   } catch (error) {
     console.error("Erro na sincronização de funcionários:", error);
@@ -333,12 +419,18 @@ export async function POST() {
       userMessage = "Erro de conexão com a API externa.";
     }
 
-    return NextResponse.json(
-      {
-        error: userMessage,
-        details: errorMessage,
-      },
-      { status: 500 }
-    );
+    if (runId) {
+      try {
+        await prisma.funcionarioSyncRun.update({
+          where: { id: runId },
+          data: {
+            finishedAt: new Date(),
+            status: "FALHA",
+            errorMessage,
+          },
+        });
+      } catch {}
+    }
+    return NextResponse.json({ error: userMessage, details: errorMessage }, { status: 500 });
   }
 }
