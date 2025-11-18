@@ -72,7 +72,6 @@ model Funcionario {
   uptimeSheets              UptimeSheet[]
   uptimeUploads             UptimeUpload[]
   usuario                   Usuario?
-  syncItems                 FuncionarioSyncItem[]
 }
 
 model UptimeSheet {
@@ -455,60 +454,4 @@ model MatrizTreinamento {
   @@index([funcaoId])
   @@index([treinamentoId])
   @@index([tipoObrigatoriedade])
-}
-
-// ============================
-// Histórico de Sincronização de Funcionários
-// ============================
-
-enum SyncStatus {
-  EM_ANDAMENTO
-  SUCESSO
-  FALHA
-}
-
-enum SyncSource {
-  worker
-  auto
-  manual
-}
-
-enum SyncChangeType {
-  ADICIONADO
-  ATUALIZADO
-  DEMITIDO
-}
-
-model FuncionarioSyncRun {
-  id           String              @id @default(cuid())
-  startedAt    DateTime            @default(now())
-  finishedAt   DateTime?
-  status       SyncStatus          @default(EM_ANDAMENTO)
-  source       SyncSource
-  adicionados  Int                 @default(0)
-  atualizados  Int                 @default(0)
-  demitidos    Int                 @default(0)
-  requestId    String?
-  errorMessage String?
-  items        FuncionarioSyncItem[]
-
-  @@index([startedAt])
-  @@index([status])
-}
-
-model FuncionarioSyncItem {
-  id            String             @id @default(cuid())
-  runId         String
-  funcionarioId Int?
-  matricula     String?
-  tipo          SyncChangeType
-  changes       Json?
-  createdAt     DateTime           @default(now())
-
-  run           FuncionarioSyncRun @relation(fields: [runId], references: [id], onDelete: Cascade)
-  funcionario   Funcionario?       @relation(fields: [funcionarioId], references: [id])
-
-  @@index([runId])
-  @@index([funcionarioId])
-  @@index([tipo])
 }

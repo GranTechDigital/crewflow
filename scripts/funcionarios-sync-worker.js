@@ -10,7 +10,6 @@
  * - FUNCIONARIOS_SYNC_TIMEZONE (opcional; se não usar TZ no container)
  * - TZ (recomendado no container, ex.: America/Sao_Paulo)
  */
-const { randomUUID } = require('crypto')
 
 const TARGET_URL = process.env.SYNC_TARGET_URL || 'http://localhost:3000/api/funcionarios/sincronizar'
 const SERVICE_TOKEN = process.env.FUNCIONARIOS_SYNC_SERVICE_TOKEN || ''
@@ -39,20 +38,19 @@ async function doSync() {
   const startedAt = new Date().toISOString()
   console.log(`[func-sync-worker] Disparando sync de funcionários @ ${startedAt}`)
   try {
-    const reqId = randomUUID()
     const res = await fetch(TARGET_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${SERVICE_TOKEN}`,
       },
-      body: JSON.stringify({ source: 'worker', requestId: reqId }),
+      body: JSON.stringify({ source: 'worker' }),
     })
     const text = await res.text()
     if (!res.ok) {
-      console.error(`[func-sync-worker] Falha no sync: status=${res.status} requestId=${reqId} body=${text}`)
+      console.error(`[func-sync-worker] Falha no sync: status=${res.status} body=${text}`)
     } else {
-      console.log(`[func-sync-worker] Sync concluído: status=${res.status} requestId=${reqId} body=${text}`)
+      console.log(`[func-sync-worker] Sync concluído: status=${res.status} body=${text}`)
     }
   } catch (err) {
     console.error(`[func-sync-worker] Erro no fetch:`, err)

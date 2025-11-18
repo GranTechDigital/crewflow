@@ -594,14 +594,13 @@ export default function TarefasPage() {
     const remanejamentosFiltrados = getRemanejamentosFiltrados();
 
     // Extrair todas as tarefas dos remanejamentos filtrados
-    const todasTarefas: (TarefaRemanejamento & { funcionario?: any; statusPrestserv?: string })[] = [];
+    const todasTarefas: (TarefaRemanejamento & { funcionario?: any })[] = [];
     remanejamentosFiltrados.forEach((remanejamento) => {
       if (remanejamento.tarefas) {
         // Add funcionario data to each tarefa
         const tarefasComFuncionario = remanejamento.tarefas.map((tarefa) => ({
           ...tarefa,
           funcionario: remanejamento.funcionario,
-          statusPrestserv: (remanejamento as any)?.statusPrestserv,
         }));
         todasTarefas.push(...tarefasComFuncionario);
       }
@@ -646,7 +645,6 @@ export default function TarefasPage() {
       Funcionário: tarefa.funcionario?.nome || "N/A",
       Matrícula: tarefa.funcionario?.matricula || "N/A",
       Função: tarefa.funcionario?.funcao || "N/A",
-      "Status Prestserv": tarefa.statusPrestserv || "N/A",
       "Setor Responsável": tarefa.responsavel,
       "Última Observação": ultimaObsMap[tarefa.id]?.texto || "N/A",
     }));
@@ -666,35 +664,30 @@ export default function TarefasPage() {
       "Funcionário",
       "Matrícula",
       "Função",
-      "Status Prestserv",
       "Setor Responsável",
       "Última Observação",
     ];
 
-    ws.addTable({
-      name: "TabelaTarefas",
-      ref: "A1",
-      headerRow: true,
-      columns: headers.map((h) => ({ name: h, filterButton: true })),
-      rows: dadosExcel.map((row) => headers.map((h) => String((row as any)[h] ?? ""))),
-      style: { theme: "TableStyleMedium9", showRowStripes: true, showColumnStripes: false },
+    ws.addRow(headers);
+    dadosExcel.forEach((row) => {
+      ws.addRow(headers.map((h) => String((row as any)[h] ?? "")));
     });
 
+    // Estilo simples do header
     const headerRow = ws.getRow(1);
-    headerRow.font = { bold: true, color: { argb: "FFFFFFFF" } } as any;
+    headerRow.font = { bold: true };
     headerRow.alignment = { vertical: "middle", horizontal: "left" } as any;
-    headerRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1F2937" } } as any;
 
     // Auto largura baseado no maior conteúdo de cada coluna
     for (let colIndex = 1; colIndex <= headers.length; colIndex++) {
       let maxLen = String(headers[colIndex - 1] || "").length;
-      ws.eachRow({ includeEmpty: false }, (row) => {
+      ws.eachRow({ includeEmpty: false }, (row, rowNumber) => {
         const cell = row.getCell(colIndex);
         const v = cell.value as string | number | boolean | Date | null | undefined;
         const text = v instanceof Date ? v.toLocaleDateString("pt-BR") : String(v ?? "");
         if (text.length > maxLen) maxLen = text.length;
       });
-      ws.getColumn(colIndex).width = Math.max(10, maxLen + 2);
+      ws.getColumn(colIndex).width = Math.min(60, maxLen + 2);
     }
 
     const buffer = await wb.xlsx.writeBuffer();
@@ -871,36 +864,14 @@ export default function TarefasPage() {
 
   // Estado para data de vencimento no modal de conclusão
   const [dataVencimento, setDataVencimento] = useState("");
-  const [isTreinamentoVitalicio, setIsTreinamentoVitalicio] = useState(false);
   const [erroDataVencimento, setErroDataVencimento] = useState<string>("");
 
   // Funções para o modal de conclusão de tarefa
   const abrirModalConcluir = (tarefa: TarefaRemanejamento) => {
     setTarefaSelecionada(tarefa);
-    setDataVencimento("");
+    setDataVencimento(""); // Resetar a data de vencimento
     setErroDataVencimento("");
-    if (tarefa.responsavel === "TREINAMENTO") {
-      (async () => {
-        try {
-          const resp = await fetch(`/api/treinamentos?search=${encodeURIComponent(tarefa.tipo)}&limit=1`);
-          if (resp.ok) {
-            const js = await resp.json();
-            const arr = js?.data || [];
-            const item = Array.isArray(arr) ? arr.find((t: any) => (t?.treinamento || "") === tarefa.tipo) || arr[0] : null;
-            const unidade = (item?.validadeUnidade || "").toLowerCase();
-            setIsTreinamentoVitalicio(unidade === "unico" || unidade === "unicos");
-          } else {
-            setIsTreinamentoVitalicio(false);
-          }
-        } catch {
-          setIsTreinamentoVitalicio(false);
-        }
-        setMostrarModalConcluir(true);
-      })();
-    } else {
-      setIsTreinamentoVitalicio(false);
-      setMostrarModalConcluir(true);
-    }
+    setMostrarModalConcluir(true);
   };
 
   const fecharModalConcluir = () => {
@@ -914,8 +885,8 @@ export default function TarefasPage() {
     if (!tarefaSelecionada) return;
 
     try {
-      // Validação local da data de vencimento (apenas se não for RH e não for Treinamento vitalício)
-      if (tarefaSelecionada.responsavel !== "RH" && !isTreinamentoVitalicio) {
+      // Validação local da data de vencimento (apenas se não for responsabilidade do RH)
+      if (tarefaSelecionada.responsavel !== "RH") {
         if (!dataVencimento) {
           setErroDataVencimento("Informe a data de vencimento.");
           return;
@@ -943,7 +914,7 @@ export default function TarefasPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             dataVencimento:
-              tarefaSelecionada.responsavel !== "RH" && !isTreinamentoVitalicio
+              tarefaSelecionada.responsavel !== "RH"
                 ? dataVencimento || null
                 : null,
           }),
@@ -3354,8 +3325,8 @@ export default function TarefasPage() {
                 </p>
               </div>
 
-              {/* Campo de Data de Vencimento - Oculto para RH e Treinamento vitalício */}
-              {tarefaSelecionada.responsavel !== "RH" && !isTreinamentoVitalicio && (
+              {/* Campo de Data de Vencimento - Oculto para RH */}
+              {tarefaSelecionada.responsavel !== "RH" && (
                 <div className="mt-4">
                   <label
                     htmlFor="dataVencimento"
