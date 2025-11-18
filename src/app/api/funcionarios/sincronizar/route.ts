@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sincronizarTarefasPadrao } from "@/lib/tarefasPadraoSync";
+import type { SyncChangeType, SyncSource, SyncStatus } from "@prisma/client";
  
 
 function parseDate(dateStr: string): Date | null {
@@ -10,11 +11,12 @@ function parseDate(dateStr: string): Date | null {
 }
 
 async function fetchExternalDataWithRetry(maxRetries = 3, timeout = 15000) {
-  const url =
-    "https://granihcservices145382.rm.cloudtotvs.com.br:8051/api/framework/v1/consultaSQLServer/RealizaConsulta/GS.INT.0005/1/P";
-  const headers = {
-    Authorization: "Basic SW50ZWdyYS5BZG1pc3NhbzpHckBuIWhjMjAyMg==",
-  };
+  const url = process.env.RM_API_URL;
+  const auth = process.env.RM_API_AUTH;
+  if (!url || !auth) {
+    throw new Error("Configuração ausente: defina RM_API_URL e RM_API_AUTH no ambiente");
+  }
+  const headers = { Authorization: auth } as Record<string, string>;
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
@@ -66,8 +68,8 @@ export async function POST(req: Request) {
     } catch {}
     const syncRun = await prisma.funcionarioSyncRun.create({
       data: {
-        source,
-        status: "EM_ANDAMENTO",
+        source: source as SyncSource,
+        status: "EM_ANDAMENTO" as SyncStatus,
         requestId,
       },
     });
@@ -123,7 +125,7 @@ export async function POST(req: Request) {
           runId: syncRun.id,
           funcionarioId: prev?.id,
           matricula: m,
-          tipo: "DEMITIDO",
+          tipo: "DEMITIDO" as SyncChangeType,
           changes: {
             campos: [
               { campo: "status", antes: prev?.status ?? null, depois: "DEMITIDO" },
@@ -177,8 +179,7 @@ export async function POST(req: Request) {
         runId: syncRun.id,
         funcionarioId: f.id,
         matricula: f.matricula,
-        tipo: "ADICIONADO",
-        changes: null,
+        tipo: "ADICIONADO" as SyncChangeType,
       }));
       await prisma.funcionarioSyncItem.createMany({ data: itemsData });
     }
@@ -312,7 +313,7 @@ export async function POST(req: Request) {
           runId: syncRun.id,
           funcionarioId: prev?.id,
           matricula,
-          tipo: "ATUALIZADO",
+          tipo: "ATUALIZADO" as SyncChangeType,
           changes: { campos },
         };
       });
@@ -386,7 +387,7 @@ export async function POST(req: Request) {
       where: { id: syncRun.id },
       data: {
         finishedAt: new Date(),
-        status: "SUCESSO",
+        status: "SUCESSO" as SyncStatus,
         adicionados: novosFuncionarios.length,
         atualizados: changesByMatricula.size,
         demitidos: matriculasParaDemitir.length,
@@ -425,7 +426,7 @@ export async function POST(req: Request) {
           where: { id: runId },
           data: {
             finishedAt: new Date(),
-            status: "FALHA",
+            status: "FALHA" as SyncStatus,
             errorMessage,
           },
         });
