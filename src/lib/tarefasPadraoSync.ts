@@ -108,11 +108,19 @@ export async function sincronizarTarefasPadrao({
     const existentes = new Set<string>(
       rem.tarefas.map((t) => chaveTarefa(t.tipo, t.responsavel))
     );
+    const existentePorChave = new Map<string, typeof rem.tarefas[number]>(
+      rem.tarefas.map((t) => [chaveTarefa(t.tipo, t.responsavel), t])
+    );
     const tarefasParaCriar: any[] = [];
     let tarefasParaCancelar: {
       id: string;
       statusAnterior: string;
       responsavel: SetorValido;
+    }[] = [];
+    let tarefasParaReativar: {
+      id: string;
+      responsavel: SetorValido;
+      statusAnterior: string;
     }[] = [];
 
     // TREINAMENTO via matriz
@@ -150,7 +158,19 @@ export async function sincronizarTarefasPadrao({
             const tipo = m.treinamento?.treinamento || "";
             const resp = "TREINAMENTO";
             if (!tipo) continue;
-            if (existentes.has(chaveTarefa(tipo, resp))) continue;
+            const chave = chaveTarefa(tipo, resp);
+            if (existentes.has(chave)) {
+              const existente = existentePorChave.get(chave);
+              if (existente && existente.status === "CANCELADO") {
+                tarefasParaReativar.push({
+                  id: existente.id,
+                  responsavel: "TREINAMENTO",
+                  statusAnterior: existente.status,
+                });
+                continue;
+              }
+              continue;
+            }
 
             const prioridade = (() => {
               const v = (rem.solicitacao?.prioridade || "media").toLowerCase();
@@ -215,7 +235,19 @@ export async function sincronizarTarefasPadrao({
       for (const t of tarefasPadrao) {
         const tipo = t.tipo;
         const resp = setor;
-        if (existentes.has(chaveTarefa(tipo, resp))) continue;
+        const chave = chaveTarefa(tipo, resp);
+        if (existentes.has(chave)) {
+          const existente = existentePorChave.get(chave);
+          if (existente && existente.status === "CANCELADO") {
+            tarefasParaReativar.push({
+              id: existente.id,
+              responsavel: setor,
+              statusAnterior: existente.status,
+            });
+            continue;
+          }
+          continue;
+        }
         const prioridade = (() => {
           const v = (rem.solicitacao?.prioridade || "media").toLowerCase();
           if (v === "baixa") return "BAIXA";
@@ -352,6 +384,86 @@ export async function sincronizarTarefasPadrao({
         }
       }
     }
+
+    let reativadasCount = 0;
+    if (tarefasParaReativar.length > 0) {
+      for (const tr of tarefasParaReativar) {
+        try {
+          await prisma.tarefaRemanejamento.update({
+            where: { id: tr.id },
+            data: { status: "PENDENTE", dataConclusao: null },
+          });
+          try {
+            await prisma.observacaoTarefaRemanejamento.create({
+              data: {
+                tarefaId: tr.id,
+                texto:
+                  tr.responsavel === "TREINAMENTO"
+                    ? "Reativada automaticamente: treinamento voltou a ser obrigatório na matriz"
+                    : "Reativada automaticamente: tarefa padrão reativada",
+                criadoPor: usuarioResponsavel || "Sistema",
+                modificadoPor: usuarioResponsavel || "Sistema",
+              },
+            });
+          } catch {}
+          try {
+            await prisma.historicoRemanejamento.create({
+              data: {
+                solicitacaoId: rem.solicitacao!.id,
+                remanejamentoFuncionarioId: rem.id,
+                tarefaId: tr.id,
+                tipoAcao: "REATIVACAO",
+                entidade: "TAREFA",
+                campoAlterado: "status",
+                valorAnterior: tr.statusAnterior,
+                valorNovo: "PENDENTE",
+                descricaoAcao:
+                  tr.responsavel === "TREINAMENTO"
+                    ? "Tarefa de TREINAMENTO reativada por obrigatoriedade na matriz"
+                    : `Tarefa de ${tr.responsavel} reativada por reativação nas Tarefas Padrão`,
+                usuarioResponsavel: usuarioResponsavel || "Sistema",
+              },
+            });
+          } catch {}
+          reativadasCount += 1;
+        } catch (reatErr) {
+          console.error("Erro ao reativar tarefa:", reatErr);
+        }
+      }
+    }
+
+    // Atualizar statusTarefas conforme situação após criação/cancelamento
+    try {
+      const tarefasAtual = await prisma.tarefaRemanejamento.findMany({
+        where: { remanejamentoFuncionarioId: rem.id },
+        select: { status: true },
+      });
+      const semPendentes =
+        tarefasAtual.length === 0 ||
+        tarefasAtual.every((t) => t.status === "CONCLUIDO" || t.status === "CANCELADO");
+      const novoStatus = semPendentes ? "SUBMETER RASCUNHO" : "ATENDER TAREFAS";
+      if (rem.statusTarefas !== novoStatus) {
+        await prisma.remanejamentoFuncionario.update({
+          where: { id: rem.id },
+          data: { statusTarefas: novoStatus },
+        });
+        try {
+          await prisma.historicoRemanejamento.create({
+            data: {
+              solicitacaoId: rem.solicitacao!.id,
+              remanejamentoFuncionarioId: rem.id,
+              tipoAcao: "ATUALIZACAO_STATUS",
+              entidade: "STATUS_TAREFAS",
+              descricaoAcao: `Status geral das tarefas atualizado para: ${novoStatus} (via sincronização)`,
+              campoAlterado: "statusTarefas",
+              valorAnterior: rem.statusTarefas,
+              valorNovo: novoStatus,
+              usuarioResponsavel: usuarioResponsavel || "Sistema",
+            },
+          });
+        } catch {}
+      }
+    } catch {}
 
     detalhes.push({
       remanejamentoId: rem.id,
