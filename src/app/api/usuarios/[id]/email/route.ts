@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 import { jwtVerify, SignJWT } from 'jose'
-import bcrypt from 'bcryptjs'
 
 const prisma = new PrismaClient()
 
-function isStrongPassword(pwd: string) {
-  return pwd.length >= 8 && /[A-Z]/.test(pwd) && /[a-z]/.test(pwd) && /\d/.test(pwd)
+function isValidEmail(email: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 }
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -18,6 +17,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (!token) {
       return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
     }
+
     const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret')
     const { payload } = await jwtVerify(token, secret)
     const userId = (payload as any).userId as number
@@ -26,29 +26,35 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     const body = await request.json()
-    const senhaAtual = body?.senhaAtual as string
-    const novaSenha = body?.novaSenha as string
-    if (!senhaAtual || !novaSenha) {
-      return NextResponse.json({ error: 'Informe senha atual e nova senha' }, { status: 400 })
+    const emailPrincipal = (body?.emailPrincipal || '').trim()
+    const emailAlternativo = (body?.emailAlternativo || '').trim()
+
+    if (emailPrincipal && !isValidEmail(emailPrincipal)) {
+      return NextResponse.json({ error: 'E-mail principal inválido' }, { status: 400 })
     }
-    if (!isStrongPassword(novaSenha)) {
-      return NextResponse.json({ error: 'A nova senha deve ter 8+ caracteres, com maiúsculas, minúsculas e números' }, { status: 400 })
+    if (emailAlternativo && !isValidEmail(emailAlternativo)) {
+      return NextResponse.json({ error: 'E-mail alternativo inválido' }, { status: 400 })
     }
 
-    const usuario = await prisma.usuario.findUnique({ where: { id } })
+    const usuario = await prisma.usuario.findUnique({ where: { id }, include: { funcionario: true } })
     if (!usuario) {
       return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 })
     }
 
-    const ok = await bcrypt.compare(senhaAtual, usuario.senha)
-    if (!ok) {
-      return NextResponse.json({ error: 'Senha atual incorreta' }, { status: 401 })
+    if (emailPrincipal) {
+      await prisma.funcionario.update({
+        where: { id: usuario.funcionarioId },
+        data: { email: emailPrincipal }
+      })
     }
 
-    const hash = await bcrypt.hash(novaSenha, 10)
     const updated = await prisma.usuario.update({
       where: { id },
-      data: { senha: hash, obrigarTrocaSenha: false }
+      data: {
+        emailSecundario: emailAlternativo ? emailAlternativo : undefined,
+        ...(emailAlternativo ? { obrigarAdicionarEmail: false } : {})
+      },
+      include: { funcionario: true }
     })
 
     const baseClaims = payload as any
@@ -61,14 +67,21 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       equipe: baseClaims.equipe,
       equipeId: baseClaims.equipeId,
       sessionStart: baseClaims.sessionStart,
-      mustAddEmail: baseClaims.mustAddEmail === true,
-      mustChangePassword: false
+      mustAddEmail: updated.obrigarAdicionarEmail === true,
+      mustChangePassword: baseClaims.mustChangePassword === true
     })
       .setProtectedHeader({ alg: 'HS256' })
       .setExpirationTime('8h')
       .sign(secret)
 
-    const response = NextResponse.json({ success: true })
+    const response = NextResponse.json({
+      success: true,
+      usuario: {
+        id: updated.id,
+        email: updated.funcionario?.email || null,
+        emailSecundario: updated.emailSecundario || null
+      }
+    })
     response.cookies.set('auth-token', newToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',

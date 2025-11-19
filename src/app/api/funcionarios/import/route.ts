@@ -31,12 +31,23 @@ export async function POST() {
 
     const now = new Date();
 
-    await prisma.funcionario.deleteMany({
-      where: {
-        matricula: { not: 'ADMIN001' }
-      }
+    // Em vez de apagar (o que pode apagar usuários por cascata),
+    // marcamos como DEMITIDO quem não está na fonte e fazemos upsert dos demais
+    const existentes = await prisma.funcionario.findMany({
+      select: { id: true, matricula: true, status: true }
     });
-    console.log('Dados antigos removidos do banco (exceto administrador).');
+    const setApi = new Set<string>(dadosExternos.map((i: any) => String(i.MATRICULA)));
+    const now = new Date();
+    const paraDemitir = existentes
+      .filter(f => !setApi.has(f.matricula) && f.matricula !== 'ADMIN001' && f.status !== 'DEMITIDO')
+      .map(f => f.matricula);
+    if (paraDemitir.length > 0) {
+      await prisma.funcionario.updateMany({
+        where: { matricula: { in: paraDemitir } },
+        data: { status: 'DEMITIDO', atualizadoEm: now, excluidoEm: now }
+      });
+    }
+    console.log(`Marcados como DEMITIDO: ${paraDemitir.length}`);
 
     const dadosParaInserir = dadosExternos.map((item: Record<string, unknown>) => ({
       matricula: String(item.MATRICULA),
@@ -58,13 +69,41 @@ export async function POST() {
 
     console.log(`Preparando para inserir ${dadosParaInserir.length} registros no banco.`);
 
-    await prisma.funcionario.createMany({
-      data: dadosParaInserir,
-    });
+    // Upsert: atualizar existentes e criar novos
+    let atualizados = 0;
+    let criados = 0;
+    for (const d of dadosParaInserir) {
+      const found = existentes.find(e => e.matricula === d.matricula);
+      if (found) {
+        await prisma.funcionario.update({
+          where: { matricula: d.matricula },
+          data: {
+            cpf: d.cpf,
+            nome: d.nome,
+            funcao: d.funcao,
+            rg: d.rg,
+            orgaoEmissor: d.orgaoEmissor as any,
+            uf: d.uf as any,
+            dataNascimento: d.dataNascimento as any,
+            email: d.email as any,
+            telefone: d.telefone as any,
+            centroCusto: d.centroCusto as any,
+            departamento: d.departamento as any,
+            status: d.status as any,
+            atualizadoEm: now,
+            excluidoEm: null,
+          }
+        });
+        atualizados++;
+      } else {
+        await prisma.funcionario.create({ data: d as any });
+        criados++;
+      }
+    }
 
     console.log('Importação concluída com sucesso.');
 
-    return NextResponse.json({ message: 'Importação concluída com sucesso!' });
+    return NextResponse.json({ message: 'Importação concluída com sucesso!', criados, atualizados, demitidos: paraDemitir.length });
   } catch (error) {
     console.error('Erro na importação:', error);
     return NextResponse.json(

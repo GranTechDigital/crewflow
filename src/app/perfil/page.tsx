@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '@/app/hooks/useAuth'
 import { User, Lock, Save } from 'lucide-react'
 import { useToast } from '@/components/Toast'
@@ -12,6 +12,27 @@ export default function PerfilPage() {
   const [novaSenha, setNovaSenha] = useState('')
   const [confirmarSenha, setConfirmarSenha] = useState('')
   const [loading, setLoading] = useState(false)
+  const [emailPrincipal, setEmailPrincipal] = useState('')
+  const [emailAlternativo, setEmailAlternativo] = useState('')
+  const [savingEmail, setSavingEmail] = useState(false)
+  const [obrigarAdicionarEmail, setObrigarAdicionarEmail] = useState(false)
+  const [tab, setTab] = useState<'dados' | 'senha'>('dados')
+
+  useEffect(() => {
+    const load = async () => {
+      if (!usuario?.id) return
+      try {
+        const res = await fetch(`/api/usuarios/${usuario.id}`)
+        if (res.ok) {
+          const data = await res.json()
+          setEmailPrincipal(data.usuario?.email || '')
+          setEmailAlternativo(data.usuario?.emailSecundario || '')
+          setObrigarAdicionarEmail(!!data.usuario?.obrigarAdicionarEmail)
+        }
+      } catch {}
+    }
+    load()
+  }, [usuario?.id])
 
   const handleAlterarSenha = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -21,8 +42,8 @@ export default function PerfilPage() {
       return
     }
 
-    if (novaSenha.length < 6) {
-      showToast('A nova senha deve ter pelo menos 6 caracteres', 'error')
+    if (!(novaSenha.length >= 8 && /[A-Z]/.test(novaSenha) && /[a-z]/.test(novaSenha) && /\d/.test(novaSenha))) {
+      showToast('A nova senha deve ter 8+ caracteres, com maiúsculas, minúsculas e números', 'error')
       return
     }
 
@@ -68,16 +89,33 @@ export default function PerfilPage() {
   return (
     <div className="max-w-4xl mx-auto p-6">
       <div className="bg-white rounded-lg shadow-md">
-        <div className="p-6 border-b border-gray-200">
+        <div className="p-6 border-b border-gray-200 flex items-center justify-between">
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <User className="text-blue-600" />
+            <User className="text-red-700" />
             Meu Perfil
           </h1>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setTab('dados')}
+              className={`px-4 py-2 rounded-md text-sm font-medium ${tab==='dados' ? 'text-white' : 'text-gray-700'} shadow-md shadow-black/10 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 transition ${tab==='dados' ? '' : 'hover:opacity-90'}`}
+              style={{ backgroundImage: tab==='dados' ? 'linear-gradient(to right, #8a0000, #c40000, #ff0000)' : undefined, backgroundColor: tab==='dados' ? undefined : '#f3f4f6' }}
+            >
+              Informações Pessoais
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab('senha')}
+              className={`px-4 py-2 rounded-md text-sm font-medium ${tab==='senha' ? 'text-white' : 'text-gray-700'} shadow-md shadow-black/10 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 transition ${tab==='senha' ? '' : 'hover:opacity-90'}`}
+              style={{ backgroundImage: tab==='senha' ? 'linear-gradient(to right, #8a0000, #c40000, #ff0000)' : undefined, backgroundColor: tab==='senha' ? undefined : '#f3f4f6' }}
+            >
+              Alterar Senha
+            </button>
+          </div>
         </div>
 
         <div className="p-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Informações do Usuário */}
+          {tab === 'dados' ? (
             <div>
               <h2 className="text-lg font-semibold text-gray-900 mb-4">
                 Informações Pessoais
@@ -96,28 +134,84 @@ export default function PerfilPage() {
                   />
                 </div>
 
+                {/* E-mail principal oculto conforme diretriz – manter apenas alternativo */}
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    E-mail alternativo
+                  </label>
+                  <input
+                    type="email"
+                    value={emailAlternativo}
+                    onChange={(e) => setEmailAlternativo(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-600"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  disabled={savingEmail}
+                  onClick={async () => {
+                    try {
+                      if (obrigarAdicionarEmail && !emailAlternativo) {
+                        showToast('Informe o e-mail alternativo obrigatório', 'error')
+                        return
+                      }
+                      setSavingEmail(true)
+                      const res = await fetch(`/api/usuarios/${usuario?.id}/email`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ emailAlternativo })
+                      })
+                      if (res.ok) {
+                        showToast('E-mails atualizados com sucesso!', 'success')
+                      } else {
+                        const d = await res.json().catch(() => ({ error: 'Erro ao salvar e-mails' }))
+                        showToast(d.error || 'Erro ao salvar e-mails', 'error')
+                      }
+                    } catch {
+                      showToast('Erro interno ao salvar e-mails', 'error')
+                    } finally {
+                      setSavingEmail(false)
+                    }
+                  }}
+                  className="mt-2 w-full text-white py-2 px-4 rounded-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-md shadow-black/10 hover:opacity-95 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 transition-transform duration-200 ease-out hover:scale-[1.02] active:scale-[0.98]"
+                  style={{ backgroundImage: 'linear-gradient(to right, #8a0000, #c40000, #ff0000)' }}
+                >
+                  {savingEmail ? 'Salvando...' : 'Salvar e-mails'}
+                </button>
+
                 <div className="mt-6">
                   <h2 className="text-lg font-semibold text-gray-900 mb-4">
                     Minhas Permissões
                   </h2>
                   <div className="space-y-2">
-                    {usuario.permissoes?.map((permissao, index) => (
-                      <span
-                        key={index}
-                        className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full mr-2 mb-2"
-                      >
-                        {permissao}
-                      </span>
-                    ))}
+                    {usuario.permissoes?.map((permissao, index) => {
+                      const clean = permissao.replace(/^canAcc?ess/i, '')
+                      const spaced = clean
+                        .replace(/_/g, ' ')
+                        .replace(/-+/g, ' ')
+                        .replace(/([a-z])([A-Z])/g, '$1 $2')
+                        .trim()
+                      const label = spaced ? spaced.charAt(0).toUpperCase() + spaced.slice(1) : 'Acesso'
+                      return (
+                        <span
+                          key={index}
+                          className="inline-block bg-red-100 text-red-800 text-xs px-2 py-1 rounded-full mr-2 mb-2"
+                        >
+                          {label}
+                        </span>
+                      )
+                    })}
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Alterar Senha */}
+          ) : (
             <div>
               <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <Lock className="text-blue-600" />
+                <Lock className="text-red-700" />
                 Alterar Senha
               </h2>
 
@@ -131,9 +225,9 @@ export default function PerfilPage() {
                     value={senhaAtual}
                     onChange={(e) => setSenhaAtual(e.target.value)}
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-600"
+                />
+              </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -144,11 +238,11 @@ export default function PerfilPage() {
                     value={novaSenha}
                     onChange={(e) => setNovaSenha(e.target.value)}
                     required
-                    minLength={6}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    minLength={8}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-600"
                   />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Mínimo de 6 caracteres
+                  <p className="text-xs text-gray-600 mt-1">
+                    Mínimo de 8 caracteres, com maiúsculas, minúsculas e números
                   </p>
                 </div>
 
@@ -161,15 +255,16 @@ export default function PerfilPage() {
                     value={confirmarSenha}
                     onChange={(e) => setConfirmarSenha(e.target.value)}
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-600"
+                />
+              </div>
 
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
+                className="w-full text-white py-2 px-4 rounded-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-md shadow-black/10 hover:opacity-95 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 transition-transform duration-200 ease-out hover:scale-[1.02] active:scale-[0.98]"
+                style={{ backgroundImage: 'linear-gradient(to right, #8a0000, #c40000, #ff0000)' }}
+              >
                   {loading ? (
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                   ) : (
@@ -179,7 +274,7 @@ export default function PerfilPage() {
                 </button>
               </form>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

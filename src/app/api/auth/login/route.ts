@@ -53,10 +53,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Atualizar último login
+    const isPrimeiroAcesso = !funcionario.usuario.ultimoLogin;
     await prisma.usuario.update({
       where: { id: funcionario.usuario.id },
-      data: { ultimoLogin: new Date() }
+      data: {
+        ultimoLogin: new Date(),
+        ...(isPrimeiroAcesso ? { obrigarAdicionarEmail: true, obrigarTrocaSenha: true } : {})
+      }
     });
 
     // Valores seguros para equipe (podem ser nulos no banco)
@@ -73,7 +76,12 @@ export async function POST(request: NextRequest) {
       matricula: funcionario.matricula,
       nome: funcionario.nome,
       equipe: equipeNome,
-      equipeId: equipeId
+      equipeId: equipeId,
+      sessionStart: new Date().toISOString(),
+      mustAddEmail: isPrimeiroAcesso
+        ? true
+        : ((funcionario.usuario as any).obrigarAdicionarEmail === true || !(funcionario.usuario as any).emailSecundario),
+      mustChangePassword: isPrimeiroAcesso ? true : (funcionario.usuario as any).obrigarTrocaSenha || false
     })
       .setProtectedHeader({ alg: 'HS256' })
       .setExpirationTime('8h')
@@ -95,7 +103,7 @@ export async function POST(request: NextRequest) {
     // Definir cookie com o token
     response.cookies.set('auth-token', token, {
       httpOnly: true,
-      secure: false, // Desabilitado para permitir HTTP em desenvolvimento
+      secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       maxAge: 8 * 60 * 60 // 8 horas
     });

@@ -265,7 +265,11 @@ model Usuario {
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
   equipe        Equipe      @relation(fields: [equipeId], references: [id])
-  funcionario   Funcionario @relation(fields: [funcionarioId], references: [id], onDelete: Cascade)
+  funcionario   Funcionario @relation(fields: [funcionarioId], references: [id])
+
+  emailSecundario         String?
+  obrigarAdicionarEmail   Boolean     @default(false)
+  obrigarTrocaSenha       Boolean     @default(false)
 
   @@index([funcionarioId])
   @@index([equipeId])
