@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { logHistorico } from '@/lib/historico';
 import { Prisma } from '@prisma/client';
 
 // GET - Listar todas as solicitações de remanejamento
@@ -161,17 +162,14 @@ export async function POST(request: NextRequest) {
           }
         });
 
-        // Registrar no histórico
+        // Registrar no histórico com id do usuário
         try {
-          await prisma.historicoRemanejamento.create({
-            data: {
-              solicitacaoId: solicitacao.id,
-              tipoAcao: 'CRIACAO',
-              entidade: 'SOLICITACAO',
-              descricaoAcao: `Solicitação de remanejamento criada para ${solicitacao.funcionarios[0]?.funcionario?.nome} (${solicitacao.funcionarios[0]?.funcionario?.matricula})`,
-              usuarioResponsavel: solicitadoPor,
-              observacoes: `Centro de custo: ${centroCustoOrigem} → ${centroCustoDestino}. Justificativa: ${justificativa}`
-            }
+          await logHistorico(request, {
+            solicitacaoId: solicitacao.id,
+            tipoAcao: 'CRIACAO',
+            entidade: 'SOLICITACAO',
+            descricaoAcao: `Solicitação de remanejamento criada para ${solicitacao.funcionarios[0]?.funcionario?.nome} (${solicitacao.funcionarios[0]?.funcionario?.matricula})`,
+            observacoes: `Centro de custo: ${centroCustoOrigem} → ${centroCustoDestino}. Justificativa: ${justificativa}`
           });
         } catch (historicoError) {
           console.error('Erro ao registrar histórico:', historicoError);
@@ -288,20 +286,17 @@ export async function PUT(request: NextRequest) {
       }
     });
 
-    // Registrar no histórico
+    // Registrar no histórico com id do usuário
     try {
-      await prisma.historicoRemanejamento.create({
-        data: {
-          solicitacaoId: remanejamento.id,
-          tipoAcao: 'ATUALIZACAO_STATUS',
-          entidade: 'SOLICITACAO',
-          campoAlterado: 'status',
-          valorAnterior: remanejamentoAtual?.status || '',
-          valorNovo: status,
-          descricaoAcao: `Status da solicitação alterado de "${remanejamentoAtual?.funcionarios?.[0]?.funcionario?.nome}" para "${status}" para ${remanejamento.funcionarios?.[0]?.funcionario?.nome} (${remanejamento.funcionarios?.[0]?.funcionario?.matricula})`,
-          usuarioResponsavel: analisadoPor || 'Sistema',
-          observacoes: observacoes || undefined
-        }
+      await logHistorico(request, {
+        solicitacaoId: remanejamento.id,
+        tipoAcao: 'ATUALIZACAO_STATUS',
+        entidade: 'SOLICITACAO',
+        campoAlterado: 'status',
+        valorAnterior: remanejamentoAtual?.status || '',
+        valorNovo: status,
+        descricaoAcao: `Status da solicitação alterado para "${status}" para ${remanejamento.funcionarios?.[0]?.funcionario?.nome} (${remanejamento.funcionarios?.[0]?.funcionario?.matricula})`,
+        observacoes: observacoes || undefined
       });
     } catch (historicoError) {
       console.error('Erro ao registrar histórico:', historicoError);

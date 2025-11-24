@@ -271,6 +271,8 @@ export async function PUT(
       await sincronizarTarefasPadrao({
         setores: ['TREINAMENTO'],
         usuarioResponsavel: user?.funcionario?.nome || 'Sistema - Matriz Atualizada',
+        usuarioResponsavelId: user?.id,
+        equipeId: user?.equipeId,
       });
       console.log('✅ Sincronização automática de TREINAMENTO executada após atualização da matriz');
     } catch (syncError) {

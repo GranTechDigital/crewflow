@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { NovaTarefaRemanejamento } from "@/types/remanejamento-funcionario";
+import { logHistorico } from "@/lib/historico";
 import { Prisma } from "@prisma/client";
 
 // GET - Listar tarefas de remanejamento
@@ -221,17 +222,15 @@ export async function POST(request: NextRequest) {
 
     // Registrar no histórico
     try {
-      await prisma.historicoRemanejamento.create({
-        data: {
-          solicitacaoId: remanejamentoFuncionario.solicitacaoId,
-          remanejamentoFuncionarioId: remanejamentoFuncionarioId,
-          tipoAcao: "CRIACAO",
-          entidade: "TAREFA",
-          descricaoAcao: `Nova tarefa "${tipo}" criada para ${tarefa.remanejamentoFuncionario.funcionario.nome} (${tarefa.remanejamentoFuncionario.funcionario.matricula})`,
-          usuarioResponsavel: responsavel,
-          observacoes: descricao || undefined,
-        },
-      });
+      await logHistorico(request, {
+        solicitacaoId: remanejamentoFuncionario.solicitacaoId!,
+        remanejamentoFuncionarioId: remanejamentoFuncionarioId,
+        tarefaId: tarefa.id,
+        tipoAcao: "CRIACAO",
+        entidade: "TAREFA",
+        descricaoAcao: `Nova tarefa "${tipo}" criada para ${tarefa.remanejamentoFuncionario.funcionario.nome} (${tarefa.remanejamentoFuncionario.funcionario.matricula})`,
+        observacoes: descricao || undefined,
+      })
     } catch (historicoError) {
       console.error("Erro ao registrar histórico:", historicoError);
       // Não falha a criação da tarefa se o histórico falhar
@@ -293,22 +292,19 @@ async function atualizarStatusTarefasFuncionario(
     if (remanejamentoAtualizado) {
       // Registrar no histórico a mudança de status das tarefas
       try {
-        await prisma.historicoRemanejamento.create({
-          data: {
-            solicitacaoId: remanejamentoAtualizado.solicitacaoId,
-            remanejamentoFuncionarioId: remanejamentoFuncionarioId,
-            tipoAcao: "ATUALIZACAO_STATUS",
-            entidade: "STATUS_TAREFAS",
-            descricaoAcao: `Status geral das tarefas atualizado para: ${
-              todasConcluidas ? "SOLICITAÇÃO CONCLUÍDA" : "ATENDER TAREFAS"
-            }`,
-            campoAlterado: "statusTarefas",
-            valorNovo: todasConcluidas
-              ? "SOLICITAÇÃO CONCLUÍDA"
-              : "ATENDER TAREFAS",
-            usuarioResponsavel: usuarioResponsavelNome,
-          },
-        });
+        await logHistorico(request as any, {
+          solicitacaoId: remanejamentoAtualizado.solicitacaoId!,
+          remanejamentoFuncionarioId: remanejamentoFuncionarioId,
+          tipoAcao: "ATUALIZACAO_STATUS",
+          entidade: "STATUS_TAREFAS",
+          descricaoAcao: `Status geral das tarefas atualizado para: ${
+            todasConcluidas ? "SOLICITAÇÃO CONCLUÍDA" : "ATENDER TAREFAS"
+          }`,
+          campoAlterado: "statusTarefas",
+          valorNovo: todasConcluidas
+            ? "SOLICITAÇÃO CONCLUÍDA"
+            : "ATENDER TAREFAS",
+        })
       } catch (historicoError) {
         console.error(
           "Erro ao registrar histórico de status das tarefas:",

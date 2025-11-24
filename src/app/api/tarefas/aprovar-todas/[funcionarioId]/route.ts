@@ -92,6 +92,8 @@ export async function POST(
           campoAlterado: "status",
           valorNovo: "CONCLUIDO",
           usuarioResponsavel: usuarioAutenticado?.funcionario?.nome || "Sistema",
+          usuarioResponsavelId: usuarioAutenticado?.id,
+          equipeId: usuarioAutenticado?.equipeId,
         },
       });
 
@@ -105,6 +107,8 @@ export async function POST(
           campoAlterado: "statusTarefas",
           valorNovo: "SUBMETER RASCUNHO",
           usuarioResponsavel: usuarioAutenticado?.funcionario?.nome || "Sistema",
+          usuarioResponsavelId: usuarioAutenticado?.id,
+          equipeId: usuarioAutenticado?.equipeId,
         },
       });
     } catch (historicoError) {

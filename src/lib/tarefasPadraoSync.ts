@@ -15,6 +15,8 @@ function chaveTarefa(tipo: string, responsavel: string) {
 export interface SincronizarInput {
   setores?: string[]; // ex.: ["TREINAMENTO"], ["RH"], ["MEDICINA"], ou combinação
   usuarioResponsavel?: string; // nome de quem disparou
+  usuarioResponsavelId?: number; // id do usuário humano gatilho
+  equipeId?: number; // equipe do usuário humano gatilho
   funcionarioIds?: number[]; // opcional: restringe aos remanejamentos destes funcionários
   remanejamentoIds?: string[]; // opcional: restringe pelos IDs de remanejamentoFuncionario
 }
@@ -38,6 +40,8 @@ export interface SincronizarResultado {
 export async function sincronizarTarefasPadrao({
   setores: setoresInput,
   usuarioResponsavel,
+  usuarioResponsavelId,
+  equipeId,
   funcionarioIds,
   remanejamentoIds,
 }: SincronizarInput): Promise<SincronizarResultado> {
@@ -314,6 +318,8 @@ export async function sincronizarTarefasPadrao({
               rem.funcionario?.matricula
             }) - Setores: ${setoresNormalizados.join(", ")}`,
             usuarioResponsavel: usuarioResponsavel || "Sistema",
+            usuarioResponsavelId: usuarioResponsavelId,
+            equipeId: equipeId,
           },
         });
       } catch (e) {
@@ -368,6 +374,8 @@ export async function sincronizarTarefasPadrao({
                     ? "Tarefa de TREINAMENTO cancelada por não obrigatoriedade na matriz"
                     : `Tarefa de ${tc.responsavel} cancelada por desativação/remoção nas Tarefas Padrão`,
                 usuarioResponsavel: usuarioResponsavel || "Sistema",
+                usuarioResponsavelId: usuarioResponsavelId,
+                equipeId: equipeId,
               },
             });
           } catch (histErr) {
@@ -422,6 +430,8 @@ export async function sincronizarTarefasPadrao({
                     ? "Tarefa de TREINAMENTO reativada por obrigatoriedade na matriz"
                     : `Tarefa de ${tr.responsavel} reativada por reativação nas Tarefas Padrão`,
                 usuarioResponsavel: usuarioResponsavel || "Sistema",
+                usuarioResponsavelId: usuarioResponsavelId,
+                equipeId: equipeId,
               },
             });
           } catch {}
@@ -459,6 +469,8 @@ export async function sincronizarTarefasPadrao({
               valorAnterior: rem.statusTarefas,
               valorNovo: novoStatus,
               usuarioResponsavel: usuarioResponsavel || "Sistema",
+              usuarioResponsavelId: usuarioResponsavelId,
+              equipeId: equipeId,
             },
           });
         } catch {}
