@@ -25,7 +25,8 @@ interface Usuario {
   funcionarioId: number;
   matricula: string;
   nome: string;
-  email: string;
+  email?: string | null;
+  emailSecundario?: string | null;
   funcao: string;
   departamento: string;
   equipe: Equipe;
@@ -262,7 +263,8 @@ function UsuariosAdminContent() {
   const filteredUsuarios = usuarios.filter(usuario => {
     const matchSearch = usuario.nome.toLowerCase().includes(search.toLowerCase()) ||
                        usuario.matricula.toLowerCase().includes(search.toLowerCase()) ||
-                       usuario.email?.toLowerCase().includes(search.toLowerCase());
+                       (usuario.emailSecundario || '').toLowerCase().includes(search.toLowerCase()) ||
+                       (usuario.email || '').toLowerCase().includes(search.toLowerCase());
     const matchEquipe = selectedEquipe === '' || usuario.equipe.id.toString() === selectedEquipe;
     return matchSearch && matchEquipe;
   });
@@ -344,7 +346,8 @@ function UsuariosAdminContent() {
                     <div>
                       <div className="text-sm font-medium text-gray-900">{usuario.nome}</div>
                       <div className="text-sm text-gray-500">{usuario.matricula}</div>
-                      <div className="text-sm text-gray-500">{usuario.email}</div>
+                      <div className="text-sm text-gray-500">{usuario.email || '—'}</div>
+                      <div className="text-sm text-gray-500">{usuario.emailSecundario || '—'}</div>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">

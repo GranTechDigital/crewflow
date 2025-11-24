@@ -171,7 +171,7 @@ export default function LoginPage() {
                     className="peer w-full rounded-xl border border-gray-300 bg-white/85 px-4 pt-6 pb-2 text-gray-900 placeholder-transparent focus:outline-none focus:ring-2 focus:ring-red-600 focus:border-transparent"
                   />
                   <label htmlFor="matricula" className="absolute left-4 top-3 text-gray-500 transition-all duration-200 origin-left pointer-events-none peer-placeholder-shown:top-4 peer-placeholder-shown:text-gray-500 peer-focus:top-3 peer-focus:text-red-700 peer-placeholder-shown:scale-100 peer-focus:scale-90">
-                    Matrícula
+                    Matrícula ou e-mail
                   </label>
                 </div>
 
@@ -214,7 +214,7 @@ export default function LoginPage() {
             </form>
 
             <div className="mt-6 text-center">
-              <p className="text-sm text-gray-600">Problemas para acessar?</p>
+              <p className="text-sm 4*.text-gray-600">Problemas para acessar?</p>
               <p className="text-sm text-gray-500 mt-1">Entre em contato com o administrador do sistema</p>
             </div>
           </div>

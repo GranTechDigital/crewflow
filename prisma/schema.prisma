@@ -219,18 +219,49 @@ model HistoricoRemanejamento {
   valorNovo                  String?
   descricaoAcao              String
   usuarioResponsavel         String
+  usuarioResponsavelId       Int?
+  equipeId                   Int?
   dataAcao                   DateTime                  @default(now())
   observacoes                String?
   tarefa                     TarefaRemanejamento?      @relation(fields: [tarefaId], references: [id], onDelete: Cascade)
   solicitacao                SolicitacaoRemanejamento? @relation(fields: [solicitacaoId], references: [id], onDelete: Cascade)
   remanejamentoFuncionario   RemanejamentoFuncionario? @relation(fields: [remanejamentoFuncionarioId], references: [id], onDelete: Cascade)
+  usuario                    Usuario?                  @relation(name: "HistoricoUsuarioResponsavel", fields: [usuarioResponsavelId], references: [id])
+  equipe                     Equipe?                   @relation(name: "HistoricoEquipeResponsavel", fields: [equipeId], references: [id])
 
   @@index([dataAcao])
   @@index([tipoAcao])
   @@index([entidade])
   @@index([usuarioResponsavel])
   @@index([tarefaId])
+  @@index([usuarioResponsavelId])
+  @@index([remanejamentoFuncionarioId, dataAcao])
+  @@index([solicitacaoId, dataAcao])
 }
+
+model Usuario {
+  id            Int         @id @default(autoincrement())
+  funcionarioId Int         @unique
+  senha         String
+  equipeId      Int
+  ativo         Boolean     @default(true)
+  ultimoLogin   DateTime?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  equipe        Equipe      @relation(fields: [equipeId], references: [id])
+  funcionario   Funcionario @relation(fields: [funcionarioId], references: [id])
+  emailSecundario         String?
+  obrigarAdicionarEmail   Boolean     @default(false)
+  obrigarTrocaSenha       Boolean     @default(false)
+
+  historicosComoResponsavel HistoricoRemanejamento[] @relation("HistoricoUsuarioResponsavel")
+
+  @@index([funcionarioId])
+  @@index([equipeId])
+  @@index([ativo])
+}
+
+// Removido: definição duplicada de Equipe
 
 model Equipe {
   id        Int       @id @default(autoincrement())
@@ -240,6 +271,7 @@ model Equipe {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   usuarios  Usuario[]
+  historicosEquipe HistoricoRemanejamento[] @relation("HistoricoEquipeResponsavel")
 }
 
 model TarefaPadrao {
@@ -255,26 +287,7 @@ model TarefaPadrao {
   @@index([ativo])
 }
 
-model Usuario {
-  id            Int         @id @default(autoincrement())
-  funcionarioId Int         @unique
-  senha         String
-  equipeId      Int
-  ativo         Boolean     @default(true)
-  ultimoLogin   DateTime?
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-  equipe        Equipe      @relation(fields: [equipeId], references: [id])
-  funcionario   Funcionario @relation(fields: [funcionarioId], references: [id])
-
-  emailSecundario         String?
-  obrigarAdicionarEmail   Boolean     @default(false)
-  obrigarTrocaSenha       Boolean     @default(false)
-
-  @@index([funcionarioId])
-  @@index([equipeId])
-  @@index([ativo])
-}
+// Removido: definição duplicada de Usuario (índices serão mantidos no modelo principal)
 
 model UptimeUpload {
   id             Int          @id @default(autoincrement())

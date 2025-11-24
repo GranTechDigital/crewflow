@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { jwtVerify } from "jose";
 
-const publicRoutes = ["/login", "/unauthorized", "/api/auth/login"];
+const publicRoutes = ["/login", "/unauthorized", "/api/auth/login", "/dashboard-teste", "/dashboard-data", "/dashboard-sla", "/dashboard-downtime", "/dashboard", "/dashboard-gantt", "/gantt", "/gantt-timeline", "/gantt-dia"];
 const publicApiRoutes = [
   "/api/auth/login",
   "/api/auth/register",
@@ -11,6 +11,12 @@ const publicApiRoutes = [
   "/api/dados/sincronizar-funcoes",
   "/api/debug/db",
   "/api/tarefas/dedup",
+  "/api/sla/overview",
+  "/api/sla/monthly",
+  "/api/downtime/overview",
+  "/api/downtime/all",
+  "/api/downtime/gantt",
+  "/api/downtime/gantt/all",
 ];
 
 export async function middleware(request: NextRequest) {
@@ -27,7 +33,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Verificar se é uma rota pública
-  if (publicRoutes.includes(pathname)) {
+  if (publicRoutes.some((route) => pathname.startsWith(route))) {
     // Se for a página de login, não redirecionar automaticamente para "/"
     // para evitar loops com tokens antigos. Apenas direcionar
     // para etapas obrigatórias se o token exigir.
