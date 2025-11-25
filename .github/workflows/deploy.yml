@@ -18,6 +18,7 @@ on:
 
 jobs:
   deploy:
+    environment: production
     runs-on: ubuntu-latest
     steps:
       - name: 📥 Checkout code
