@@ -189,9 +189,13 @@ jobs:
             # Garantir rede externa necessária para o compose
             docker network inspect projetogran_crewflow-network >/dev/null 2>&1 || docker network create projetogran_crewflow-network
 
-            # Subir serviços via compose com env-file
+            # Garantir remoção de containers conflitando por nome (sem afetar staging)
+            docker rm -f crewflow-app-production 2>/dev/null || true
+            docker rm -f postgres-prod 2>/dev/null || true
+            docker rm -f pgadmin-production 2>/dev/null || true
+
+            # Subir serviços via compose com env-file (sem pull, usa imagem carregada localmente)
             docker compose --env-file /opt/projetogran/.env.production -f /opt/projetogran/docker-compose.yml down || true
-            docker compose --env-file /opt/projetogran/.env.production -f /opt/projetogran/docker-compose.yml pull || true
             docker compose --env-file /opt/projetogran/.env.production -f /opt/projetogran/docker-compose.yml up -d
 
             echo "📊 Disk usage after compose up:"
