@@ -179,7 +179,7 @@ function FuncionariosPageContent() {
   const [rejectingStatus, setRejectingStatus] = useState(false);
   const [approvingStatus, setApprovingStatus] = useState(false);
   const [activeTab, setActiveTab] = useState<
-    "nominal" | "solicitacao" | "dashboard"
+    "nominal" | "concluidos" | "solicitacao" | "dashboard"
   >("nominal");
   const [dashboardData, setDashboardData] = useState<any>(null);
   const [loadingDashboard, setLoadingDashboard] = useState(false);
@@ -2211,6 +2211,99 @@ function FuncionariosPageContent() {
     indiceFim
   );
   console.log(funcionariosOrdenados);
+  const funcionariosFiltradosConcluidos = funcionariosFiltrados.filter(
+    (f) => f.statusPrestserv === "VALIDADO" || f.statusTarefas === "CONCLUIDO"
+  );
+  const funcionariosFiltradosNaoConcluidos = funcionariosFiltrados.filter(
+    (f) => !(f.statusPrestserv === "VALIDADO" || f.statusTarefas === "CONCLUIDO")
+  );
+  const funcionariosOrdenadosNaoConcluidos = [
+    ...funcionariosFiltradosNaoConcluidos,
+  ].sort((a, b) => {
+    const { campo, direcao } = ordenacao;
+    let valorA: any;
+    let valorB: any;
+
+    switch (campo) {
+      case "solicitacaoId":
+        valorA = parseInt(a.solicitacaoId) || 0;
+        valorB = parseInt(b.solicitacaoId) || 0;
+        break;
+      case "nome":
+        valorA = a.nome.toLowerCase();
+        valorB = b.nome.toLowerCase();
+        break;
+      case "matricula":
+        valorA = a.matricula;
+        valorB = b.matricula;
+        break;
+      case "statusTarefas":
+        valorA = a.statusTarefas;
+        valorB = b.statusTarefas;
+        break;
+      default:
+        return 0;
+    }
+
+    if (valorA < valorB) return direcao === "asc" ? -1 : 1;
+    if (valorA > valorB) return direcao === "asc" ? 1 : -1;
+    return 0;
+  });
+  const funcionariosOrdenadosConcluidos = [
+    ...funcionariosFiltradosConcluidos,
+  ].sort((a, b) => {
+    const { campo, direcao } = ordenacao;
+    let valorA: any;
+    let valorB: any;
+
+    switch (campo) {
+      case "solicitacaoId":
+        valorA = parseInt(a.solicitacaoId) || 0;
+        valorB = parseInt(b.solicitacaoId) || 0;
+        break;
+      case "nome":
+        valorA = a.nome.toLowerCase();
+        valorB = b.nome.toLowerCase();
+        break;
+      case "matricula":
+        valorA = a.matricula;
+        valorB = b.matricula;
+        break;
+      case "statusTarefas":
+        valorA = a.statusTarefas;
+        valorB = b.statusTarefas;
+        break;
+      default:
+        return 0;
+    }
+
+    if (valorA < valorB) return direcao === "asc" ? -1 : 1;
+    if (valorA > valorB) return direcao === "asc" ? 1 : -1;
+    return 0;
+  });
+  const totalPaginasNaoConcluidos = Math.ceil(
+    funcionariosOrdenadosNaoConcluidos.length / itensPorPagina
+  );
+  const totalPaginasConcluidos = Math.ceil(
+    funcionariosOrdenadosConcluidos.length / itensPorPagina
+  );
+  const funcionariosPaginadosNaoConcluidos = funcionariosOrdenadosNaoConcluidos.slice(
+    indiceInicio,
+    indiceFim
+  );
+  const funcionariosPaginadosConcluidos = funcionariosOrdenadosConcluidos.slice(
+    indiceInicio,
+    indiceFim
+  );
+  useEffect(() => {
+    const totalAtual =
+      activeTab === "concluidos"
+        ? totalPaginasConcluidos
+        : totalPaginasNaoConcluidos;
+    if (paginaAtual > totalAtual && totalAtual > 0) {
+      setPaginaAtual(1);
+    }
+  }, [activeTab, totalPaginasConcluidos, totalPaginasNaoConcluidos, paginaAtual]);
   // Resetar página atual quando filtros mudarem
   useEffect(() => {
     if (paginaAtual > totalPaginas && totalPaginas > 0) {
@@ -2342,6 +2435,17 @@ function FuncionariosPageContent() {
             >
               <UsersIcon className="h-4 w-4" />
               <span>Visão por Funcionário</span>
+            </button>
+            <button
+              onClick={() => setActiveTab("concluidos")}
+              className={`text-white py-2 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${
+                activeTab === "concluidos"
+                  ? "border-sky-500 text-sky-300"
+                  : "border-transparent text-gray-500 hover:text-white-700 hover:border-white-300"
+              }`}
+            >
+              <CheckIcon className="h-4 w-4" />
+              <span>Concluídos</span>
             </button>
             <button
               onClick={() => setActiveTab("solicitacao")}
@@ -4423,7 +4527,7 @@ function FuncionariosPageContent() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {funcionariosPaginados.map((funcionario, index) => {
+                  {funcionariosPaginadosNaoConcluidos.map((funcionario, index) => {
                     const precisaAtencao =
                       funcionarioDemitidoPrecisaAtencao(funcionario);
                     const alertaDemitido = precisaAtencao
@@ -4975,7 +5079,7 @@ function FuncionariosPageContent() {
             </div>
 
             {/* Componente de Paginação */}
-            {funcionariosFiltrados.length > 0 && (
+            {funcionariosFiltradosNaoConcluidos.length > 0 && (
               <div className="bg-white px-4 py-3 border-t border-gray-200 sm:px-6">
                 <div className="flex items-center justify-between">
                   <div className="flex-1 flex justify-between sm:hidden">
@@ -4991,9 +5095,11 @@ function FuncionariosPageContent() {
                     </button>
                     <button
                       onClick={() =>
-                        setPaginaAtual(Math.min(totalPaginas, paginaAtual + 1))
+                        setPaginaAtual(
+                          Math.min(totalPaginasNaoConcluidos, paginaAtual + 1)
+                        )
                       }
-                      disabled={paginaAtual === totalPaginas}
+                      disabled={paginaAtual === totalPaginasNaoConcluidos}
                       className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Próximo
@@ -5007,11 +5113,14 @@ function FuncionariosPageContent() {
                         <span className="font-medium">{indiceInicio + 1}</span>{" "}
                         até{" "}
                         <span className="font-medium">
-                          {Math.min(indiceFim, funcionariosOrdenados.length)}
+                          {Math.min(
+                            indiceFim,
+                            funcionariosOrdenadosNaoConcluidos.length
+                          )}
                         </span>{" "}
                         de{" "}
                         <span className="font-medium">
-                          {funcionariosOrdenados.length}
+                          {funcionariosOrdenadosNaoConcluidos.length}
                         </span>{" "}
                         funcionários
                       </p>
@@ -5064,10 +5173,10 @@ function FuncionariosPageContent() {
                           const result: (number | string)[] = [];
                           let last: number | undefined;
 
-                          for (let i = 1; i <= totalPaginas; i++) {
+                          for (let i = 1; i <= totalPaginasNaoConcluidos; i++) {
                             if (
                               i === 1 ||
-                              i === totalPaginas ||
+                              i === totalPaginasNaoConcluidos ||
                               (i >= paginaAtual - delta &&
                                 i <= paginaAtual + delta)
                             ) {
@@ -5115,10 +5224,13 @@ function FuncionariosPageContent() {
                         <button
                           onClick={() =>
                             setPaginaAtual(
-                              Math.min(totalPaginas, paginaAtual + 1)
+                              Math.min(
+                                totalPaginasNaoConcluidos,
+                                paginaAtual + 1
+                              )
                             )
                           }
-                          disabled={paginaAtual === totalPaginas}
+                          disabled={paginaAtual === totalPaginasNaoConcluidos}
                           className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <span className="sr-only">Próximo</span>
@@ -5134,13 +5246,425 @@ function FuncionariosPageContent() {
               </div>
             )}
 
-            {funcionariosFiltrados.length === 0 && (
+            {funcionariosFiltradosNaoConcluidos.length === 0 && (
               <div className="text-center py-8">
                 <div className="text-gray-500">
                   <p className="text-base">📭 Nenhum funcionário encontrado</p>
                   <p className="text-sm mt-1">
                     Tente ajustar os filtros de busca
                   </p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === "concluidos" && (
+          <div className="bg-white  border-slate-400 border-1 rounded-lg shadow overflow-hidden">
+            <div className="overflow-x-auto">
+              <table
+                className="w-full divide-y divide-gray-200 rounded-lg shadow-md overflow-hidden"
+                style={{ minWidth: "1500px" }}
+              >
+                <thead className="bg-slate-100 text-slate-700">
+                  <tr>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                      <button
+                        onClick={() => alterarOrdenacao("solicitacaoId")}
+                        className="flex items-center space-x-1 hover:text-blue-600 transition-colors"
+                      >
+                        <span className="px-2 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                          Solicitação
+                        </span>
+                        {ordenacao.campo === "solicitacaoId" && (
+                          <span className="text-blue-600">
+                            {ordenacao.direcao === "asc" ? "↑" : "↓"}
+                          </span>
+                        )}
+                      </button>
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                      Contratos
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                      Funcionário Prestserv
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                      Ação Necessária
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                      Responsável
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                      Progresso Setores
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                      Status Geral
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                      Status Prestserv
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                      Rascunho Prestserv
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                      Ações
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {funcionariosPaginadosConcluidos.map((funcionario, index) => {
+                    const precisaAtencao =
+                      funcionarioDemitidoPrecisaAtencao(funcionario);
+                    const alertaDemitido = precisaAtencao
+                      ? getTipoAlertaDemitido(funcionario)
+                      : null;
+
+                    return (
+                      <tr
+                        key={funcionario.id}
+                        className={`hover:bg-gray-50 transition-colors duration-150 ${
+                          index % 2 === 0 ? "bg-white" : "bg-gray-50"
+                        } ${
+                          alertaDemitido
+                            ? alertaDemitido.tipo === "critico"
+                              ? "border-l-4 border-l-red-500 bg-red-50"
+                              : "border-l-4 border-l-yellow-500 bg-yellow-50"
+                            : ""
+                        }`}
+                        title={getTooltipMessage(funcionario)}
+                      >
+                        <td className="px-3 py-2 text-xs text-gray-700">
+                          <div className="space-y-1">
+                            <div className="font-mono font-medium">
+                              ID: {funcionario.remanejamentoId}
+                            </div>
+                            <div className="font-mono text-xs text-gray-500">
+                              ID GRUPO: {funcionario.solicitacaoId}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {funcionario.tipoSolicitacao}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-3 py-2 text-xs text-gray-700">
+                          <div className="space-y-1">
+                            <div>
+                              Origem: {funcionario.contratoOrigem} - {" "}
+                              <span className="text-gray-500">
+                                {funcionario.contratoOrigemNome}
+                              </span>
+                            </div>
+                            <div>
+                              Destino: {funcionario.contratoDestino} - {" "}
+                              <span className="text-gray-500">
+                                {funcionario.contratoDestinoNome}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-3 py-2 text-xs text-gray-700">
+                          <div className="flex items-center gap-2">
+                            <div className="flex items-center">
+                              <span className="text-gray-900 font-medium">
+                                {funcionario.nome}
+                              </span>
+                              <span className="ml-2 text-gray-500">
+                                {funcionario.matricula}
+                              </span>
+                            </div>
+                            <div className="ml-2 flex items-center">
+                              <span className="ml-1 px-2 py-0.5 text-[10px] rounded bg-gray-100 text-gray-800 border border-gray-200">
+                                SISPAT: {funcionario.sispat}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-3 py-2 text-xs text-gray-700">
+                          <div className="flex flex-col gap-1">
+                            <span className="px-2 py-0.5 text-[10px] rounded bg-blue-100 text-blue-800 border border-blue-200">
+                              {getStatusGeralLabel(funcionario.statusTarefas)}
+                            </span>
+                            <span
+                              className={`px-2 py-0.5 text-[10px] rounded ${getStatusColor(
+                                funcionario.statusPrestserv
+                              )} border`}
+                            >
+                              {getStatusLabel(funcionario.statusPrestserv)}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-3 py-2 text-xs text-gray-700">
+                          <span
+                            className={`px-2 py-0.5 text-[10px] rounded border ${getResponsavelColor(
+                              getResponsavelAtual(funcionario)
+                            )}`}
+                          >
+                            {getResponsavelAtual(funcionario)}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-xs text-gray-700">
+                          <div className="grid grid-cols-3 gap-1">
+                            {funcionario.progressoPorSetor?.map((p) => (
+                              <div key={p.setor} className="flex items-center gap-1">
+                                <span className="text-gray-500">
+                                  {getSetorIcon(p.setor)}
+                                </span>
+                                <span className="text-[11px] text-gray-700">
+                                  {p.setor}
+                                </span>
+                                <div className="flex-1 h-1.5 bg-gray-200 rounded">
+                                  <div
+                                    className={`h-1.5 rounded ${getSetorColor(
+                                      p.percentual
+                                    )}`}
+                                    style={{ width: `${p.percentual}%` }}
+                                  ></div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </td>
+                        <td className="px-3 py-2 text-xs text-gray-700">
+                          <div className="flex items-center gap-2">
+                            <span className="px-2 py-0.5 text-[10px] rounded bg-gray-100 text-gray-800 border border-gray-200">
+                              {funcionario.statusTarefas}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-3 py-2 text-xs text-gray-700">
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2 py-0.5 text-[10px] rounded ${getStatusColor(
+                              funcionario.statusPrestserv
+                            )} border`}
+                            >
+                              {getStatusLabel(funcionario.statusPrestserv)}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-3 py-2 text-xs text-gray-700">
+                          <div className="flex items-center gap-2">
+                            {isAdmin() ? (
+                              <select
+                                value={funcionario.statusPrestserv}
+                                onChange={(e) => {
+                                  const novoStatus = e.target.value;
+                                  if (novoStatus !== funcionario.statusPrestserv) {
+                                    updatePrestservStatus(funcionario.id, novoStatus);
+                                  }
+                                }}
+                                className="px-2 py-1 text-[11px] bg-white border border-gray-300 rounded hover:border-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              >
+                                {getValidStatusOptions(funcionario).map(
+                                  (opt) => (
+                                    <option key={opt} value={opt}>
+                                      {getStatusLabel(opt)}
+                                    </option>
+                                  )
+                                )}
+                              </select>
+                            ) : (
+                              <span className="px-2 py-0.5 text-[10px] rounded bg-gray-100 text-gray-800 border border-gray-200">
+                                {getStatusLabel(funcionario.statusPrestserv)}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-3 py-2 text-xs text-gray-700">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() =>
+                                router.push(
+                                  `/prestserv/remanejamentos/${funcionario.id}`
+                                )
+                              }
+                              className="px-2 py-1 text-[11px] bg-blue-600 text-white rounded hover:bg-blue-700"
+                            >
+                              Detalhes
+                            </button>
+                            <button
+                              onClick={() => {
+                                setSelectedFuncionario(funcionario);
+                                setShowListaTarefasModal(true);
+                              }}
+                              className="px-2 py-1 text-[11px] bg-indigo-600 text-white rounded hover:bg-indigo-700"
+                            >
+                              Tarefas
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {funcionariosFiltradosConcluidos.length > 0 && (
+              <div className="bg-white px-4 py-3 border-t border-gray-200 sm:px-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1 flex justify-between sm:hidden">
+                    <button
+                      onClick={() =>
+                        setPaginaAtual(Math.max(1, paginaAtual - 1))
+                      }
+                      disabled={paginaAtual === 1}
+                      className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <ChevronLeftIcon className="h-5 w-5 mr-1" />
+                      Anterior
+                    </button>
+                    <button
+                      onClick={() =>
+                        setPaginaAtual(
+                          Math.min(totalPaginasConcluidos, paginaAtual + 1)
+                        )
+                      }
+                      disabled={paginaAtual === totalPaginasConcluidos}
+                      className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Próximo
+                      <ChevronRightIcon className="h-5 w-5 ml-1" />
+                    </button>
+                  </div>
+                  <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                    <div className="flex items-center space-x-4">
+                      <p className="text-sm text-gray-700">
+                        Mostrando {" "}
+                        <span className="font-medium">{indiceInicio + 1}</span>{" "}
+                        até{" "}
+                        <span className="font-medium">
+                          {Math.min(indiceFim, funcionariosOrdenadosConcluidos.length)}
+                        </span>{" "}
+                        de{" "}
+                        <span className="font-medium">
+                          {funcionariosOrdenadosConcluidos.length}
+                        </span>{" "}
+                        funcionários
+                      </p>
+                      <div className="flex items-center space-x-2">
+                        <label
+                          htmlFor="itensPorPagina"
+                          className="text-sm text-gray-700"
+                        >
+                          Itens por página:
+                        </label>
+                        <select
+                          id="itensPorPagina"
+                          value={itensPorPagina}
+                          onChange={(e) => {
+                            setItensPorPagina(Number(e.target.value));
+                            setPaginaAtual(1);
+                          }}
+                          className="border border-gray-300 rounded-md px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        >
+                          <option value={10}>10</option>
+                          <option value={25}>25</option>
+                          <option value={50}>50</option>
+                          <option value={100}>100</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div>
+                      <nav
+                        className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px"
+                        aria-label="Pagination"
+                      >
+                        <button
+                          onClick={() =>
+                            setPaginaAtual(Math.max(1, paginaAtual - 1))
+                          }
+                          disabled={paginaAtual === 1}
+                          className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <span className="sr-only">Anterior</span>
+                          <ChevronLeftIcon
+                            className="h-5 w-5"
+                            aria-hidden="true"
+                          />
+                        </button>
+
+                        {(() => {
+                          const delta = 1;
+                          const range: number[] = [];
+                          const result: (number | string)[] = [];
+                          let last: number | undefined;
+
+                          for (let i = 1; i <= totalPaginasConcluidos; i++) {
+                            if (
+                              i === 1 ||
+                              i === totalPaginasConcluidos ||
+                              (i >= paginaAtual - delta &&
+                                i <= paginaAtual + delta)
+                            ) {
+                              range.push(i);
+                            }
+                          }
+
+                          for (const i of range) {
+                            if (last !== undefined) {
+                              if (i - last === 2) {
+                                result.push(last + 1);
+                              } else if (i - last > 2) {
+                                result.push("...");
+                              }
+                            }
+                            result.push(i);
+                            last = i;
+                          }
+
+                          return result;
+                        })().map((item, idx) =>
+                          typeof item === "string" ? (
+                            <span
+                              key={`ellipsis-${idx}`}
+                              className="relative inline-flex items-center px-2 py-1 text-xs text-gray-400 select-none"
+                            >
+                              …
+                            </span>
+                          ) : (
+                            <button
+                              key={item}
+                              onClick={() => setPaginaAtual(item)}
+                              className={`relative inline-flex items-center px-2 py-1 border text-xs font-medium ${
+                                item === paginaAtual
+                                  ? "z-10 bg-blue-50 border-blue-500 text-blue-600"
+                                  : "bg-white border-gray-300 text-gray-500 hover:bg-gray-50"
+                              }`}
+                              aria-label={`Ir para página ${item}`}
+                            >
+                              {item}
+                            </button>
+                          )
+                        )}
+
+                        <button
+                          onClick={() =>
+                            setPaginaAtual(
+                              Math.min(totalPaginasConcluidos, paginaAtual + 1)
+                            )
+                          }
+                          disabled={paginaAtual === totalPaginasConcluidos}
+                          className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <span className="sr-only">Próximo</span>
+                          <ChevronRightIcon
+                            className="h-5 w-5"
+                            aria-hidden="true"
+                          />
+                        </button>
+                      </nav>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {funcionariosFiltradosConcluidos.length === 0 && (
+              <div className="text-center py-8">
+                <div className="text-gray-500">
+                  <p className="text-base">📭 Nenhum concluído encontrado</p>
+                  <p className="text-sm mt-1">Tente ajustar os filtros</p>
                 </div>
               </div>
             )}
