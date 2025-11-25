@@ -68,10 +68,12 @@ export async function GET(request: NextRequest) {
       }
     })
 
+    const isSecure = (process.env.NEXTAUTH_URL || '').startsWith('https')
     response.cookies.set('auth-token', newToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: isSecure,
       sameSite: 'lax',
+      path: '/',
       maxAge: 8 * 60 * 60
     })
 
