@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/app/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
+import logoIcon from '@/app/favicon.ico';
 
 export default function LoginPage() {
   const [matricula, setMatricula] = useState('');
@@ -135,7 +136,7 @@ export default function LoginPage() {
               {!logoError ? (
                 <div className="mx-auto h-10 w-10" style={spinLogo ? { animation: 'spinOnce 600ms ease-out' } : undefined} onAnimationEnd={() => setSpinLogo(false)}>
                   <Image
-                    src="/favicon.ico"
+                    src={logoIcon}
                     alt="CrewControl"
                     width={40}
                     height={40}
