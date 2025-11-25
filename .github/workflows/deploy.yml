@@ -120,6 +120,9 @@ jobs:
           PGADMIN_PASSWORD_VALUE="${{ secrets.PGADMIN_PASSWORD }}"
           NEXTAUTH_URL_VALUE="http://${{ secrets.SERVER_HOST }}:3001"
           JWT_SECRET_VALUE="${{ secrets.JWT_SECRET }}"
+          ADMIN_USER_VALUE="${{ secrets.ADMIN_USER }}"
+          ADMIN_EMAIL_VALUE="${{ secrets.ADMIN_EMAIL }}"
+          ADMIN_PASSWORD_VALUE="${{ secrets.ADMIN_PASSWORD }}"
 
           [ -z "$POSTGRES_PASSWORD_VALUE" ] && POSTGRES_PASSWORD_VALUE="postgres"
           [ -z "$PGADMIN_EMAIL_VALUE" ] && PGADMIN_EMAIL_VALUE="admin@crewflow.com"
@@ -131,6 +134,11 @@ jobs:
               JWT_SECRET_VALUE=$(date +%s%N | sha256sum | cut -c1-64)
             fi
           fi
+
+          # Defaults para credenciais admin
+          [ -z "$ADMIN_USER_VALUE" ] && ADMIN_USER_VALUE="ADMIN001"
+          [ -z "$ADMIN_EMAIL_VALUE" ] && ADMIN_EMAIL_VALUE="admin@gransystem.com"
+          [ -z "$ADMIN_PASSWORD_VALUE" ] && ADMIN_PASSWORD_VALUE="admin123"
 
           DB_USER="$POSTGRES_USER_VALUE"; DB_PASS="$POSTGRES_PASSWORD_VALUE"; DB_NAME="$POSTGRES_DB_VALUE"
           DATABASE_URL_VALUE="postgresql://${DB_USER}:${DB_PASS}@postgres-prod:5432/${DB_NAME}?schema=public"
@@ -144,6 +152,9 @@ jobs:
           printf 'NEXTAUTH_URL=%s\n' "$NEXTAUTH_URL_VALUE" >> "$ENV_FILE"
           printf 'JWT_SECRET=%s\n' "$JWT_SECRET_VALUE" >> "$ENV_FILE"
           printf 'DATABASE_URL=%s\n' "$DATABASE_URL_VALUE" >> "$ENV_FILE"
+          printf 'ADMIN_USER=%s\n' "$ADMIN_USER_VALUE" >> "$ENV_FILE"
+          printf 'ADMIN_EMAIL=%s\n' "$ADMIN_EMAIL_VALUE" >> "$ENV_FILE"
+          printf 'ADMIN_PASSWORD=%s\n' "$ADMIN_PASSWORD_VALUE" >> "$ENV_FILE"
 
           ls -l "$ENV_FILE"
           ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} "mkdir -p /opt/projetogran"
@@ -240,6 +251,49 @@ jobs:
             else
               echo "ℹ️ Seed skipped (database already populated or error occurred)"
             fi
+
+            echo "🔎 Ensuring admin user exists..."
+            docker exec crewflow-app-production node - <<'JS'
+const { PrismaClient } = require('@prisma/client');
+const bcrypt = require('bcryptjs');
+const prisma = new PrismaClient();
+(async () => {
+  const adminMatricula = process.env.ADMIN_USER || 'ADMIN001';
+  const adminEmail = process.env.ADMIN_EMAIL || 'admin@gransystem.com';
+  const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+  const func = await prisma.funcionario.findUnique({ where: { matricula: adminMatricula } });
+  let funcionario = func;
+  if (!funcionario) {
+    funcionario = await prisma.funcionario.create({ data: {
+      matricula: adminMatricula,
+      nome: 'Administrador do Sistema',
+      cpf: '00000000000',
+      email: adminEmail,
+      telefone: '(11) 99999-9999',
+      funcao: 'Administrador',
+      departamento: 'TI',
+      centroCusto: 'ADMIN',
+      status: 'ATIVO'
+    }});
+  }
+  const usuario = await prisma.usuario.findFirst({ where: { funcionarioId: funcionario.id } });
+  if (!usuario) {
+    const hash = await bcrypt.hash(adminPassword, 10);
+    await prisma.usuario.create({ data: {
+      senha: hash,
+      ativo: true,
+      funcionarioId: funcionario.id
+    }});
+  }
+  console.log('✅ Admin ensured');
+  await prisma.$disconnect();
+})();
+JS
+
+            echo "🔁 Running backfill scripts..."
+            docker exec crewflow-app-production node scripts/backfillEventosTarefa.js || true
+            docker exec crewflow-app-production node scripts/backfillCapacitacoes.js || true
+            docker exec crewflow-app-production node scripts/backfill-historico-usuarios.js || true
           EOF
 
       - name: "🔎 Health check: app responds (login route)"

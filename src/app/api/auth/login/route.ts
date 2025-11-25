@@ -20,10 +20,25 @@ export async function POST(request: NextRequest) {
     const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier);
 
     if (isEmail) {
-      const usuario = await prisma.usuario.findFirst({
+      // Primeiro, tentar pelo emailSecundario do usuário
+      let usuario = await prisma.usuario.findFirst({
         where: { emailSecundario: identifier },
         include: { equipe: true, funcionario: true }
       });
+
+      // Fallback: se não encontrado, tentar pelo email do funcionário
+      if (!usuario) {
+        const funcByEmail = await prisma.funcionario.findFirst({
+          where: { email: identifier },
+          include: { usuario: { include: { equipe: true } } }
+        });
+        if (funcByEmail && funcByEmail.usuario) {
+          usuario = {
+            ...funcByEmail.usuario,
+            funcionario: funcByEmail,
+          } as any;
+        }
+      }
 
       if (!usuario || !usuario.funcionario) {
         return NextResponse.json(
