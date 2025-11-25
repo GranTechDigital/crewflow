@@ -11,6 +11,7 @@ services:
       - ADMIN_USER=${ADMIN_USER}
       - ADMIN_EMAIL=${ADMIN_EMAIL}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - ADMIN_FORCE_PASSWORD=${ADMIN_FORCE_PASSWORD}
       - NODE_ENV=production
     container_name: crewflow-app-production
     restart: unless-stopped
