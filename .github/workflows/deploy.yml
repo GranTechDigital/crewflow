@@ -325,6 +325,25 @@ JS
             fi
           EOF
 
+      - name: "✅ Verify Admin API Login"
+        run: |
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
+            set -e
+            USER=${ADMIN_USER:-ADMIN001}
+            PASS=${ADMIN_PASSWORD:-admin123}
+            echo "🔎 Testing login via API with matricula=$USER"
+            RESP=$(curl -s -w '\n%{http_code}' -H 'Content-Type: application/json' -d "{\"matricula\":\"$USER\",\"senha\":\"$PASS\"}" http://localhost:3001/api/auth/login)
+            BODY=$(echo "$RESP" | head -n1)
+            CODE=$(echo "$RESP" | tail -n1)
+            echo "HTTP: $CODE"
+            echo "Body: $BODY"
+            if [ "$CODE" != "200" ]; then
+              echo "❌ Admin login failed"
+              exit 1
+            fi
+            echo "✅ Admin login succeeded"
+          EOF
+
       - name: 🎉 Deployment complete
         run: |
           echo "🚀 Deployment completed successfully!"
