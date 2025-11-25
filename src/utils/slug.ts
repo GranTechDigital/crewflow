@@ -1,4 +1,4 @@
-// Util para gerar slugs consistentes a partir de textos de funções
+// Util para gerar slugs consistentes a partir de textos (no-op)
 export function toSlug(input: string): string {
   return (input || "")
     .normalize("NFKD")
