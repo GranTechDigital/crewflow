@@ -74,7 +74,9 @@ export default function DetalheFuncionarioElegante() {
   const fetchFuncionario = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/logistica/funcionario/${funcionarioId}`);
+      const response = await fetch(`/api/logistica/funcionario/${funcionarioId}`, {
+        credentials: 'include',
+      });
       
       if (!response.ok) {
         throw new Error('Erro ao carregar dados do funcionário');

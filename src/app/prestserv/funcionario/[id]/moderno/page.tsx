@@ -161,6 +161,7 @@ function DetalheFuncionarioContent() {
           headers: {
             "Content-Type": "application/json",
           },
+          credentials: 'include',
           body: JSON.stringify({
             statusPrestserv: novoStatus,
             observacoesPrestserv: observacao,
@@ -626,7 +627,7 @@ function DetalheFuncionarioContent() {
                       Solicitante
                     </p>
                     <p className="text-lg text-gray-900">
-                      {funcionario.solicitacao?.solicitadoPor || ""}
+                      {String(funcionario.solicitacao?.solicitadoPorId ?? "")}
                     </p>
                   </div>
                   <div>

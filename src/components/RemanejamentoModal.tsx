@@ -261,7 +261,7 @@ export default function RemanejamentoModal({
         centroCustoDestino,
         justificativa,
         prioridade,
-        solicitadoPor: usuario?.nome || usuario?.matricula || "Sistema",
+        // solicitadoPor agora é inferido no backend via usuário autenticado
       };
 
       (remanejamento as any).usuarioContexto = {

@@ -376,7 +376,7 @@ export default function NovoRemanejamentoLogisticaPage() {
         funcionarioIds: funcionariosSelecionados.map((f) => f.id),
         justificativa,
         prioridade,
-        solicitadoPor: usuario?.nome || usuario?.matricula || "Sistema",
+        // solicitadoPor agora é inferido no backend via usuário autenticado
       };
 
       payload.usuarioContexto = {

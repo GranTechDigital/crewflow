@@ -556,7 +556,7 @@ export default function TreinamentosPage() {
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
             <h2 className="text-xl font-bold mb-4">Confirmar Exclusão</h2>
             <p className="text-gray-600 mb-6">
-              Tem certeza que deseja excluir o treinamento "{selectedTreinamento.treinamento}"?
+              Tem certeza que deseja excluir o treinamento &quot;{selectedTreinamento.treinamento}&quot;?
               Esta ação não pode ser desfeita.
             </p>
             <div className="flex justify-end space-x-3">

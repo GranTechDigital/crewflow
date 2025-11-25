@@ -84,7 +84,9 @@ function FuncionarioDetalhesContent() {
   useEffect(() => {
     const fetchFuncionario = async () => {
       try {
-        const response = await fetch(`/api/logistica/funcionario/${funcionarioId}`);
+        const response = await fetch(`/api/logistica/funcionario/${funcionarioId}`, {
+          credentials: 'include',
+        });
         if (!response.ok) {
           throw new Error('Funcionário não encontrado');
         }
@@ -134,6 +136,7 @@ function FuncionarioDetalhesContent() {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({
           statusPrestserv: novoStatus
         }),
