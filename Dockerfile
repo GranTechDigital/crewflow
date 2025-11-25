@@ -1,4 +1,4 @@
-# Use a imagem oficial do Node.js
+# Use a imagem oficial do Node.js (no-op para acionar workflow de produção)
 FROM node:18-alpine
 
 # Instalar dependências necessárias
