@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { logHistorico } from '@/lib/historico';
 import { Prisma } from '@prisma/client';
 
 // GET - Listar todas as solicitações de remanejamento
@@ -74,6 +75,11 @@ export async function GET(request: NextRequest) {
 // POST - Criar nova solicitação de remanejamento
 export async function POST(request: NextRequest) {
   try {
+    const { getUserFromRequest } = await import('@/utils/authUtils');
+    const usuarioAutenticado = await getUserFromRequest(request);
+    const solicitanteNome =
+      usuarioAutenticado?.funcionario?.nome || usuarioAutenticado?.funcionario?.matricula || 'Sistema';
+    const usuarioId = usuarioAutenticado?.id ?? null;
     const body = await request.json();
     const {
       funcionarioIds,
@@ -82,8 +88,7 @@ export async function POST(request: NextRequest) {
       contratoDestinoId,
       centroCustoDestino,
       justificativa,
-      prioridade = 'Normal',
-      solicitadoPor
+      prioridade = 'Normal'
     } = body;
 
     // Validações básicas
@@ -101,23 +106,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!solicitadoPor) {
-      return NextResponse.json(
-        { error: 'Solicitante é obrigatório' },
-        { status: 400 }
-      );
-    }
+    // solicitadoPor agora é sempre o usuário autenticado, sem exigir no body
 
     // Criar múltiplas solicitações (uma para cada funcionário)
     const remanejamentos = await Promise.all(
       funcionarioIds.map(async (funcionarioId: number) => {
         const solicitacao = await prisma.solicitacaoRemanejamento.create({
           data: {
-            contratoOrigemId: contratoOrigemId || null,
-            contratoDestinoId: contratoDestinoId || null,
+            contratoOrigemId: contratoOrigemId ?? null,
+            contratoDestinoId: contratoDestinoId ?? null,
             justificativa,
             prioridade,
-            solicitadoPor,
+            solicitadoPorId: usuarioId ?? null,
+            atualizadoPorId: usuarioId ?? null,
             status: 'Pendente',
             funcionarios: {
               create: {
@@ -161,17 +162,14 @@ export async function POST(request: NextRequest) {
           }
         });
 
-        // Registrar no histórico
+        // Registrar no histórico com id do usuário
         try {
-          await prisma.historicoRemanejamento.create({
-            data: {
-              solicitacaoId: solicitacao.id,
-              tipoAcao: 'CRIACAO',
-              entidade: 'SOLICITACAO',
-              descricaoAcao: `Solicitação de remanejamento criada para ${solicitacao.funcionarios[0]?.funcionario?.nome} (${solicitacao.funcionarios[0]?.funcionario?.matricula})`,
-              usuarioResponsavel: solicitadoPor,
-              observacoes: `Centro de custo: ${centroCustoOrigem} → ${centroCustoDestino}. Justificativa: ${justificativa}`
-            }
+          await logHistorico(request, {
+            solicitacaoId: solicitacao.id,
+            tipoAcao: 'CRIACAO',
+            entidade: 'SOLICITACAO',
+            descricaoAcao: `Solicitação de remanejamento criada para ${solicitacao.funcionarios[0]?.funcionario?.nome} (${solicitacao.funcionarios[0]?.funcionario?.matricula})`,
+            observacoes: `Centro de custo: ${centroCustoOrigem} → ${centroCustoDestino}. Justificativa: ${justificativa}`
           });
         } catch (historicoError) {
           console.error('Erro ao registrar histórico:', historicoError);
@@ -210,6 +208,9 @@ export async function POST(request: NextRequest) {
 // PUT - Atualizar status de uma solicitação
 export async function PUT(request: NextRequest) {
   try {
+    const { getUserFromRequest } = await import('@/utils/authUtils');
+    const usuarioAutenticado = await getUserFromRequest(request);
+    const usuarioId = usuarioAutenticado?.id ?? null;
     const body = await request.json();
     const {
       id,
@@ -228,12 +229,24 @@ export async function PUT(request: NextRequest) {
     const updateData: Prisma.SolicitacaoRemanejamentoUpdateInput = {
       status,
       dataAnalise: new Date(),
-      updatedAt: new Date()
+      updatedAt: new Date(),
+      ...(usuarioId ? { atualizadoPorUsuario: { connect: { id: usuarioId } } } : {}),
     };
 
     if (analisadoPor) updateData.analisadoPor = analisadoPor;
     if (observacoes) updateData.observacoes = observacoes;
-    if (status === 'Aprovado') updateData.dataAprovacao = new Date();
+    if (status === 'Aprovado') {
+      updateData.dataAprovacao = new Date();
+      if (usuarioId) {
+        updateData.aprovadoPorUsuario = { connect: { id: usuarioId } };
+      }
+    }
+    if (status === 'Concluído') {
+      updateData.dataConclusao = new Date();
+      if (usuarioId) {
+        updateData.concluidoPorUsuario = { connect: { id: usuarioId } };
+      }
+    }
 
     // Buscar dados atuais antes da atualização para o histórico
     const remanejamentoAtual = await prisma.solicitacaoRemanejamento.findUnique({
@@ -288,20 +301,17 @@ export async function PUT(request: NextRequest) {
       }
     });
 
-    // Registrar no histórico
+    // Registrar no histórico com id do usuário
     try {
-      await prisma.historicoRemanejamento.create({
-        data: {
-          solicitacaoId: remanejamento.id,
-          tipoAcao: 'ATUALIZACAO_STATUS',
-          entidade: 'SOLICITACAO',
-          campoAlterado: 'status',
-          valorAnterior: remanejamentoAtual?.status || '',
-          valorNovo: status,
-          descricaoAcao: `Status da solicitação alterado de "${remanejamentoAtual?.funcionarios?.[0]?.funcionario?.nome}" para "${status}" para ${remanejamento.funcionarios?.[0]?.funcionario?.nome} (${remanejamento.funcionarios?.[0]?.funcionario?.matricula})`,
-          usuarioResponsavel: analisadoPor || 'Sistema',
-          observacoes: observacoes || undefined
-        }
+      await logHistorico(request, {
+        solicitacaoId: remanejamento.id,
+        tipoAcao: 'ATUALIZACAO_STATUS',
+        entidade: 'SOLICITACAO',
+        campoAlterado: 'status',
+        valorAnterior: remanejamentoAtual?.status || '',
+        valorNovo: status,
+        descricaoAcao: `Status da solicitação alterado para "${status}" para ${remanejamento.funcionarios?.[0]?.funcionario?.nome} (${remanejamento.funcionarios?.[0]?.funcionario?.matricula})`,
+        observacoes: observacoes || undefined
       });
     } catch (historicoError) {
       console.error('Erro ao registrar histórico:', historicoError);

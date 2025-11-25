@@ -20,6 +20,7 @@ import {
   NovoRemanejamento,
   ResumoRemanejamento,
 } from "@/types/remanejamento";
+import { useAuth } from "@/app/hooks/useAuth";
 
 interface Contrato {
   id: number;
@@ -59,6 +60,7 @@ export default function RemanejamentoModal({
   centroCustoSelecionado,
   onSubmit,
 }: RemanejamentoModalProps) {
+  const { usuario } = useAuth();
   // Estados principais
   const [funcionariosSelecionados, setFuncionariosSelecionados] = useState<
     FuncionarioSelecionado[]
@@ -259,7 +261,15 @@ export default function RemanejamentoModal({
         centroCustoDestino,
         justificativa,
         prioridade,
-        solicitadoPor: "Usuário Atual",
+        // solicitadoPor agora é inferido no backend via usuário autenticado
+      };
+
+      (remanejamento as any).usuarioContexto = {
+        id: usuario?.id,
+        nome: usuario?.nome,
+        email: usuario?.email,
+        equipe: usuario?.equipe,
+        matricula: usuario?.matricula,
       };
 
       await onSubmit(remanejamento);

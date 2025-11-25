@@ -106,6 +106,8 @@ export async function POST(request: NextRequest) {
       await sincronizarTarefasPadrao({
         setores: setoresParaSincronizar,
         usuarioResponsavel: user?.funcionario?.nome || 'Sistema - Nova Tarefa Padrão',
+        usuarioResponsavelId: user?.id,
+        equipeId: user?.equipeId,
       });
       console.log(`✅ Sincronização automática de ${setor} executada após criação da tarefa padrão`);
     } catch (syncError) {

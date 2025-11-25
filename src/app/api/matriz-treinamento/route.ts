@@ -339,6 +339,8 @@ export async function POST(request: NextRequest) {
       await sincronizarTarefasPadrao({
         setores: ['TREINAMENTO'],
         usuarioResponsavel: user?.funcionario?.nome || 'Sistema - Nova Matriz de Treinamento',
+        usuarioResponsavelId: user?.id,
+        equipeId: user?.equipeId,
       });
       console.log('✅ Sincronização automática de TREINAMENTO executada após criação da matriz');
     } catch (syncError) {

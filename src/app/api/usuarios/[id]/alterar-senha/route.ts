@@ -1,68 +1,82 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-import bcrypt from 'bcryptjs';
+import { NextRequest, NextResponse } from 'next/server'
+import { PrismaClient } from '@prisma/client'
+import { jwtVerify, SignJWT } from 'jose'
+import bcrypt from 'bcryptjs'
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient()
+
+function isStrongPassword(pwd: string) {
+  return pwd.length >= 8 && /[A-Z]/.test(pwd) && /[a-z]/.test(pwd) && /\d/.test(pwd)
+}
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { id: idParam } = await params;
-    const id = parseInt(idParam);
-    const { senhaAtual, novaSenha } = await request.json();
+    const { id: idParam } = await params
+    const id = parseInt(idParam)
 
+    const token = request.cookies.get('auth-token')?.value
+    if (!token) {
+      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+    }
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret')
+    const { payload } = await jwtVerify(token, secret)
+    const userId = (payload as any).userId as number
+    if (!userId || userId !== id) {
+      return NextResponse.json({ error: 'Sem autorização' }, { status: 403 })
+    }
+
+    const body = await request.json()
+    const senhaAtual = body?.senhaAtual as string
+    const novaSenha = body?.novaSenha as string
     if (!senhaAtual || !novaSenha) {
-      return NextResponse.json(
-        { error: 'Senha atual e nova senha são obrigatórias' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Informe senha atual e nova senha' }, { status: 400 })
+    }
+    if (!isStrongPassword(novaSenha)) {
+      return NextResponse.json({ error: 'A nova senha deve ter 8+ caracteres, com maiúsculas, minúsculas e números' }, { status: 400 })
     }
 
-    if (novaSenha.length < 6) {
-      return NextResponse.json(
-        { error: 'Nova senha deve ter pelo menos 6 caracteres' },
-        { status: 400 }
-      );
-    }
-
-    const usuario = await prisma.usuario.findUnique({
-      where: { id }
-    });
-
+    const usuario = await prisma.usuario.findUnique({ where: { id } })
     if (!usuario) {
-      return NextResponse.json(
-        { error: 'Usuário não encontrado' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 })
     }
 
-    // Verificar senha atual
-    const senhaValida = await bcrypt.compare(senhaAtual, usuario.senha);
-    
-    if (!senhaValida) {
-      return NextResponse.json(
-        { error: 'Senha atual incorreta' },
-        { status: 400 }
-      );
+    const ok = await bcrypt.compare(senhaAtual, usuario.senha)
+    if (!ok) {
+      return NextResponse.json({ error: 'Senha atual incorreta' }, { status: 401 })
     }
 
-    // Hash da nova senha
-    const novaSenhaHash = await bcrypt.hash(novaSenha, 12);
-
-    // Atualizar senha
-    await prisma.usuario.update({
+    const hash = await bcrypt.hash(novaSenha, 10)
+    const updated = await prisma.usuario.update({
       where: { id },
-      data: { senha: novaSenhaHash }
-    });
+      data: { senha: hash, obrigarTrocaSenha: false }
+    })
 
-    return NextResponse.json({
-      success: true,
-      message: 'Senha alterada com sucesso'
-    });
+    const baseClaims = payload as any
+    const newToken = await new SignJWT({
+      id: updated.id,
+      userId: updated.id,
+      funcionarioId: baseClaims.funcionarioId,
+      matricula: baseClaims.matricula,
+      nome: baseClaims.nome,
+      equipe: baseClaims.equipe,
+      equipeId: baseClaims.equipeId,
+      sessionStart: baseClaims.sessionStart,
+      mustAddEmail: baseClaims.mustAddEmail === true,
+      mustChangePassword: false
+    })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setExpirationTime('8h')
+      .sign(secret)
+
+    const response = NextResponse.json({ success: true })
+    response.cookies.set('auth-token', newToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 8 * 60 * 60
+    })
+    return response
   } catch (error) {
-    console.error('Erro ao alterar senha:', error);
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 })
   }
 }

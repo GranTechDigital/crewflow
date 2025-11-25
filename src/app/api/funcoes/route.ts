@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
+import { toSlug } from '@/utils/slug';
 
 // GET - Listar todas as funções
 export async function GET(request: NextRequest) {
@@ -115,6 +116,7 @@ export async function POST(request: NextRequest) {
       data: {
         funcao: funcao.trim(),
         regime: regime.trim(),
+        funcao_slug: toSlug(funcao.trim()),
       },
     });
 

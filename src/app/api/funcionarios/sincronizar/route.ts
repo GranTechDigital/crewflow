@@ -147,6 +147,7 @@ export async function POST() {
     }> = [];
 
     const funcionariosFuncaoAlteradaIds = new Set<number>();
+    const funcoesAlteradasDetalhes: Array<{ funcionarioId: number; valorAnterior: string; valorNovo: string }> = [];
 
     dadosBanco.forEach((func) => {
       const dadosApi = mapApi.get(func.matricula);
@@ -220,6 +221,7 @@ export async function POST() {
         });
         if (typeof func.id === "number") {
           funcionariosFuncaoAlteradaIds.add(func.id);
+          funcoesAlteradasDetalhes.push({ funcionarioId: func.id, valorAnterior: funcaoBancoNorm, valorNovo: funcaoApi });
         }
       } else {
         if (isRhudson)
@@ -241,6 +243,46 @@ export async function POST() {
       });
     }
     console.log("[SYNC] total atualizações aplicadas:", paraAtualizar.length);
+
+    // Registrar histórico de mudança de função para RFs em processo
+    if (funcoesAlteradasDetalhes.length > 0) {
+      try {
+        const ids = Array.from(funcionariosFuncaoAlteradaIds);
+        const rems = await prisma.remanejamentoFuncionario.findMany({
+          where: {
+            funcionarioId: { in: ids },
+            statusTarefas: { notIn: ["CONCLUIDO", "CANCELADO"] },
+          },
+          select: { id: true, solicitacaoId: true, funcionarioId: true },
+        });
+        const detMap = new Map<number, { valorAnterior: string; valorNovo: string }>();
+        for (const d of funcoesAlteradasDetalhes) detMap.set(d.funcionarioId, { valorAnterior: d.valorAnterior, valorNovo: d.valorNovo });
+        const toCreate = rems
+          .map((rf) => {
+            const det = detMap.get(rf.funcionarioId);
+            if (!det) return null;
+            return {
+              solicitacaoId: rf.solicitacaoId,
+              remanejamentoFuncionarioId: rf.id,
+              tipoAcao: "ATUALIZACAO_CAMPO",
+              entidade: "FUNCIONARIO",
+              campoAlterado: "funcao",
+              valorAnterior: det.valorAnterior || null,
+              valorNovo: det.valorNovo || null,
+              descricaoAcao: `Função alterada de "${det.valorAnterior}" para "${det.valorNovo}"`,
+              usuarioResponsavel: "Sistema - Sincronização de Função",
+            } as const;
+          })
+          .filter(Boolean) as any[];
+        if (toCreate.length > 0) {
+          for (let i = 0; i < toCreate.length; i += 100) {
+            await prisma.historicoRemanejamento.createMany({ data: toCreate.slice(i, i + 100) });
+          }
+        }
+      } catch (e) {
+        console.error("Erro ao registrar histórico de mudança de função:", e);
+      }
+    }
 
     // Re-sync de treinamentos apenas para funcionários com função alterada e remanejamentos em "ATENDER TAREFAS"
     if (funcionariosFuncaoAlteradaIds.size > 0) {

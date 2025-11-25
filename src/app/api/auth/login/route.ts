@@ -8,18 +8,101 @@ const prisma = new PrismaClient();
 
 export async function POST(request: NextRequest) {
   try {
-    const { matricula, senha } = await request.json();
+    const { matricula, senha, email, login } = await request.json();
+    const identifier = (login ?? email ?? matricula)?.toString().trim();
 
-    if (!matricula || !senha) {
+    if (!identifier || !senha) {
       return NextResponse.json(
         { error: 'Matrícula e senha são obrigatórios' },
         { status: 400 }
       );
     }
+    const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier);
 
-    // Buscar funcionário pela matrícula
+    if (isEmail) {
+      const usuario = await prisma.usuario.findFirst({
+        where: { emailSecundario: identifier },
+        include: { equipe: true, funcionario: true }
+      });
+
+      if (!usuario || !usuario.funcionario) {
+        return NextResponse.json(
+          { error: 'Usuário não encontrado ou não possui acesso ao sistema' },
+          { status: 401 }
+        );
+      }
+
+      if (!usuario.ativo) {
+        return NextResponse.json(
+          { error: 'Usuário inativo' },
+          { status: 401 }
+        );
+      }
+
+      const senhaValida = await bcrypt.compare(senha, usuario.senha);
+      if (!senhaValida) {
+        return NextResponse.json(
+          { error: 'Senha incorreta' },
+          { status: 401 }
+        );
+      }
+
+      const isPrimeiroAcesso = !usuario.ultimoLogin;
+      await prisma.usuario.update({
+        where: { id: usuario.id },
+        data: {
+          ultimoLogin: new Date(),
+          ...(isPrimeiroAcesso ? { obrigarAdicionarEmail: true, obrigarTrocaSenha: true } : {})
+        }
+      });
+
+      const equipeNome = usuario.equipe?.nome ?? 'Sem equipe';
+      const equipeId = usuario.equipeId ?? null;
+
+      const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret');
+      const token = await new SignJWT({
+        id: usuario.id,
+        userId: usuario.id,
+        funcionarioId: usuario.funcionario.id,
+        matricula: usuario.funcionario.matricula,
+        nome: usuario.funcionario.nome,
+        equipe: equipeNome,
+        equipeId: equipeId,
+        sessionStart: new Date().toISOString(),
+        mustAddEmail: isPrimeiroAcesso
+          ? true
+          : ((usuario as any).obrigarAdicionarEmail === true || !(usuario as any).emailSecundario),
+        mustChangePassword: isPrimeiroAcesso ? true : (usuario as any).obrigarTrocaSenha || false
+      })
+        .setProtectedHeader({ alg: 'HS256' })
+        .setExpirationTime('8h')
+        .sign(secret);
+
+      const response = NextResponse.json({
+        success: true,
+        user: {
+          id: usuario.id,
+          funcionarioId: usuario.funcionario.id,
+          matricula: usuario.funcionario.matricula,
+          nome: usuario.funcionario.nome,
+          email: usuario.funcionario.email,
+          equipe: equipeNome,
+          equipeId: equipeId
+        }
+      });
+
+      response.cookies.set('auth-token', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 8 * 60 * 60
+      });
+
+      return response;
+    }
+
     const funcionario = await prisma.funcionario.findUnique({
-      where: { matricula },
+      where: { matricula: identifier },
       include: {
         usuario: {
           include: {
@@ -43,9 +126,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verificar senha
     const senhaValida = await bcrypt.compare(senha, funcionario.usuario.senha);
-    
     if (!senhaValida) {
       return NextResponse.json(
         { error: 'Senha incorreta' },
@@ -53,27 +134,32 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Atualizar último login
+    const isPrimeiroAcesso = !funcionario.usuario.ultimoLogin;
     await prisma.usuario.update({
       where: { id: funcionario.usuario.id },
-      data: { ultimoLogin: new Date() }
+      data: {
+        ultimoLogin: new Date(),
+        ...(isPrimeiroAcesso ? { obrigarAdicionarEmail: true, obrigarTrocaSenha: true } : {})
+      }
     });
 
-    // Valores seguros para equipe (podem ser nulos no banco)
     const equipeNome = funcionario.usuario.equipe?.nome ?? 'Sem equipe';
     const equipeId = funcionario.usuario.equipeId ?? null;
 
-    // Gerar token JWT usando jose
     const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret');
-    // Debug removido: geração de token
     const token = await new SignJWT({
-      id: funcionario.usuario.id, // Adicionando id para compatibilidade
+      id: funcionario.usuario.id,
       userId: funcionario.usuario.id,
       funcionarioId: funcionario.id,
       matricula: funcionario.matricula,
       nome: funcionario.nome,
       equipe: equipeNome,
-      equipeId: equipeId
+      equipeId: equipeId,
+      sessionStart: new Date().toISOString(),
+      mustAddEmail: isPrimeiroAcesso
+        ? true
+        : ((funcionario.usuario as any).obrigarAdicionarEmail === true || !(funcionario.usuario as any).emailSecundario),
+      mustChangePassword: isPrimeiroAcesso ? true : (funcionario.usuario as any).obrigarTrocaSenha || false
     })
       .setProtectedHeader({ alg: 'HS256' })
       .setExpirationTime('8h')
@@ -92,12 +178,11 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    // Definir cookie com o token
     response.cookies.set('auth-token', token, {
       httpOnly: true,
-      secure: false, // Desabilitado para permitir HTTP em desenvolvimento
+      secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: 8 * 60 * 60 // 8 horas
+      maxAge: 8 * 60 * 60
     });
 
     return response;

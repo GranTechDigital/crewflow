@@ -369,7 +369,7 @@ export default function TabelaRemanejamentos() {
                                   #{remanejamento.id}
                                 </div>
                                 <div className="text-xs text-gray-500">
-                                  {remanejamento.solicitadoPor}
+                                  {String(remanejamento.solicitadoPorId ?? "")}
                                 </div>
                               </div>
                             </div>

@@ -25,14 +25,19 @@ export async function GET(request: NextRequest) {
     };
 
     if (search) {
-      where.funcionario = {
-        ...where.funcionario,
-        OR: [
-          { nome: { contains: search } },
-          { matricula: { contains: search } },
-          { email: { contains: search } }
-        ]
-      };
+      where.AND = [
+        { funcionario: where.funcionario },
+        {
+          OR: [
+            { funcionario: { nome: { contains: search } } },
+            { funcionario: { matricula: { contains: search } } },
+            { funcionario: { email: { contains: search } } },
+            { emailSecundario: { contains: search } }
+          ]
+        }
+      ];
+      // Limpar where.funcionario para não conflitar com AND
+      delete (where as any).funcionario;
     }
 
     if (equipeId) {
@@ -83,6 +88,7 @@ export async function GET(request: NextRequest) {
         matricula: usuario.funcionario.matricula,
         nome: usuario.funcionario.nome,
         email: usuario.funcionario.email,
+        emailSecundario: (usuario as any).emailSecundario ?? null,
         funcao: usuario.funcionario.funcao,
         departamento: usuario.funcionario.departamento,
         equipe: usuario.equipe,

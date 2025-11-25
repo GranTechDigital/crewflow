@@ -80,6 +80,12 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { getUserFromRequest } = await import('@/utils/authUtils');
+    const usuarioAutenticado = await getUserFromRequest(request);
+    const usuarioId = usuarioAutenticado?.id ?? null;
+    if (usuarioId === null) {
+      console.warn("Auth: usuário não identificado no PUT de Prestserv; campos de responsável serão deixados nulos");
+    }
     const { id } = await params;
     const body: AtualizarStatusPrestserv = await request.json();
 
@@ -91,6 +97,18 @@ export async function PUT(
       observacoesPrestserv,
       sispat,
     } = body;
+
+    const spUpper = statusPrestserv?.toUpperCase();
+    const isValidado = spUpper === "VALIDADO" || spUpper === "VALIDAO" || spUpper === "VALIDADA";
+    const isCancelado = spUpper === "CANCELADO";
+    const isInvalidado = spUpper === "INVALIDADO" || spUpper === "INVALIDAO" || spUpper === "INVALIDADA";
+    const statusPrestservCanonical = isValidado
+      ? "VALIDADO"
+      : isInvalidado
+      ? "INVALIDADO"
+      : isCancelado
+      ? "CANCELADO"
+      : spUpper;
 
     // Validações
     if (!statusPrestserv) {
@@ -144,12 +162,12 @@ export async function PUT(
 
     // Preparar dados para atualização
     const updateData: Record<string, unknown> = {
-      statusPrestserv,
+      statusPrestserv: statusPrestservCanonical,
       observacoesPrestserv,
     };
 
     // Se cancelar o Prestserv, marcar status geral das tarefas como CANCELADO
-    if (statusPrestserv === "CANCELADO") {
+    if (isCancelado) {
       updateData.statusTarefas = "CANCELADO";
     }
 
@@ -162,11 +180,22 @@ export async function PUT(
     } else if (statusPrestserv === "EM VALIDAÇÃO") {
       // Para EM VALIDAÇÃO, sempre atualizar a data (permite resubmissão)
       updateData.dataSubmetido = new Date();
-    } else if (
-      statusPrestserv === "VALIDADO" ||
-      statusPrestserv === "INVALIDADO"
-    ) {
+    } else if (isValidado || isInvalidado) {
       updateData.dataResposta = new Date();
+    }
+
+    // Concluído/cancelado: marcar responsável e data
+    if (isValidado) {
+      updateData.dataConcluido = new Date();
+      if (usuarioId !== null) {
+        (updateData as any).concluidoPorId = usuarioId;
+      }
+    }
+    if (isCancelado) {
+      updateData.dataCancelado = new Date();
+      if (usuarioId !== null) {
+        (updateData as any).canceladoPorId = usuarioId;
+      }
     }
 
     // Preservar datas existentes se não estão sendo atualizadas
@@ -187,8 +216,8 @@ export async function PUT(
     if (
       !updateData.dataResposta &&
       remanejamentoFuncionario.dataResposta &&
-      statusPrestserv !== "VALIDADO" &&
-      statusPrestserv !== "INVALIDADO"
+      !isValidado &&
+      !isInvalidado
     ) {
       updateData.dataResposta = remanejamentoFuncionario.dataResposta;
     }
@@ -234,6 +263,89 @@ export async function PUT(
       },
     });
 
+    if (statusPrestservCanonical === "VALIDADO") {
+      try {
+        const tarefasConcluidas = await prisma.tarefaRemanejamento.findMany({
+          where: {
+            remanejamentoFuncionarioId: funcionarioAtualizado.id,
+            status: "CONCLUIDO",
+            responsavel: { in: ["RH", "MEDICINA", "TREINAMENTO"] },
+          },
+          select: {
+            tarefaPadraoId: true,
+            treinamentoId: true,
+            tipo: true,
+            descricao: true,
+            responsavel: true,
+            dataConclusao: true,
+            dataVencimento: true,
+          },
+        });
+
+        for (const t of tarefasConcluidas) {
+          const funcionarioId = funcionarioAtualizado.funcionarioId;
+          const baseWhere: any = { funcionarioId };
+          if (t.treinamentoId) {
+            baseWhere.treinamentoId = t.treinamentoId;
+          } else if (t.tarefaPadraoId) {
+            baseWhere.tarefaPadraoId = t.tarefaPadraoId;
+          } else {
+            baseWhere.tipo = t.tipo;
+            baseWhere.responsavel = t.responsavel;
+          }
+
+          const existente = await prisma.funcionarioCapacitacao.findFirst({
+            where: baseWhere,
+          });
+
+          const novaConclusao = t.dataConclusao ?? new Date();
+          const novaValidade = t.dataVencimento ?? null;
+          const novaDescricao = t.descricao ?? null;
+
+          if (!existente) {
+            await prisma.funcionarioCapacitacao.create({
+              data: {
+                funcionarioId,
+                tarefaPadraoId: t.tarefaPadraoId ?? null,
+                treinamentoId: t.treinamentoId ?? null,
+                tipo: t.tipo,
+                responsavel: t.responsavel,
+                descricao: novaDescricao,
+                dataConclusao: novaConclusao,
+                dataVencimento: novaValidade,
+                origemRemanejamentoId: funcionarioAtualizado.id,
+              },
+            });
+          } else {
+            const deveAtualizarConclusao =
+              !existente.dataConclusao || existente.dataConclusao < novaConclusao;
+            const deveAtualizarValidade =
+              (existente.dataVencimento == null && novaValidade != null) ||
+              (existente.dataVencimento != null &&
+                novaValidade != null &&
+                existente.dataVencimento < novaValidade);
+            const deveAtualizarDescricao =
+              (existente.descricao == null && novaDescricao != null) ||
+              (novaDescricao != null && existente.descricao !== novaDescricao);
+
+            if (deveAtualizarConclusao || deveAtualizarValidade || deveAtualizarDescricao) {
+              await prisma.funcionarioCapacitacao.update({
+                where: { id: existente.id },
+                data: {
+                  ...(deveAtualizarConclusao ? { dataConclusao: novaConclusao } : {}),
+                  ...(deveAtualizarValidade ? { dataVencimento: novaValidade } : {}),
+                  ...(deveAtualizarDescricao ? { descricao: novaDescricao } : {}),
+                  origemRemanejamentoId: funcionarioAtualizado.id,
+                },
+              });
+            }
+          }
+        }
+      } catch (capError) {
+        console.error("Erro ao salvar/atualizar capacitações do funcionário:", capError);
+      }
+    }
+
     // Registrar no histórico se o status mudou
     if (statusAnterior !== statusPrestserv) {
       try {
@@ -258,7 +370,7 @@ export async function PUT(
     }
 
     // Lógica especial para status VALIDADO
-    if (statusPrestserv === "VALIDADO") {
+    if (isValidado) {
       console.log("🔍 Status VALIDADO detectado no PUT");
       console.log(
         "📋 Dados da solicitação:",
@@ -314,7 +426,7 @@ export async function PUT(
     }
 
     // Se o Prestserv foi validado, mover o funcionário para o contrato de destino e atualizar statusPrestserv
-    if (statusPrestserv === "VALIDADO") {
+    if (isValidado) {
       // Buscar informações da solicitação para obter o contrato de destino
       const solicitacao = await prisma.solicitacaoRemanejamento.findUnique({
         where: { id: funcionarioAtualizado.solicitacaoId },
@@ -338,7 +450,7 @@ export async function PUT(
     }
 
     // Se o Prestserv foi invalidado ou cancelado, desmarcar como em migração
-    if (statusPrestserv === "INVALIDADO" || statusPrestserv === "CANCELADO") {
+    if (isInvalidado || isCancelado) {
       await prisma.funcionario.update({
         where: { id: funcionarioAtualizado.funcionarioId },
         data: { emMigracao: false }, // Desmarca migração para permitir nova tentativa
@@ -350,7 +462,7 @@ export async function PUT(
     }
 
     // Cancelar todas as tarefas associadas quando Prestserv é CANCELADO
-    if (statusPrestserv === "CANCELADO") {
+    if (isCancelado) {
       await prisma.tarefaRemanejamento.updateMany({
         where: { remanejamentoFuncionarioId: id },
         data: { status: "CANCELADO" },
@@ -382,7 +494,10 @@ export async function PUT(
       statusPrestserv === "VALIDADO" &&
       funcionarioAtualizado.statusTarefas === "CONCLUIDO"
     ) {
-      await verificarConclusaoSolicitacao(funcionarioAtualizado.solicitacaoId);
+      await verificarConclusaoSolicitacao(
+        funcionarioAtualizado.solicitacaoId,
+        usuarioAutenticado?.id ?? undefined
+      );
     }
 
     return NextResponse.json(funcionarioAtualizado);
@@ -414,6 +529,9 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { getUserFromRequest } = await import('@/utils/authUtils');
+    const usuarioAutenticado = await getUserFromRequest(request);
+    const usuarioId = usuarioAutenticado?.id ?? null;
     const { id } = await params;
     const body = await request.json();
     const {
@@ -423,7 +541,20 @@ export async function PATCH(
       emMigracao,
       contratoId,
       sispat,
+      observacoesPrestserv,
     } = body;
+
+    const spUpper = statusPrestserv?.toUpperCase();
+    const isValidado = spUpper === 'VALIDADO' || spUpper === 'VALIDAO' || spUpper === 'VALIDADA';
+    const isCancelado = spUpper === 'CANCELADO';
+    const isInvalidado = spUpper === 'INVALIDADO' || spUpper === 'INVALIDAO' || spUpper === 'INVALIDADA';
+    const statusPrestservCanonical = isValidado
+      ? 'VALIDADO'
+      : isInvalidado
+      ? 'INVALIDADO'
+      : isCancelado
+      ? 'CANCELADO'
+      : spUpper;
 
     // Permitir atualizar statusTarefas, statusPrestserv, statusFuncionario, emMigracao, contratoId ou sispat
     if (
@@ -432,7 +563,8 @@ export async function PATCH(
       !statusTarefas &&
       emMigracao === undefined &&
       contratoId === undefined &&
-      !sispat
+      !sispat &&
+      !observacoesPrestserv
     ) {
       return NextResponse.json(
         {
@@ -496,9 +628,10 @@ export async function PATCH(
 
     // Preparar dados para atualização
     const updateData: Record<string, unknown> = {};
-    if (statusPrestserv) updateData.statusPrestserv = statusPrestserv;
+    if (statusPrestserv) updateData.statusPrestserv = statusPrestservCanonical;
     if (statusFuncionario) updateData.statusFuncionario = statusFuncionario;
     if (statusTarefas) updateData.statusTarefas = statusTarefas;
+    if (observacoesPrestserv) updateData.observacoesPrestserv = observacoesPrestserv;
 
     // Adicionar datas automaticamente conforme o statusPrestserv
     if (statusPrestserv) {
@@ -508,13 +641,12 @@ export async function PATCH(
       ) {
         updateData.dataRascunhoCriado = new Date();
       } else if (
-        statusPrestserv === "ATENDER TAREFAS" ||
         statusPrestserv === "EM VALIDAÇÃO"
       ) {
         updateData.dataSubmetido = new Date();
       } else if (
-        statusPrestserv === "VALIDADO" ||
-        statusPrestserv === "INVALIDADO"
+        isValidado ||
+        isInvalidado
       ) {
         updateData.dataResposta = new Date();
       }
@@ -528,7 +660,6 @@ export async function PATCH(
       if (
         !updateData.dataSubmetido &&
         remanejamentoFuncionario.dataSubmetido &&
-        statusPrestserv !== "ATENDER TAREFAS" &&
         statusPrestserv !== "EM VALIDAÇÃO"
       ) {
         updateData.dataSubmetido = remanejamentoFuncionario.dataSubmetido;
@@ -536,10 +667,23 @@ export async function PATCH(
       if (
         !updateData.dataResposta &&
         remanejamentoFuncionario.dataResposta &&
-        statusPrestserv !== "VALIDADO" &&
-        statusPrestserv !== "INVALIDADO"
+        !isValidado &&
+        !isInvalidado
       ) {
         updateData.dataResposta = remanejamentoFuncionario.dataResposta;
+      }
+    }
+
+    if (isValidado) {
+      updateData.dataConcluido = new Date();
+      if (usuarioId !== null) {
+        (updateData as any).concluidoPorId = usuarioId;
+      }
+    }
+    if (isCancelado) {
+      updateData.dataCancelado = new Date();
+      if (usuarioId !== null) {
+        (updateData as any).canceladoPorId = usuarioId;
       }
     }
 
@@ -596,7 +740,7 @@ export async function PATCH(
     }
 
     // Lógica especial para status VALIDADO
-    if (statusPrestserv === "VALIDADO") {
+    if (statusPrestservCanonical === "VALIDADO") {
       console.log("🔍 Status VALIDADO detectado");
       console.log(
         "📋 Dados da solicitação:",
@@ -700,7 +844,7 @@ export async function PATCH(
     }
 
     // Cancelar todas as tarefas associadas quando Prestserv é CANCELADO
-    if (statusPrestserv === "CANCELADO") {
+    if (statusPrestservCanonical === "CANCELADO") {
       await prisma.tarefaRemanejamento.updateMany({
         where: { remanejamentoFuncionarioId: id },
         data: { status: "CANCELADO" },
@@ -727,6 +871,13 @@ export async function PATCH(
       }
     }
 
+    if (isValidado && funcionarioAtualizado.statusTarefas === "CONCLUIDO") {
+      await verificarConclusaoSolicitacao(
+        funcionarioAtualizado.solicitacaoId,
+        usuarioAutenticado?.id ?? undefined
+      );
+    }
+
     return NextResponse.json({ success: true, funcionarioAtualizado });
   } catch (error) {
     console.error(
@@ -744,7 +895,7 @@ export async function PATCH(
 }
 
 // Função para verificar se toda a solicitação pode ser marcada como concluída
-async function verificarConclusaoSolicitacao(solicitacaoId: number) {
+async function verificarConclusaoSolicitacao(solicitacaoId: number, usuarioId?: number) {
   try {
     // Buscar todos os funcionários da solicitação
     const funcionarios = await prisma.remanejamentoFuncionario.findMany({
@@ -798,8 +949,18 @@ async function verificarConclusaoSolicitacao(solicitacaoId: number) {
         status: novoStatus,
         // Sempre atualizar a data de atualização para indicar progresso
         updatedAt: new Date(),
+        ...(usuarioId
+          ? { atualizadoPorUsuario: { connect: { id: usuarioId } } }
+          : {}),
         // Se concluído, atualizar a data de conclusão
-        ...(novoStatus === "Concluído" ? { dataConclusao: new Date() } : {}),
+        ...(novoStatus === "Concluído"
+          ? {
+              dataConclusao: new Date(),
+              ...(usuarioId
+                ? { concluidoPorUsuario: { connect: { id: usuarioId } } }
+                : {}),
+            }
+          : {}),
       },
     });
 

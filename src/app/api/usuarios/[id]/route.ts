@@ -48,6 +48,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         matricula: usuario.funcionario.matricula,
         nome: usuario.funcionario.nome,
         email: usuario.funcionario.email,
+        emailSecundario: (usuario as any).emailSecundario ?? null,
+        obrigarAdicionarEmail: (usuario as any).obrigarAdicionarEmail ?? false,
         funcao: usuario.funcionario.funcao,
         departamento: usuario.funcionario.departamento,
         telefone: usuario.funcionario.telefone,

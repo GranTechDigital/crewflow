@@ -231,6 +231,21 @@ export async function PUT(
         console.error("Erro ao registrar histórico:", historicoError);
         // Não falha a atualização se o histórico falhar
       }
+      try {
+        await prisma.tarefaStatusEvento.create({
+          data: {
+            tarefaId: tarefaAtualizada.id,
+            remanejamentoFuncionarioId: tarefaAtualizada.remanejamentoFuncionarioId,
+            statusAnterior: tarefaAtual.status,
+            statusNovo: status,
+            observacoes: observacoes || undefined,
+            usuarioResponsavelId: usuarioAutenticado?.id ?? undefined,
+            equipeId: usuarioAutenticado?.equipeId ?? undefined,
+          },
+        });
+      } catch (eventoError) {
+        console.error("Erro ao registrar evento de status da tarefa:", eventoError);
+      }
     }
 
     // Registrar no histórico se a data limite foi alterada

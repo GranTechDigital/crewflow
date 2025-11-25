@@ -346,7 +346,7 @@ export default function RemanejamentosPage() {
                   )}
 
                   <div className="text-xs text-gray-500">
-                    <p>Solicitado por: {solicitacao.solicitadoPor}</p>
+                    <p>Solicitado por: {String(solicitacao.solicitadoPorId ?? '')}</p>
                     {solicitacao.analisadoPor && (
                       <p>Analisado por: {solicitacao.analisadoPor}</p>
                     )}
@@ -528,7 +528,7 @@ export default function RemanejamentosPage() {
                 <div className="border-t border-gray-200 pt-4">
                   <h3 className="font-medium text-gray-900 mb-2">Informações</h3>
                   <div className="text-sm text-gray-600 space-y-1">
-                    <p><strong>Solicitado por:</strong> {solicitacaoSelecionada.solicitadoPor}</p>
+                    <p><strong>Solicitado por:</strong> {String(solicitacaoSelecionada.solicitadoPorId ?? '')}</p>
                     <p><strong>Data da solicitação:</strong> {new Date(solicitacaoSelecionada.createdAt).toLocaleString('pt-BR')}</p>
                     {solicitacaoSelecionada.analisadoPor && (
                       <p><strong>Analisado por:</strong> {solicitacaoSelecionada.analisadoPor}</p>

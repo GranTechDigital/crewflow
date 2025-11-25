@@ -10,9 +10,15 @@ export interface RemanejamentoFuncionario {
   dataRascunhoCriado?: string;
   dataSubmetido?: string;
   dataResposta?: string;
+  dataAprovado?: string;
+  dataConcluido?: string;
+  dataCancelado?: string;
   observacoesPrestserv?: string;
   createdAt: string;
   updatedAt: string;
+  aprovadoPorId?: number;
+  concluidoPorId?: number;
+  canceladoPorId?: number;
 
   // Relacionamentos
   solicitacao?: SolicitacaoRemanejamento;
@@ -51,15 +57,18 @@ export interface SolicitacaoRemanejamento {
   justificativa?: string;
   status: string;
   prioridade: string;
-  solicitadoPor: string;
+  solicitadoPorId?: number;
   analisadoPor?: string;
+  aprovadoPorId?: number;
   dataSolicitacao: string;
   dataAnalise?: string;
   dataAprovacao?: string;
   dataConclusao?: string;
+  concluidoPorId?: number;
   observacoes?: string;
   createdAt: string;
   updatedAt: string;
+  atualizadoPorId?: number;
 
   // Relacionamentos
   contratoOrigem?: {
@@ -89,7 +98,10 @@ export type StatusPrestserv =
   | "EM VALIDAÇÃO"
   | "INVALIDADO"
   | "VALIDADO"
-  | "CANCELADO";
+  | "CANCELADO"
+  | "SISPAT BLOQUEADO"
+  | "PENDENTE DE DESLIGAMENTO"
+  | "DESLIGAMENTO SOLICITADO";
 export type StatusTarefa =
   | "APROVAR SOLICITACAO"
   | "REPROVADO"

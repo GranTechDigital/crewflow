@@ -18,6 +18,7 @@ interface AuthContextType {
   login: (matricula: string, senha: string) => Promise<boolean>
   logout: () => Promise<void>
   checkAuth: () => Promise<void>
+  refresh: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -43,16 +44,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const userData = await response.json();
         // console.log('Auth verified, user:', userData);
         setUsuario(userData.user);
+        if (userData.user?.obrigarAdicionarEmail || !userData.user?.emailSecundario) {
+          const path = typeof window !== 'undefined' ? window.location.pathname : ''
+          const isOnAddEmail = path.startsWith('/conta/adicionar-email')
+          const isOnChangePassword = path.startsWith('/conta/trocar-senha')
+          if (!isOnAddEmail && !isOnChangePassword) {
+            try { await refresh() } catch {}
+            if (typeof window !== 'undefined') {
+              window.location.href = '/conta/adicionar-email'
+              return
+            }
+          }
+        }
       } else {
         // console.log('Auth failed, clearing user');
         setUsuario(null);
+        try {
+          document.cookie = "auth-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+        } catch {}
       }
     } catch (error) {
       console.error('Erro ao verificar autenticação:', error);
       setUsuario(null);
+      try {
+        document.cookie = "auth-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+      } catch {}
     } finally {
       setLoading(false);
     }
+  }
+
+  const refresh = async () => {
+    try {
+      const res = await fetch('/api/auth/refresh', {
+        method: 'GET',
+        credentials: 'include',
+        cache: 'no-store',
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setUsuario(data.user)
+      } else {
+        setUsuario(null)
+        if (typeof window !== 'undefined') {
+          window.location.replace('/login')
+        }
+      }
+    } catch {}
   }
 
   const login = async (matricula: string, senha: string): Promise<boolean> => {
@@ -134,12 +172,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     checkAuth()
   }, [])
 
+  useEffect(() => {
+    if (!usuario) return
+    const intervalId = setInterval(() => {
+      refresh()
+    }, 2 * 60 * 60 * 1000)
+    return () => clearInterval(intervalId)
+  }, [usuario])
+
   const value = {
     usuario,
     loading,
     login,
     logout,
-    checkAuth
+    checkAuth,
+    refresh
   }
 
   return (

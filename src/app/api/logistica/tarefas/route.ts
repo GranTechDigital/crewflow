@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { NovaTarefaRemanejamento } from "@/types/remanejamento-funcionario";
+import { logHistorico } from "@/lib/historico";
 import { Prisma } from "@prisma/client";
 
 // GET - Listar tarefas de remanejamento
@@ -132,6 +133,11 @@ export async function POST(request: NextRequest) {
         },
         include: {
           solicitacao: true,
+          funcionario: {
+            include: {
+              uptimeSheets: true,
+            },
+          },
         },
       });
 
@@ -156,6 +162,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Calcular dataLimite padrão quando não informada: admissão futura +48h; caso contrário, criação +48h
+    let defaultDataLimite: Date | undefined = undefined;
+    try {
+      const now = new Date();
+      const sheets = (remanejamentoFuncionario as any)?.funcionario?.uptimeSheets || [];
+      let dataAdmissao: Date | null = null;
+      if (Array.isArray(sheets) && sheets.length > 0) {
+        const sorted = [...sheets].sort(
+          (a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+        const found = sorted.find((s: any) => !!s?.dataAdmissao);
+        dataAdmissao = found?.dataAdmissao ? new Date(found.dataAdmissao) : null;
+      }
+      if (dataAdmissao && dataAdmissao.getTime() > now.getTime()) {
+        defaultDataLimite = new Date(dataAdmissao.getTime() + 48 * 60 * 60 * 1000);
+      } else {
+        defaultDataLimite = new Date(now.getTime() + 48 * 60 * 60 * 1000);
+      }
+    } catch (e) {
+      console.warn("Falha ao calcular dataLimite padrão; usando criação +48h.", e);
+      defaultDataLimite = new Date(Date.now() + 48 * 60 * 60 * 1000);
+    }
+
     // Criar a tarefa
     const tarefa = await prisma.tarefaRemanejamento.create({
       data: {
@@ -172,7 +201,7 @@ export async function POST(request: NextRequest) {
           if (v === "urgente") return "URGENTE";
           return "MEDIA";
         })(),
-        ...(dataLimite && { dataLimite: new Date(dataLimite) }),
+        dataLimite: dataLimite ? new Date(dataLimite) : defaultDataLimite,
         ...(dataVencimento && { dataVencimento: new Date(dataVencimento) }),
       },
       include: {
@@ -193,17 +222,15 @@ export async function POST(request: NextRequest) {
 
     // Registrar no histórico
     try {
-      await prisma.historicoRemanejamento.create({
-        data: {
-          solicitacaoId: remanejamentoFuncionario.solicitacaoId,
-          remanejamentoFuncionarioId: remanejamentoFuncionarioId,
-          tipoAcao: "CRIACAO",
-          entidade: "TAREFA",
-          descricaoAcao: `Nova tarefa "${tipo}" criada para ${tarefa.remanejamentoFuncionario.funcionario.nome} (${tarefa.remanejamentoFuncionario.funcionario.matricula})`,
-          usuarioResponsavel: responsavel,
-          observacoes: descricao || undefined,
-        },
-      });
+      await logHistorico(request, {
+        solicitacaoId: remanejamentoFuncionario.solicitacaoId!,
+        remanejamentoFuncionarioId: remanejamentoFuncionarioId,
+        tarefaId: tarefa.id,
+        tipoAcao: "CRIACAO",
+        entidade: "TAREFA",
+        descricaoAcao: `Nova tarefa "${tipo}" criada para ${tarefa.remanejamentoFuncionario.funcionario.nome} (${tarefa.remanejamentoFuncionario.funcionario.matricula})`,
+        observacoes: descricao || undefined,
+      })
     } catch (historicoError) {
       console.error("Erro ao registrar histórico:", historicoError);
       // Não falha a criação da tarefa se o histórico falhar
@@ -265,22 +292,19 @@ async function atualizarStatusTarefasFuncionario(
     if (remanejamentoAtualizado) {
       // Registrar no histórico a mudança de status das tarefas
       try {
-        await prisma.historicoRemanejamento.create({
-          data: {
-            solicitacaoId: remanejamentoAtualizado.solicitacaoId,
-            remanejamentoFuncionarioId: remanejamentoFuncionarioId,
-            tipoAcao: "ATUALIZACAO_STATUS",
-            entidade: "STATUS_TAREFAS",
-            descricaoAcao: `Status geral das tarefas atualizado para: ${
-              todasConcluidas ? "SOLICITAÇÃO CONCLUÍDA" : "ATENDER TAREFAS"
-            }`,
-            campoAlterado: "statusTarefas",
-            valorNovo: todasConcluidas
-              ? "SOLICITAÇÃO CONCLUÍDA"
-              : "ATENDER TAREFAS",
-            usuarioResponsavel: usuarioResponsavelNome,
-          },
-        });
+        await logHistorico({} as any, {
+          solicitacaoId: remanejamentoAtualizado.solicitacaoId!,
+          remanejamentoFuncionarioId: remanejamentoFuncionarioId,
+          tipoAcao: "ATUALIZACAO_STATUS",
+          entidade: "STATUS_TAREFAS",
+          descricaoAcao: `Status geral das tarefas atualizado para: ${
+            todasConcluidas ? "SOLICITAÇÃO CONCLUÍDA" : "ATENDER TAREFAS"
+          }`,
+          campoAlterado: "statusTarefas",
+          valorNovo: todasConcluidas
+            ? "SOLICITAÇÃO CONCLUÍDA"
+            : "ATENDER TAREFAS",
+        })
       } catch (historicoError) {
         console.error(
           "Erro ao registrar histórico de status das tarefas:",

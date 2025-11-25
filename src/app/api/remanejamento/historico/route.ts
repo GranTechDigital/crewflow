@@ -47,8 +47,7 @@ export async function GET(request: NextRequest) {
         solicitacao: {
           select: {
             id: true,
-            status: true,
-            solicitadoPor: true
+            status: true
           }
         },
         remanejamentoFuncionario: {
@@ -136,8 +135,7 @@ export async function POST(request: NextRequest) {
         solicitacao: {
           select: {
             id: true,
-            status: true,
-            solicitadoPor: true
+            status: true
           }
         },
         remanejamentoFuncionario: {

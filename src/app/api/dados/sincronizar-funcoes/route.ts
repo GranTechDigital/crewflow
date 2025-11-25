@@ -1,23 +1,14 @@
 // src/app/api/dados/sincronizar-funcoes/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { toSlug } from '@/utils/slug';
 
 function normalizeRegime(regime: unknown) {
   const r = String(regime || "ONSHORE").toUpperCase();
   return r.includes("OFFSHORE") ? "OFFSHORE" : "ONSHORE";
 }
 
-function toSlug(input: string): string {
-  return (input || "")
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9\s-]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-");
-}
-
+// Removido toSlug local; usando helper compartilhado
 async function fetchExternalDataWithRetry(maxRetries = 3, timeout = 15000) {
   const url =
     "https://granihcservices145382.rm.cloudtotvs.com.br:8051/api/framework/v1/consultaSQLServer/RealizaConsulta/GS.INT.0005/1/P";

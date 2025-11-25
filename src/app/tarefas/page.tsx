@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { read, utils, writeFile } from "xlsx";
+import ExcelJS from "exceljs";
 import { toast } from "react-hot-toast";
 import { useAuth } from "@/app/hooks/useAuth";
 import {
@@ -41,6 +41,7 @@ import {
   XMarkIcon,
   PlusIcon,
   EyeIcon,
+  EllipsisVerticalIcon,
 } from "@heroicons/react/24/outline";
 import ClipboardDocumentCheckIcon from "@heroicons/react/24/solid/ClipboardDocumentCheckIcon";
 
@@ -197,7 +198,7 @@ export default function TarefasPage() {
     useState(5);
 
   // Estados para tabs
-  const [activeTab, setActiveTab] = useState<"funcionarios" | "dashboard">(
+  const [activeTab, setActiveTab] = useState<"funcionarios" | "concluidos" | "dashboard">(
     "funcionarios"
   );
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -221,6 +222,19 @@ export default function TarefasPage() {
   const [abaAtiva, setAbaAtiva] = useState<"observacoes" | "dataLimite">(
     "observacoes"
   );
+
+  const [menuFuncionarioAtivo, setMenuFuncionarioAtivo] = useState<string | null>(null);
+  const [mostrarModalInconsistencia, setMostrarModalInconsistencia] = useState(false);
+  const [textoInconsistencia, setTextoInconsistencia] = useState("");
+  const [remanejamentoSelecionado, setRemanejamentoSelecionado] = useState<{
+    id: string;
+    nome: string;
+    matricula?: string;
+  } | null>(null);
+  const [salvandoInconsistencia, setSalvandoInconsistencia] = useState(false);
+  const [mostrarModalVerObs, setMostrarModalVerObs] = useState(false);
+  const [textoVerObs, setTextoVerObs] = useState("");
+  const [tituloVerObs, setTituloVerObs] = useState("");
 
   useEffect(() => {
     // Detectar o setor com base nos parâmetros da URL atual
@@ -410,6 +424,10 @@ export default function TarefasPage() {
                 matchStatus =
                   tarefa.status === "CONCLUIDO" ||
                   tarefa.status === "CONCLUIDA";
+              } else if (filtroStatus === "PENDENTE") {
+                matchStatus =
+                  tarefa.status === "PENDENTE" ||
+                  tarefa.status === "EM_ANDAMENTO";
               } else if (filtroStatus) {
                 matchStatus = tarefa.status === filtroStatus;
               }
@@ -594,50 +612,20 @@ export default function TarefasPage() {
   const exportarParaExcel = async () => {
     const tarefasFiltradas = getTarefasFiltradas();
 
-    // Buscar última observação em lote para todas as tarefas filtradas (com chunking para evitar URL longa)
+    // Buscar últimas observações em um único request (POST)
     const ids = Array.from(new Set((tarefasFiltradas || []).map((t) => t.id)));
-    let ultimaObsMap: Record<string, { texto?: string; criadoEm?: string; criadoPor?: string }> = {};
+    let ultimaObsMap: Record<string, { texto?: string; criadoEm?: string; criadoPor?: string; modificadoEm?: string; modificadoPor?: string }> = {};
     try {
       if (ids.length > 0) {
-        const chunkSize = 100;
-        for (let i = 0; i < ids.length; i += chunkSize) {
-          const chunk = ids.slice(i, i + chunkSize);
-          const qs = encodeURIComponent(chunk.join(","));
-          const resp = await fetch(`/api/logistica/tarefas/observacoes/ultima?ids=${qs}`);
-          if (resp.ok) {
-            const partial = await resp.json();
-            ultimaObsMap = { ...ultimaObsMap, ...partial };
-          } else {
-            console.warn("Falha ao obter última observação (status):", resp.status);
-          }
-        }
-        console.log("[exportacao] totalIds:", ids.length, "mapKeys:", Object.keys(ultimaObsMap).length);
-
-        // Fallback: para IDs sem retorno no lote, buscar via endpoint do modal
-        const missingIds = ids.filter((id) => !ultimaObsMap[id]);
-        if (missingIds.length > 0) {
-          console.log("[exportacao] missingIds:", missingIds.length);
-          for (const id of missingIds) {
-            try {
-              const respInd = await fetch(`/api/logistica/tarefas/${id}/observacoes`);
-              if (respInd.ok) {
-                const obsArr: Array<{ texto?: string; criadoEm?: string; criadoPor?: string }> = await respInd.json();
-                if (Array.isArray(obsArr) && obsArr.length > 0) {
-                  const ultima = obsArr[0]; // Já vem ordenado por dataCriacao desc
-                  ultimaObsMap[id] = {
-                    texto: ultima?.texto,
-                    criadoEm: ultima?.criadoEm,
-                    criadoPor: ultima?.criadoPor,
-                  };
-                }
-              } else {
-                console.warn("Falha ao obter observação individual (status):", respInd.status);
-              }
-            } catch (e) {
-              console.warn("Erro ao obter observação individual:", e);
-            }
-          }
-          console.log("[exportacao] mapKeys pós-fallback:", Object.keys(ultimaObsMap).length);
+        const resp = await fetch(`/api/logistica/tarefas/observacoes/ultima`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ids }),
+        });
+        if (resp.ok) {
+          ultimaObsMap = await resp.json();
+        } else {
+          console.warn("Falha ao obter última observação (status):", resp.status);
         }
       }
     } catch (err) {
@@ -661,10 +649,59 @@ export default function TarefasPage() {
       "Última Observação": ultimaObsMap[tarefa.id]?.texto || "N/A",
     }));
 
-    const wb = utils.book_new();
-    const ws = utils.json_to_sheet(dadosExcel);
-    utils.book_append_sheet(wb, ws, "Tarefas");
-    writeFile(wb, "Tarefas_Exportadas.xlsx");
+    // Gerar Excel com exceljs e auto largura de colunas
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("Tarefas");
+
+    const headers = [
+      "ID",
+      "Tipo",
+      "Descrição",
+      "Status",
+      "Prioridade",
+      "Data Limite",
+      "Data Criação",
+      "Funcionário",
+      "Matrícula",
+      "Função",
+      "Setor Responsável",
+      "Última Observação",
+    ];
+
+    ws.addRow(headers);
+    dadosExcel.forEach((row) => {
+      ws.addRow(headers.map((h) => String((row as any)[h] ?? "")));
+    });
+
+    // Estilo simples do header
+    const headerRow = ws.getRow(1);
+    headerRow.font = { bold: true };
+    headerRow.alignment = { vertical: "middle", horizontal: "left" } as any;
+
+    // Auto largura baseado no maior conteúdo de cada coluna
+    for (let colIndex = 1; colIndex <= headers.length; colIndex++) {
+      let maxLen = String(headers[colIndex - 1] || "").length;
+      ws.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+        const cell = row.getCell(colIndex);
+        const v = cell.value as string | number | boolean | Date | null | undefined;
+        const text = v instanceof Date ? v.toLocaleDateString("pt-BR") : String(v ?? "");
+        if (text.length > maxLen) maxLen = text.length;
+      });
+      ws.getColumn(colIndex).width = Math.min(60, maxLen + 2);
+    }
+
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "Tarefas_Exportadas.xlsx";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
 
     toast.success("Tarefas exportadas com sucesso!");
   };
@@ -736,11 +773,10 @@ export default function TarefasPage() {
             }
             // Função para obter prioridade do status
             const getStatusPriority = (status: string) => {
-              if (status === "REPROVADO") return 0; // Maior prioridade
-              if (status === "EM_ANDAMENTO") return 1;
-              if (status === "PENDENTE") return 2;
-              if (status === "CONCLUIDA" || status === "CONCLUIDO") return 3; // Menor prioridade
-              return 4; // Outros status
+              if (status === "REPROVADO") return 0;
+              if (status === "PENDENTE" || status === "EM_ANDAMENTO") return 1;
+              if (status === "CONCLUIDA" || status === "CONCLUIDO") return 2;
+              return 3;
             };
 
             const priorityA = getStatusPriority(a.status);
@@ -781,40 +817,23 @@ export default function TarefasPage() {
       const isConcluido_B =
         tarefasConcluidas_B === totalTarefas_B && totalTarefas_B > 0;
 
-      // Calcular se está em andamento (algumas tarefas concluídas, mas não todas)
-      const isEmAndamento_A =
-        tarefasConcluidas_A > 0 &&
-        tarefasConcluidas_A < totalTarefas_A &&
-        !hasReprovado_A;
-      const isEmAndamento_B =
-        tarefasConcluidas_B > 0 &&
-        tarefasConcluidas_B < totalTarefas_B &&
-        !hasReprovado_B;
-
       // Calcular se está pendente (nenhuma tarefa concluída e não tem reprovadas)
       const isPendente_A = tarefasConcluidas_A === 0 && !hasReprovado_A;
       const isPendente_B = tarefasConcluidas_B === 0 && !hasReprovado_B;
 
       // Prioridade de ordenação:
       // 1. Reprovado (tem pelo menos uma tarefa reprovada)
-      // 2. Em andamento (algumas tarefas concluídas, mas não todas, sem reprovadas)
-      // 3. Pendente (nenhuma tarefa concluída e não tem reprovadas)
-      // 4. Concluído (todas as tarefas concluídas)
+      // 2. Pendente (nenhuma tarefa concluída e não tem reprovadas)
+      // 3. Concluído (todas as tarefas concluídas)
 
       if (hasReprovado_A && !hasReprovado_B) return -1;
       if (!hasReprovado_A && hasReprovado_B) return 1;
 
       if (!hasReprovado_A && !hasReprovado_B) {
-        if (isEmAndamento_A && !isEmAndamento_B) return -1;
-        if (!isEmAndamento_A && isEmAndamento_B) return 1;
-
-        if (!isEmAndamento_A && !isEmAndamento_B) {
-          if (isPendente_A && !isPendente_B) return -1;
-          if (!isPendente_A && isPendente_B) return 1;
-
-          if (isConcluido_A && !isConcluido_B) return 1;
-          if (!isConcluido_A && isConcluido_B) return -1;
-        }
+        if (isPendente_A && !isPendente_B) return -1;
+        if (!isPendente_A && isPendente_B) return 1;
+        if (isConcluido_A && !isConcluido_B) return 1;
+        if (!isConcluido_A && isConcluido_B) return -1;
       }
 
       // Se mesmo status, ordenar por nome
@@ -1137,6 +1156,47 @@ export default function TarefasPage() {
       toast.error("Erro ao excluir observação");
     } finally {
       setExcluindoObservacao(false);
+    }
+  };
+
+  const salvarInconsistencia = async () => {
+    if (!remanejamentoSelecionado || !textoInconsistencia.trim()) {
+      toast.error("Descreva a inconsistência");
+      return;
+    }
+    try {
+      setSalvandoInconsistencia(true);
+      const respGet = await fetch(`/api/logistica/funcionario/${remanejamentoSelecionado.id}`);
+      if (!respGet.ok) {
+        toast.error("Falha ao carregar dados do funcionário");
+        return;
+      }
+      const dados = await respGet.json();
+      const anterior: string = dados?.observacoesPrestserv || "";
+      const agora = new Date();
+      const stamp = agora.toLocaleString("pt-BR", { hour12: false });
+      const setor = usuario?.equipe || setorAtual || "SETOR";
+      const header = `[${stamp}] ${setor} - ${usuario?.nome || ""} (${usuario?.matricula || ""})`;
+      const entrada = `${header}\n${textoInconsistencia.trim()}`;
+      const novoTexto = anterior ? `${anterior}\n\n---\n${entrada}` : entrada;
+      const respPatch = await fetch(`/api/logistica/funcionario/${remanejamentoSelecionado.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ observacoesPrestserv: novoTexto })
+      });
+      if (!respPatch.ok) {
+        const err = await respPatch.json().catch(() => ({}));
+        toast.error(err?.error || "Falha ao salvar observação");
+        return;
+      }
+      toast.success("Inconsistência notificada");
+      setMostrarModalInconsistencia(false);
+      setRemanejamentoSelecionado(null);
+      setTextoInconsistencia("");
+    } catch (e) {
+      toast.error("Erro ao salvar observação");
+    } finally {
+      setSalvandoInconsistencia(false);
     }
   };
 
@@ -1630,14 +1690,9 @@ export default function TarefasPage() {
     ).length;
     const totalTarefas = tarefas.length;
 
-    // Se todas concluídas
     if (tarefasConcluidas === totalTarefas) return "CONCLUIDO";
-
-    // Se nenhuma concluída
     if (tarefasConcluidas === 0) return "PENDENTE";
-
-    // Se algumas concluídas (em andamento)
-    return "EM_ANDAMENTO";
+    return "PENDENTE";
   };
 
   // Função para obter classes de borda baseadas no status
@@ -1645,8 +1700,6 @@ export default function TarefasPage() {
     switch (status) {
       case "REPROVADO":
         return "border-l-4 border-l-red-500 bg-red-50/20";
-      case "EM_ANDAMENTO":
-        return "border-l-4 border-l-blue-500 bg-blue-50/20";
       case "CONCLUIDO":
         return "border-l-4 border-l-green-500 bg-green-50/20";
       case "PENDENTE":
@@ -1659,15 +1712,42 @@ export default function TarefasPage() {
   // Componente para a lista de tarefas
   const ListaTarefas = () => {
     const remanejamentosComTarefas = getRemanejamentosParaVisaoFuncionarios();
+    const isConcluido = (
+      item: {
+        tarefas: TarefaRemanejamento[];
+        remanejamento: RemanejamentoFuncionario;
+      }
+    ) => {
+      const todas = (item.remanejamento.tarefas || []) as TarefaRemanejamento[];
+      const reprovadaLogistica = todas.some(
+        (t) => t.responsavel === "LOGISTICA" && t.status === "REPROVADO"
+      );
+      if (reprovadaLogistica) return false;
+      if (setorAtual) {
+        const setorTs = todas.filter((t) => t.responsavel === setorAtual);
+        if (setorTs.length === 0) return false;
+        return setorTs.every(
+          (t) => t.status === "CONCLUIDO" || t.status === "CONCLUIDA"
+        );
+      }
+      if (todas.length === 0) return false;
+      return todas.every(
+        (t) => t.status === "CONCLUIDO" || t.status === "CONCLUIDA"
+      );
+    };
+    const listaFiltrada =
+      activeTab === "concluidos"
+        ? remanejamentosComTarefas.filter((x) => isConcluido(x))
+        : remanejamentosComTarefas.filter((x) => !isConcluido(x));
 
     // Paginação dos remanejamentos
-    const totalRemanejamentos = remanejamentosComTarefas.length;
+    const totalRemanejamentos = listaFiltrada.length;
     const totalPaginas = Math.ceil(
       totalRemanejamentos / itensPorPaginaFuncionarios
     );
     const inicio = (paginaAtualFuncionarios - 1) * itensPorPaginaFuncionarios;
     const fim = inicio + itensPorPaginaFuncionarios;
-    const remanejamentosPaginados = remanejamentosComTarefas.slice(inicio, fim);
+    const remanejamentosPaginados = listaFiltrada.slice(inicio, fim);
 
     // Contagem de observações será carregada sob demanda ao expandir uma linha
 
@@ -1683,9 +1763,13 @@ export default function TarefasPage() {
       );
     }
 
-    if (remanejamentosComTarefas.length === 0) {
+    if (listaFiltrada.length === 0) {
       return (
-        <div className="text-center py-10">Nenhuma tarefa encontrada.</div>
+        <div className="text-center py-10">
+          {activeTab === "concluidos"
+            ? "Nenhum funcionário concluído."
+            : "Nenhuma tarefa encontrada."}
+        </div>
       );
     }
 
@@ -1732,11 +1816,25 @@ export default function TarefasPage() {
                   >
                     Progresso
                   </th>
+                  {(!setorAtual) && (
+                    <th
+                      scope="col"
+                      className="px-6 py-3 text-center text-xs font-medium text-gray-600 uppercase tracking-wider"
+                    >
+                      Setores
+                    </th>
+                  )}
                   <th
                     scope="col"
                     className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider"
                   >
                     Contrato (De → Para)
+                  </th>
+                  <th
+                    scope="col"
+                    className="px-6 py-3 text-right text-xs font-medium text-gray-600 uppercase tracking-wider"
+                  >
+                    Ações
                   </th>
                 </tr>
               </thead>
@@ -1762,13 +1860,21 @@ export default function TarefasPage() {
                         : 0;
                     const expandido = funcionariosExpandidos.has(chaveGrupo);
 
-                    // Determinar se as tarefas do funcionário foram criadas há menos de 48h
-                    const grupoNovo = tarefas.some(
-                      (t) =>
-                        t.dataCriacao &&
-                        Date.now() - new Date(t.dataCriacao).getTime() <=
-                          48 * 60 * 60 * 1000
-                    );
+                    // Determinar data de admissão (uptimeSheets mais recente com data)
+                    const sheets = (funcionario as any)?.uptimeSheets || [];
+                    const dataAdmissao: Date | null = (() => {
+                      if (!Array.isArray(sheets) || sheets.length === 0) return null;
+                      const sorted = [...sheets].sort(
+                        (a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+                      );
+                      const found = sorted.find((s: any) => !!s?.dataAdmissao);
+                      return found?.dataAdmissao ? new Date(found.dataAdmissao) : null;
+                    })();
+
+                    const nowMs = Date.now();
+                    const isAdmissaoFutura = !!dataAdmissao && dataAdmissao.getTime() > nowMs;
+                    // "Novo" se admitido há <= 48h
+                    const grupoNovo = !!dataAdmissao && !isAdmissaoFutura && (nowMs - dataAdmissao.getTime() <= 48 * 60 * 60 * 1000);
 
                     // Determinar status geral e classes de borda
                     const statusGeral = getStatusGeralFuncionario(tarefas);
@@ -1795,7 +1901,7 @@ export default function TarefasPage() {
                           }}
                         >
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center space-x-3">
+                            <div className="flex items-center space-x-3 relative">
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -1824,13 +1930,39 @@ export default function TarefasPage() {
                                       Matrícula: {funcionario.matricula}
                                     </span>
                                   )}
-                                  {grupoNovo && (
+                                  {isAdmissaoFutura ? (
                                     <span
-                                      className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-100 text-emerald-800"
-                                      title="Tarefas criadas há menos de 48h"
+                                      className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-800"
+                                      title="Admissão futura (ainda não admitido)"
                                     >
-                                      Novo
+                                      Admissão futura
                                     </span>
+                                  ) : (
+                                    grupoNovo && (
+                                      <span
+                                        className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-100 text-emerald-800"
+                                        title="Admitido há menos de 48h"
+                                      >
+                                        Novo
+                                      </span>
+                                    )
+                                  )}
+                                  {remanejamento?.observacoesPrestserv && (
+                                    <button
+                                      data-no-expand
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setTituloVerObs(`${funcionario.nome}${funcionario.matricula ? ` (${funcionario.matricula})` : ""}`);
+                                        setTextoVerObs(remanejamento.observacoesPrestserv || "");
+                                        setMostrarModalVerObs(true);
+                                      }}
+                                      className="inline-flex items-center gap-1 text-yellow-700 bg-yellow-50 border border-yellow-200 px-1.5 py-0.5 rounded hover:bg-yellow-100"
+                                      title="Inconsistência informada por setor"
+                                    >
+                                      <ExclamationTriangleIcon className="w-4 h-4" />
+                                      <span className="text-[10px] font-semibold">Atenção</span>
+                                    </button>
                                   )}
                                 </div>
                                 <div className="text-[11px] text-gray-500">
@@ -1859,20 +1991,102 @@ export default function TarefasPage() {
                             </div>
                           </td>
 
-                          {/* Barra de Progresso */}
                           <td className="px-6 py-4 whitespace-nowrap text-center">
-                            <div className="flex items-center justify-center space-x-2">
-                              <div className="w-16 bg-gray-200 rounded-full h-2">
-                                <div
-                                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                                  style={{ width: `${progresso}%` }}
-                                ></div>
+                            <div className="flex items-center justify-center">
+                              <div className="w-14 h-14">
+                                {(() => {
+                                  const centerText = {
+                                    id: `center-text-${chaveGrupo}`,
+                                    afterDraw: (chart: any) => {
+                                      const { ctx, chartArea } = chart;
+                                      if (!chartArea) return;
+                                      const x = (chartArea.left + chartArea.right) / 2;
+                                      const y = (chartArea.top + chartArea.bottom) / 2;
+                                      const size = Math.min(chart.width, chart.height);
+                                      const fontSize = Math.max(9, Math.floor(size / 3.8));
+                                      ctx.save();
+                                      ctx.font = `600 ${fontSize}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto`;
+                                      ctx.fillStyle = "#374151";
+                                      ctx.textAlign = "center";
+                                      ctx.textBaseline = "middle";
+                                      ctx.fillText(`${progresso}%`, x, y);
+                                      ctx.restore();
+                                    },
+                                  };
+                                  return (
+                                    <Doughnut
+                                      data={{
+                                        labels: ["Pendentes", "Concluídas"],
+                                        datasets: [
+                                          {
+                                            data: [
+                                              Math.max(tarefas.length - tarefasConcluidas.length, 0),
+                                              tarefasConcluidas.length,
+                                            ],
+                                            backgroundColor: ["#f59e0b", "#10b981"],
+                                            borderWidth: 0,
+                                          },
+                                        ],
+                                      }}
+                                      options={{
+                                        cutout: "65%",
+                                        plugins: { legend: { display: false }, tooltip: { enabled: true }, datalabels: { display: false } },
+                                        maintainAspectRatio: false,
+                                      }}
+                                      plugins={[centerText as any]}
+                                    />
+                                  );
+                                })()}
                               </div>
-                              <span className="text-xs font-medium text-gray-700">
-                                {progresso}%
-                              </span>
                             </div>
                           </td>
+
+                          {!setorAtual && (
+                            <td className="px-6 py-4 whitespace-nowrap text-center">
+                              {(() => {
+                                  const setores = ["RH", "MEDICINA", "TREINAMENTO"] as const;
+                                  const bySetor = setores.map((s) => {
+                                    const ts = tarefas.filter((t) => t.responsavel === s);
+                                    const concl = ts.filter((t) => t.status === "CONCLUIDO" || t.status === "CONCLUIDA").length;
+                                    return ts.length > 0 && concl === ts.length;
+                                  });
+                                  const completos = bySetor.filter(Boolean).length;
+                                  return (
+                                    <div className="flex items-center justify-center gap-3">
+                                      <div className="w-14 h-14">
+                                        <Doughnut
+                                          data={{
+                                            labels: ["Concluídos", "Restantes"],
+                                            datasets: [
+                                              {
+                                                data: [completos, 3 - completos],
+                                                backgroundColor: ["#22c55e", "#e5e7eb"],
+                                                borderWidth: 0,
+                                              },
+                                            ],
+                                          }}
+                                          options={{
+                                            cutout: "65%",
+                                            plugins: { legend: { display: false }, tooltip: { enabled: false }, datalabels: { display: false } },
+                                            maintainAspectRatio: false,
+                                          }}
+                                        />
+                                      </div>
+                                      <div className="flex gap-1">
+                                        {setores.map((s, idx) => (
+                                          <span
+                                            key={s}
+                                            className={`px-1.5 py-0.5 text-[10px] rounded-full border ${bySetor[idx] ? "bg-green-100 text-green-700 border-green-200" : "bg-gray-100 text-gray-500 border-gray-200"}`}
+                                          >
+                                            {s === "RH" ? "RH" : s === "MEDICINA" ? "MED" : "TREI"}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  );
+                              })()}
+                            </td>
+                          )}
 
                           {/* Contrato (De → Para) */}
                           <td className="px-6 py-4 whitespace-nowrap">
@@ -1881,12 +2095,48 @@ export default function TarefasPage() {
                               {solicitacao?.contratoDestino?.numero || "-"}
                             </span>
                           </td>
+                          {/* Ações */}
+                          <td className="px-6 py-4 whitespace-nowrap text-right relative" data-no-expand onMouseDown={(e)=>{e.preventDefault(); e.stopPropagation();}}>
+                            <button
+                              type="button"
+                              data-no-expand
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setMenuFuncionarioAtivo(prev => prev === chaveGrupo ? null : chaveGrupo);
+                              }}
+                              onMouseDown={(e)=>{e.preventDefault(); e.stopPropagation();}}
+                              className="inline-flex p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-gray-700"
+                              title="Mais ações"
+                            >
+                              <EllipsisVerticalIcon className="h-5 w-5" />
+                            </button>
+                            {menuFuncionarioAtivo === chaveGrupo && (
+                              <div className="absolute right-6 mt-2 z-20 bg-white border border-gray-200 rounded shadow-md w-56" data-no-expand>
+                                <button
+                                  type="button"
+                                  className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setMenuFuncionarioAtivo(null);
+                                    setRemanejamentoSelecionado({ id: remanejamento.id, nome: funcionario.nome, matricula: (funcionario as any).matricula });
+                                    setTextoInconsistencia("");
+                                    setMostrarModalInconsistencia(true);
+                                  }}
+                                  onMouseDown={(e)=>{e.preventDefault(); e.stopPropagation();}}
+                                >
+                                  Notificar Inconsistência
+                                </button>
+                              </div>
+                            )}
+                          </td>
                         </tr>
 
                         {/* Detalhes expandidos das tarefas */}
                         {expandido && (
                           <tr>
-                            <td colSpan={5} className="px-0 py-0">
+                            <td colSpan={setorAtual ? 6 : 7} className="px-0 py-0">
                               <div className="bg-gray-50 border-t border-gray-200">
                                 <div className="px-6 py-4">
                                   <div className="mb-3">
@@ -1973,18 +2223,10 @@ export default function TarefasPage() {
                                             const getStatusPriority = (
                                               status: string
                                             ) => {
-                                              if (status === "REPROVADO")
-                                                return 0; // Maior prioridade
-                                              if (status === "EM_ANDAMENTO")
-                                                return 1;
-                                              if (status === "PENDENTE")
-                                                return 2;
-                                              if (
-                                                status === "CONCLUIDA" ||
-                                                status === "CONCLUIDO"
-                                              )
-                                                return 3; // Menor prioridade
-                                              return 4; // Outros status
+                                              if (status === "REPROVADO") return 0;
+                                              if (status === "PENDENTE" || status === "EM_ANDAMENTO") return 1;
+                                              if (status === "CONCLUIDA" || status === "CONCLUIDO") return 2;
+                                              return 3;
                                             };
 
                                             const priorityA = getStatusPriority(
@@ -2000,7 +2242,7 @@ export default function TarefasPage() {
                                             // Classes de status
                                             let statusClasses =
                                               "px-2 py-1 text-xs rounded-full";
-                                            if (tarefa.status === "PENDENTE")
+                                            if (tarefa.status === "PENDENTE" || tarefa.status === "EM_ANDAMENTO")
                                               statusClasses +=
                                                 " bg-yellow-100 text-yellow-800";
                                             else if (
@@ -2014,11 +2256,6 @@ export default function TarefasPage() {
                                             )
                                               statusClasses +=
                                                 " bg-red-100 text-red-800";
-                                            else if (
-                                              tarefa.status === "EM_ANDAMENTO"
-                                            )
-                                              statusClasses +=
-                                                " bg-blue-100 text-blue-800";
                                             else
                                               statusClasses +=
                                                 " bg-slate-100 text-slate-800";
@@ -2089,17 +2326,13 @@ export default function TarefasPage() {
                                                   {tarefa.descricao}
                                                 </td>
                                                 <td className="px-4 py-3 text-xs whitespace-nowrap">
-                                                  <span
-                                                    className={statusClasses}
-                                                  >
-                                                    {tarefa.status ===
-                                                    "PENDENTE"
+                                                  <span className={statusClasses}>
+                                                    {tarefa.status === "PENDENTE" || tarefa.status === "EM_ANDAMENTO"
                                                       ? "Pendente"
-                                                      : tarefa.status ===
-                                                          "CONCLUIDA" ||
-                                                        tarefa.status ===
-                                                          "CONCLUIDO"
+                                                      : tarefa.status === "CONCLUIDA" || tarefa.status === "CONCLUIDO"
                                                       ? "Concluída"
+                                                      : tarefa.status === "REPROVADO"
+                                                      ? "Reprovado"
                                                       : tarefa.status}
                                                   </span>
                                                 </td>
@@ -2348,10 +2581,8 @@ export default function TarefasPage() {
         const status =
           tarefa.status === "CONCLUIDO" || tarefa.status === "CONCLUIDA"
             ? "CONCLUIDA"
-            : tarefa.status === "PENDENTE"
+            : tarefa.status === "PENDENTE" || tarefa.status === "EM_ANDAMENTO"
             ? "PENDENTE"
-            : tarefa.status === "EM_ANDAMENTO"
-            ? "EM_ANDAMENTO"
             : "OUTROS";
         acc[status] = (acc[status] || 0) + 1;
         return acc;
@@ -2359,7 +2590,6 @@ export default function TarefasPage() {
 
       return {
         pendentes: stats.PENDENTE || 0,
-        emAndamento: stats.EM_ANDAMENTO || 0,
         concluidas: stats.CONCLUIDA || 0,
         outros: stats.OUTROS || 0,
       };
@@ -2434,182 +2664,103 @@ export default function TarefasPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Distribuição por Status */}
           <div className="bg-white p-6 rounded-lg shadow-lg">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">
-              Distribuição por Status
-            </h3>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-600">Pendentes</span>
-                <div className="flex items-center space-x-2">
-                  <div className="w-32 bg-gray-200 rounded-full h-2">
-                    <div
-                      className="bg-yellow-500 h-2 rounded-full"
-                      style={{
-                        width: `${
-                          tarefasFiltradas.length > 0
-                            ? (statsStatus.pendentes /
-                                tarefasFiltradas.length) *
-                              100
-                            : 0
-                        }%`,
-                      }}
-                    ></div>
-                  </div>
-                  <span className="text-xs font-medium text-gray-800">
-                    {statsStatus.pendentes}
-                  </span>
-                </div>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-600">Em Andamento</span>
-                <div className="flex items-center space-x-2">
-                  <div className="w-32 bg-gray-200 rounded-full h-2">
-                    <div
-                      className="bg-purple-500 h-2 rounded-full"
-                      style={{
-                        width: `${
-                          tarefasFiltradas.length > 0
-                            ? (statsStatus.emAndamento /
-                                tarefasFiltradas.length) *
-                              100
-                            : 0
-                        }%`,
-                      }}
-                    ></div>
-                  </div>
-                  <span className="text-xs font-medium text-gray-800">
-                    {statsStatus.emAndamento}
-                  </span>
-                </div>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-600">Concluídas</span>
-                <div className="flex items-center space-x-2">
-                  <div className="w-32 bg-gray-200 rounded-full h-2">
-                    <div
-                      className="bg-green-500 h-2 rounded-full"
-                      style={{
-                        width: `${
-                          tarefasFiltradas.length > 0
-                            ? (statsStatus.concluidas /
-                                tarefasFiltradas.length) *
-                              100
-                            : 0
-                        }%`,
-                      }}
-                    ></div>
-                  </div>
-                  <span className="text-xs font-medium text-gray-800">
-                    {statsStatus.concluidas}
-                  </span>
-                </div>
-              </div>
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">Distribuição por Status</h3>
+            <div className="h-64">
+              <Doughnut
+                data={{
+                  labels: ["Pendentes", "Concluídas"],
+                  datasets: [
+                    {
+                      data: [statsStatus.pendentes, statsStatus.concluidas],
+                      backgroundColor: ["#f59e0b", "#10b981"],
+                      borderWidth: 0,
+                    },
+                  ],
+                }}
+                options={{ plugins: { legend: { position: "bottom" }, datalabels: { display: false } }, maintainAspectRatio: false, cutout: "55%" }}
+              />
             </div>
           </div>
 
           {/* Distribuição por Prioridade */}
           <div className="bg-white p-6 rounded-lg shadow-lg">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">
-              Distribuição por Prioridade
-            </h3>
-            <div className="space-y-3">
-              {Object.entries(statsPrioridade).map(([prioridade, count]) => {
-                const cores = {
-                  BAIXA: "bg-green-400",
-                  MEDIA: "bg-yellow-400",
-                  ALTA: "bg-orange-400",
-                  URGENTE: "bg-red-500",
-                };
-                const cor =
-                  cores[prioridade as keyof typeof cores] || "bg-gray-400";
-
-                return (
-                  <div
-                    key={prioridade}
-                    className="flex items-center justify-between"
-                  >
-                    <span className="text-xs text-gray-600">
-                      {prioridade === "BAIXA"
-                        ? "Baixa"
-                        : prioridade === "MEDIA"
-                        ? "Média"
-                        : prioridade === "ALTA"
-                        ? "Alta"
-                        : prioridade === "URGENTE"
-                        ? "Urgente"
-                        : prioridade}
-                    </span>
-                    <div className="flex items-center space-x-2">
-                      <div className="w-32 bg-gray-200 rounded-full h-2">
-                        <div
-                          className={`${cor} h-2 rounded-full`}
-                          style={{
-                            width: `${
-                              tarefasFiltradas.length > 0
-                                ? (count / tarefasFiltradas.length) * 100
-                                : 0
-                            }%`,
-                          }}
-                        ></div>
-                      </div>
-                      <span className="text-xs font-medium text-gray-800">
-                        {count}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">Distribuição por Prioridade</h3>
+            <div className="h-64">
+              <Bar
+                data={{
+                  labels: ["Baixa", "Média", "Alta", "Urgente"],
+                  datasets: [
+                    {
+                      label: "Tarefas",
+                      data: [
+                        statsPrioridade.BAIXA || 0,
+                        statsPrioridade.MEDIA || 0,
+                        statsPrioridade.ALTA || 0,
+                        statsPrioridade.URGENTE || 0,
+                      ],
+                      backgroundColor: ["#34d399", "#fbbf24", "#fb923c", "#ef4444"],
+                    },
+                  ],
+                }}
+                options={{
+                  plugins: { legend: { display: false } },
+                  maintainAspectRatio: false,
+                  scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } },
+                }}
+              />
             </div>
           </div>
 
           {/* Distribuição por Setor */}
           <div className="bg-white p-6 rounded-lg shadow-lg">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">
-              Distribuição por Setor
-            </h3>
-            <div className="space-y-3">
-              {Object.entries(statsSetor).map(([setor, count]) => {
-                const cores = {
-                  RH: "bg-blue-500",
-                  MEDICINA: "bg-red-500",
-                  TREINAMENTO: "bg-green-500",
-                };
-                const cor = cores[setor as keyof typeof cores] || "bg-gray-400";
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">Distribuição por Setor</h3>
+            <div className="h-64">
+              <Bar
+                data={{
+                  labels: ["RH", "Medicina", "Treinamento"],
+                  datasets: [
+                    {
+                      label: "Tarefas",
+                      data: [statsSetor.RH || 0, statsSetor.MEDICINA || 0, statsSetor.TREINAMENTO || 0],
+                      backgroundColor: ["#3b82f6", "#ef4444", "#22c55e"],
+                    },
+                  ],
+                }}
+                options={{
+                  plugins: { legend: { display: false } },
+                  maintainAspectRatio: false,
+                  scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } },
+                }}
+              />
+            </div>
+          </div>
 
-                return (
-                  <div
-                    key={setor}
-                    className="flex items-center justify-between"
-                  >
-                    <span className="text-xs text-gray-600">
-                      {setor === "RH"
-                        ? "RH"
-                        : setor === "MEDICINA"
-                        ? "Medicina"
-                        : setor === "TREINAMENTO"
-                        ? "Treinamento"
-                        : setor}
-                    </span>
-                    <div className="flex items-center space-x-2">
-                      <div className="w-32 bg-gray-200 rounded-full h-2">
-                        <div
-                          className={`${cor} h-2 rounded-full`}
-                          style={{
-                            width: `${
-                              tarefasFiltradas.length > 0
-                                ? (count / tarefasFiltradas.length) * 100
-                                : 0
-                            }%`,
-                          }}
-                        ></div>
-                      </div>
-                      <span className="text-xs font-medium text-gray-800">
-                        {count}
-                      </span>
-                    </div>
-                  </div>
+          <div className="bg-white p-6 rounded-lg shadow-lg">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">Funcionários com setor 100% concluído</h3>
+            <div className="h-64">
+              {(() => {
+                const rems = getRemanejamentosParaVisaoFuncionarios();
+                const setores = ["RH", "MEDICINA", "TREINAMENTO"] as const;
+                const counts = setores.map((s) =>
+                  rems.filter((r) => {
+                    const ts = r.tarefas.filter((t) => t.responsavel === s);
+                    if (ts.length === 0) return false;
+                    const concl = ts.filter((t) => t.status === "CONCLUIDO" || t.status === "CONCLUIDA").length;
+                    return concl === ts.length;
+                  }).length
                 );
-              })}
+                return (
+                  <Bar
+                    data={{
+                      labels: ["RH", "Medicina", "Treinamento"],
+                      datasets: [
+                        { label: "Funcionários", data: counts, backgroundColor: ["#3b82f6", "#ef4444", "#22c55e"] },
+                      ],
+                    }}
+                    options={{ plugins: { legend: { display: false } }, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }}
+                  />
+                );
+              })()}
             </div>
           </div>
 
@@ -2645,6 +2796,93 @@ export default function TarefasPage() {
                 </span>
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const ModalInconsistencia = () => {
+    if (!mostrarModalInconsistencia || !remanejamentoSelecionado) return null;
+    return (
+      <div
+        className="fixed inset-0 z-30 flex items-center justify-center bg-black/40"
+        onClick={() => setMostrarModalInconsistencia(false)}
+        onMouseDownCapture={(e) => e.stopPropagation()}
+      >
+        <div
+          className="bg-white rounded-lg shadow-lg w-full max-w-md p-4"
+          onClick={(e) => e.stopPropagation()}
+          onMouseDownCapture={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-semibold text-gray-800">Notificar Inconsistência</h3>
+            <button className="text-gray-500 hover:text-gray-700" onClick={() => setMostrarModalInconsistencia(false)}>
+              <XMarkIcon className="h-5 w-5" />
+            </button>
+          </div>
+          <div className="text-xs text-gray-600 mb-3">
+            {remanejamentoSelecionado.nome}
+            {remanejamentoSelecionado.matricula ? ` (${remanejamentoSelecionado.matricula})` : ""}
+          </div>
+          <textarea
+            value={textoInconsistencia}
+            onChange={(e) => setTextoInconsistencia(e.target.value)}
+            className="w-full border border-gray-300 rounded p-2 text-sm h-28"
+            placeholder="Descreva a inconsistência de forma objetiva"
+            autoFocus
+            onBlur={(e) => {
+              if (mostrarModalInconsistencia) {
+                e.preventDefault();
+                e.currentTarget.focus();
+              }
+            }}
+            onKeyDownCapture={(e) => e.stopPropagation()}
+            onInputCapture={(e) => e.stopPropagation()}
+          />
+          <div className="mt-3 flex justify-end gap-2">
+            <button
+              onClick={() => setMostrarModalInconsistencia(false)}
+              className="px-3 py-1.5 text-xs rounded border border-gray-300 text-gray-700 hover:bg-gray-50"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={salvarInconsistencia}
+              disabled={salvandoInconsistencia}
+              className="px-3 py-1.5 text-xs rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {salvandoInconsistencia ? "Salvando..." : "Salvar"}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const ModalVerObservacoes = () => {
+    if (!mostrarModalVerObs) return null;
+    return (
+      <div
+        className="fixed inset-0 z-30 flex items-center justify-center bg-black/40"
+        onClick={() => setMostrarModalVerObs(false)}
+        onMouseDownCapture={(e) => e.stopPropagation()}
+      >
+        <div
+          className="bg-white rounded-lg shadow-lg w-full max-w-2xl p-4"
+          onClick={(e) => e.stopPropagation()}
+          onMouseDownCapture={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-semibold text-gray-800">Observações de Inconsistência</h3>
+            <button className="text-gray-500 hover:text-gray-700" onClick={() => setMostrarModalVerObs(false)}>
+              <XMarkIcon className="h-5 w-5" />
+            </button>
+          </div>
+          <div className="text-xs text-gray-600 mb-3">{tituloVerObs}</div>
+          <pre className="whitespace-pre-wrap text-xs text-gray-800 max-h-[60vh] overflow-auto border border-gray-200 rounded p-3 bg-gray-50">{textoVerObs}</pre>
+          <div className="mt-3 flex justify-end">
+            <button onClick={() => setMostrarModalVerObs(false)} className="px-3 py-1.5 text-xs rounded border border-gray-300 text-gray-700 hover:bg-gray-50">Fechar</button>
           </div>
         </div>
       </div>
@@ -3018,7 +3256,7 @@ export default function TarefasPage() {
 
   // Render do componente principal
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto px-4 py-8" style={{ overflowAnchor: 'none' as any }}>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-slate-600">
           {getTituloPagina()}
@@ -3047,6 +3285,17 @@ export default function TarefasPage() {
           >
             <UserGroupIcon className="h-4 w-4" />
             <span>Visão por Funcionários</span>
+          </button>
+          <button
+            onClick={() => setActiveTab("concluidos")}
+            className={`text-white py-2 px-1 border-b-2 font-medium text-xs flex items-center space-x-2 ${
+              activeTab === "concluidos"
+                ? "border-sky-500 text-sky-300"
+                : "border-transparent text-gray-500 hover:text-white-700 hover:border-white-300"
+            }`}
+          >
+            <CheckCircleIcon className="h-4 w-4" />
+            <span>Concluídos</span>
           </button>
           <button
             onClick={() => setActiveTab("dashboard")}
@@ -3079,7 +3328,9 @@ export default function TarefasPage() {
       <NovaTarefaModal />
 
       {/* Conteúdo baseado na tab ativa */}
-      {activeTab === "funcionarios" && <ListaTarefas />}
+      {(activeTab === "funcionarios" || activeTab === "concluidos") && (
+        <ListaTarefas />
+      )}
       {activeTab === "dashboard" && <DashboardTarefas />}
 
       {/* Modal para concluir tarefa */}
@@ -3463,6 +3714,8 @@ export default function TarefasPage() {
           </div>
         </div>
       )}
+      <ModalVerObservacoes />
+      <ModalInconsistencia />
     </div>
   );
 }

@@ -27,6 +27,8 @@ export async function POST(request: NextRequest) {
     const resultado = await sincronizarTarefasPadrao({
       setores: setoresInput,
       usuarioResponsavel: usuarioAutenticado?.funcionario?.nome || "Sistema",
+      usuarioResponsavelId: usuarioAutenticado?.id,
+      equipeId: usuarioAutenticado?.equipeId,
       remanejamentoIds,
     });
 

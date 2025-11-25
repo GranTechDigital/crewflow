@@ -87,7 +87,7 @@ export async function PUT(
       where: { id },
       data: {
         funcao: funcao.trim(),
-        regime: regime && typeof regime === 'string' ? regime.trim() : null,
+        regime: typeof regime === 'string' ? regime.trim() : undefined,
         ativo: ativo !== undefined ? Boolean(ativo) : true
       }
     })

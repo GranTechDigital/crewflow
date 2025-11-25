@@ -135,6 +135,8 @@ export async function PUT(
       await sincronizarTarefasPadrao({
         setores: setoresParaSincronizar,
         usuarioResponsavel: user?.funcionario?.nome || 'Sistema - Tarefa Padrão Atualizada',
+        usuarioResponsavelId: user?.id,
+        equipeId: user?.equipeId,
       });
       console.log(`✅ Sincronização automática de ${setor} executada após atualização da tarefa padrão`);
     } catch (syncError) {

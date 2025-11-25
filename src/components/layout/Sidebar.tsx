@@ -276,9 +276,8 @@ export default function Sidebar() {
       <div className="flex items-center justify-between px-4 h-12 border-b border-gray-600/50 bg-gray-700/30 backdrop-blur-sm">
         {!(collapsed && !isHovered) && (
           <div className="flex items-center gap-3">
-            <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse shadow-sm"></div>
-            <span className="text-sm font-semibold text-gray-100 tracking-wide">
-              {isAdmin ? "ADMIN - NAVEGAÇÃO" : "NAVEGAÇÃO"}
+            <span className="text-lg font-semibold text-red-500 tracking-wide animate-pulse shadow-sm">
+              <b>CREWCONTROL</b>
             </span>
           </div>
         )}
@@ -287,27 +286,40 @@ export default function Sidebar() {
           aria-label="Alternar barra lateral"
           className={`p-1.5 hover:bg-gray-600/50 rounded-md transition-all duration-200 hover:shadow-md border border-transparent hover:border-gray-500/30 ${
             collapsed && !isHovered ? "mx-auto" : ""
-            }`}
+          }`}
         >
-          {collapsed && !isHovered ? <ChevronRight size={14} className="text-gray-300" /> : <ChevronLeft size={14} className="text-gray-300" />}
+          {collapsed && !isHovered ? (
+            <ChevronRight size={14} className="text-gray-300" />
+          ) : (
+            <ChevronLeft size={14} className="text-gray-300" />
+          )}
         </button>
       </div>
 
       {/* Navegação com scrollbar customizada mais fina */}
-      <nav className={`flex flex-col space-y-0.5 text-sm flex-1 overflow-y-auto custom-scrollbar ${
-        collapsed && !isHovered ? "px-2 py-3" : "px-3 py-3"
-        }`}>
+      <nav
+        className={`flex flex-col space-y-0.5 text-sm flex-1 overflow-y-auto custom-scrollbar ${
+          collapsed && !isHovered ? "px-2 py-3" : "px-3 py-3"
+        }`}
+      >
         {/* Página Inicial */}
         <Link
           href="/"
           className={`hover:bg-gray-600/40 flex items-center rounded-lg transition-all duration-200 hover:shadow-lg group border border-transparent hover:border-gray-500/20 backdrop-blur-sm ${
-            collapsed && !isHovered ? "gap-0 px-2 py-2 justify-center" : "gap-2.5 px-3 py-2"
-            }`}
+            collapsed && !isHovered
+              ? "gap-0 px-2 py-2 justify-center"
+              : "gap-2.5 px-3 py-2"
+          }`}
           title={collapsed && !isHovered ? "Página Inicial" : ""}
         >
-          <Home size={16} className="text-blue-400 group-hover:text-blue-300 transition-colors" />
+          <Home
+            size={16}
+            className="text-blue-400 group-hover:text-blue-300 transition-colors"
+          />
           {!(collapsed && !isHovered) && (
-            <span className="font-medium group-hover:text-white transition-colors text-sm">Página Inicial</span>
+            <span className="font-medium group-hover:text-white transition-colors text-sm">
+              Página Inicial
+            </span>
           )}
         </Link>
 
@@ -334,19 +346,34 @@ export default function Sidebar() {
               aria-expanded={activeSection === section.key}
               title={collapsed && !isHovered ? section.label : ""}
             >
-              <span className={`flex items-center ${
-                collapsed && !isHovered ? "gap-0 justify-center w-full" : "gap-2.5"
-              }`}>
-                <section.icon size={16} className="text-gray-300 group-hover:text-white transition-colors" />
+              <span
+                className={`flex items-center ${
+                  collapsed && !isHovered
+                    ? "gap-0 justify-center w-full"
+                    : "gap-2.5"
+                }`}
+              >
+                <section.icon
+                  size={16}
+                  className="text-gray-300 group-hover:text-white transition-colors"
+                />
                 {!(collapsed && !isHovered) && (
-                  <span className="font-medium group-hover:text-white transition-colors text-sm">{section.label}</span>
+                  <span className="font-medium group-hover:text-white transition-colors text-sm">
+                    {section.label}
+                  </span>
                 )}
               </span>
               {!(collapsed && !isHovered) &&
                 (activeSection === section.key ? (
-                  <ChevronDown size={14} className="text-gray-400 group-hover:text-gray-200 transition-colors" />
+                  <ChevronDown
+                    size={14}
+                    className="text-gray-400 group-hover:text-gray-200 transition-colors"
+                  />
                 ) : (
-                  <ChevronRight size={14} className="text-gray-400 group-hover:text-gray-200 transition-colors" />
+                  <ChevronRight
+                    size={14}
+                    className="text-gray-400 group-hover:text-gray-200 transition-colors"
+                  />
                 ))}
             </button>
 
@@ -356,7 +383,7 @@ export default function Sidebar() {
                 activeSection === section.key && !(collapsed && !isHovered)
                   ? "max-h-96 opacity-100"
                   : "max-h-0 opacity-0"
-                }`}
+              }`}
             >
               <div className="ml-5 mt-0.5 flex flex-col space-y-0.5 border-l-2 border-gray-600/50 pl-3 relative">
                 {/* Linha decorativa */}
@@ -380,10 +407,11 @@ export default function Sidebar() {
       {usuario && collapsed && !isHovered && (
         <div className="px-2 py-4 border-t border-gray-600/50 bg-gray-700/30 backdrop-blur-sm">
           <div className="flex justify-center">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-lg border ${
+            <div
+              className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-lg border ${
                 isAdmin
-                ? "bg-gradient-to-br from-red-500 to-red-600 border-red-400/30"
-                : "bg-gradient-to-br from-blue-500 to-blue-600 border-blue-400/30"
+                  ? "bg-gradient-to-br from-red-500 to-red-600 border-red-400/30"
+                  : "bg-gradient-to-br from-blue-500 to-blue-600 border-blue-400/30"
               }`}
               title={`${usuario.nome} - ${usuario.equipe}`}
             >

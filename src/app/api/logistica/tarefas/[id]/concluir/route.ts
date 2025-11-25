@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { logHistorico } from "@/lib/historico";
 
 // PUT - Concluir tarefa
 export async function PUT(
@@ -118,29 +119,44 @@ export async function PUT(
 
     // Registrar no histórico
     try {
-      await prisma.historicoRemanejamento.create({
-        data: {
-          solicitacaoId:
-            tarefaAtualizada.remanejamentoFuncionario.solicitacaoId,
-          remanejamentoFuncionarioId:
-            tarefaAtualizada.remanejamentoFuncionarioId,
-          tipoAcao: "ATUALIZACAO_STATUS",
-          entidade: "TAREFA",
-          descricaoAcao: `Tarefa "${tarefaAtualizada.tipo}" concluída para ${tarefaAtualizada.remanejamentoFuncionario.funcionario.nome} (${tarefaAtualizada.remanejamentoFuncionario.funcionario.matricula})`,
-          campoAlterado: "status",
-          valorAnterior: tarefaAtual.status,
-          valorNovo: "CONCLUIDO",
-          usuarioResponsavel: usuarioAutenticado?.funcionario?.nome || "Sistema",
-        },
-      });
+      await logHistorico(request, {
+        solicitacaoId: tarefaAtualizada.remanejamentoFuncionario.solicitacaoId,
+        remanejamentoFuncionarioId: tarefaAtualizada.remanejamentoFuncionarioId,
+        tarefaId: tarefaAtualizada.id,
+        tipoAcao: "ATUALIZACAO_STATUS",
+        entidade: "TAREFA",
+        descricaoAcao: `Tarefa "${tarefaAtualizada.tipo}" concluída para ${tarefaAtualizada.remanejamentoFuncionario.funcionario.nome} (${tarefaAtualizada.remanejamentoFuncionario.funcionario.matricula})`,
+        campoAlterado: "status",
+        valorAnterior: tarefaAtual.status,
+        valorNovo: "CONCLUIDO",
+      })
     } catch (historicoError) {
       console.error("Erro ao registrar histórico:", historicoError);
+    }
+
+    try {
+      const eventoData = {
+        tarefaId: tarefaAtualizada.id,
+        remanejamentoFuncionarioId: tarefaAtualizada.remanejamentoFuncionarioId,
+        statusAnterior: tarefaAtual.status,
+        statusNovo: "CONCLUIDO",
+        observacoes: undefined,
+        usuarioResponsavelId: usuarioAutenticado?.id ?? undefined,
+        equipeId: usuarioAutenticado?.equipeId ?? undefined,
+      };
+      console.log("Criando TarefaStatusEvento:", eventoData);
+      const evento = await prisma.tarefaStatusEvento.create({
+        data: eventoData,
+      });
+      console.log("Evento de status criado:", evento.id);
+    } catch (eventoError) {
+      console.error("Erro ao registrar evento de status da tarefa:", eventoError)
     }
 
     // Atualizar o status das tarefas do funcionário
     await atualizarStatusTarefasFuncionario(
       tarefaAtual.remanejamentoFuncionarioId,
-      usuarioAutenticado?.funcionario?.nome || "Sistema"
+      usuarioAutenticado?.id
     );
 
     return NextResponse.json(tarefaAtualizada);
@@ -156,7 +172,7 @@ export async function PUT(
 // Função auxiliar para atualizar o status das tarefas do funcionário
 async function atualizarStatusTarefasFuncionario(
   remanejamentoFuncionarioId: string,
-  usuarioResponsavelNome: string
+  usuarioResponsavelId?: number
 ) {
   try {
     // Buscar todas as tarefas do funcionário
@@ -206,20 +222,17 @@ async function atualizarStatusTarefasFuncionario(
 
     // Registrar no histórico a mudança de status das tarefas
     try {
-      await prisma.historicoRemanejamento.create({
-        data: {
-          solicitacaoId: remanejamentoFuncionario.solicitacaoId,
-          remanejamentoFuncionarioId: remanejamentoFuncionarioId,
-          tipoAcao: "ATUALIZACAO_STATUS",
-          entidade: "STATUS_TAREFAS",
-          descricaoAcao: `Status geral das tarefas atualizado para: ${
-            todasConcluidas ? "SUBMETER RASCUNHO" : "ATENDER TAREFAS"
-          } (via conclusão de tarefa)`,
-          campoAlterado: "statusTarefas",
-          valorNovo: todasConcluidas ? "SUBMETER RASCUNHO" : "ATENDER TAREFAS",
-          usuarioResponsavel: usuarioResponsavelNome,
-        },
-      });
+      await logHistorico({} as any, {
+        solicitacaoId: remanejamentoFuncionario.solicitacaoId,
+        remanejamentoFuncionarioId: remanejamentoFuncionarioId,
+        tipoAcao: "ATUALIZACAO_STATUS",
+        entidade: "STATUS_TAREFAS",
+        descricaoAcao: `Status geral das tarefas atualizado para: ${
+          todasConcluidas ? "SUBMETER RASCUNHO" : "ATENDER TAREFAS"
+        } (via conclusão de tarefa)`,
+        campoAlterado: "statusTarefas",
+        valorNovo: todasConcluidas ? "SUBMETER RASCUNHO" : "ATENDER TAREFAS",
+      })
     } catch (historicoError) {
       console.error(
         "Erro ao registrar histórico de status das tarefas:",
@@ -234,7 +247,8 @@ async function atualizarStatusTarefasFuncionario(
       remanejamentoFuncionario.statusPrestserv === "APROVADO"
     ) {
       await verificarConclusaoSolicitacao(
-        remanejamentoFuncionario.solicitacaoId
+        remanejamentoFuncionario.solicitacaoId,
+        usuarioResponsavelId
       );
     }
   } catch (error) {
@@ -243,7 +257,10 @@ async function atualizarStatusTarefasFuncionario(
 }
 
 // Função para verificar se toda a solicitação pode ser marcada como concluída
-async function verificarConclusaoSolicitacao(solicitacaoId: number) {
+async function verificarConclusaoSolicitacao(
+  solicitacaoId: number,
+  usuarioResponsavelId?: number
+) {
   try {
     // Buscar todos os funcionários da solicitação
     const funcionarios = await prisma.remanejamentoFuncionario.findMany({
@@ -254,7 +271,7 @@ async function verificarConclusaoSolicitacao(solicitacaoId: number) {
 
     // Verificar se todos os funcionários têm SUBMETER RASCUNHO E Prestserv aprovado
     const todosProntos = funcionarios.every(
-      (f) => f.statusTarefas === "CONCLUIDO" && f.statusPrestserv === "APROVADO"
+      (f) => f.statusTarefas === "SUBMETER RASCUNHO" && f.statusPrestserv === "APROVADO"
     );
 
     if (todosProntos) {
@@ -266,6 +283,12 @@ async function verificarConclusaoSolicitacao(solicitacaoId: number) {
         data: {
           status: "CONCLUIDO",
           dataConclusao: new Date(),
+          ...(usuarioResponsavelId
+            ? { atualizadoPorUsuario: { connect: { id: usuarioResponsavelId } } }
+            : {}),
+          ...(usuarioResponsavelId
+            ? { concluidoPorUsuario: { connect: { id: usuarioResponsavelId } } }
+            : {}),
         },
       });
 

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { getStatusColor } from '../../utils/statusColors';
 import { getStatusBorder } from '../../utils/statusBorders';
+export const dynamic = 'force-dynamic';
 
 type Pessoa = {
   id: number;

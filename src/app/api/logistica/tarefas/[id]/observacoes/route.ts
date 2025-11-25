@@ -21,7 +21,7 @@ export async function GET(
         tarefaId: id
       },
       orderBy: {
-        dataCriacao: 'desc'
+        dataModificacao: 'desc'
       }
     });
 
