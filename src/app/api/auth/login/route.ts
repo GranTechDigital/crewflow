@@ -106,11 +106,13 @@ export async function POST(request: NextRequest) {
         }
       });
 
+      const isSecure = (process.env.NEXTAUTH_URL || '').startsWith('https');
       response.cookies.set('auth-token', token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
+        secure: isSecure,
         sameSite: 'lax',
-        maxAge: 8 * 60 * 60
+        maxAge: 8 * 60 * 60,
+        path: '/'
       });
 
       return response;
@@ -193,12 +195,14 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    response.cookies.set('auth-token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 8 * 60 * 60
-    });
+      const isSecure2 = (process.env.NEXTAUTH_URL || '').startsWith('https');
+      response.cookies.set('auth-token', token, {
+        httpOnly: true,
+        secure: isSecure2,
+        sameSite: 'lax',
+        maxAge: 8 * 60 * 60,
+        path: '/'
+      });
 
     return response;
   } catch (error) {

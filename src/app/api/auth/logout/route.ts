@@ -54,9 +54,10 @@ export async function POST(request: NextRequest) {
     // console.log('🚪 LOGOUT API - Removendo cookie auth-token...');
 
     // Definir como vazio e expirar imediatamente
+    const isSecure = (process.env.NEXTAUTH_URL || '').startsWith('https');
     response.cookies.set('auth-token', '', {
       httpOnly: true,
-      secure: false,
+      secure: isSecure,
       sameSite: 'lax',
       path: '/',
       maxAge: 0,
