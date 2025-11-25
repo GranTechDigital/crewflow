@@ -116,12 +116,12 @@ export async function sincronizarTarefasPadrao({
       rem.tarefas.map((t) => [chaveTarefa(t.tipo, t.responsavel), t])
     );
     const tarefasParaCriar: any[] = [];
-    let tarefasParaCancelar: {
+    const tarefasParaCancelar: {
       id: string;
       statusAnterior: string;
       responsavel: SetorValido;
     }[] = [];
-    let tarefasParaReativar: {
+    const tarefasParaReativar: {
       id: string;
       responsavel: SetorValido;
       statusAnterior: string;
