@@ -75,6 +75,11 @@ export async function GET(request: NextRequest) {
 // POST - Criar nova solicitação de remanejamento
 export async function POST(request: NextRequest) {
   try {
+    const { getUserFromRequest } = await import('@/utils/authUtils');
+    const usuarioAutenticado = await getUserFromRequest(request);
+    const solicitanteNome =
+      usuarioAutenticado?.funcionario?.nome || usuarioAutenticado?.funcionario?.matricula || 'Sistema';
+    const usuarioId = usuarioAutenticado?.id ?? null;
     const body = await request.json();
     const {
       funcionarioIds,
@@ -83,8 +88,7 @@ export async function POST(request: NextRequest) {
       contratoDestinoId,
       centroCustoDestino,
       justificativa,
-      prioridade = 'Normal',
-      solicitadoPor
+      prioridade = 'Normal'
     } = body;
 
     // Validações básicas
@@ -102,23 +106,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!solicitadoPor) {
-      return NextResponse.json(
-        { error: 'Solicitante é obrigatório' },
-        { status: 400 }
-      );
-    }
+    // solicitadoPor agora é sempre o usuário autenticado, sem exigir no body
 
     // Criar múltiplas solicitações (uma para cada funcionário)
     const remanejamentos = await Promise.all(
       funcionarioIds.map(async (funcionarioId: number) => {
         const solicitacao = await prisma.solicitacaoRemanejamento.create({
           data: {
-            contratoOrigemId: contratoOrigemId || null,
-            contratoDestinoId: contratoDestinoId || null,
+            contratoOrigemId: contratoOrigemId ?? null,
+            contratoDestinoId: contratoDestinoId ?? null,
             justificativa,
             prioridade,
-            solicitadoPor,
+            solicitadoPorId: usuarioId ?? null,
+            atualizadoPorId: usuarioId ?? null,
             status: 'Pendente',
             funcionarios: {
               create: {
@@ -208,6 +208,9 @@ export async function POST(request: NextRequest) {
 // PUT - Atualizar status de uma solicitação
 export async function PUT(request: NextRequest) {
   try {
+    const { getUserFromRequest } = await import('@/utils/authUtils');
+    const usuarioAutenticado = await getUserFromRequest(request);
+    const usuarioId = usuarioAutenticado?.id ?? null;
     const body = await request.json();
     const {
       id,
@@ -226,12 +229,24 @@ export async function PUT(request: NextRequest) {
     const updateData: Prisma.SolicitacaoRemanejamentoUpdateInput = {
       status,
       dataAnalise: new Date(),
-      updatedAt: new Date()
+      updatedAt: new Date(),
+      ...(usuarioId ? { atualizadoPorUsuario: { connect: { id: usuarioId } } } : {}),
     };
 
     if (analisadoPor) updateData.analisadoPor = analisadoPor;
     if (observacoes) updateData.observacoes = observacoes;
-    if (status === 'Aprovado') updateData.dataAprovacao = new Date();
+    if (status === 'Aprovado') {
+      updateData.dataAprovacao = new Date();
+      if (usuarioId) {
+        updateData.aprovadoPorUsuario = { connect: { id: usuarioId } };
+      }
+    }
+    if (status === 'Concluído') {
+      updateData.dataConclusao = new Date();
+      if (usuarioId) {
+        updateData.concluidoPorUsuario = { connect: { id: usuarioId } };
+      }
+    }
 
     // Buscar dados atuais antes da atualização para o histórico
     const remanejamentoAtual = await prisma.solicitacaoRemanejamento.findUnique({

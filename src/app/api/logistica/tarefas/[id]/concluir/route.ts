@@ -134,10 +134,29 @@ export async function PUT(
       console.error("Erro ao registrar histórico:", historicoError);
     }
 
+    try {
+      const eventoData = {
+        tarefaId: tarefaAtualizada.id,
+        remanejamentoFuncionarioId: tarefaAtualizada.remanejamentoFuncionarioId,
+        statusAnterior: tarefaAtual.status,
+        statusNovo: "CONCLUIDO",
+        observacoes: undefined,
+        usuarioResponsavelId: usuarioAutenticado?.id ?? undefined,
+        equipeId: usuarioAutenticado?.equipeId ?? undefined,
+      };
+      console.log("Criando TarefaStatusEvento:", eventoData);
+      const evento = await prisma.tarefaStatusEvento.create({
+        data: eventoData,
+      });
+      console.log("Evento de status criado:", evento.id);
+    } catch (eventoError) {
+      console.error("Erro ao registrar evento de status da tarefa:", eventoError)
+    }
+
     // Atualizar o status das tarefas do funcionário
     await atualizarStatusTarefasFuncionario(
       tarefaAtual.remanejamentoFuncionarioId,
-      usuarioAutenticado?.funcionario?.nome || "Sistema"
+      usuarioAutenticado?.id
     );
 
     return NextResponse.json(tarefaAtualizada);
@@ -153,7 +172,7 @@ export async function PUT(
 // Função auxiliar para atualizar o status das tarefas do funcionário
 async function atualizarStatusTarefasFuncionario(
   remanejamentoFuncionarioId: string,
-  usuarioResponsavelNome: string
+  usuarioResponsavelId?: number
 ) {
   try {
     // Buscar todas as tarefas do funcionário
@@ -228,7 +247,8 @@ async function atualizarStatusTarefasFuncionario(
       remanejamentoFuncionario.statusPrestserv === "APROVADO"
     ) {
       await verificarConclusaoSolicitacao(
-        remanejamentoFuncionario.solicitacaoId
+        remanejamentoFuncionario.solicitacaoId,
+        usuarioResponsavelId
       );
     }
   } catch (error) {
@@ -237,7 +257,10 @@ async function atualizarStatusTarefasFuncionario(
 }
 
 // Função para verificar se toda a solicitação pode ser marcada como concluída
-async function verificarConclusaoSolicitacao(solicitacaoId: number) {
+async function verificarConclusaoSolicitacao(
+  solicitacaoId: number,
+  usuarioResponsavelId?: number
+) {
   try {
     // Buscar todos os funcionários da solicitação
     const funcionarios = await prisma.remanejamentoFuncionario.findMany({
@@ -260,6 +283,12 @@ async function verificarConclusaoSolicitacao(solicitacaoId: number) {
         data: {
           status: "CONCLUIDO",
           dataConclusao: new Date(),
+          ...(usuarioResponsavelId
+            ? { atualizadoPorUsuario: { connect: { id: usuarioResponsavelId } } }
+            : {}),
+          ...(usuarioResponsavelId
+            ? { concluidoPorUsuario: { connect: { id: usuarioResponsavelId } } }
+            : {}),
         },
       });
 

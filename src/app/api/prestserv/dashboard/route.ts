@@ -339,7 +339,7 @@ export async function GET() {
         select: {
           id: true,
           tipo: true,
-          solicitadoPor: true,
+          solicitadoPorId: true,
           dataSolicitacao: true,
           dataConclusao: true,
           contratoOrigem: { select: { nome: true } },
@@ -427,7 +427,7 @@ export async function GET() {
           tipo: s.tipo || "",
           origem: s.contratoOrigem?.nome || "Não definido",
           destino: s.contratoDestino?.nome || "Não definido",
-          autorSolicitacao: s.solicitadoPor || "",
+          autorSolicitacao: String(s.solicitadoPorId ?? ""),
           autorConclusao: atores.concluidoPor || "",
           dataSolicitacao: new Date(s.dataSolicitacao).toISOString(),
           dataConclusao: new Date(s.dataConclusao!).toISOString(),

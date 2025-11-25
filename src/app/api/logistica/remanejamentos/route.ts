@@ -45,6 +45,8 @@ type PrismaFuncionario = {
 type PrismaTarefaRemanejamento = {
   id: string;
   remanejamentoFuncionarioId: string;
+  tarefaPadraoId: number | null;
+  treinamentoId: number | null;
   tipo: string;
   descricao: string | null;
   responsavel: string;
@@ -67,9 +69,15 @@ type PrismaRemanejamentoFuncionario = {
   dataRascunhoCriado: Date | null;
   dataSubmetido: Date | null;
   dataResposta: Date | null;
+  dataAprovado: Date | null;
+  dataConcluido: Date | null;
+  dataCancelado: Date | null;
   observacoesPrestserv: string | null;
   createdAt: Date;
   updatedAt: Date;
+  aprovadoPorId: number | null;
+  concluidoPorId: number | null;
+  canceladoPorId: number | null;
   funcionario: PrismaFuncionario;
   tarefas: PrismaTarefaRemanejamento[];
 };
@@ -93,15 +101,18 @@ type PrismaSolicitacaoRemanejamento = {
   justificativa: string | null;
   status: string;
   prioridade: string;
-  solicitadoPor: string;
+  solicitadoPorId: number | null;
   analisadoPor: string | null;
+  aprovadoPorId: number | null;
   dataSolicitacao: Date;
   dataAnalise: Date | null;
   dataAprovacao: Date | null;
   dataConclusao: Date | null;
+  concluidoPorId: number | null;
   observacoes: string | null;
   createdAt: Date;
   updatedAt: Date;
+  atualizadoPorId: number | null;
   contratoOrigem: PrismaContrato | null;
   contratoDestino: PrismaContrato | null;
   funcionarios: PrismaRemanejamentoFuncionario[];
@@ -153,9 +164,15 @@ interface RemanejamentoFuncionarioWithFuncionario {
   dataRascunhoCriado: Date | null;
   dataSubmetido: Date | null;
   dataResposta: Date | null;
+  dataAprovado: Date | null;
+  dataConcluido: Date | null;
+  dataCancelado: Date | null;
   observacoesPrestserv: string | null;
   createdAt: Date;
   updatedAt: Date;
+  aprovadoPorId: number | null;
+  concluidoPorId: number | null;
+  canceladoPorId: number | null;
   funcionario: FuncionarioSelect;
   tarefas: TarefaRemanejamento[];
 }
@@ -163,6 +180,8 @@ interface RemanejamentoFuncionarioWithFuncionario {
 interface TarefaRemanejamento {
   id: string;
   remanejamentoFuncionarioId: string;
+  tarefaPadraoId: number | null;
+  treinamentoId: number | null;
   tipo: string;
   descricao: string | null;
   responsavel: string;
@@ -194,15 +213,18 @@ interface SolicitacaoRemanejamentoComplete {
   justificativa: string | null;
   status: string;
   prioridade: string;
-  solicitadoPor: string;
+  solicitadoPorId: number | null;
   analisadoPor: string | null;
+  aprovadoPorId: number | null;
   dataSolicitacao: Date;
   dataAnalise: Date | null;
   dataAprovacao: Date | null;
   dataConclusao: Date | null;
+  concluidoPorId: number | null;
   observacoes: string | null;
   createdAt: Date;
   updatedAt: Date;
+  atualizadoPorId: number | null;
   contratoOrigem: ContratoInfo | null;
   contratoDestino: ContratoInfo | null;
   funcionarios: RemanejamentoFuncionarioWithFuncionario[];
@@ -605,6 +627,11 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body: NovasolicitacaoRemanejamento = await request.json();
+    const { getUserFromRequest } = await import('@/utils/authUtils');
+    const usuarioAutenticado = await getUserFromRequest(request);
+    const usuarioId = usuarioAutenticado?.id ?? null;
+    const usuarioNome =
+      usuarioAutenticado?.funcionario?.nome || usuarioAutenticado?.funcionario?.matricula || 'Sistema';
 
     const {
       tipo = "REMANEJAMENTO",
@@ -613,7 +640,6 @@ export async function POST(request: NextRequest) {
       contratoDestinoId,
       justificativa,
       prioridade = "Normal",
-      solicitadoPor,
     } = body;
 
     // Validações básicas
@@ -624,12 +650,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!solicitadoPor) {
-      return NextResponse.json(
-        { error: "Solicitante é obrigatório" },
-        { status: 400 }
-      );
-    }
+    // solicitadoPor agora é preenchido via usuário autenticado (id)
 
     // Validações específicas por tipo
     if (tipo === "DESLIGAMENTO") {
@@ -673,11 +694,11 @@ export async function POST(request: NextRequest) {
     const solicitacao = await prisma.solicitacaoRemanejamento.create({
       data: {
         tipo,
-        contratoOrigemId,
-        contratoDestinoId,
+        contratoOrigemId: contratoOrigemId ?? null,
+        contratoDestinoId: contratoDestinoId ?? null,
         justificativa,
         prioridade,
-        solicitadoPor,
+        solicitadoPorId: usuarioId ?? null,
         funcionarios: {
           create: funcionarioIds.map((funcionarioId) => ({
             funcionarioId,
@@ -720,22 +741,24 @@ export async function POST(request: NextRequest) {
 
     // Registrar no histórico para cada funcionário
     try {
+      const solicitacaoRel = solicitacao as any;
       await Promise.all(
-        solicitacao.funcionarios.map(async (funcionarioRem) => {
+        (solicitacaoRel.funcionarios as any[]).map(async (funcionarioRem: any) => {
           await prisma.historicoRemanejamento.create({
             data: {
-              solicitacaoId: solicitacao.id,
+              solicitacaoId: solicitacaoRel.id,
               remanejamentoFuncionarioId: funcionarioRem.id,
               tipoAcao: "CRIACAO",
               entidade: "SOLICITACAO",
               descricaoAcao: `Solicitação de ${tipo.toLowerCase()} criada para ${
                 funcionarioRem.funcionario.nome
               } (${funcionarioRem.funcionario.matricula})`,
-              usuarioResponsavel: solicitadoPor,
+              usuarioResponsavel: usuarioNome,
+              usuarioResponsavelId: usuarioId ?? undefined,
               observacoes: `Contrato origem: ${
-                solicitacao.contratoOrigem?.nome || "N/A"
+                solicitacaoRel.contratoOrigem?.nome || "N/A"
               } → Contrato destino: ${
-                solicitacao.contratoDestino?.nome || "N/A"
+                solicitacaoRel.contratoDestino?.nome || "N/A"
               }. Justificativa: ${justificativa}`,
             },
           });

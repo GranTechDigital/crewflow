@@ -292,7 +292,7 @@ async function atualizarStatusTarefasFuncionario(
     if (remanejamentoAtualizado) {
       // Registrar no histórico a mudança de status das tarefas
       try {
-        await logHistorico(request as any, {
+        await logHistorico({} as any, {
           solicitacaoId: remanejamentoAtualizado.solicitacaoId!,
           remanejamentoFuncionarioId: remanejamentoFuncionarioId,
           tipoAcao: "ATUALIZACAO_STATUS",

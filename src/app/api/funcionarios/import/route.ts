@@ -37,7 +37,6 @@ export async function POST() {
       select: { id: true, matricula: true, status: true }
     });
     const setApi = new Set<string>(dadosExternos.map((i: any) => String(i.MATRICULA)));
-    const now = new Date();
     const paraDemitir = existentes
       .filter(f => !setApi.has(f.matricula) && f.matricula !== 'ADMIN001' && f.status !== 'DEMITIDO')
       .map(f => f.matricula);

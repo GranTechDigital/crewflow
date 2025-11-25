@@ -120,6 +120,7 @@ Contrato: ${matriz.contrato?.nome || "N/A"}`;
 
       const novaTarefa = {
         remanejamentoFuncionarioId: remanejamentoFuncionario.id,
+        treinamentoId: treinamento.id,
         tipo: treinamento.treinamento,
         descricao: descricao,
         responsavel: "TREINAMENTO",
@@ -148,6 +149,9 @@ Contrato: ${matriz.contrato?.nome || "N/A"}`;
 export async function POST(request: NextRequest) {
   try {
     const { funcionarioId, setores, criadoPor } = await request.json();
+    const { getUserFromRequest } = await import("@/utils/authUtils");
+    const usuarioAutenticado = await getUserFromRequest(request);
+    const usuarioId = usuarioAutenticado?.id ?? null;
 
     // Debug: log dos dados recebidos
     console.log("Dados recebidos:", {
@@ -296,6 +300,7 @@ export async function POST(request: NextRequest) {
             ativo: true,
           },
           select: {
+            id: true,
             tipo: true,
             descricao: true,
           },
@@ -310,6 +315,7 @@ export async function POST(request: NextRequest) {
         for (const tarefaPadrao of tarefasSetor) {
           tarefasParaCriar.push({
             remanejamentoFuncionarioId: remanejamentoFuncionario.id,
+            tarefaPadraoId: tarefaPadrao.id,
             tipo: tarefaPadrao.tipo,
             descricao: tarefaPadrao.descricao,
             responsavel: setor,
@@ -358,10 +364,16 @@ export async function POST(request: NextRequest) {
     });
 
     // Atualizar status geral para ATENDER TAREFAS após criação das tarefas
+    // Mantendo statusPrestserv como PENDENTE (não usamos APROVADO neste fluxo)
     try {
       await prisma.remanejamentoFuncionario.update({
         where: { id: remanejamentoFuncionario.id },
-        data: { statusTarefas: "ATENDER TAREFAS" },
+        data: {
+          statusTarefas: "ATENDER TAREFAS",
+          statusPrestserv: "PENDENTE",
+          dataAprovado: new Date(),
+          ...(usuarioId !== null ? { aprovadoPorId: usuarioId } : {}),
+        },
       });
     } catch (statusError) {
       console.error("Erro ao atualizar status geral:", statusError);

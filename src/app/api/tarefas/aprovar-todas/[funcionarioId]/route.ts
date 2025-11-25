@@ -72,6 +72,26 @@ export async function POST(
       }
     });
 
+    // Registrar eventos de status por tarefa
+    try {
+      if (tarefasPendentes.length > 0) {
+        await prisma.tarefaStatusEvento.createMany({
+          data: tarefasPendentes.map((t) => ({
+            tarefaId: t.id,
+            remanejamentoFuncionarioId: funcionarioId,
+            statusAnterior: t.status,
+            statusNovo: "CONCLUIDO",
+            observacoes: "Aprovado automaticamente (lote)",
+            usuarioResponsavelId: usuarioAutenticado?.id ?? null,
+            equipeId: usuarioAutenticado?.equipeId ?? null,
+          })),
+          skipDuplicates: true,
+        });
+      }
+    } catch (eventoError) {
+      console.error("Erro ao registrar eventos de status em lote:", eventoError);
+    }
+
     // Atualizar o status geral do funcionário para SUBMETER RASCUNHO
     await prisma.remanejamentoFuncionario.update({
       where: { id: funcionarioId },
