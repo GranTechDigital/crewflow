@@ -1,0 +1,208 @@
+name: Deploy CrewFlow to Production
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "prisma/**"
+      - "Dockerfile"
+      - "docker-compose.yml"
+      - ".github/workflows/deploy-production.yml"
+  workflow_dispatch:
+    inputs:
+      run_name:
+        description: "Nome do run (opcional) — deixe vazio para usar branch/autor"
+        type: string
+        required: false
+
+jobs:
+  deploy:
+    environment: production
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🐳 Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 🔧 Build Docker image (cache disabled for safety)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          tags: |
+            crewflow-app:${{ github.sha }}
+            crewflow-app:latest
+          load: true
+          no-cache: true
+
+      - name: 🔑 Setup SSH
+        run: |
+          set -euo pipefail
+          if [ -z "${{ secrets.SSH_PRIVATE_KEY }}" ]; then
+            echo "❌ SSH_PRIVATE_KEY secret não está configurado"; exit 1; fi
+          if [ -z "${{ secrets.SERVER_HOST }}" ]; then
+            echo "❌ SERVER_HOST secret não está configurado"; exit 1; fi
+          PORT="${{ secrets.SERVER_SSH_PORT }}"; [ -z "$PORT" ] && PORT=22
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          printf 'Host %s\n  Port %s\n  User root\n  StrictHostKeyChecking no\n' "${{ secrets.SERVER_HOST }}" "$PORT" >> ~/.ssh/config
+          ssh-keyscan -p "$PORT" -T 10 -H "${{ secrets.SERVER_HOST }}" >> ~/.ssh/known_hosts || { echo "❌ ssh-keyscan falhou para host '${{ secrets.SERVER_HOST }}' porta $PORT"; exit 1; }
+
+      - name: 💾 Backup banco de dados (produção) antes do deploy
+        run: |
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
+            set -e
+            mkdir -p /var/backups/projetogran/producao
+            TS=$(date -u +%Y%m%d_%H%M%S)
+            FILE="/var/backups/projetogran/producao/crewflow_production_${TS}.dump"
+            echo "🔎 Sanity-check container e DB antes do dump..."
+            docker ps --format '{{.Names}}' | grep -q '^postgres-prod$' || { echo '❌ Container postgres-prod não está em execução'; exit 1; }
+            POSTGRES_PASSWORD_VALUE="${{ secrets.POSTGRES_PASSWORD }}"
+            DB_NAME=$(docker exec postgres-prod bash -lc 'echo -n "${POSTGRES_DB:-projetogran}"')
+            DB_USER=$(docker exec postgres-prod bash -lc 'echo -n "${POSTGRES_USER:-postgres}"')
+            DB_PASS=$(docker exec postgres-prod bash -lc 'echo -n "${POSTGRES_PASSWORD:-}"')
+            if [ -z "$DB_PASS" ]; then
+              if [ -f /opt/projetogran/.env.production ]; then
+                DB_PASS=$(grep -E '^POSTGRES_PASSWORD=' /opt/projetogran/.env.production | head -n1 | cut -d= -f2-)
+              fi
+            fi
+            if [ -z "$DB_PASS" ]; then
+              DB_PASS="$POSTGRES_PASSWORD_VALUE"
+            fi
+            if [ -z "$DB_PASS" ]; then
+              echo "⚠️ POSTGRES_PASSWORD não encontrado; usando fallback padrão"; DB_PASS="postgres"
+            fi
+            echo "🔎 Validando conexão ao DB '${DB_NAME}'..."
+            DB_USER=${DB_USER:-postgres}
+            DB_NAME=${DB_NAME:-projetogran}
+            docker exec postgres-prod env PGPASSWORD="$DB_PASS" psql -h localhost -U "$DB_USER" -d "$DB_NAME" -tAc "SELECT current_database();" | grep -q "^${DB_NAME}$" || { echo "❌ Conexão ao DB ${DB_NAME} falhou"; exit 1; }
+            echo "🔎 Realizando pg_dump (custom format) do banco '${DB_NAME}'..."
+            docker exec postgres-prod env PGPASSWORD="$DB_PASS" pg_dump -h localhost -U "$DB_USER" -d "$DB_NAME" -Fc > "$FILE"
+            ls -lh "$FILE" || true
+            if [ ! -s "$FILE" ]; then
+              echo "❌ Backup vazio ou não encontrado: $FILE"; exit 1; fi
+            echo "✅ Backup criado: $FILE"
+            ls -1t /var/backups/projetogran/producao/crewflow_production_*.dump | tail -n +31 | xargs -r rm -f
+          EOF
+
+      - name: 🚚 Stream Docker image to server
+        run: |
+          docker save crewflow-app:${{ github.sha }} crewflow-app:latest | gzip -1 | ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} "gunzip | docker load"
+
+      - name: 📤 Upload files and env to server
+        run: |
+          set -euo pipefail
+          WORKDIR=/tmp/projetogran_deploy
+          mkdir -p "$WORKDIR"
+          ENV_FILE="$WORKDIR/.env.production"
+          POSTGRES_USER_VALUE=postgres
+          POSTGRES_DB_VALUE=projetogran
+          POSTGRES_PASSWORD_VALUE="${{ secrets.POSTGRES_PASSWORD }}"
+          PGADMIN_EMAIL_VALUE="${{ secrets.PGADMIN_EMAIL }}"
+          PGADMIN_PASSWORD_VALUE="${{ secrets.PGADMIN_PASSWORD }}"
+          NEXTAUTH_URL_VALUE="http://${{ secrets.SERVER_HOST }}:3001"
+          JWT_SECRET_VALUE="${{ secrets.JWT_SECRET }}"
+          [ -z "$POSTGRES_PASSWORD_VALUE" ] && POSTGRES_PASSWORD_VALUE="postgres"
+          [ -z "$PGADMIN_EMAIL_VALUE" ] && PGADMIN_EMAIL_VALUE="admin@crewflow.com"
+          [ -z "$PGADMIN_PASSWORD_VALUE" ] && PGADMIN_PASSWORD_VALUE="admin123"
+          if [ -z "$JWT_SECRET_VALUE" ]; then
+            if command -v openssl >/dev/null 2>&1; then
+              JWT_SECRET_VALUE=$(openssl rand -hex 32)
+            else
+              JWT_SECRET_VALUE=$(date +%s%N | sha256sum | cut -c1-64)
+            fi
+          fi
+          DB_USER="$POSTGRES_USER_VALUE"; DB_PASS="$POSTGRES_PASSWORD_VALUE"; DB_NAME="$POSTGRES_DB_VALUE"
+          DATABASE_URL_VALUE="postgresql://${DB_USER}:${DB_PASS}@postgres-prod:5432/${DB_NAME}?schema=public"
+          cat > "$ENV_FILE" <<EOF
+POSTGRES_USER=$POSTGRES_USER_VALUE
+POSTGRES_PASSWORD=$POSTGRES_PASSWORD_VALUE
+POSTGRES_DB=$POSTGRES_DB_VALUE
+PGADMIN_DEFAULT_EMAIL=$PGADMIN_EMAIL_VALUE
+PGADMIN_DEFAULT_PASSWORD=$PGADMIN_PASSWORD_VALUE
+NEXTAUTH_URL=$NEXTAUTH_URL_VALUE
+JWT_SECRET=$JWT_SECRET_VALUE
+DATABASE_URL=$DATABASE_URL_VALUE
+EOF
+          ls -l "$ENV_FILE"
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} "mkdir -p /opt/projetogran"
+          scp -o StrictHostKeyChecking=no docker-compose.yml root@${{ secrets.SERVER_HOST }}:/opt/projetogran/
+          scp -o StrictHostKeyChecking=no "$ENV_FILE" root@${{ secrets.SERVER_HOST }}:/opt/projetogran/.env.production
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} "chmod 600 /opt/projetogran/.env.production"
+
+      - name: 🚀 Deploy on server
+        run: |
+          echo "📦 Preparando deploy com Docker Compose usando env-file"
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
+            set -e
+            echo "📊 Disk usage before deploy:"
+            df -h
+            cd /opt/projetogran
+            SRC_TAG=$(docker image ls crewflow-app --format '{{.Tag}}' | grep -v '^<none>$' | head -n1)
+            if [ -n "$SRC_TAG" ]; then
+              docker tag crewflow-app:"$SRC_TAG" crewflow-app:latest || true
+              docker tag crewflow-app:"$SRC_TAG" crewflow-app:${{ github.sha }} || true
+            fi
+            docker system df || true
+            if ! docker compose version >/dev/null 2>&1; then
+              echo "Instalando Docker Compose v2..."
+              DOCKER_CONFIG=~/.docker
+              mkdir -p "$DOCKER_CONFIG/cli-plugins"
+              curl -SL https://github.com/docker/compose/releases/download/v2.27.0/docker-compose-linux-x86_64 -o "$DOCKER_CONFIG/cli-plugins/docker-compose"
+              chmod +x "$DOCKER_CONFIG/cli-plugins/docker-compose"
+            fi
+            docker network inspect projetogran_crewflow-network >/dev/null 2>&1 || docker network create projetogran_crewflow-network
+            docker compose --env-file /opt/projetogran/.env.production -f /opt/projetogran/docker-compose.yml down || true
+            docker compose --env-file /opt/projetogran/.env.production -f /opt/projetogran/docker-compose.yml pull || true
+            docker compose --env-file /opt/projetogran/.env.production -f /opt/projetogran/docker-compose.yml up -d
+            echo "📊 Disk usage after compose up:"
+            df -h
+            sleep 10
+            docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
+            docker logs --tail=200 crewflow-app-production 2>/dev/null || true
+          EOF
+
+      - name: 🗄️ Setup Database (run every deploy)
+        run: |
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
+            cd /opt/projetogran
+            echo "⏳ Waiting for PostgreSQL to be ready..."; sleep 10
+            docker exec crewflow-app-production npx prisma migrate deploy
+            if docker exec crewflow-app-production npm run seed:complete 2>/dev/null; then
+              echo "✅ Database seeded successfully"
+            else
+              echo "ℹ️ Seed skipped"
+            fi
+          EOF
+
+      - name: "🔎 Health check: app responds (login route)"
+        run: |
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
+            set -e
+            if command -v curl >/dev/null 2>&1; then
+              STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3001/login)
+              echo "HTTP status: $STATUS"
+              case "$STATUS" in
+                200|302|307|308) echo "✅ App responding on /login" ;;
+                *) echo "❌ Unexpected status on /login: $STATUS"; exit 1 ;;
+              esac
+            else
+              STATUS=$(wget --server-response -q -O - http://localhost:3001/login 2>&1 | awk '/^  HTTP/{print $2}' | tail -n1)
+              echo "HTTP status: $STATUS"
+              if [ "$STATUS" = "200" ] || [ "$STATUS" = "302" ] || [ "$STATUS" = "307" ] || [ "$STATUS" = "308" ]; then
+                echo "✅ App responding on /login"
+              else
+                echo "❌ Unexpected status on /login: $STATUS"; exit 1
+              fi
+            fi
+          EOF
+
+      - name: 🎉 Deployment complete
+        run: |
+          echo "🚀 Deployment completed successfully!"
+          echo "🌐 Application available at: http://${{ secrets.SERVER_HOST }}:3001"
+          echo "🗄️ PostgreSQL running on port 5434 with persistent volume"
+          echo "🔧 pgAdmin4 available at: http://${{ secrets.SERVER_HOST }}:5050"
