@@ -3,11 +3,6 @@ name: Deploy CrewFlow to Production
 on:
   push:
     branches: [main]
-    paths:
-      - "src/**"
-      - "prisma/**"
-      - "Dockerfile"
-      - "docker-compose.yml"
   workflow_dispatch:
     inputs:
       run_name:
