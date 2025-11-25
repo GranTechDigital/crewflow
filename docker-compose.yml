@@ -1,4 +1,4 @@
-# trigger deploy (no functional change)
+# production: trigger deploy (no functional change)
 services:
   app:
     image: crewflow-app:latest
