@@ -127,8 +127,12 @@ export async function PUT(
 
     // Validação: só pode submeter se todas as tarefas estiverem concluídas
     if (statusPrestserv === "EM VALIDAÇÃO") {
+      // Ignora tarefas canceladas e considera concluído tanto "CONCLUIDO" quanto "CONCLUIDA"
       const tarefasPendentes = remanejamentoFuncionario.tarefas.filter(
-        (tarefa) => tarefa.status !== "PROCESSO CONCLUIDO"
+        (tarefa) =>
+          tarefa.status !== "CONCLUIDO" &&
+          tarefa.status !== "CONCLUIDA" &&
+          tarefa.status !== "CANCELADO"
       );
 
       if (tarefasPendentes.length > 0) {
@@ -465,9 +469,12 @@ export async function PATCH(
 
     // Validação: só pode submeter se todas as tarefas estiverem concluídas
     if (statusPrestserv === "EM VALIDAÇÃO") {
-      // Considerar tarefa concluída tanto "CONCLUIDO" quanto "CONCLUIDA"
+      // Considera concluído "CONCLUIDO"/"CONCLUIDA" e ignora tarefas "CANCELADO" (removidas pela matriz ou mudança de função)
       const tarefasPendentes = remanejamentoFuncionario.tarefas.filter(
-        (tarefa) => tarefa.status !== "CONCLUIDO" && tarefa.status !== "CONCLUIDA"
+        (tarefa) =>
+          tarefa.status !== "CONCLUIDO" &&
+          tarefa.status !== "CONCLUIDA" &&
+          tarefa.status !== "CANCELADO"
       );
       if (tarefasPendentes.length > 0) {
         return NextResponse.json(
