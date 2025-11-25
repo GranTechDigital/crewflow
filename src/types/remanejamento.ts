@@ -20,15 +20,18 @@ export interface Remanejamento {
   justificativa: string | null;
   status: StatusRemanejamento;
   prioridade: PrioridadeRemanejamento;
-  solicitadoPor: string;
+  solicitadoPorId?: number | null;
   analisadoPor: string | null;
+  aprovadoPorId?: number | null;
   dataSolicitacao: string;
   dataAnalise: string | null;
   dataAprovacao: string | null;
   dataConclusao: string | null;
+  concluidoPorId?: number | null;
   observacoes: string | null;
   createdAt: string;
   updatedAt: string;
+  atualizadoPorId?: number | null;
 
   // Novo relacionamento com funcionários
   funcionarios?: {
@@ -71,7 +74,6 @@ export interface NovoRemanejamento {
   centroCustoDestino: string;
   justificativa?: string;
   prioridade?: PrioridadeRemanejamento;
-  solicitadoPor: string;
 }
 
 export interface AtualizarRemanejamento {
