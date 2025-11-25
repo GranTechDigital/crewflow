@@ -198,7 +198,7 @@ export default function TarefasPage() {
     useState(5);
 
   // Estados para tabs
-  const [activeTab, setActiveTab] = useState<"funcionarios" | "dashboard">(
+  const [activeTab, setActiveTab] = useState<"funcionarios" | "concluidos" | "dashboard">(
     "funcionarios"
   );
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -1712,15 +1712,42 @@ export default function TarefasPage() {
   // Componente para a lista de tarefas
   const ListaTarefas = () => {
     const remanejamentosComTarefas = getRemanejamentosParaVisaoFuncionarios();
+    const isConcluido = (
+      item: {
+        tarefas: TarefaRemanejamento[];
+        remanejamento: RemanejamentoFuncionario;
+      }
+    ) => {
+      const todas = (item.remanejamento.tarefas || []) as TarefaRemanejamento[];
+      const reprovadaLogistica = todas.some(
+        (t) => t.responsavel === "LOGISTICA" && t.status === "REPROVADO"
+      );
+      if (reprovadaLogistica) return false;
+      if (setorAtual) {
+        const setorTs = todas.filter((t) => t.responsavel === setorAtual);
+        if (setorTs.length === 0) return false;
+        return setorTs.every(
+          (t) => t.status === "CONCLUIDO" || t.status === "CONCLUIDA"
+        );
+      }
+      if (todas.length === 0) return false;
+      return todas.every(
+        (t) => t.status === "CONCLUIDO" || t.status === "CONCLUIDA"
+      );
+    };
+    const listaFiltrada =
+      activeTab === "concluidos"
+        ? remanejamentosComTarefas.filter((x) => isConcluido(x))
+        : remanejamentosComTarefas.filter((x) => !isConcluido(x));
 
     // Paginação dos remanejamentos
-    const totalRemanejamentos = remanejamentosComTarefas.length;
+    const totalRemanejamentos = listaFiltrada.length;
     const totalPaginas = Math.ceil(
       totalRemanejamentos / itensPorPaginaFuncionarios
     );
     const inicio = (paginaAtualFuncionarios - 1) * itensPorPaginaFuncionarios;
     const fim = inicio + itensPorPaginaFuncionarios;
-    const remanejamentosPaginados = remanejamentosComTarefas.slice(inicio, fim);
+    const remanejamentosPaginados = listaFiltrada.slice(inicio, fim);
 
     // Contagem de observações será carregada sob demanda ao expandir uma linha
 
@@ -1736,9 +1763,13 @@ export default function TarefasPage() {
       );
     }
 
-    if (remanejamentosComTarefas.length === 0) {
+    if (listaFiltrada.length === 0) {
       return (
-        <div className="text-center py-10">Nenhuma tarefa encontrada.</div>
+        <div className="text-center py-10">
+          {activeTab === "concluidos"
+            ? "Nenhum funcionário concluído."
+            : "Nenhuma tarefa encontrada."}
+        </div>
       );
     }
 
@@ -3256,6 +3287,17 @@ export default function TarefasPage() {
             <span>Visão por Funcionários</span>
           </button>
           <button
+            onClick={() => setActiveTab("concluidos")}
+            className={`text-white py-2 px-1 border-b-2 font-medium text-xs flex items-center space-x-2 ${
+              activeTab === "concluidos"
+                ? "border-sky-500 text-sky-300"
+                : "border-transparent text-gray-500 hover:text-white-700 hover:border-white-300"
+            }`}
+          >
+            <CheckCircleIcon className="h-4 w-4" />
+            <span>Concluídos</span>
+          </button>
+          <button
             onClick={() => setActiveTab("dashboard")}
             className={`text-white py-2 px-1 border-b-2 font-medium text-xs flex items-center space-x-2 ${
               activeTab === "dashboard"
@@ -3286,7 +3328,9 @@ export default function TarefasPage() {
       <NovaTarefaModal />
 
       {/* Conteúdo baseado na tab ativa */}
-      {activeTab === "funcionarios" && <ListaTarefas />}
+      {(activeTab === "funcionarios" || activeTab === "concluidos") && (
+        <ListaTarefas />
+      )}
       {activeTab === "dashboard" && <DashboardTarefas />}
 
       {/* Modal para concluir tarefa */}
