@@ -253,42 +253,7 @@ jobs:
             fi
 
             echo "🔎 Ensuring admin user exists..."
-            docker exec crewflow-app-production node - <<'JS'
-const { PrismaClient } = require('@prisma/client');
-const bcrypt = require('bcryptjs');
-const prisma = new PrismaClient();
-(async () => {
-  const adminMatricula = process.env.ADMIN_USER || 'ADMIN001';
-  const adminEmail = process.env.ADMIN_EMAIL || 'admin@gransystem.com';
-  const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
-  const func = await prisma.funcionario.findUnique({ where: { matricula: adminMatricula } });
-  let funcionario = func;
-  if (!funcionario) {
-    funcionario = await prisma.funcionario.create({ data: {
-      matricula: adminMatricula,
-      nome: 'Administrador do Sistema',
-      cpf: '00000000000',
-      email: adminEmail,
-      telefone: '(11) 99999-9999',
-      funcao: 'Administrador',
-      departamento: 'TI',
-      centroCusto: 'ADMIN',
-      status: 'ATIVO'
-    }});
-  }
-  const usuario = await prisma.usuario.findFirst({ where: { funcionarioId: funcionario.id } });
-  if (!usuario) {
-    const hash = await bcrypt.hash(adminPassword, 10);
-    await prisma.usuario.create({ data: {
-      senha: hash,
-      ativo: true,
-      funcionarioId: funcionario.id
-    }});
-  }
-  console.log('✅ Admin ensured');
-  await prisma.$disconnect();
-})();
-JS
+            docker exec crewflow-app-production node scripts/ensureAdmin.js || true
 
             echo "🔁 Running backfill scripts..."
             docker exec crewflow-app-production node scripts/backfillEventosTarefa.js || true
