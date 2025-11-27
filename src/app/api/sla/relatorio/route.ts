@@ -146,8 +146,11 @@ export async function GET(request: NextRequest) {
         setorDur[setor] = (setorDur[setor] || 0) + segs.reduce((acc, s) => acc + s.ms, 0);
 
       const conclEvt = (t.eventosStatus || []).find((e: any) => e.statusNovo === "CONCLUIDO" || e.statusNovo === "CONCLUIDA");
-        if (conclEvt) {
-          const durConclusao = msDiff(totalStart, conclEvt.dataEvento || totalEnd);
+        const conclDate = conclEvt?.dataEvento
+          ? new Date(conclEvt.dataEvento)
+          : (t.dataConclusao ? new Date(t.dataConclusao) : null);
+        if (conclDate) {
+          const durConclusao = msDiff(totalStart, conclDate);
           if (!temposConclusaoPorSetor[setor]) temposConclusaoPorSetor[setor] = [];
           temposConclusaoPorSetor[setor].push(durConclusao);
         }
@@ -163,7 +166,7 @@ export async function GET(request: NextRequest) {
         const setorAgg = porSetor.get(setor) || { setor, qtdTarefas: 0, downtimeMs: 0, conclusoesMs: [] as number[], reprovações: 0 };
         setorAgg.qtdTarefas += 1;
         setorAgg.downtimeMs += somar(segs, "PENDENTE");
-        if (conclEvt) setorAgg.conclusoesMs.push(msDiff(totalStart, conclEvt.dataEvento || totalEnd));
+        if (conclDate) setorAgg.conclusoesMs.push(msDiff(totalStart, conclDate));
         setorAgg.reprovações += reprovs;
         porSetor.set(setor, setorAgg);
       }
