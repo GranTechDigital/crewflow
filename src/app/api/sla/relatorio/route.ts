@@ -164,7 +164,16 @@ export async function GET(request: NextRequest) {
           temposConclusaoPorSetor[setor].push(durConclusao);
         }
 
-        const reprovs = (t.eventosStatus || []).filter((e: any) => e.statusNovo === "REPROVADO").length;
+        const reprovsEvt = (t.eventosStatus || []).filter((e: any) => {
+          const s = (e.statusNovo || '').toString().toUpperCase();
+          return s.includes('REPROV');
+        }).length;
+        const reprovsHist = (t.historico || []).filter((h: any) => {
+          const vn = (h.valorNovo || '').toString().toUpperCase();
+          const desc = (h.descricaoAcao || '').toString().toUpperCase();
+          return vn.includes('REPROV') || desc.includes('REPROV');
+        }).length;
+        const reprovs = reprovsEvt + reprovsHist;
         if (reprovs > 0) {
           const key = `${setor}|${t.tipo}`;
           tarefaReprovCount[key] = (tarefaReprovCount[key] || 0) + reprovs;
@@ -418,7 +427,7 @@ export async function GET(request: NextRequest) {
         const hasLogDur = duracaoPorSetorMsArr.find((x) => x.setor === 'LOGISTICA');
         if (!hasLogDur) duracaoPorSetorMsArr.push({ setor: 'LOGISTICA', ms: logisticaMs });
       }
-      if (hasAnyValid && !autoAprovado) {
+      if ((rf.tarefas || []).length > 0) {
         porRemanejamento.push({
           remanejamentoId: rf.id,
           solicitacaoId: rf.solicitacaoId,
