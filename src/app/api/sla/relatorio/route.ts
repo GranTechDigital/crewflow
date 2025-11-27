@@ -387,10 +387,18 @@ export async function GET(request: NextRequest) {
 
       let duracaoPorSetorMsArr = Object.entries(ciclosSetorDurMs).map(([setor, arr]) => ({ setor, ms: arr.reduce((a, b) => a + b, 0) }));
       const somaDuracaoCiclos = duracaoPorSetorMsArr.reduce((acc, it) => acc + (it.ms || 0), 0);
+      const setorDurArr = Object.entries(setorDur).map(([setor, ms]) => ({ setor, ms }));
       if (somaDuracaoCiclos === 0) {
         // Fallback: sem ciclos válidos, usa soma direta dos segmentos por setor
-        const setorDurArr = Object.entries(setorDur).map(([setor, ms]) => ({ setor, ms }));
         duracaoPorSetorMsArr = setorDurArr;
+        // Também alimentar agregados para cálculo de médias por setor
+        for (const { setor, ms } of setorDurArr) {
+          if (ms > 0) {
+            const ag = agregadosSetorDuracoes.get(setor) || [];
+            ag.push(ms);
+            agregadosSetorDuracoes.set(setor, ag);
+          }
+        }
       }
       if (logisticaMs > 0) {
         const hasLogDur = duracaoPorSetorMsArr.find((x) => x.setor === 'LOGISTICA');
@@ -411,9 +419,11 @@ export async function GET(request: NextRequest) {
       }
 
       for (const [setor, ms] of Object.entries(downtimePorSetor)) {
-        const ar = agregadosSetorDuracoes.get(setor) || [];
-        ar.push(ms);
-        agregadosSetorDuracoes.set(setor, ar);
+        if (ms > 0) {
+          const ar = agregadosSetorDuracoes.get(setor) || [];
+          ar.push(ms);
+          agregadosSetorDuracoes.set(setor, ar);
+        }
       }
 
       const atuacaoPorcentPorSetor = Object.entries(downtimePorSetor).map(([setor, ms]) => ({ setor, porcentagem: totalDurMs > 0 ? (ms / totalDurMs) : 0 }));
