@@ -288,6 +288,15 @@ export async function GET(request: NextRequest) {
         }
       }
 
+      // Fallback: se não foi possível detectar ciclos válidos, considerar ciclo único do remanejamento completo
+      if (ciclos.length === 0) {
+        const inicioFallback = totalStart as Date;
+        const fimFallback = totalEnd as Date;
+        if (fimFallback && inicioFallback && fimFallback > inicioFallback) {
+          ciclos.push({ inicio: inicioFallback, fim: fimFallback });
+        }
+      }
+
       const downtimePorSetor: Record<string, number> = {};
       for (const setor of setores) downtimePorSetor[setor] = 0;
 
