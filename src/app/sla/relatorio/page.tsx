@@ -66,12 +66,12 @@ export default function RelatorioSLA() {
   }, []);
 
   const requiredSetores = useMemo(() => ['RH', 'MEDICINA', 'TREINAMENTO'], []);
-  const MIN_VALID_MS = 60 * 1000; // 1 min
+  const MIN_VALID_MS = 1 * 1000; // 1s
 
   const porRemanejamentoValidos = useMemo(() => {
     if (!data) return [] as KPISet['porRemanejamento'];
     return data.porRemanejamento.filter((r) => (
-      requiredSetores.every((s) => {
+      requiredSetores.some((s) => {
         const entry = (r.temposMediosPorSetor || []).find((x) => x.setor.toUpperCase() === s.toUpperCase());
         return entry && entry.tempoMedioMs && entry.tempoMedioMs >= MIN_VALID_MS;
       })
@@ -89,7 +89,10 @@ export default function RelatorioSLA() {
   // gráfico de downtime removido (foque no tempo médio)
 
   const chartData = useMemo(() => {
-    return porSetorBase.map((s) => ({ setor: s.setor, horas: Math.round(s.tempoMedioConclusaoMs / (60 * 60 * 1000)) }));
+    return porSetorBase.map((s) => {
+      const baseMs = s.tempoMedioConclusaoMs || s.duracaoMediaAtuacaoMs || 0;
+      return { setor: s.setor, horas: Math.round(baseMs / (60 * 60 * 1000)) };
+    });
   }, [porSetorBase]);
 
   
@@ -176,7 +179,11 @@ export default function RelatorioSLA() {
   const rankingSetores = useMemo(() => {
     const fixed = setoresDisponiveis.map((s) => s.toUpperCase());
     const items = porSetorBase.filter((s) => fixed.includes((s.setor || '').toUpperCase()));
-    return [...items].sort((a, b) => (a.tempoMedioConclusaoMs || 0) - (b.tempoMedioConclusaoMs || 0));
+    return [...items].sort((a, b) => {
+      const valA = a.tempoMedioConclusaoMs || a.duracaoMediaAtuacaoMs || 0;
+      const valB = b.tempoMedioConclusaoMs || b.duracaoMediaAtuacaoMs || 0;
+      return valA - valB;
+    });
   }, [porSetorBase, setoresDisponiveis]);
 
   const topReprovacoes = useMemo(() => {
@@ -383,7 +390,7 @@ export default function RelatorioSLA() {
                               )}
                               <span className="text-sm font-medium text-gray-800">{s.setor}</span>
                             </div>
-                            <span className="text-xs text-gray-600">{fmtMs(s.tempoMedioConclusaoMs)}</span>
+                            <span className="text-xs text-gray-600">{fmtMs(s.tempoMedioConclusaoMs || s.duracaoMediaAtuacaoMs || 0)}</span>
                           </div>
                         );
                       })}
@@ -397,7 +404,8 @@ export default function RelatorioSLA() {
                       <div className="mt-2 flex flex-wrap gap-2">
                         {setoresDisponiveis.map((s) => {
                           const item = porSetorBase.find((x) => (x.setor || '').toUpperCase() === s.toUpperCase());
-                          const h = item ? Math.round((item.tempoMedioConclusaoMs || 0) / (60 * 60 * 1000)) : 0;
+                          const ms = item ? (item.tempoMedioConclusaoMs || item.duracaoMediaAtuacaoMs || 0) : 0;
+                          const h = Math.round(ms / (60 * 60 * 1000));
                           const cls = s === 'RH'
                             ? 'bg-blue-50 text-blue-700'
                             : s === 'MEDICINA'
