@@ -138,6 +138,11 @@ export async function GET(request: NextRequest) {
         if (histSet === 'RH' || histSet === 'MEDICINA' || histSet === 'TREINAMENTO') return histSet;
         const r = toSetor(t.responsavel);
         if (r === 'RH' || r === 'MEDICINA' || r === 'TREINAMENTO') return r;
+        // Fallback adicional: inferir por tipo/descrição da tarefa
+        const tipoSet = toSetor(t.tipo);
+        if (tipoSet === 'RH' || tipoSet === 'MEDICINA' || tipoSet === 'TREINAMENTO') return tipoSet;
+        const descSet = toSetor(t.descricao);
+        if (descSet === 'RH' || descSet === 'MEDICINA' || descSet === 'TREINAMENTO') return descSet;
         return 'DESCONHECIDO';
       };
 
