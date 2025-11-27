@@ -45,6 +45,7 @@ const setores: SetorCard[] = [
       { label: "Gerenciar Tarefas Padrão", href: "/admin/tarefas-padrao" },
       { label: "Sincronizar Lista de Funcionários", href: "/funcionarios" },
       { label: "Criar Contratos", href: "/planejamento/contratos" },
+      { label: "Gerenciar Status", href: "/status" },
     ],
   },
   // {
@@ -80,6 +81,10 @@ const setores: SetorCard[] = [
         label: "Lista de Funcionários",
         href: "/prestserv/funcionarios-por-contrato",
       },
+      {
+        label: "BI",
+        href: "/prestserv/bi",
+      },
     ],
   },
   {
@@ -105,6 +110,13 @@ const setores: SetorCard[] = [
       //   href: "/prestserv/funcionarios-por-contrato",
       // },
       // { label: "REPROVAR TAREFAS para os Setores", href: "/prestserv/tarefas" },
+      {
+        label: "Lista de Funcionários",
+        href: "/prestserv/funcionarios-por-contrato",
+      },
+      { label: "Demitidos", href: "/funcionarios/demitidos" },
+      { label: "Upload da Planilha (Uptime)", href: "/uptime" },
+      { label: "Sincronizar Lista de Funcionários", href: "/funcionarios" },
     ],
   },
   {
@@ -138,7 +150,29 @@ const setores: SetorCard[] = [
     bgColor: "bg-orange-50",
     borderColor: "border-orange-200 hover:border-orange-300",
     equipes: ["Administração", "Treinamento"], // Administração e Treinamento
-    links: [{ label: "Minhas Tarefas", href: "/tarefas?setor=treinamento" }],
+    links: [
+      { label: "Minhas Tarefas", href: "/tarefas?setor=treinamento" },
+      { label: "Matriz de Treinamento", href: "/matriz-treinamento/contratos" },
+      { label: "Cadastrar Treinamentos", href: "/treinamentos" },
+    ],
+  },
+  {
+    key: "relatorios",
+    title: "Relatórios",
+    description: "Painéis e relatórios de SLA.",
+    icon: Activity,
+    color: "text-indigo-700",
+    bgColor: "bg-indigo-50",
+    borderColor: "border-indigo-200 hover:border-indigo-300",
+    equipes: [
+      "Administração",
+      "Planejamento",
+      "Logística",
+      "Medicina",
+      "RH",
+      "Treinamento",
+    ],
+    links: [{ label: "Dashboard", href: "/sla/relatorio" }],
   },
 ];
 
@@ -170,6 +204,11 @@ export default function HomePage() {
     return setor.equipes.includes(usuario?.equipe || "");
   });
 
+  // Ocultar Planejamento por enquanto
+  const setoresAtualizados = setoresFiltrados.filter(
+    (setor) => setor.key !== "planejamento"
+  );
+
   return (
     <div className="min-h-full bg-gray-50">
       {/* Cards dos Setores */}
@@ -188,7 +227,7 @@ export default function HomePage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {setoresFiltrados.map((setor) => {
+            {setoresAtualizados.map((setor) => {
               const IconComponent = setor.icon;
               return (
                 <div

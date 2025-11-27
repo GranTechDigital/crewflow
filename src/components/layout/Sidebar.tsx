@@ -213,6 +213,22 @@ export default function Sidebar() {
       return permissions.hasPermission(section.permission);
     });
 
+  const filteredSections = sections
+    .filter(section => section.key !== "planejamento")
+    .map(section =>
+      section.key === "prestserv"
+        ? {
+            ...section,
+            items: section.items.filter(
+              (item) =>
+                item.href !== "/uptime" &&
+                item.href !== "/matriz-treinamento/contratos" &&
+                item.href !== "/funcionarios/demitidos"
+            ),
+          }
+        : section
+    );
+
   // Se ainda estiver carregando ou usuário não foi carregado
   if (loading || !userLoaded || !usuario) {
     return (
@@ -324,7 +340,7 @@ export default function Sidebar() {
         </Link>
 
         {/* Seções com submenu */}
-        {sections.map((section) => (
+        {filteredSections.map((section) => (
           <div key={section.key} className="space-y-0.5">
             <button
               className={`flex items-center justify-between w-full hover:bg-gray-600/40 rounded-lg transition-all duration-200 hover:shadow-lg group border border-transparent hover:border-gray-500/20 backdrop-blur-sm ${
