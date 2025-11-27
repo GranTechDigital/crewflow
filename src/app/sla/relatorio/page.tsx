@@ -65,7 +65,7 @@ export default function RelatorioSLA() {
     return ['RH', 'MEDICINA', 'TREINAMENTO', 'LOGISTICA'];
   }, []);
 
-  const requiredSetores = useMemo(() => ['RH', 'MEDICINA', 'TREINAMENTO'], []);
+  const requiredSetores = useMemo(() => ['RH', 'MEDICINA', 'TREINAMENTO', 'LOGISTICA'], []);
   const MIN_VALID_MS = 1 * 1000; // 1s
 
   const porRemanejamentoValidos = useMemo(() => {
@@ -73,7 +73,10 @@ export default function RelatorioSLA() {
     return data.porRemanejamento.filter((r) => (
       requiredSetores.some((s) => {
         const entry = (r.temposMediosPorSetor || []).find((x) => x.setor.toUpperCase() === s.toUpperCase());
-        return entry && entry.tempoMedioMs && entry.tempoMedioMs >= MIN_VALID_MS;
+        const dur = (r.duracaoPorSetorMs || []).find((x) => x.setor.toUpperCase() === s.toUpperCase());
+        const okMedia = entry && entry.tempoMedioMs && entry.tempoMedioMs >= MIN_VALID_MS;
+        const okDur = dur && (dur.ms || 0) >= MIN_VALID_MS;
+        return okMedia || okDur;
       })
     ));
   }, [data, requiredSetores, MIN_VALID_MS]);
