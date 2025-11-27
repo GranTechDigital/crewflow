@@ -56,7 +56,11 @@ export async function GET(request: NextRequest) {
       where: {
         ...(somenteConcluidos
           ? {
-              statusTarefas: { in: ["CONCLUIDO", "CONCLUIDA", "SOLICITAÇÃO CONCLUÍDA"] },
+              OR: [
+                { statusTarefas: { in: ["CONCLUIDO", "CONCLUIDA", "SOLICITAÇÃO CONCLUÍDA", "SOLICITAÇÃO CONCLUIDA"] } },
+                { statusTarefas: { contains: "CONCLUID", mode: "insensitive" } },
+                { statusPrestserv: { equals: "VALIDADO", mode: "insensitive" } },
+              ],
             }
           : {
               OR: [
@@ -361,8 +365,8 @@ export async function GET(request: NextRequest) {
       // Montar tempos médios por setor (somente setores de atuação) e incluir logística
       const temposMediosPorSetor = Object.entries(temposConclusaoPorSetor).map(([setor, arr]) => ({ setor, tempoMedioMs: media(arr as number[]) }));
       const requiredSetores = ['RH', 'MEDICINA', 'TREINAMENTO'];
-      const MIN_VALID_MS = 60 * 1000; // mínimo 1 minuto para considerar atuação válida
-      const hasAllThree = requiredSetores.every((set) => {
+      const MIN_VALID_MS = 1 * 1000; // mínimo 1 segundo para considerar atuação válida
+      const hasAnyValid = requiredSetores.some((set) => {
         const e = temposMediosPorSetor.find((x) => x.setor === set);
         return e && e.tempoMedioMs && e.tempoMedioMs >= MIN_VALID_MS;
       });
@@ -381,12 +385,18 @@ export async function GET(request: NextRequest) {
         { setor: 'LOGISTICA', tempoMedioMs: logisticaMs },
       ];
 
-      const duracaoPorSetorMsArr = Object.entries(ciclosSetorDurMs).map(([setor, arr]) => ({ setor, ms: arr.reduce((a, b) => a + b, 0) }));
+      let duracaoPorSetorMsArr = Object.entries(ciclosSetorDurMs).map(([setor, arr]) => ({ setor, ms: arr.reduce((a, b) => a + b, 0) }));
+      const somaDuracaoCiclos = duracaoPorSetorMsArr.reduce((acc, it) => acc + (it.ms || 0), 0);
+      if (somaDuracaoCiclos === 0) {
+        // Fallback: sem ciclos válidos, usa soma direta dos segmentos por setor
+        const setorDurArr = Object.entries(setorDur).map(([setor, ms]) => ({ setor, ms }));
+        duracaoPorSetorMsArr = setorDurArr;
+      }
       if (logisticaMs > 0) {
         const hasLogDur = duracaoPorSetorMsArr.find((x) => x.setor === 'LOGISTICA');
         if (!hasLogDur) duracaoPorSetorMsArr.push({ setor: 'LOGISTICA', ms: logisticaMs });
       }
-      if (hasAllThree && !autoAprovado) {
+      if (hasAnyValid && !autoAprovado) {
         porRemanejamento.push({
           remanejamentoId: rf.id,
           solicitacaoId: rf.solicitacaoId,
