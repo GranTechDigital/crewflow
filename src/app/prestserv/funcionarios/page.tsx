@@ -2446,6 +2446,9 @@ function FuncionariosPageContent() {
             >
               <CheckIcon className="h-4 w-4" />
               <span>Concluídos</span>
+              <span className="ml-2 inline-flex items-center justify-center rounded-full bg-sky-600 text-white text-[10px] font-bold px-2 py-0.5">
+                {funcionariosFiltradosConcluidos.length}
+              </span>
             </button>
             <button
               onClick={() => setActiveTab("solicitacao")}
