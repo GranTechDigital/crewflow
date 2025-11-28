@@ -380,16 +380,20 @@ export async function GET(request: NextRequest) {
           const ms = msDiff(inicioSetor, fimSetor);
           if (ms > 0) medidosPorSetor[setor] = (medidosPorSetor[setor] || 0) + ms;
 
-          // Acumular intervalos de início/fim por setor ao longo dos ciclos
-          const existente = intervalosPorSetor[setor];
-          if (!existente) {
-            intervalosPorSetor[setor] = { inicio: inicioSetor.toISOString(), fim: fimSetor.toISOString() };
-          } else {
-            const atualInicio = new Date(existente.inicio);
-            const atualFim = new Date(existente.fim);
-            const novoInicio = inicioSetor < atualInicio ? inicioSetor : atualInicio;
-            const novoFim = fimSetor > atualFim ? fimSetor : atualFim;
-            intervalosPorSetor[setor] = { inicio: novoInicio.toISOString(), fim: novoFim.toISOString() };
+          // Acumular intervalos de início/fim por setor ao longo dos ciclos (exibir início real se anterior ao ciclo)
+          const displayInicio = inicioSetorRaw < ciclo.inicio ? inicioSetorRaw : inicioSetor;
+          const displayFim = fimSetor;
+          if (displayFim >= displayInicio) {
+            const existente = intervalosPorSetor[setor];
+            if (!existente) {
+              intervalosPorSetor[setor] = { inicio: displayInicio.toISOString(), fim: displayFim.toISOString() };
+            } else {
+              const atualInicio = new Date(existente.inicio);
+              const atualFim = new Date(existente.fim);
+              const novoInicio = displayInicio < atualInicio ? displayInicio : atualInicio;
+              const novoFim = displayFim > atualFim ? displayFim : atualFim;
+              intervalosPorSetor[setor] = { inicio: novoInicio.toISOString(), fim: novoFim.toISOString() };
+            }
           }
         }
 
