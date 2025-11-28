@@ -122,6 +122,7 @@ export async function GET(request: NextRequest) {
         }, null);
 
       // Fim total com fallback robusto para evitar duração zero
+      const totalStart = rf.solicitacao?.dataSolicitacao || rf.createdAt;
       const tentativeEnd = (
         rf.dataConcluido
           || evtValidado
@@ -133,7 +134,6 @@ export async function GET(request: NextRequest) {
       const totalEnd = (tentativeEnd && totalStart && (tentativeEnd as Date).getTime() <= (totalStart as Date).getTime())
         ? agora
         : tentativeEnd;
-      const totalStart = rf.solicitacao?.dataSolicitacao || rf.createdAt;
       const totalDurMs = msDiff(totalStart, totalEnd);
 
       const setorDur: Record<string, number> = {};
@@ -199,7 +199,11 @@ export async function GET(request: NextRequest) {
             vn.includes('INVALID') || desc.includes('INVALID')
           );
         }).length;
-        const reprovs = reprovsEvt + reprovsHist;
+        const reprovsStatus = ((rf.tarefas || []).filter((x: any) => {
+          const st = (x.status || '').toString().toUpperCase();
+          return st.includes('REPROV') || st.includes('REJEIT') || st.includes('INVALID');
+        }).length) || 0;
+        const reprovs = reprovsEvt + reprovsHist + reprovsStatus;
         if (reprovs > 0) {
           const key = `${setor}|${t.tipo}`;
           tarefaReprovCount[key] = (tarefaReprovCount[key] || 0) + reprovs;
