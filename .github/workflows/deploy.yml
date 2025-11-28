@@ -167,6 +167,7 @@ jobs:
           ls -l "$ENV_FILE"
           ssh -o StrictHostKeyChecking=no root@${{ secrets.PROD_SERVER_HOST }} "mkdir -p /opt/projetogran"
           scp -o StrictHostKeyChecking=no docker-compose.yml root@${{ secrets.PROD_SERVER_HOST }}:/opt/projetogran/
+          scp -o StrictHostKeyChecking=no nginx.conf root@${{ secrets.PROD_SERVER_HOST }}:/opt/projetogran/nginx.conf
           scp -o StrictHostKeyChecking=no "$ENV_FILE" root@${{ secrets.PROD_SERVER_HOST }}:/opt/projetogran/.env.production
           ssh -o StrictHostKeyChecking=no root@${{ secrets.PROD_SERVER_HOST }} "chmod 600 /opt/projetogran/.env.production"
 
@@ -214,7 +215,7 @@ jobs:
             docker rm -f pgadmin-production 2>/dev/null || true
 
             # Subir serviços via compose com env-file (sem pull, usa imagem carregada localmente)
-            docker compose --env-file /opt/projetogran/.env.production -f /opt/projetogran/docker-compose.yml down || true
+          docker compose --env-file /opt/projetogran/.env.production -f /opt/projetogran/docker-compose.yml down || true
             docker compose --env-file /opt/projetogran/.env.production -f /opt/projetogran/docker-compose.yml up -d
 
             echo "📊 Disk usage after compose up:"
@@ -430,9 +431,11 @@ jobs:
             echo "🔐 Abrindo firewall para porta $PORT (se necessário)"
             if command -v ufw >/dev/null 2>&1; then
               ufw allow "$PORT"/tcp || true
+              ufw allow 80/tcp || true
               ufw status || true
             else
               iptables -C INPUT -p tcp --dport "$PORT" -j ACCEPT 2>/dev/null || iptables -I INPUT -p tcp --dport "$PORT" -j ACCEPT || true
+              iptables -C INPUT -p tcp --dport 80 -j ACCEPT 2>/dev/null || iptables -I INPUT -p tcp --dport 80 -j ACCEPT || true
               iptables -L -n | grep "$PORT" || true
             fi
 
