@@ -34,20 +34,20 @@ jobs:
       - name: 🔑 Setup SSH
         run: |
           set -euo pipefail
-          if [ -z "${{ secrets.SSH_PRIVATE_KEY }}" ]; then
+          if [ -z "${{ secrets.PROD_SSH_PRIVATE_KEY }}" ]; then
             echo "❌ SSH_PRIVATE_KEY secret não está configurado"; exit 1; fi
-          if [ -z "${{ secrets.SERVER_HOST }}" ]; then
+          if [ -z "${{ secrets.PROD_SERVER_HOST }}" ]; then
             echo "❌ SERVER_HOST secret não está configurado"; exit 1; fi
-          PORT="${{ secrets.SERVER_SSH_PORT }}"; [ -z "$PORT" ] && PORT=22
+          PORT="${{ secrets.PROD_SERVER_SSH_PORT }}"; [ -z "$PORT" ] && PORT=22
           mkdir -p ~/.ssh
-          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          printf '%s\n' "${{ secrets.PROD_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          printf 'Host %s\n  Port %s\n  User root\n  StrictHostKeyChecking no\n' "${{ secrets.SERVER_HOST }}" "$PORT" >> ~/.ssh/config
-          ssh-keyscan -p "$PORT" -T 10 -H "${{ secrets.SERVER_HOST }}" >> ~/.ssh/known_hosts || { echo "❌ ssh-keyscan falhou para host '${{ secrets.SERVER_HOST }}' porta $PORT"; exit 1; }
+          printf 'Host %s\n  Port %s\n  User root\n  StrictHostKeyChecking no\n' "${{ secrets.PROD_SERVER_HOST }}" "$PORT" >> ~/.ssh/config
+          ssh-keyscan -p "$PORT" -T 10 -H "${{ secrets.PROD_SERVER_HOST }}" >> ~/.ssh/known_hosts || { echo "❌ ssh-keyscan falhou para host '${{ secrets.PROD_SERVER_HOST }}' porta $PORT"; exit 1; }
 
       - name: 💾 Backup banco de dados (produção) antes do deploy
         run: |
-          ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.PROD_SERVER_HOST }} << 'EOF'
             set -e
             mkdir -p /var/backups/projetogran/producao
             TS=$(date -u +%Y%m%d_%H%M%S)
@@ -84,7 +84,7 @@ jobs:
             ls -1t /var/backups/projetogran/producao/crewflow_production_*.dump | tail -n +31 | xargs -r rm -f
           EOF
 
-      - name: 🧹 Prepare server before image load (no prune)
+      - name: 🧹 Prepare server before image load (safe prune)
         run: |
           ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
             set -e
@@ -92,9 +92,14 @@ jobs:
             df -h
             echo "🧮 Docker system df (before):"
             docker system df || true
+            echo "🧼 Pruning unused Docker images and caches (no volumes)"
+            docker image prune -af || true
+            docker builder prune -af || true
+            docker system prune -af || true
             echo "🧼 Cleaning /tmp to free ephemeral space"
             rm -rf /tmp/* || true
-            echo "ℹ️ Skipping Docker prune (enough disk space)"
+            echo "🧼 Reducing journald logs size"
+            journalctl --vacuum-size=200M || true
             echo "📊 Disk usage after cleanup (no prune):"
             df -h
             echo "🧮 Docker system df (after):"
@@ -103,7 +108,7 @@ jobs:
 
       - name: 🚚 Stream Docker image to server
         run: |
-          docker save crewflow-app:${{ github.sha }} crewflow-app:latest | gzip -1 | ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} "gunzip | docker load"
+          docker save crewflow-app:${{ github.sha }} crewflow-app:latest | gzip -1 | ssh -o StrictHostKeyChecking=no root@${{ secrets.PROD_SERVER_HOST }} "gunzip | docker load"
 
       - name: 📤 Upload files and env to server
         run: |
@@ -115,15 +120,15 @@ jobs:
 
           POSTGRES_USER_VALUE=postgres
           POSTGRES_DB_VALUE=projetogran
-          POSTGRES_PASSWORD_VALUE="${{ secrets.POSTGRES_PASSWORD }}"
-          PGADMIN_EMAIL_VALUE="${{ secrets.PGADMIN_EMAIL }}"
-          PGADMIN_PASSWORD_VALUE="${{ secrets.PGADMIN_PASSWORD }}"
-          NEXTAUTH_URL_VALUE="http://${{ secrets.SERVER_HOST }}:3001"
-          JWT_SECRET_VALUE="${{ secrets.JWT_SECRET }}"
-          ADMIN_USER_VALUE="${{ secrets.ADMIN_USER }}"
-          ADMIN_EMAIL_VALUE="${{ secrets.ADMIN_EMAIL }}"
-          ADMIN_PASSWORD_VALUE="${{ secrets.ADMIN_PASSWORD }}"
-          ADMIN_FORCE_PASSWORD_VALUE="${{ secrets.ADMIN_FORCE_PASSWORD }}"
+          POSTGRES_PASSWORD_VALUE="${{ secrets.PROD_POSTGRES_PASSWORD }}"
+          PGADMIN_EMAIL_VALUE="${{ secrets.PROD_PGADMIN_EMAIL }}"
+          PGADMIN_PASSWORD_VALUE="${{ secrets.PROD_PGADMIN_PASSWORD }}"
+          NEXTAUTH_URL_VALUE="http://${{ secrets.PROD_SERVER_HOST }}:3001"
+          JWT_SECRET_VALUE="${{ secrets.PROD_JWT_SECRET }}"
+          ADMIN_USER_VALUE="${{ secrets.PROD_ADMIN_USER }}"
+          ADMIN_EMAIL_VALUE="${{ secrets.PROD_ADMIN_EMAIL }}"
+          ADMIN_PASSWORD_VALUE="${{ secrets.PROD_ADMIN_PASSWORD }}"
+          ADMIN_FORCE_PASSWORD_VALUE="${{ secrets.PROD_ADMIN_FORCE_PASSWORD }}"
 
           [ -z "$POSTGRES_PASSWORD_VALUE" ] && POSTGRES_PASSWORD_VALUE="postgres"
           [ -z "$PGADMIN_EMAIL_VALUE" ] && PGADMIN_EMAIL_VALUE="admin@crewflow.com"
@@ -160,10 +165,10 @@ jobs:
           printf 'ADMIN_FORCE_PASSWORD=%s\n' "$ADMIN_FORCE_PASSWORD_VALUE" >> "$ENV_FILE"
 
           ls -l "$ENV_FILE"
-          ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} "mkdir -p /opt/projetogran"
-          scp -o StrictHostKeyChecking=no docker-compose.yml root@${{ secrets.SERVER_HOST }}:/opt/projetogran/
-          scp -o StrictHostKeyChecking=no "$ENV_FILE" root@${{ secrets.SERVER_HOST }}:/opt/projetogran/.env.production
-          ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} "chmod 600 /opt/projetogran/.env.production"
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.PROD_SERVER_HOST }} "mkdir -p /opt/projetogran"
+          scp -o StrictHostKeyChecking=no docker-compose.yml root@${{ secrets.PROD_SERVER_HOST }}:/opt/projetogran/
+          scp -o StrictHostKeyChecking=no "$ENV_FILE" root@${{ secrets.PROD_SERVER_HOST }}:/opt/projetogran/.env.production
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.PROD_SERVER_HOST }} "chmod 600 /opt/projetogran/.env.production"
 
       - name: 🔍 Detect prisma changes
         id: changes
@@ -176,7 +181,7 @@ jobs:
       - name: 🚀 Deploy on server
         run: |
           echo "📦 Preparando deploy com Docker Compose usando env-file"
-          ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.PROD_SERVER_HOST }} << 'EOF'
             set -e
             echo "📊 Disk usage before deploy:"
             df -h
@@ -222,7 +227,7 @@ jobs:
 
       - name: 🗄️ Setup Database (run every deploy)
         run: |
-          ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << 'EOF'
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.PROD_SERVER_HOST }} << 'EOF'
             cd /opt/projetogran
 
             echo "⏳ Waiting for PostgreSQL to be ready..."
@@ -255,13 +260,41 @@ jobs:
               echo "ℹ️ Seed skipped (database already populated or error occurred)"
             fi
 
-            echo "🔎 Ensuring admin user exists..."
-            docker exec crewflow-app-production node scripts/ensureAdmin.js || true
+          echo "🔎 Ensuring admin user exists..."
+          docker exec crewflow-app-production node scripts/ensureAdmin.js || true
 
-            echo "🔁 Running backfill scripts..."
-            docker exec crewflow-app-production node scripts/backfillEventosTarefa.js || true
-            docker exec crewflow-app-production node scripts/backfillCapacitacoes.js || true
-            docker exec crewflow-app-production node scripts/backfill-historico-usuarios.js || true
+          echo "🔁 Running backfill scripts..."
+          docker exec crewflow-app-production node scripts/backfillEventosTarefa.js || true
+          docker exec crewflow-app-production node scripts/backfillCapacitacoes.js || true
+          docker exec crewflow-app-production node scripts/backfill-historico-usuarios.js || true
+          EOF
+
+      - name: 🧹 Cleanup old images (keep latest and current SHA)
+        run: |
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << EOF
+            set -e
+            echo "🧹 Removing dangling images"
+            docker image prune -af || true
+            echo "🧹 Removing old crewflow-app tags (keeping latest and current SHA)"
+            KEEP_TAGS="latest ${{ github.sha }}"
+            for IMG in $(docker image ls crewflow-app --format '{{.Repository}}:{{.Tag}}' | grep -v '<none>'); do
+              KEEP=false
+              for T in $KEEP_TAGS; do
+                if [ "$IMG" = "crewflow-app:$T" ]; then KEEP=true; break; fi
+              done
+              if [ "$KEEP" = "false" ]; then
+                if ! docker ps -a --format '{{.Image}}' | grep -qx "$IMG"; then
+                  echo "🗑️ Removing image: $IMG"
+                  docker rmi "$IMG" || true
+                else
+                  echo "ℹ️ Skipping in-use image: $IMG"
+                fi
+              else
+                echo "ℹ️ Keeping image: $IMG"
+              fi
+            done
+            echo "🧮 Docker system df (post-cleanup):"
+            docker system df || true
           EOF
 
       - name: "🔎 Health check: app responds (login route)"
@@ -315,7 +348,7 @@ jobs:
       - name: 🎉 Deployment complete
         run: |
           echo "🚀 Deployment completed successfully!"
-          echo "🌐 Application available at: http://${{ secrets.SERVER_HOST }}:3001"
+          echo "🌐 Application available at: http://${{ secrets.PROD_SERVER_HOST }}:3001"
           echo "🗄️ PostgreSQL running on port 5434 with persistent volume"
           echo "🔧 pgAdmin4 available at: http://${{ secrets.SERVER_HOST }}:5050"
           echo "📧 pgAdmin Login: admin@crewflow.com (senha definida no ambiente)"

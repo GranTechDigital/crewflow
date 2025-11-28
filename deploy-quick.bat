@@ -12,8 +12,15 @@ if %errorlevel% neq 0 (
 )
 
 REM 2. Enviar para servidor
-echo 📤 Enviando para servidor...
-docker save crewflow-app:latest | ssh root@46.202.146.234 "docker load"
+echo 📤 Preparando servidor (limpeza de espaço)...
+ssh root@46.202.146.234 "docker system df; docker image prune -af || true; docker builder prune -af || true; docker system prune -af || true; journalctl --vacuum-size=200M || true; df -h"
+
+if %errorlevel% neq 0 (
+    echo ⚠️ Falha ao executar limpeza remota (prosseguindo mesmo assim)...
+)
+
+echo 📤 Enviando imagem compactada para servidor...
+docker save crewflow-app:latest | gzip -1 | ssh root@46.202.146.234 "gunzip | docker load"
 
 if %errorlevel% neq 0 (
     echo ❌ Erro ao enviar imagem para servidor!
@@ -23,7 +30,7 @@ if %errorlevel% neq 0 (
 
 REM 3. Atualizar container
 echo 🔄 Atualizando container...
-ssh root@46.202.146.234 "docker stop crewflow-app-production 2>/dev/null || true && docker rm crewflow-app-production 2>/dev/null || true && docker run -d --name crewflow-app-production -p 3001:3000 -e DATABASE_URL='postgresql://crewflow_user:crewflow_production_2024@postgres-prod:5432/crewflow_production?schema=public' -e JWT_SECRET='crewflow-jwt-secret-key-2024' -e NEXTAUTH_URL='http://46.202.146.234:3001' -e NODE_ENV='production' crewflow-app:latest"
+ssh root@46.202.146.234 "docker stop crewflow-app-production 2>/dev/null || true && docker rm crewflow-app-production 2>/dev/null || true && docker run -d --name crewflow-app-production -p 3001:3001 -e DATABASE_URL='postgresql://crewflow_user:crewflow_production_2024@postgres-prod:5432/crewflow_production?schema=public' -e JWT_SECRET='crewflow-jwt-secret-key-2024' -e NEXTAUTH_URL='http://46.202.146.234:3001' -e NODE_ENV='production' -e PORT='3001' crewflow-app:latest"
 
 if %errorlevel% neq 0 (
     echo ❌ Erro ao atualizar container!
