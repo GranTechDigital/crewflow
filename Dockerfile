@@ -18,6 +18,7 @@ COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/scripts ./scripts
 COPY --from=builder /app/create-admin-user.js ./create-admin-user.js
 RUN npm ci --omit=dev && npm i prisma --no-save
 EXPOSE 3001
