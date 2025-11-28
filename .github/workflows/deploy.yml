@@ -222,7 +222,33 @@ jobs:
 
             sleep 10
             docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
-            docker logs --tail=200 crewflow-app-production 2>/dev/null || true
+          docker logs --tail=200 crewflow-app-production 2>/dev/null || true
+          EOF
+
+      - name: 🔐 Reset pgAdmin credentials (force defaults)
+        run: |
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.PROD_SERVER_HOST }} << 'EOF'
+            set -e
+            echo "🔎 pgadmin-production: garantindo reconfiguração de credenciais padrão"
+            if docker ps --format '{{.Names}}' | grep -q '^pgadmin-production$'; then
+              echo "📦 Backup do banco interno do pgAdmin (se existir)"
+              docker exec pgadmin-production bash -lc 'if [ -f /var/lib/pgadmin/pgadmin4.db ]; then cp /var/lib/pgadmin/pgadmin4.db /var/lib/pgadmin/pgadmin4.db.bak.$(date -u +%Y%m%d_%H%M%S); fi'
+              echo "🗑️ Removendo pgadmin4.db para reinicializar com PGADMIN_DEFAULT_EMAIL/PASSWORD"
+              docker exec pgadmin-production bash -lc 'rm -f /var/lib/pgadmin/pgadmin4.db'
+              docker restart pgadmin-production
+              echo "⏳ Aguardando pgAdmin reiniciar"
+              sleep 6
+              echo "🔎 Checando resposta HTTP em localhost:5050"
+              if command -v curl >/dev/null 2>&1; then
+                CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5050/)
+              else
+                CODE=$(wget --server-response -q -O - http://localhost:5050/ 2>&1 | awk '/^  HTTP/{print $2}' | tail -n1)
+              fi
+              echo "HTTP: $CODE"
+              docker logs --tail=80 pgadmin-production || true
+            else
+              echo "⚠️ pgadmin-production não está rodando; pulando reset"
+            fi
           EOF
 
       - name: 🗄️ Setup Database (run every deploy)
