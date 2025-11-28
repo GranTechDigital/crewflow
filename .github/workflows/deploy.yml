@@ -236,16 +236,37 @@ jobs:
               echo "🗑️ Removendo pgadmin4.db para reinicializar com PGADMIN_DEFAULT_EMAIL/PASSWORD"
               docker exec pgadmin-production bash -lc 'rm -f /var/lib/pgadmin/pgadmin4.db'
               docker restart pgadmin-production
-              echo "⏳ Aguardando pgAdmin reiniciar"
-              sleep 6
-              echo "🔎 Checando resposta HTTP em localhost:5050"
-              if command -v curl >/dev/null 2>&1; then
-                CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5050/)
-              else
-                CODE=$(wget --server-response -q -O - http://localhost:5050/ 2>&1 | awk '/^  HTTP/{print $2}' | tail -n1)
+              echo "⏳ Aguardando pgAdmin reiniciar com retries"
+              ATTEMPTS=20; SLEEP=3; CODE=""
+              for i in $(seq 1 $ATTEMPTS); do
+                if command -v curl >/dev/null 2>&1; then
+                  CODE=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 3 http://localhost:5050/ || true)
+                else
+                  CODE=$(wget --server-response -q -O - http://localhost:5050/ 2>&1 | awk '/^  HTTP/{print $2}' | tail -n1)
+                fi
+                echo "Tentativa #$i — HTTP: $CODE"
+                if [ "$CODE" = "200" ] || [ "$CODE" = "302" ] || [ "$CODE" = "307" ] || [ "$CODE" = "308" ]; then
+                  echo "✅ pgAdmin responde"
+                  break
+                fi
+                sleep $SLEEP
+              done
+              docker logs --tail=120 pgadmin-production || true
+              if [ "$CODE" != "200" ] && [ "$CODE" != "302" ] && [ "$CODE" != "307" ] && [ "$CODE" != "308" ]; then
+                echo "⚠️ pgAdmin não respondeu após $ATTEMPTS tentativas. Recriando container e volume..."
+                docker rm -f pgadmin-production || true
+                docker volume rm pgadmin_data || true
+                cd /opt/projetogran
+                docker compose --env-file /opt/projetogran/.env.production -f /opt/projetogran/docker-compose.yml up -d pgadmin-production
+                echo "⏳ Aguardando nova inicialização"
+                sleep 10
+                if command -v curl >/dev/null 2>&1; then
+                  CODE=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 3 http://localhost:5050/ || true)
+                else
+                  CODE=$(wget --server-response -q -O - http://localhost:5050/ 2>&1 | awk '/^  HTTP/{print $2}' | tail -n1)
+                fi
+                echo "HTTP (após recriação): $CODE"
               fi
-              echo "HTTP: $CODE"
-              docker logs --tail=80 pgadmin-production || true
             else
               echo "⚠️ pgadmin-production não está rodando; pulando reset"
             fi
