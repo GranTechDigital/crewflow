@@ -271,13 +271,14 @@ jobs:
 
       - name: 🧹 Cleanup old images (keep latest and current SHA)
         run: |
-          ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} << EOF
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.PROD_SERVER_HOST }} << 'EOF'
             set -e
             echo "🧹 Removing dangling images"
             docker image prune -af || true
             echo "🧹 Removing old crewflow-app tags (keeping latest and current SHA)"
             KEEP_TAGS="latest ${{ github.sha }}"
-            for IMG in $(docker image ls crewflow-app --format '{{.Repository}}:{{.Tag}}' | grep -v '<none>'); do
+            IMAGES=$(docker images | awk '$1=="crewflow-app" {print $1 ":" $2}' | grep -v ':<none>$')
+            for IMG in $IMAGES; do
               KEEP=false
               for T in $KEEP_TAGS; do
                 if [ "$IMG" = "crewflow-app:$T" ]; then KEEP=true; break; fi
