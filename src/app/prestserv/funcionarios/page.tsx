@@ -2215,7 +2215,8 @@ function FuncionariosPageContent() {
     (f) => f.statusPrestserv === "VALIDADO" || f.statusTarefas === "CONCLUIDO"
   );
   const funcionariosFiltradosNaoConcluidos = funcionariosFiltrados.filter(
-    (f) => !(f.statusPrestserv === "VALIDADO" || f.statusTarefas === "CONCLUIDO")
+    (f) =>
+      !(f.statusPrestserv === "VALIDADO" || f.statusTarefas === "CONCLUIDO")
   );
   const funcionariosOrdenadosNaoConcluidos = [
     ...funcionariosFiltradosNaoConcluidos,
@@ -2287,10 +2288,8 @@ function FuncionariosPageContent() {
   const totalPaginasConcluidos = Math.ceil(
     funcionariosOrdenadosConcluidos.length / itensPorPagina
   );
-  const funcionariosPaginadosNaoConcluidos = funcionariosOrdenadosNaoConcluidos.slice(
-    indiceInicio,
-    indiceFim
-  );
+  const funcionariosPaginadosNaoConcluidos =
+    funcionariosOrdenadosNaoConcluidos.slice(indiceInicio, indiceFim);
   const funcionariosPaginadosConcluidos = funcionariosOrdenadosConcluidos.slice(
     indiceInicio,
     indiceFim
@@ -2303,7 +2302,12 @@ function FuncionariosPageContent() {
     if (paginaAtual > totalAtual && totalAtual > 0) {
       setPaginaAtual(1);
     }
-  }, [activeTab, totalPaginasConcluidos, totalPaginasNaoConcluidos, paginaAtual]);
+  }, [
+    activeTab,
+    totalPaginasConcluidos,
+    totalPaginasNaoConcluidos,
+    paginaAtual,
+  ]);
   // Resetar página atual quando filtros mudarem
   useEffect(() => {
     if (paginaAtual > totalPaginas && totalPaginas > 0) {
@@ -4530,553 +4534,559 @@ function FuncionariosPageContent() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {funcionariosPaginadosNaoConcluidos.map((funcionario, index) => {
-                    const precisaAtencao =
-                      funcionarioDemitidoPrecisaAtencao(funcionario);
-                    const alertaDemitido = precisaAtencao
-                      ? getTipoAlertaDemitido(funcionario)
-                      : null;
+                  {funcionariosPaginadosNaoConcluidos.map(
+                    (funcionario, index) => {
+                      const precisaAtencao =
+                        funcionarioDemitidoPrecisaAtencao(funcionario);
+                      const alertaDemitido = precisaAtencao
+                        ? getTipoAlertaDemitido(funcionario)
+                        : null;
 
-                    return (
-                      <tr
-                        key={funcionario.id}
-                        className={`hover:bg-gray-50 transition-colors duration-150 ${
-                          index % 2 === 0 ? "bg-white" : "bg-gray-50"
-                        } ${
-                          alertaDemitido
-                            ? alertaDemitido.tipo === "critico"
-                              ? "border-l-4 border-l-red-500 bg-red-50"
-                              : "border-l-4 border-l-yellow-500 bg-yellow-50"
-                            : ""
-                        }`}
-                        title={getTooltipMessage(funcionario)}
-                      >
-                        <td className="px-3 py-2 text-xs text-gray-700">
-                          <div className="space-y-1">
-                            <div className="font-mono font-medium">
-                              ID: {funcionario.remanejamentoId}
-                            </div>
-                            <div className="font-mono text-xs text-gray-500">
-                              ID GRUPO: {funcionario.solicitacaoId}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              Tipo: {funcionario.tipoSolicitacao}
-                            </div>
-                            <div className="text-xs text-gray-500 mt-1">
-                              <div>
-                                Criado:{" "}
-                                {new Date(
-                                  funcionario.createdAt
-                                ).toLocaleDateString("pt-BR", {
-                                  day: "2-digit",
-                                  month: "2-digit",
-                                  year: "numeric",
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })}
+                      return (
+                        <tr
+                          key={funcionario.id}
+                          className={`hover:bg-gray-50 transition-colors duration-150 ${
+                            index % 2 === 0 ? "bg-white" : "bg-gray-50"
+                          } ${
+                            alertaDemitido
+                              ? alertaDemitido.tipo === "critico"
+                                ? "border-l-4 border-l-red-500 bg-red-50"
+                                : "border-l-4 border-l-yellow-500 bg-yellow-50"
+                              : ""
+                          }`}
+                          title={getTooltipMessage(funcionario)}
+                        >
+                          <td className="px-3 py-2 text-xs text-gray-700">
+                            <div className="space-y-1">
+                              <div className="font-mono font-medium">
+                                ID: {funcionario.remanejamentoId}
                               </div>
-                              <div>
-                                Atualizado:{" "}
-                                {new Date(
-                                  funcionario.updatedAt
-                                ).toLocaleDateString("pt-BR", {
-                                  day: "2-digit",
-                                  month: "2-digit",
-                                  year: "numeric",
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })}
+                              <div className="font-mono text-xs text-gray-500">
+                                ID GRUPO: {funcionario.solicitacaoId}
                               </div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-3 py-2 text-xs text-gray-700">
-                          <div className="space-y-1">
-                            <div className="text-xs">
-                              <span className="font-medium text-gray-600">
-                                De:
-                              </span>{" "}
-                              <span className="font-mono">
-                                {funcionario.contratoOrigem}
-                              </span>
-                              <span className="text-gray-500 truncate max-w-[160px] inline-block align-bottom">
-                                {" "}
-                                · {funcionario.contratoOrigemNome}
-                              </span>
-                            </div>
-                            <div className="text-xs">
-                              <span className="font-medium text-gray-600">
-                                Para:
-                              </span>{" "}
-                              <span className="font-mono">
-                                {funcionario.contratoDestino}
-                              </span>
-                              <span className="text-gray-500 truncate max-w-[160px] inline-block align-bottom">
-                                {" "}
-                                · {funcionario.contratoDestinoNome}
-                              </span>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-3 py-2 text-xs text-gray-900">
-                          <div className="space-y-1">
-                            <div className="font-medium text-xs">
-                              <span>
-                                Nome: {funcionario.nome}
-                                {funcionario.funcaoAlteradaRecentemente && (
-                                  <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-yellow-100 text-yellow-800 px-2 py-0.5 text-[10px] font-semibold">
-                                    ⚠️ Função alterada recentemente
-                                  </span>
-                                )}
-                                {(() => {
-                                  const precisaAtencao =
-                                    funcionarioDemitidoPrecisaAtencao(
-                                      funcionario
-                                    );
-                                  const alertaDemitido = precisaAtencao
-                                    ? getTipoAlertaDemitido(funcionario)
-                                    : null;
-                                  return (
-                                    alertaDemitido && (
-                                      <div className="group relative">
-                                        {React.createElement(
-                                          alertaDemitido.icon,
-                                          {
-                                            className: `h-5 w-5 ${
-                                              alertaDemitido.classes.split(
-                                                " "
-                                              )[0]
-                                            } cursor-help`,
-                                          }
-                                        )}
-                                        <div
-                                          className={`absolute z-50 invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity duration-200 bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 text-sm rounded-lg border shadow-lg max-w-xs whitespace-nowrap ${alertaDemitido.classes}`}
-                                        >
-                                          <div className="font-medium mb-1">
-                                            ⚠️ Atenção Necessária
-                                          </div>
-                                          <div>{alertaDemitido.mensagem}</div>
-                                          <div
-                                            className={`absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent ${
-                                              alertaDemitido.classes.includes(
-                                                "red"
-                                              )
-                                                ? "border-t-red-200"
-                                                : alertaDemitido.classes.includes(
-                                                    "orange"
-                                                  )
-                                                ? "border-t-orange-200"
-                                                : "border-t-yellow-200"
-                                            }`}
-                                          ></div>
-                                        </div>
-                                      </div>
-                                    )
-                                  );
-                                })()}
-                              </span>
-                            </div>
-                            <div className="text-xs text-gray-500 flex items-center gap-2">
-                              <span>Matricula: {funcionario.matricula}</span>
-                              {funcionario.observacoesPrestserv && (
-                                <button
-                                  className="inline-flex items-center gap-1 text-yellow-700 bg-yellow-50 border border-yellow-200 px-1.5 py-0.5 rounded hover:bg-yellow-100"
-                                  title="Inconsistência informada por setor"
-                                  onClick={() => {
-                                    setObsTitulo(
-                                      `${funcionario.nome} (${funcionario.matricula})`
-                                    );
-                                    setObsTexto(
-                                      funcionario.observacoesPrestserv || ""
-                                    );
-                                    setShowObsModal(true);
-                                  }}
-                                >
-                                  <ExclamationTriangleIcon className="w-4 h-4" />
-                                  <span className="text-[10px] font-semibold">
-                                    Atenção
-                                  </span>
-                                </button>
-                              )}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              Sispat: {funcionario.sispat || "-"},
-                            </div>
-                            <div>
-                              Status Prestserv:
-                              <span
-                                className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${getStatusColor(
-                                  funcionario.statusFuncionario ??
-                                    "SEM CADASTRO"
-                                )}`}
-                              >
-                                {funcionario.statusFuncionario ||
-                                  "SEM CADASTRO"}
-                              </span>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-3 py-2 text-xs text-gray-700">
-                          <span
-                            className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${getStatusColor(
-                              funcionario.statusTarefas
-                            )}`}
-                          >
-                            {getStatusGeralLabel(funcionario.statusTarefas)}
-                          </span>
-                        </td>
-
-                        {/* Coluna Responsável */}
-                        <td className="px-3 py-2 text-xs text-gray-700 text-center">
-                          <span
-                            className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${getResponsavelColor(
-                              getResponsavelAtual(funcionario)
-                            )}`}
-                          >
-                            {getResponsavelAtual(funcionario)}
-                          </span>
-                        </td>
-
-                        {/* Coluna Progresso por Setor */}
-                        <td className="px-3 py-2 text-xs text-gray-700">
-                          <div className="space-y-1">
-                            {["RH", "MEDICINA", "TREINAMENTO"].map((setor) => {
-                              const progresso =
-                                funcionario.progressoPorSetor?.find(
-                                  (p) => p.setor === setor
-                                );
-                              const hasData = progresso && progresso.total > 0;
-                              const nomeSetor =
-                                setor === "RH"
-                                  ? "Recursos Humanos"
-                                  : setor === "MEDICINA"
-                                  ? "Medicina"
-                                  : "Treinamento";
-                              return (
-                                <div
-                                  key={setor}
-                                  className="flex items-center justify-between py-0.5"
-                                  title={
-                                    hasData
-                                      ? `${nomeSetor}: ${progresso.concluidas}/${progresso.total} (${progresso.percentual}%)\n\nLegenda:\n● Verde: Concluído\n● Amarelo: Em progresso\n● Cinza: Pendente`
-                                      : `${nomeSetor}: Sem tarefas\n\nLegenda:\n● Verde: Concluído\n● Amarelo: Em progresso\n● Cinza: Pendente`
-                                  }
-                                >
-                                  <div className="flex items-center space-x-1">
-                                    <span className="text-xs">
-                                      {getSetorIcon(setor)}
-                                    </span>
-                                    <span className="text-xs font-medium text-gray-700">
-                                      {nomeSetor}
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center space-x-1">
-                                    <span className="text-xs font-mono text-gray-600 bg-gray-100 px-1 rounded">
-                                      {hasData
-                                        ? `${progresso.concluidas}/${progresso.total}`
-                                        : "0/0"}
-                                    </span>
-                                    <span
-                                      className={`text-sm ${
-                                        hasData
-                                          ? getProgressColor(
-                                              progresso.concluidas,
-                                              progresso.total
-                                            )
-                                          : "text-gray-300"
-                                      }`}
-                                    >
-                                      {hasData
-                                        ? getProgressIcon(
-                                            progresso.concluidas,
-                                            progresso.total
-                                          )
-                                        : "●"}
-                                    </span>
-                                  </div>
+                              <div className="text-xs text-gray-500">
+                                Tipo: {funcionario.tipoSolicitacao}
+                              </div>
+                              <div className="text-xs text-gray-500 mt-1">
+                                <div>
+                                  Criado:{" "}
+                                  {new Date(
+                                    funcionario.createdAt
+                                  ).toLocaleDateString("pt-BR", {
+                                    day: "2-digit",
+                                    month: "2-digit",
+                                    year: "numeric",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })}
                                 </div>
-                              );
-                            })}
-                          </div>
-                        </td>
-                        <td className="px-3 py-2 text-xs text-gray-700">
-                          <div className="space-y-1">
-                            <select
-                              value={funcionario.statusPrestserv}
-                              onChange={(e) => {
-                                const novoStatus = e.target.value;
-                                if (
-                                  novoStatus !== funcionario.statusPrestserv
-                                ) {
-                                  updatePrestservStatus(
-                                    funcionario.id,
-                                    novoStatus
+                                <div>
+                                  Atualizado:{" "}
+                                  {new Date(
+                                    funcionario.updatedAt
+                                  ).toLocaleDateString("pt-BR", {
+                                    day: "2-digit",
+                                    month: "2-digit",
+                                    year: "numeric",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-3 py-2 text-xs text-gray-700">
+                            <div className="space-y-1">
+                              <div className="text-xs">
+                                <span className="font-medium text-gray-600">
+                                  De:
+                                </span>{" "}
+                                <span className="font-mono">
+                                  {funcionario.contratoOrigem}
+                                </span>
+                                <span className="text-gray-500 truncate max-w-[160px] inline-block align-bottom">
+                                  {" "}
+                                  · {funcionario.contratoOrigemNome}
+                                </span>
+                              </div>
+                              <div className="text-xs">
+                                <span className="font-medium text-gray-600">
+                                  Para:
+                                </span>{" "}
+                                <span className="font-mono">
+                                  {funcionario.contratoDestino}
+                                </span>
+                                <span className="text-gray-500 truncate max-w-[160px] inline-block align-bottom">
+                                  {" "}
+                                  · {funcionario.contratoDestinoNome}
+                                </span>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-3 py-2 text-xs text-gray-900">
+                            <div className="space-y-1">
+                              <div className="font-medium text-xs">
+                                <span>
+                                  Nome: {funcionario.nome}
+                                  {funcionario.funcaoAlteradaRecentemente && (
+                                    <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-yellow-100 text-yellow-800 px-2 py-0.5 text-[10px] font-semibold">
+                                      ⚠️ Função alterada recentemente
+                                    </span>
+                                  )}
+                                  {(() => {
+                                    const precisaAtencao =
+                                      funcionarioDemitidoPrecisaAtencao(
+                                        funcionario
+                                      );
+                                    const alertaDemitido = precisaAtencao
+                                      ? getTipoAlertaDemitido(funcionario)
+                                      : null;
+                                    return (
+                                      alertaDemitido && (
+                                        <div className="group relative">
+                                          {React.createElement(
+                                            alertaDemitido.icon,
+                                            {
+                                              className: `h-5 w-5 ${
+                                                alertaDemitido.classes.split(
+                                                  " "
+                                                )[0]
+                                              } cursor-help`,
+                                            }
+                                          )}
+                                          <div
+                                            className={`absolute z-50 invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity duration-200 bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 text-sm rounded-lg border shadow-lg max-w-xs whitespace-nowrap ${alertaDemitido.classes}`}
+                                          >
+                                            <div className="font-medium mb-1">
+                                              ⚠️ Atenção Necessária
+                                            </div>
+                                            <div>{alertaDemitido.mensagem}</div>
+                                            <div
+                                              className={`absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent ${
+                                                alertaDemitido.classes.includes(
+                                                  "red"
+                                                )
+                                                  ? "border-t-red-200"
+                                                  : alertaDemitido.classes.includes(
+                                                      "orange"
+                                                    )
+                                                  ? "border-t-orange-200"
+                                                  : "border-t-yellow-200"
+                                              }`}
+                                            ></div>
+                                          </div>
+                                        </div>
+                                      )
+                                    );
+                                  })()}
+                                </span>
+                              </div>
+                              <div className="text-xs text-gray-500 flex items-center gap-2">
+                                <span>Matricula: {funcionario.matricula}</span>
+                                {funcionario.observacoesPrestserv && (
+                                  <button
+                                    className="inline-flex items-center gap-1 text-yellow-700 bg-yellow-50 border border-yellow-200 px-1.5 py-0.5 rounded hover:bg-yellow-100"
+                                    title="Inconsistência informada por setor"
+                                    onClick={() => {
+                                      setObsTitulo(
+                                        `${funcionario.nome} (${funcionario.matricula})`
+                                      );
+                                      setObsTexto(
+                                        funcionario.observacoesPrestserv || ""
+                                      );
+                                      setShowObsModal(true);
+                                    }}
+                                  >
+                                    <ExclamationTriangleIcon className="w-4 h-4" />
+                                    <span className="text-[10px] font-semibold">
+                                      Atenção
+                                    </span>
+                                  </button>
+                                )}
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                Sispat: {funcionario.sispat || "-"},
+                              </div>
+                              <div>
+                                Status Prestserv:
+                                <span
+                                  className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${getStatusColor(
+                                    funcionario.statusFuncionario ??
+                                      "SEM CADASTRO"
+                                  )}`}
+                                >
+                                  {funcionario.statusFuncionario ||
+                                    "SEM CADASTRO"}
+                                </span>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-3 py-2 text-xs text-gray-700">
+                            <span
+                              className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${getStatusColor(
+                                funcionario.statusTarefas
+                              )}`}
+                            >
+                              {getStatusGeralLabel(funcionario.statusTarefas)}
+                            </span>
+                          </td>
+
+                          {/* Coluna Responsável */}
+                          <td className="px-3 py-2 text-xs text-gray-700 text-center">
+                            <span
+                              className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${getResponsavelColor(
+                                getResponsavelAtual(funcionario)
+                              )}`}
+                            >
+                              {getResponsavelAtual(funcionario)}
+                            </span>
+                          </td>
+
+                          {/* Coluna Progresso por Setor */}
+                          <td className="px-3 py-2 text-xs text-gray-700">
+                            <div className="space-y-1">
+                              {["RH", "MEDICINA", "TREINAMENTO"].map(
+                                (setor) => {
+                                  const progresso =
+                                    funcionario.progressoPorSetor?.find(
+                                      (p) => p.setor === setor
+                                    );
+                                  const hasData =
+                                    progresso && progresso.total > 0;
+                                  const nomeSetor =
+                                    setor === "RH"
+                                      ? "Recursos Humanos"
+                                      : setor === "MEDICINA"
+                                      ? "Medicina"
+                                      : "Treinamento";
+                                  return (
+                                    <div
+                                      key={setor}
+                                      className="flex items-center justify-between py-0.5"
+                                      title={
+                                        hasData
+                                          ? `${nomeSetor}: ${progresso.concluidas}/${progresso.total} (${progresso.percentual}%)\n\nLegenda:\n● Verde: Concluído\n● Amarelo: Em progresso\n● Cinza: Pendente`
+                                          : `${nomeSetor}: Sem tarefas\n\nLegenda:\n● Verde: Concluído\n● Amarelo: Em progresso\n● Cinza: Pendente`
+                                      }
+                                    >
+                                      <div className="flex items-center space-x-1">
+                                        <span className="text-xs">
+                                          {getSetorIcon(setor)}
+                                        </span>
+                                        <span className="text-xs font-medium text-gray-700">
+                                          {nomeSetor}
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center space-x-1">
+                                        <span className="text-xs font-mono text-gray-600 bg-gray-100 px-1 rounded">
+                                          {hasData
+                                            ? `${progresso.concluidas}/${progresso.total}`
+                                            : "0/0"}
+                                        </span>
+                                        <span
+                                          className={`text-sm ${
+                                            hasData
+                                              ? getProgressColor(
+                                                  progresso.concluidas,
+                                                  progresso.total
+                                                )
+                                              : "text-gray-300"
+                                          }`}
+                                        >
+                                          {hasData
+                                            ? getProgressIcon(
+                                                progresso.concluidas,
+                                                progresso.total
+                                              )
+                                            : "●"}
+                                        </span>
+                                      </div>
+                                    </div>
                                   );
                                 }
-                              }}
-                              disabled={updatingStatus === funcionario.id}
-                              className={`w-full text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 ${getStatusColor(
-                                funcionario.statusPrestserv
-                              )} font-medium`}
-                            >
-                              <option value={funcionario.statusPrestserv}>
-                                {getStatusLabel(funcionario.statusPrestserv)}
-                              </option>
-                              {getValidStatusOptions(funcionario)
-                                .filter(
-                                  (status) =>
-                                    status !== funcionario.statusPrestserv
-                                )
-                                .map((status) => (
-                                  <option key={status} value={status}>
-                                    {getStatusLabel(status)}
-                                  </option>
-                                ))}
-                            </select>
-                            {updatingStatus === funcionario.id && (
-                              <div className="text-xs text-gray-500 flex items-center">
-                                <span className="animate-spin mr-1">⏳</span>
-                                Atualizando...
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-3 py-2 text-xs text-gray-700">
-                          <div className="flex items-center space-x-2">
-                            {/* Mostrar botão Aprovar/Rejeitar apenas se statusTarefas for APROVAR SOLICITACAO */}
-                            {funcionario.statusTarefas ===
-                              "APROVAR SOLICITAÇÃO" && (
-                              <button
-                                onClick={() =>
-                                  abrirModalConfirmacao(funcionario)
-                                }
-                                className="inline-flex items-center px-2 py-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded hover:bg-blue-100 transition-colors focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                title="Aprovar ou rejeitar solicitação"
-                              >
-                                <PlusIcon className="w-3 h-3 mr-1" />
-                                Aprovar/Rejeitar
-                              </button>
-                            )}
-
-                            {/* Mostrar botão Detalhes apenas se statusTarefas for SUBMETER RASCUNHO ou SOLICITAÇÃO REJEITADA */}
-                            {funcionario.statusTarefas !== "CANCELADO" &&
-                              funcionario.statusTarefas !==
-                                "SOLICITAÇÃO REJEITADA" &&
-                              funcionario.statusTarefas !==
-                                "APROVAR SOLICITAÇÃO" && (
-                                <button
-                                  onClick={() =>
-                                    router.push(
-                                      `/prestserv/remanejamentos/${funcionario.id}`
-                                    )
-                                  }
-                                  className="inline-flex items-center px-2 py-1 text-xs font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded hover:bg-gray-100 transition-colors focus:outline-none focus:ring-1 focus:ring-gray-500"
-                                  title="Ver detalhes da solicitação"
-                                >
-                                  <EyeIcon className="w-3 h-3 mr-1" />
-                                  Detalhes
-                                </button>
                               )}
-                            {/* Botão para listar tarefas - ocultar para APROVAR SOLICITAÇÃO, REJEITADO, CANCELADO */}
-                            {funcionario.statusTarefas !==
-                              "APROVAR SOLICITAÇÃO" &&
-                              funcionario.statusTarefas !== "REJEITADO" &&
-                              funcionario.statusTarefas !==
-                                "SOLICITAÇÃO REJEITADA" &&
-                              funcionario.statusTarefas !== "CANCELADO" && (
-                                <button
-                                  onClick={() => {
-                                    setSelectedFuncionario(funcionario);
-                                    setShowListaTarefasModal(true);
-                                  }}
-                                  className="inline-flex items-center px-2 py-1 text-xs font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 rounded hover:bg-indigo-100 transition-colors focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                                  title="Listar tarefas do funcionário"
-                                >
-                                  <ClipboardDocumentListIcon className="w-3 h-3 mr-1" />
-                                  Tarefas
-                                </button>
-                              )}
-
-                            {/* Botão para aprovar todas as tarefas (apenas para teste, visível somente para admin) */}
-                            {isAdmin() &&
-                              funcionario.statusTarefas !==
-                                "APROVAR SOLICITAÇÃO" &&
-                              funcionario.statusTarefas !== "REJEITADO" &&
-                              funcionario.statusTarefas !==
-                                "SOLICITAÇÃO REJEITADA" &&
-                              funcionario.statusTarefas !== "CANCELADO" &&
-                              funcionario.statusTarefas !== "CONCLUIDO" && (
-                                <button
-                                  onClick={() =>
-                                    aprovarTodasTarefas(funcionario.id)
-                                  }
-                                  disabled={
-                                    aprovandoTodasTarefas === funcionario.id
-                                  }
-                                  className="inline-flex items-center px-2 py-1 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded hover:bg-green-100 transition-colors focus:outline-none focus:ring-1 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                                  title="Aprovar todas as tarefas (para teste)"
-                                >
-                                  {aprovandoTodasTarefas === funcionario.id ? (
-                                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-green-700 mr-1"></div>
-                                  ) : (
-                                    <CheckIcon className="w-3 h-3 mr-1" />
-                                  )}
-                                  {aprovandoTodasTarefas === funcionario.id
-                                    ? "Aprovando..."
-                                    : "Aprovar Todas"}
-                                </button>
-                              )}
-                            {isAdmin() && funcionario.remanejamentoId && (
-                              <button
-                                onClick={async () => {
-                                  const confirmar =
-                                    typeof window !== "undefined"
-                                      ? window.confirm(
-                                          `Excluir remanejamento de ${funcionario.nome} (${funcionario.matricula})?`
-                                        )
-                                      : true;
-                                  if (!confirmar) return;
-                                  try {
-                                    const idsToTry = [
-                                      funcionario.remanejamentoId,
+                            </div>
+                          </td>
+                          <td className="px-3 py-2 text-xs text-gray-700">
+                            <div className="space-y-1">
+                              <select
+                                value={funcionario.statusPrestserv}
+                                onChange={(e) => {
+                                  const novoStatus = e.target.value;
+                                  if (
+                                    novoStatus !== funcionario.statusPrestserv
+                                  ) {
+                                    updatePrestservStatus(
                                       funcionario.id,
-                                    ].filter(Boolean);
-                                    let lastStatus = 0;
-                                    let lastDetail = "";
-                                    for (const tryId of idsToTry) {
-                                      // 1) Tentar primeiro a rota base com query param (estável em dev)
-                                      const queryUrl = `/api/logistica/remanejamentos?id=${encodeURIComponent(
-                                        String(tryId)
-                                      )}`;
-                                      console.log(
-                                        "Solicitando DELETE via query param",
-                                        { id: tryId, url: queryUrl }
-                                      );
-                                      let statusQuery = 0;
-                                      let contentTypeQuery = "";
-                                      try {
-                                        const respQuery = await fetch(
-                                          queryUrl,
-                                          {
-                                            method: "DELETE",
-                                            credentials: "include",
-                                            headers: {
-                                              Accept: "application/json",
-                                            },
-                                          }
-                                        );
-                                        statusQuery = respQuery.status;
-                                        contentTypeQuery =
-                                          respQuery.headers.get(
-                                            "content-type"
-                                          ) || "";
-                                        if (
-                                          respQuery.ok &&
-                                          contentTypeQuery.includes(
-                                            "application/json"
-                                          ) &&
-                                          !contentTypeQuery.includes(
-                                            "text/html"
-                                          )
-                                        ) {
-                                          console.log(
-                                            "DELETE /logistica/remanejamentos (query) sucesso",
-                                            {
-                                              status: statusQuery,
-                                              id: tryId,
-                                              contentType: contentTypeQuery,
-                                            }
-                                          );
-                                          showToast(
-                                            "Remanejamento excluído com sucesso",
-                                            "success"
-                                          );
-                                          await fetchFuncionarios();
-                                          return;
-                                        }
-                                        let errorDetailQuery = "";
-                                        try {
-                                          const rawTextQuery =
-                                            await respQuery.text();
-                                          try {
-                                            const parsedQuery =
-                                              rawTextQuery &&
-                                              contentTypeQuery.includes(
-                                                "application/json"
-                                              )
-                                                ? JSON.parse(rawTextQuery)
-                                                : {};
-                                            errorDetailQuery =
-                                              (parsedQuery as any).error ||
-                                              (parsedQuery as any).message ||
-                                              rawTextQuery ||
-                                              `HTTP ${statusQuery}`;
-                                          } catch {
-                                            errorDetailQuery =
-                                              rawTextQuery ||
-                                              `HTTP ${statusQuery}`;
-                                          }
-                                        } catch {
-                                          errorDetailQuery = `HTTP ${statusQuery}`;
-                                        }
-                                        console.warn(
-                                          "DELETE /logistica/remanejamentos via query falhou",
-                                          {
-                                            status: statusQuery,
-                                            errorDetail: errorDetailQuery,
-                                            id: tryId,
-                                            url: queryUrl,
-                                            contentType: contentTypeQuery,
-                                          }
-                                        );
-                                        lastStatus = statusQuery;
-                                        lastDetail = errorDetailQuery || "";
-                                      } catch (errQuery) {
-                                        console.warn(
-                                          "DELETE /logistica/remanejamentos (query) exceção",
-                                          {
-                                            id: tryId,
-                                            url: queryUrl,
-                                            err: errQuery,
-                                          }
-                                        );
-                                        lastStatus = statusQuery;
-                                        lastDetail =
-                                          (errQuery as any)?.message ||
-                                          "Erro de rede";
-                                      }
-
-                                      // 2) Rota dinâmica desativada por estabilidade em dev; seguimos para o próximo ID
-                                      // tenta próximo ID (fallback)
-                                    }
-                                    throw new Error(
-                                      lastDetail ||
-                                        `Falha ao excluir remanejamento (HTTP ${lastStatus})`
-                                    );
-                                  } catch (err: any) {
-                                    console.error(
-                                      "Erro ao excluir remanejamento:",
-                                      err
-                                    );
-                                    showToast(
-                                      err?.message ||
-                                        "Erro ao excluir remanejamento",
-                                      "error"
+                                      novoStatus
                                     );
                                   }
                                 }}
-                                className="inline-flex items-center px-2 py-1 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded hover:bg-red-100 transition-colors focus:outline-none focus:ring-1 focus:ring-red-500"
-                                title="Excluir remanejamento"
+                                disabled={updatingStatus === funcionario.id}
+                                className={`w-full text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 ${getStatusColor(
+                                  funcionario.statusPrestserv
+                                )} font-medium`}
                               >
-                                <XMarkIcon className="w-3 h-3 mr-1" />
-                                Excluir
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                                <option value={funcionario.statusPrestserv}>
+                                  {getStatusLabel(funcionario.statusPrestserv)}
+                                </option>
+                                {getValidStatusOptions(funcionario)
+                                  .filter(
+                                    (status) =>
+                                      status !== funcionario.statusPrestserv
+                                  )
+                                  .map((status) => (
+                                    <option key={status} value={status}>
+                                      {getStatusLabel(status)}
+                                    </option>
+                                  ))}
+                              </select>
+                              {updatingStatus === funcionario.id && (
+                                <div className="text-xs text-gray-500 flex items-center">
+                                  <span className="animate-spin mr-1">⏳</span>
+                                  Atualizando...
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-3 py-2 text-xs text-gray-700">
+                            <div className="flex items-center space-x-2">
+                              {/* Mostrar botão Aprovar/Rejeitar apenas se statusTarefas for APROVAR SOLICITACAO */}
+                              {funcionario.statusTarefas ===
+                                "APROVAR SOLICITAÇÃO" && (
+                                <button
+                                  onClick={() =>
+                                    abrirModalConfirmacao(funcionario)
+                                  }
+                                  className="inline-flex items-center px-2 py-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded hover:bg-blue-100 transition-colors focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                  title="Aprovar ou rejeitar solicitação"
+                                >
+                                  <PlusIcon className="w-3 h-3 mr-1" />
+                                  Aprovar/Rejeitar
+                                </button>
+                              )}
+
+                              {/* Mostrar botão Detalhes apenas se statusTarefas for SUBMETER RASCUNHO ou SOLICITAÇÃO REJEITADA */}
+                              {funcionario.statusTarefas !== "CANCELADO" &&
+                                funcionario.statusTarefas !==
+                                  "SOLICITAÇÃO REJEITADA" &&
+                                funcionario.statusTarefas !==
+                                  "APROVAR SOLICITAÇÃO" && (
+                                  <button
+                                    onClick={() =>
+                                      router.push(
+                                        `/prestserv/remanejamentos/${funcionario.id}`
+                                      )
+                                    }
+                                    className="inline-flex items-center px-2 py-1 text-xs font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded hover:bg-gray-100 transition-colors focus:outline-none focus:ring-1 focus:ring-gray-500"
+                                    title="Ver detalhes da solicitação"
+                                  >
+                                    <EyeIcon className="w-3 h-3 mr-1" />
+                                    Detalhes
+                                  </button>
+                                )}
+                              {/* Botão para listar tarefas - ocultar para APROVAR SOLICITAÇÃO, REJEITADO, CANCELADO */}
+                              {funcionario.statusTarefas !==
+                                "APROVAR SOLICITAÇÃO" &&
+                                funcionario.statusTarefas !== "REJEITADO" &&
+                                funcionario.statusTarefas !==
+                                  "SOLICITAÇÃO REJEITADA" &&
+                                funcionario.statusTarefas !== "CANCELADO" && (
+                                  <button
+                                    onClick={() => {
+                                      setSelectedFuncionario(funcionario);
+                                      setShowListaTarefasModal(true);
+                                    }}
+                                    className="inline-flex items-center px-2 py-1 text-xs font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 rounded hover:bg-indigo-100 transition-colors focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                    title="Listar tarefas do funcionário"
+                                  >
+                                    <ClipboardDocumentListIcon className="w-3 h-3 mr-1" />
+                                    Tarefas
+                                  </button>
+                                )}
+
+                              {/* Botão para aprovar todas as tarefas (apenas para teste, visível somente para admin) */}
+                              {isAdmin() &&
+                                funcionario.statusTarefas !==
+                                  "APROVAR SOLICITAÇÃO" &&
+                                funcionario.statusTarefas !== "REJEITADO" &&
+                                funcionario.statusTarefas !==
+                                  "SOLICITAÇÃO REJEITADA" &&
+                                funcionario.statusTarefas !== "CANCELADO" &&
+                                funcionario.statusTarefas !== "CONCLUIDO" && (
+                                  <button
+                                    onClick={() =>
+                                      aprovarTodasTarefas(funcionario.id)
+                                    }
+                                    disabled={
+                                      aprovandoTodasTarefas === funcionario.id
+                                    }
+                                    className="inline-flex items-center px-2 py-1 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded hover:bg-green-100 transition-colors focus:outline-none focus:ring-1 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    title="Aprovar todas as tarefas (para teste)"
+                                  >
+                                    {aprovandoTodasTarefas ===
+                                    funcionario.id ? (
+                                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-green-700 mr-1"></div>
+                                    ) : (
+                                      <CheckIcon className="w-3 h-3 mr-1" />
+                                    )}
+                                    {aprovandoTodasTarefas === funcionario.id
+                                      ? "Aprovando..."
+                                      : "Aprovar Todas"}
+                                  </button>
+                                )}
+                              {isAdmin() && funcionario.remanejamentoId && (
+                                <button
+                                  onClick={async () => {
+                                    const confirmar =
+                                      typeof window !== "undefined"
+                                        ? window.confirm(
+                                            `Excluir remanejamento de ${funcionario.nome} (${funcionario.matricula})?`
+                                          )
+                                        : true;
+                                    if (!confirmar) return;
+                                    try {
+                                      const idsToTry = [
+                                        funcionario.remanejamentoId,
+                                        funcionario.id,
+                                      ].filter(Boolean);
+                                      let lastStatus = 0;
+                                      let lastDetail = "";
+                                      for (const tryId of idsToTry) {
+                                        // 1) Tentar primeiro a rota base com query param (estável em dev)
+                                        const queryUrl = `/api/logistica/remanejamentos?id=${encodeURIComponent(
+                                          String(tryId)
+                                        )}`;
+                                        console.log(
+                                          "Solicitando DELETE via query param",
+                                          { id: tryId, url: queryUrl }
+                                        );
+                                        let statusQuery = 0;
+                                        let contentTypeQuery = "";
+                                        try {
+                                          const respQuery = await fetch(
+                                            queryUrl,
+                                            {
+                                              method: "DELETE",
+                                              credentials: "include",
+                                              headers: {
+                                                Accept: "application/json",
+                                              },
+                                            }
+                                          );
+                                          statusQuery = respQuery.status;
+                                          contentTypeQuery =
+                                            respQuery.headers.get(
+                                              "content-type"
+                                            ) || "";
+                                          if (
+                                            respQuery.ok &&
+                                            contentTypeQuery.includes(
+                                              "application/json"
+                                            ) &&
+                                            !contentTypeQuery.includes(
+                                              "text/html"
+                                            )
+                                          ) {
+                                            console.log(
+                                              "DELETE /logistica/remanejamentos (query) sucesso",
+                                              {
+                                                status: statusQuery,
+                                                id: tryId,
+                                                contentType: contentTypeQuery,
+                                              }
+                                            );
+                                            showToast(
+                                              "Remanejamento excluído com sucesso",
+                                              "success"
+                                            );
+                                            await fetchFuncionarios();
+                                            return;
+                                          }
+                                          let errorDetailQuery = "";
+                                          try {
+                                            const rawTextQuery =
+                                              await respQuery.text();
+                                            try {
+                                              const parsedQuery =
+                                                rawTextQuery &&
+                                                contentTypeQuery.includes(
+                                                  "application/json"
+                                                )
+                                                  ? JSON.parse(rawTextQuery)
+                                                  : {};
+                                              errorDetailQuery =
+                                                (parsedQuery as any).error ||
+                                                (parsedQuery as any).message ||
+                                                rawTextQuery ||
+                                                `HTTP ${statusQuery}`;
+                                            } catch {
+                                              errorDetailQuery =
+                                                rawTextQuery ||
+                                                `HTTP ${statusQuery}`;
+                                            }
+                                          } catch {
+                                            errorDetailQuery = `HTTP ${statusQuery}`;
+                                          }
+                                          console.warn(
+                                            "DELETE /logistica/remanejamentos via query falhou",
+                                            {
+                                              status: statusQuery,
+                                              errorDetail: errorDetailQuery,
+                                              id: tryId,
+                                              url: queryUrl,
+                                              contentType: contentTypeQuery,
+                                            }
+                                          );
+                                          lastStatus = statusQuery;
+                                          lastDetail = errorDetailQuery || "";
+                                        } catch (errQuery) {
+                                          console.warn(
+                                            "DELETE /logistica/remanejamentos (query) exceção",
+                                            {
+                                              id: tryId,
+                                              url: queryUrl,
+                                              err: errQuery,
+                                            }
+                                          );
+                                          lastStatus = statusQuery;
+                                          lastDetail =
+                                            (errQuery as any)?.message ||
+                                            "Erro de rede";
+                                        }
+
+                                        // 2) Rota dinâmica desativada por estabilidade em dev; seguimos para o próximo ID
+                                        // tenta próximo ID (fallback)
+                                      }
+                                      throw new Error(
+                                        lastDetail ||
+                                          `Falha ao excluir remanejamento (HTTP ${lastStatus})`
+                                      );
+                                    } catch (err: any) {
+                                      console.error(
+                                        "Erro ao excluir remanejamento:",
+                                        err
+                                      );
+                                      showToast(
+                                        err?.message ||
+                                          "Erro ao excluir remanejamento",
+                                        "error"
+                                      );
+                                    }
+                                  }}
+                                  className="inline-flex items-center px-2 py-1 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded hover:bg-red-100 transition-colors focus:outline-none focus:ring-1 focus:ring-red-500"
+                                  title="Excluir remanejamento"
+                                >
+                                  <XMarkIcon className="w-3 h-3 mr-1" />
+                                  Excluir
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    }
+                  )}
                 </tbody>
               </table>
             </div>
@@ -5353,13 +5363,13 @@ function FuncionariosPageContent() {
                         <td className="px-3 py-2 text-xs text-gray-700">
                           <div className="space-y-1">
                             <div>
-                              Origem: {funcionario.contratoOrigem} - {" "}
+                              Origem: {funcionario.contratoOrigem} -{" "}
                               <span className="text-gray-500">
                                 {funcionario.contratoOrigemNome}
                               </span>
                             </div>
                             <div>
-                              Destino: {funcionario.contratoDestino} - {" "}
+                              Destino: {funcionario.contratoDestino} -{" "}
                               <span className="text-gray-500">
                                 {funcionario.contratoDestinoNome}
                               </span>
@@ -5409,7 +5419,10 @@ function FuncionariosPageContent() {
                         <td className="px-3 py-2 text-xs text-gray-700">
                           <div className="grid grid-cols-3 gap-1">
                             {funcionario.progressoPorSetor?.map((p) => (
-                              <div key={p.setor} className="flex items-center gap-1">
+                              <div
+                                key={p.setor}
+                                className="flex items-center gap-1"
+                              >
                                 <span className="text-gray-500">
                                   {getSetorIcon(p.setor)}
                                 </span>
@@ -5437,9 +5450,10 @@ function FuncionariosPageContent() {
                         </td>
                         <td className="px-3 py-2 text-xs text-gray-700">
                           <div className="flex items-center gap-2">
-                            <span className={`px-2 py-0.5 text-[10px] rounded ${getStatusColor(
-                              funcionario.statusPrestserv
-                            )} border`}
+                            <span
+                              className={`px-2 py-0.5 text-[10px] rounded ${getStatusColor(
+                                funcionario.statusPrestserv
+                              )} border`}
                             >
                               {getStatusLabel(funcionario.statusPrestserv)}
                             </span>
@@ -5452,8 +5466,13 @@ function FuncionariosPageContent() {
                                 value={funcionario.statusPrestserv}
                                 onChange={(e) => {
                                   const novoStatus = e.target.value;
-                                  if (novoStatus !== funcionario.statusPrestserv) {
-                                    updatePrestservStatus(funcionario.id, novoStatus);
+                                  if (
+                                    novoStatus !== funcionario.statusPrestserv
+                                  ) {
+                                    updatePrestservStatus(
+                                      funcionario.id,
+                                      novoStatus
+                                    );
                                   }
                                 }}
                                 className="px-2 py-1 text-[11px] bg-white border border-gray-300 rounded hover:border-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -5533,11 +5552,14 @@ function FuncionariosPageContent() {
                   <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
                     <div className="flex items-center space-x-4">
                       <p className="text-sm text-gray-700">
-                        Mostrando {" "}
+                        Mostrando{" "}
                         <span className="font-medium">{indiceInicio + 1}</span>{" "}
                         até{" "}
                         <span className="font-medium">
-                          {Math.min(indiceFim, funcionariosOrdenadosConcluidos.length)}
+                          {Math.min(
+                            indiceFim,
+                            funcionariosOrdenadosConcluidos.length
+                          )}
                         </span>{" "}
                         de{" "}
                         <span className="font-medium">
