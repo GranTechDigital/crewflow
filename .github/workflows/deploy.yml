@@ -63,7 +63,17 @@ jobs:
           printf '%s\n' "${{ secrets.PROD_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           printf 'Host %s\n  Port %s\n  User root\n  StrictHostKeyChecking no\n' "${{ secrets.PROD_SERVER_HOST }}" "$PORT" >> ~/.ssh/config
-          ssh-keyscan -p "$PORT" -T 10 -H "${{ secrets.PROD_SERVER_HOST }}" >> ~/.ssh/known_hosts || { echo "❌ ssh-keyscan falhou para host '${{ secrets.PROD_SERVER_HOST }}' porta $PORT"; exit 1; }
+          # ssh-keyscan pode falhar por instabilidade de rede/firewall; tentar com retries e não bloquear o deploy
+          set +e
+          ATTEMPTS=10; SLEEP=3; ADDED=0
+          for i in $(seq 1 $ATTEMPTS); do
+            ssh-keyscan -p "$PORT" -T 5 -H "${{ secrets.PROD_SERVER_HOST }}" >> ~/.ssh/known_hosts && { ADDED=1; break; }
+            echo "⚠️ ssh-keyscan tentativa #$i falhou para host '${{ secrets.PROD_SERVER_HOST }}' porta $PORT"; sleep $SLEEP
+          done
+          set -e
+          if [ "$ADDED" -ne 1 ]; then
+            echo "⚠️ ssh-keyscan falhou; prosseguindo com StrictHostKeyChecking=no (config já aplicada)"
+          fi
 
       - name: 💾 Backup banco de dados (produção) antes do deploy
         if: ${{ steps.changes.outputs.prisma == 'true' && (github.event_name != 'workflow_dispatch' || inputs.skip_backup != 'true') }}
