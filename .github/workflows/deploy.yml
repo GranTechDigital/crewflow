@@ -325,6 +325,9 @@ jobs:
             echo "🚀 Applying Postgres migrations only..."
             docker exec crewflow-app-production npx prisma migrate deploy
 
+            echo "🔧 Prisma db push fallback (no migrations to apply) ..."
+            docker exec crewflow-app-production sh -lc 'MIG_COUNT=$(ls -1 prisma/migrations 2>/dev/null | wc -l); if [ "$MIG_COUNT" -le 1 ]; then npx prisma db push --accept-data-loss || true; else echo "ℹ️ Migrations present; skipping db push"; fi'
+
             echo "🌱 Seeding database (idempotent) ..."
             if docker exec crewflow-app-production npm run seed:complete 2>/dev/null; then
               echo "✅ Database seeded successfully"
