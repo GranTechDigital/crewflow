@@ -1,5 +1,9 @@
 name: Deploy CrewFlow to Production
 
+concurrency:
+  group: production-deploy
+  cancel-in-progress: true
+
 on:
   push:
     branches: [main]
@@ -9,6 +13,21 @@ on:
         description: "Nome do run (opcional) — deixe vazio para usar branch/autor"
         type: string
         required: false
+      skip_backup:
+        description: "Pular backup do banco (apenas workflow manual)"
+        type: boolean
+        required: false
+        default: false
+      reset_pgadmin:
+        description: "Resetar credenciais do pgAdmin (apenas workflow manual)"
+        type: boolean
+        required: false
+        default: false
+      run_backfill:
+        description: "Executar backfills (apenas workflow manual)"
+        type: boolean
+        required: false
+        default: false
 
 jobs:
   deploy:
@@ -21,7 +40,7 @@ jobs:
       - name: 🐳 Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: 🔧 Build Docker image (cache disabled for safety)
+      - name: 🔧 Build Docker image (with Buildx cache)
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -29,7 +48,8 @@ jobs:
             crewflow-app:${{ github.sha }}
             crewflow-app:latest
           load: true
-          no-cache: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: 🔑 Setup SSH
         run: |
@@ -46,6 +66,7 @@ jobs:
           ssh-keyscan -p "$PORT" -T 10 -H "${{ secrets.PROD_SERVER_HOST }}" >> ~/.ssh/known_hosts || { echo "❌ ssh-keyscan falhou para host '${{ secrets.PROD_SERVER_HOST }}' porta $PORT"; exit 1; }
 
       - name: 💾 Backup banco de dados (produção) antes do deploy
+        if: ${{ steps.changes.outputs.prisma == 'true' && (github.event_name != 'workflow_dispatch' || inputs.skip_backup != 'true') }}
         run: |
           ssh -o StrictHostKeyChecking=no root@${{ secrets.PROD_SERVER_HOST }} << 'EOF'
             set -e
@@ -85,6 +106,7 @@ jobs:
           EOF
 
       - name: 🧹 Prepare server before image load (safe prune)
+        if: ${{ false }}
         run: |
           ssh -o StrictHostKeyChecking=no root@${{ secrets.PROD_SERVER_HOST }} << 'EOF'
             set -e
@@ -171,13 +193,19 @@ jobs:
           scp -o StrictHostKeyChecking=no "$ENV_FILE" root@${{ secrets.PROD_SERVER_HOST }}:/opt/projetogran/.env.production
           ssh -o StrictHostKeyChecking=no root@${{ secrets.PROD_SERVER_HOST }} "chmod 600 /opt/projetogran/.env.production"
 
-      - name: 🔍 Detect prisma changes
+      - name: 🔍 Detect changes (prisma/compose/scripts)
         id: changes
         uses: dorny/paths-filter@v3
         with:
           filters: |
             prisma:
               - 'prisma/**'
+            compose:
+              - 'docker-compose.yml'
+              - 'Dockerfile'
+              - 'nginx.conf'
+            scripts:
+              - 'scripts/**'
 
       - name: 🚀 Deploy on server
         run: |
@@ -209,13 +237,7 @@ jobs:
             # Garantir rede externa necessária para o compose
             docker network inspect projetogran_crewflow-network >/dev/null 2>&1 || docker network create projetogran_crewflow-network
 
-            # Garantir remoção de containers conflitando por nome (sem afetar staging)
-            docker rm -f crewflow-app-production 2>/dev/null || true
-            docker rm -f postgres-prod 2>/dev/null || true
-            docker rm -f pgadmin-production 2>/dev/null || true
-
-            # Subir serviços via compose com env-file (sem pull, usa imagem carregada localmente)
-          docker compose --env-file /opt/projetogran/.env.production -f /opt/projetogran/docker-compose.yml down || true
+            # Subir serviços via compose com env-file (atualiza apenas o que mudou)
             docker compose --env-file /opt/projetogran/.env.production -f /opt/projetogran/docker-compose.yml up -d
 
             echo "📊 Disk usage after compose up:"
@@ -227,6 +249,7 @@ jobs:
           EOF
 
       - name: 🔐 Reset pgAdmin credentials (force defaults)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.reset_pgadmin == 'true' }}
         run: |
           ssh -o StrictHostKeyChecking=no root@${{ secrets.PROD_SERVER_HOST }} << 'EOF'
             set -e
@@ -273,7 +296,8 @@ jobs:
             fi
           EOF
 
-      - name: 🗄️ Setup Database (run every deploy)
+      - name: 🗄️ Setup Database (only when Prisma changes)
+        if: ${{ steps.changes.outputs.prisma == 'true' }}
         run: |
           ssh -o StrictHostKeyChecking=no root@${{ secrets.PROD_SERVER_HOST }} << 'EOF'
             cd /opt/projetogran
@@ -310,18 +334,25 @@ jobs:
 
           echo "🔎 Ensuring admin user exists..."
           docker exec crewflow-app-production node scripts/ensureAdmin.js || true
+          EOF
 
-          echo "🔁 Running backfill scripts..."
-          docker exec crewflow-app-production node scripts/backfillEventosTarefa.js || true
-          docker exec crewflow-app-production node scripts/backfillCapacitacoes.js || true
-          docker exec crewflow-app-production node scripts/backfill-historico-usuarios.js || true
-          echo "🔁 Backfilling equipeId em eventos de tarefa (setores) ..."
-          docker exec crewflow-app-production node scripts/backfill-tarefa-equipe.cjs --apply --batch=500 || true
-          echo "🔁 Ajustando dataEvento dos eventos CONCLUIDO/CONCLUIDA para dataConclusao da tarefa ..."
-          docker exec crewflow-app-production node scripts/fix-eventos-data-conclusao.cjs --apply --batch=500 || true
+      - name: 🔁 Run backfill scripts (conditional)
+        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.run_backfill == 'true') || steps.changes.outputs.scripts == 'true' }}
+        run: |
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.PROD_SERVER_HOST }} << 'EOF'
+            set -e
+            echo "🔁 Running backfill scripts (conditional)..."
+            docker exec crewflow-app-production node scripts/backfillEventosTarefa.js || true
+            docker exec crewflow-app-production node scripts/backfillCapacitacoes.js || true
+            docker exec crewflow-app-production node scripts/backfill-historico-usuarios.js || true
+            echo "🔁 Backfilling equipeId em eventos de tarefa (setores) ..."
+            docker exec crewflow-app-production node scripts/backfill-tarefa-equipe.cjs --apply --batch=500 || true
+            echo "🔁 Ajustando dataEvento dos eventos CONCLUIDO/CONCLUIDA para dataConclusao da tarefa ..."
+            docker exec crewflow-app-production node scripts/fix-eventos-data-conclusao.cjs --apply --batch=500 || true
           EOF
 
       - name: 🧹 Cleanup old images (keep latest and current SHA)
+        if: ${{ steps.changes.outputs.compose == 'true' }}
         run: |
           ssh -o StrictHostKeyChecking=no root@${{ secrets.PROD_SERVER_HOST }} << 'EOF'
             set -e
@@ -399,6 +430,7 @@ jobs:
           EOF
 
       - name: 🔧 pgAdmin health check and firewall
+        if: ${{ steps.changes.outputs.compose == 'true' }}
         run: |
           ssh -o StrictHostKeyChecking=no root@${{ secrets.PROD_SERVER_HOST }} << 'EOF'
             set +e
