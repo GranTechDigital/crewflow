@@ -56,25 +56,26 @@ export async function GET(request: NextRequest) {
       where: {
         ...(somenteConcluidos
           ? {
-              OR: [
-                { statusTarefas: { in: ["CONCLUIDO", "CONCLUIDA", "SOLICITAÇÃO CONCLUÍDA", "SOLICITAÇÃO CONCLUIDA"] } },
-                { statusTarefas: { contains: "CONCLUID", mode: "insensitive" } },
-                { statusPrestserv: { equals: "VALIDADO", mode: "insensitive" } },
-              ],
-            }
+            OR: [
+              { statusTarefas: { in: ["CONCLUIDO", "CONCLUIDA", "SOLICITAÇÃO CONCLUÍDA", "SOLICITAÇÃO CONCLUIDA"] } },
+              { statusTarefas: { contains: "CONCLUID", mode: "insensitive" } },
+              { statusPrestserv: { equals: "VALIDADO", mode: "insensitive" } },
+            ],
+          }
           : {
-              OR: [
-                { dataConcluido: { gte: inicioJanela } },
-                { updatedAt: { gte: inicioJanela } },
-              ],
-            }),
+            OR: [
+              { dataConcluido: { gte: inicioJanela } },
+              { updatedAt: { gte: inicioJanela } },
+            ],
+          }),
       },
       include: {
         solicitacao: true,
         funcionario: { select: { id: true, nome: true, matricula: true } },
         tarefas: {
           include: {
-            eventosStatus: { include: { equipe: true } },
+            setor: true,
+            eventosStatus: true,
             historico: { include: { equipe: true } },
           },
         },
@@ -152,9 +153,10 @@ export async function GET(request: NextRequest) {
         return sRaw;
       };
       const deriveSetor = (t: any) => {
-        const evNome = (t.eventosStatus || []).map((e: any) => e.equipe?.nome).filter(Boolean)[0] as string | undefined;
-        const evSet = toSetor(evNome);
-        if (evSet === 'RH' || evSet === 'MEDICINA' || evSet === 'TREINAMENTO') return evSet;
+        const tarefaSetorNome = t.setor?.nome as string | undefined;
+        const tsSet = toSetor(tarefaSetorNome);
+        if (tsSet === 'RH' || tsSet === 'MEDICINA' || tsSet === 'TREINAMENTO') return tsSet;
+        // equipe removida da tarefa; manter fallback por outros campos
         const histNome = (t.historico || []).map((h: any) => h.equipe?.nome).filter(Boolean)[0] as string | undefined;
         const histSet = toSetor(histNome);
         if (histSet === 'RH' || histSet === 'MEDICINA' || histSet === 'TREINAMENTO') return histSet;

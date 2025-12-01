@@ -96,7 +96,7 @@ export async function PUT(
     }
     
     // Atualizar a tarefa para concluída
-    const tarefaAtualizada = await prisma.tarefaRemanejamento.update({
+    let tarefaAtualizada = await prisma.tarefaRemanejamento.update({
       where: {
         id: id,
       },
@@ -135,20 +135,68 @@ export async function PUT(
     }
 
     try {
-      const eventoData = {
-        tarefaId: tarefaAtualizada.id,
-        remanejamentoFuncionarioId: tarefaAtualizada.remanejamentoFuncionarioId,
-        statusAnterior: tarefaAtual.status,
-        statusNovo: "CONCLUIDO",
-        observacoes: undefined,
-        usuarioResponsavelId: usuarioAutenticado?.id ?? undefined,
-        equipeId: usuarioAutenticado?.equipeId ?? undefined,
+      const norm = (s: string | null | undefined) => (s || '').normalize('NFD').replace(/[^A-Za-z0-9\s]/g, '').trim().toUpperCase();
+      const detectSetor = (s: string | null | undefined) => {
+        const v = norm(s);
+        if (!v) return '';
+        if (v.includes('TREIN')) return 'TREINAMENTO';
+        if (v.includes('MEDIC')) return 'MEDICINA';
+        if (v.includes('RECURSOS') || v.includes('HUMANOS') || v.includes(' RH') || v === 'RH' || v.includes('RH')) return 'RH';
+        return v;
       };
-      console.log("Criando TarefaStatusEvento:", eventoData);
-      const evento = await prisma.tarefaStatusEvento.create({
-        data: eventoData,
+      async function findEquipeIdBySetor(setor: string) {
+        const s = norm(setor);
+        if (!s) return null;
+        if (s === 'RH') {
+          const e = await prisma.equipe.findFirst({ where: { OR: [{ nome: { contains: 'RH', mode: 'insensitive' } }, { nome: { contains: 'RECURSOS', mode: 'insensitive' } }, { nome: { contains: 'HUMANOS', mode: 'insensitive' } }] }, select: { id: true } });
+          return e?.id ?? null;
+        }
+        if (s === 'MEDICINA') {
+          const e = await prisma.equipe.findFirst({ where: { nome: { contains: 'MEDIC', mode: 'insensitive' } }, select: { id: true } });
+          return e?.id ?? null;
+        }
+        if (s === 'TREINAMENTO') {
+          const e = await prisma.equipe.findFirst({ where: { nome: { contains: 'TREIN', mode: 'insensitive' } }, select: { id: true } });
+          return e?.id ?? null;
+        }
+        const e = await prisma.equipe.findFirst({ where: { nome: { equals: s, mode: 'insensitive' } }, select: { id: true } });
+        return e?.id ?? null;
+      }
+      let setorBase = '';
+      if (tarefaAtualizada.treinamentoId) setorBase = 'TREINAMENTO';
+      if (!setorBase && tarefaAtualizada.tarefaPadraoId) {
+        const tp = await prisma.tarefaPadrao.findUnique({ where: { id: tarefaAtualizada.tarefaPadraoId }, select: { setor: true } });
+        setorBase = tp?.setor || '';
+      }
+      if (!setorBase) setorBase = tarefaAtualizada.responsavel || tarefaAtualizada.tipo || tarefaAtualizada.descricao || '';
+      const eqId = await findEquipeIdBySetor(detectSetor(setorBase));
+      if (eqId && tarefaAtualizada.setorId !== eqId) {
+        try {
+          tarefaAtualizada = await prisma.tarefaRemanejamento.update({
+            where: { id: tarefaAtualizada.id },
+            data: { setorId: eqId },
+            include: {
+              remanejamentoFuncionario: {
+                include: {
+                  funcionario: {
+                    select: { id: true, nome: true, matricula: true, funcao: true },
+                  },
+                },
+              },
+            },
+          });
+        } catch {}
+      }
+      await prisma.tarefaStatusEvento.create({
+        data: {
+          tarefaId: tarefaAtualizada.id,
+          remanejamentoFuncionarioId: tarefaAtualizada.remanejamentoFuncionarioId,
+          statusAnterior: tarefaAtual.status,
+          statusNovo: 'CONCLUIDO',
+          observacoes: undefined,
+          usuarioResponsavelId: usuarioAutenticado?.id ?? undefined,
+        },
       });
-      console.log("Evento de status criado:", evento.id);
     } catch (eventoError) {
       console.error("Erro ao registrar evento de status da tarefa:", eventoError)
     }

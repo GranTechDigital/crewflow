@@ -240,8 +240,8 @@ interface ResultadoPaginado {
 
 // Função auxiliar para filtrar solicitações para processo de criação de tarefas
 function filtrarSolicitacoesParaProcesso(
-  solicitacoes: PrismaSolicitacaoRemanejamento[]
-): PrismaSolicitacaoRemanejamento[] {
+  solicitacoes: SolicitacaoRemanejamentoComplete[]
+): SolicitacaoRemanejamentoComplete[] {
   const statusEmProcesso: StatusTarefasEmProcesso[] = [
     "REPROVAR TAREFAS",
     "ATENDER TAREFAS",
@@ -506,8 +506,8 @@ async function buscarRemanejamentos(
   }
 
   // Filtrar solicitações que não têm funcionários (após a filtragem)
-  let solicitacoesFiltradas = solicitacoes.filter(
-    (s) => s.funcionarios.length > 0
+  let solicitacoesFiltradas: SolicitacaoRemanejamentoComplete[] = (
+    solicitacoes.filter((s) => s.funcionarios.length > 0) as unknown as SolicitacaoRemanejamentoComplete[]
   );
 
   // Aplicar filtro adicional ANTES da paginação se estiver filtrando para processo

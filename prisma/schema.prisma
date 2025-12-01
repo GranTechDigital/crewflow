@@ -212,6 +212,8 @@ model TarefaRemanejamento {
   dataConclusao              DateTime?
   observacoes                String?
   dataVencimento             DateTime?
+  setorId                    Int?
+  setor                      Equipe?                         @relation(name: "TarefaRemanejamentoSetor", fields: [setorId], references: [id])
   historico                  HistoricoRemanejamento[]
   observacoesTarefa          ObservacaoTarefaRemanejamento[]
   remanejamentoFuncionario   RemanejamentoFuncionario        @relation(fields: [remanejamentoFuncionarioId], references: [id], onDelete: Cascade)
@@ -223,7 +225,7 @@ model TarefaRemanejamento {
   @@index([responsavel])
   @@index([tarefaPadraoId])
   @@index([treinamentoId])
-  @@unique([remanejamentoFuncionarioId, tipo, responsavel])
+  @@index([setorId])
 }
 
 model TarefaStatusEvento {
@@ -235,12 +237,10 @@ model TarefaStatusEvento {
   observacoes                String?
   dataEvento                 DateTime                      @default(now())
   usuarioResponsavelId       Int?
-  equipeId                   Int?
 
   tarefa                     TarefaRemanejamento           @relation(fields: [tarefaId], references: [id], onDelete: Cascade)
   remanejamentoFuncionario   RemanejamentoFuncionario      @relation(fields: [remanejamentoFuncionarioId], references: [id], onDelete: Cascade)
   usuario                    Usuario?                      @relation(name: "TarefaEventoUsuarioResponsavel", fields: [usuarioResponsavelId], references: [id])
-  equipe                     Equipe?                       @relation(name: "TarefaEventoEquipeResponsavel", fields: [equipeId], references: [id])
 
   @@index([tarefaId, dataEvento])
   @@index([remanejamentoFuncionarioId])
@@ -331,7 +331,7 @@ model Equipe {
   updatedAt DateTime  @updatedAt
   usuarios  Usuario[]
   historicosEquipe HistoricoRemanejamento[] @relation("HistoricoEquipeResponsavel")
-  eventosStatusTarefas   TarefaStatusEvento[]       @relation("TarefaEventoEquipeResponsavel")
+  tarefasRemanejamentoPorSetor    TarefaRemanejamento[] @relation("TarefaRemanejamentoSetor")
 }
 
 model TarefaPadrao {

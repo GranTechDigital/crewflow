@@ -35,6 +35,8 @@ export interface RemanejamentoFuncionario {
 export interface TarefaRemanejamento {
   id: string;
   remanejamentoFuncionarioId: string;
+  tarefaPadraoId?: number | null;
+  treinamentoId?: number | null;
   tipo: string;
   descricao?: string;
   responsavel: string;
@@ -45,6 +47,7 @@ export interface TarefaRemanejamento {
   dataVencimento?: string;
   dataConclusao?: string;
   observacoes?: string;
+  setorId?: number | null;
 }
 
 export interface SolicitacaoRemanejamento {

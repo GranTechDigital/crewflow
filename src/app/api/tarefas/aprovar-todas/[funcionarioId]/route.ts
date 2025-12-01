@@ -75,18 +75,63 @@ export async function POST(
     // Registrar eventos de status por tarefa
     try {
       if (tarefasPendentes.length > 0) {
-        await prisma.tarefaStatusEvento.createMany({
-          data: tarefasPendentes.map((t) => ({
+        const norm = (s: string | null | undefined) => (s || '').normalize('NFD').replace(/[^A-Za-z0-9\s]/g, '').trim().toUpperCase();
+        const detectSetor = (s: string | null | undefined) => {
+          const v = norm(s);
+          if (!v) return '';
+          if (v.includes('TREIN')) return 'TREINAMENTO';
+          if (v.includes('MEDIC')) return 'MEDICINA';
+          if (v.includes('RECURSOS') || v.includes('HUMANOS') || v.includes(' RH') || v === 'RH' || v.includes('RH')) return 'RH';
+          return v;
+        };
+        async function findEquipeIdBySetor(setor: string) {
+          const s = norm(setor);
+          if (!s) return null;
+          if (s === 'RH') {
+            const e = await prisma.equipe.findFirst({ where: { OR: [{ nome: { contains: 'RH', mode: 'insensitive' } }, { nome: { contains: 'RECURSOS', mode: 'insensitive' } }, { nome: { contains: 'HUMANOS', mode: 'insensitive' } }] }, select: { id: true } });
+            return e?.id ?? null;
+          }
+          if (s === 'MEDICINA') {
+            const e = await prisma.equipe.findFirst({ where: { nome: { contains: 'MEDIC', mode: 'insensitive' } }, select: { id: true } });
+            return e?.id ?? null;
+          }
+          if (s === 'TREINAMENTO') {
+            const e = await prisma.equipe.findFirst({ where: { nome: { contains: 'TREIN', mode: 'insensitive' } }, select: { id: true } });
+            return e?.id ?? null;
+          }
+          const e = await prisma.equipe.findFirst({ where: { nome: { equals: s, mode: 'insensitive' } }, select: { id: true } });
+          return e?.id ?? null;
+        }
+        // Carregar metadados necessários para equipe/setor
+        const tarefasDetalhadas = await prisma.tarefaRemanejamento.findMany({
+          where: { id: { in: tarefasPendentes.map(t => t.id) } },
+          select: { id: true, tarefaPadraoId: true, treinamentoId: true, responsavel: true, tipo: true, descricao: true, setorId: true }
+        });
+        const eventosData = [] as any[];
+        for (const t of tarefasDetalhadas) {
+          let setorBase = '';
+          const tpId = t.tarefaPadraoId;
+          const trId = t.treinamentoId;
+          if (trId) setorBase = 'TREINAMENTO';
+          if (!setorBase && tpId) {
+            const tp = await prisma.tarefaPadrao.findUnique({ where: { id: tpId }, select: { setor: true } });
+            setorBase = tp?.setor || '';
+          }
+          if (!setorBase) setorBase = t.responsavel || t.tipo || t.descricao || '';
+          const eqId = await findEquipeIdBySetor(detectSetor(setorBase));
+          if (eqId && t.setorId !== eqId) {
+            try { await prisma.tarefaRemanejamento.update({ where: { id: t.id }, data: { setorId: eqId } }); } catch {}
+          }
+          eventosData.push({
             tarefaId: t.id,
             remanejamentoFuncionarioId: funcionarioId,
-            statusAnterior: t.status,
-            statusNovo: "CONCLUIDO",
-            observacoes: "Aprovado automaticamente (lote)",
+            statusAnterior: tarefasPendentes.find(x => x.id === t.id)?.status ?? 'PENDENTE',
+            statusNovo: 'CONCLUIDO',
+            observacoes: 'Aprovado automaticamente (lote)',
             usuarioResponsavelId: usuarioAutenticado?.id ?? null,
-            equipeId: usuarioAutenticado?.equipeId ?? null,
-          })),
-          skipDuplicates: true,
-        });
+          });
+        }
+        await prisma.tarefaStatusEvento.createMany({ data: eventosData, skipDuplicates: true });
       }
     } catch (eventoError) {
       console.error("Erro ao registrar eventos de status em lote:", eventoError);

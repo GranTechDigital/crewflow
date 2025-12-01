@@ -273,10 +273,10 @@ export default function RelatorioSLA() {
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="w-full max-w-none mx-auto">
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">
+          <h1 className="text-2xl font-bold text-gray-900">
             Relatório de atendimentos realizados
           </h1>
-          <p className="text-gray-600">Visão por setor</p>
+          <p className="text-sm text-gray-600">Visão por setor</p>
         </div>
 
         {loading && (
@@ -302,7 +302,7 @@ export default function RelatorioSLA() {
                     <button
                       key={tab.id}
                       onClick={() => setActiveTab(tab.id as any)}
-                      className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 transition-colors ${
+                      className={`py-3 px-1 border-b-2 font-medium text-xs flex items-center space-x-2 transition-colors ${
                         activeTab === (tab.id as any)
                           ? "border-blue-500 text-blue-600"
                           : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
@@ -327,12 +327,12 @@ export default function RelatorioSLA() {
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
                       <ChartBarIcon className="h-5 w-5 text-indigo-600" />
-                      <h3 className="text-lg font-semibold text-gray-800">
+                      <h3 className="text-base font-semibold text-gray-800">
                         Tempo médio de conclusão por setor (h)
                       </h3>
                     </div>
                     <div className="flex items-center gap-3 text-sm">
-                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-blue-50 text-blue-700">
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 text-xs">
                         <ClockIcon className="h-4 w-4" /> Média geral:{" "}
                         {mediaGeralHoras}h
                       </span>
@@ -423,12 +423,12 @@ export default function RelatorioSLA() {
                       </div>
                     </div>
                   </div>
-                  <table className="min-w-full text-sm">
+                  <table className="min-w-full text-xs">
                     <thead className="bg-gray-100 sticky top-0 z-10">
                       <tr>
-                        <th className="text-left px-3 py-2">Remanejamento</th>
-                        <th className="text-left px-3 py-2">Funcionário</th>
-                        <th className="text-left px-3 py-2">
+                        <th className="text-left px-2 py-1 text-xs">Remanejamento</th>
+                        <th className="text-left px-2 py-1 text-xs">Funcionário</th>
+                        <th className="text-left px-2 py-1 text-xs">
                           <span className="inline-flex items-center gap-1">
                             <ClockIcon className="h-4 w-4 text-blue-600" />{" "}
                             Total
@@ -445,7 +445,7 @@ export default function RelatorioSLA() {
                           return (
                             <th
                               key={`head-${s}`}
-                              className="text-left px-3 py-2"
+                              className="text-left px-2 py-1 text-xs"
                             >
                               <span className="inline-flex items-center gap-1">
                                 <Icon className="h-4 w-4 text-gray-600" /> {s}
@@ -461,14 +461,14 @@ export default function RelatorioSLA() {
                           key={`det-${r.remanejamentoId}`}
                           className="border-t odd:bg-gray-50 hover:bg-gray-50"
                         >
-                          <td className="px-3 py-2 text-gray-800">
+                          <td className="px-2 py-1 text-gray-800 text-xs">
                             {String(r.remanejamentoId)}
                           </td>
-                          <td className="px-3 py-2 text-gray-800">
+                          <td className="px-2 py-1 text-gray-800 text-xs">
                             {r.funcionario?.nome} ({r.funcionario?.matricula})
                           </td>
-                          <td className="px-3 py-2 text-gray-800">
-                            <span className="inline-flex items-center px-2 py-1 rounded-full bg-blue-50 text-blue-700">
+                          <td className="px-2 py-1 text-gray-800 text-xs">
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 text-xs">
                               {fmtMs(r.totalDurMs)}
                             </span>
                           </td>
@@ -481,14 +481,14 @@ export default function RelatorioSLA() {
                             return (
                               <td
                                 key={`cell-${r.remanejamentoId}-${s}`}
-                                className="px-3 py-2 text-gray-800"
+                                className="px-2 py-1 text-gray-800 text-xs"
                               >
                                 {show ? (
-                                  <span className="inline-flex items-center px-2 py-1 rounded-full bg-green-50 text-green-700">
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-green-50 text-green-700 text-xs">
                                     {fmtMs(ms)}
                                   </span>
                                 ) : (
-                                  <span className="inline-flex items-center px-2 py-1 rounded-full bg-gray-100 text-gray-500">
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 text-xs">
                                     —
                                   </span>
                                 )}
@@ -511,14 +511,14 @@ export default function RelatorioSLA() {
                 enterFrom="opacity-0 translate-y-2"
                 enterTo="opacity-100 translate-y-0"
               >
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-stretch">
+                <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 items-stretch">
                   <div className="flex flex-col gap-4 lg:col-span-1">
                     <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-4 flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium text-gray-600">
+                        <p className="text-xs font-medium text-gray-600">
                           Total de Remanejamentos Concluídos
                         </p>
-                        <p className="text-2xl font-bold text-gray-900">
+                        <p className="text-xl font-bold text-gray-900">
                           {data?.porRemanejamento?.length ?? 0}
                         </p>
                       </div>
@@ -528,10 +528,10 @@ export default function RelatorioSLA() {
                     </div>
                     <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-4 flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium text-gray-600">
+                        <p className="text-xs font-medium text-gray-600">
                           Média duração total
                         </p>
-                        <p className="text-2xl font-bold text-gray-900">
+                        <p className="text-xl font-bold text-gray-900">
                           {fmtMs(detalhadoKPIs.mediaTotalMs)}
                         </p>
                         <p className="text-xs text-gray-500">
@@ -545,7 +545,7 @@ export default function RelatorioSLA() {
                     <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-4">
                       <div className="flex items-center justify-between mb-2">
                         <div>
-                          <p className="text-sm font-medium text-gray-600">
+                          <p className="text-xs font-medium text-gray-600">
                             Ranking por setor (rápido → lento)
                           </p>
                           <p className="text-xs text-gray-500">
@@ -606,10 +606,10 @@ export default function RelatorioSLA() {
                     </div>
                     <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-4 flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium text-gray-600">
+                        <p className="text-xs font-medium text-gray-600">
                           Média de conclusão (geral)
                         </p>
-                        <p className="text-2xl font-bold text-gray-900">
+                        <p className="text-xl font-bold text-gray-900">
                           {mediaGeralHoras}h
                         </p>
                         <p className="text-xs text-gray-500">
@@ -639,7 +639,7 @@ export default function RelatorioSLA() {
                             return (
                               <span
                                 key={`badge-${s}`}
-                                className={`inline-flex items-center px-2 py-1 rounded-full text-xs ${cls}`}
+                                className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-xs ${cls}`}
                               >
                                 {s}: {h}h
                               </span>
@@ -688,17 +688,17 @@ export default function RelatorioSLA() {
                       </div>
                     </div>
                   </div>
-                  <div className="flex flex-col gap-4 lg:col-span-2">
+                  <div className="flex flex-col gap-4 lg:col-span-3">
                     <div className="rounded-2xl bg-white shadow-xl p-4 h-[240px]">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
                           <ChartBarIcon className="h-5 w-5 text-indigo-600" />
-                          <h3 className="text-lg font-semibold text-gray-800">
+                          <h3 className="text-base font-semibold text-gray-800">
                             Tempo médio de conclusão por setor (h)
                           </h3>
                         </div>
                         <div className="flex items-center gap-3 text-sm">
-                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-blue-50 text-blue-700">
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 text-xs">
                             <ClockIcon className="h-4 w-4" /> Média geral:{" "}
                             {mediaGeralHoras}h
                           </span>
@@ -788,7 +788,7 @@ export default function RelatorioSLA() {
                         </div>
                       </div>
                       <div className="h-full overflow-y-auto">
-                        <table className="min-w-full divide-y divide-gray-200 text-sm w-full">
+                        <table className="min-w-full divide-y divide-gray-200 text-xs w-full">
                           <thead className="bg-gray-50 sticky top-0 z-10">
                             <tr>
                               <th className="text-left px-3 py-2 text-xs font-medium text-gray-600 uppercase tracking-wider">

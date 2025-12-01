@@ -2028,9 +2028,12 @@ function FuncionariosPageContent() {
     const total = funcionarios.length;
     const concluidos = funcionarios.filter(
       (f) =>
+        // Critério de tarefas concluídas
         f.statusTarefas === "CONCLUIDO" ||
         f.statusTarefas === "SOLICITAÇÃO CONCLUÍDA" ||
-        f.statusTarefas === "CANCELADO"
+        f.statusTarefas === "CANCELADO" ||
+        // Alinhar com a visão "Concluídos": contar também Prestserv VALIDADO
+        f.statusPrestserv === "VALIDADO"
     ).length;
     const pendentes = funcionarios.filter(
       (f) =>
@@ -5417,28 +5420,68 @@ function FuncionariosPageContent() {
                           </span>
                         </td>
                         <td className="px-3 py-2 text-xs text-gray-700">
-                          <div className="grid grid-cols-3 gap-1">
-                            {funcionario.progressoPorSetor?.map((p) => (
-                              <div
-                                key={p.setor}
-                                className="flex items-center gap-1"
-                              >
-                                <span className="text-gray-500">
-                                  {getSetorIcon(p.setor)}
-                                </span>
-                                <span className="text-[11px] text-gray-700">
-                                  {p.setor}
-                                </span>
-                                <div className="flex-1 h-1.5 bg-gray-200 rounded">
+                          <div className="space-y-1">
+                            {["RH", "MEDICINA", "TREINAMENTO"].map(
+                              (setor) => {
+                                const progresso =
+                                  funcionario.progressoPorSetor?.find(
+                                    (p) => p.setor === setor
+                                  );
+                                const hasData = progresso && progresso.total > 0;
+                                const nomeSetor =
+                                  setor === "RH"
+                                    ? "Recursos Humanos"
+                                    : setor === "MEDICINA"
+                                    ? "Medicina"
+                                    : "Treinamento";
+                                return (
                                   <div
-                                    className={`h-1.5 rounded ${getSetorColor(
-                                      p.percentual
-                                    )}`}
-                                    style={{ width: `${p.percentual}%` }}
-                                  ></div>
-                                </div>
-                              </div>
-                            ))}
+                                    key={setor}
+                                    className="flex items-center justify-between py-0.5"
+                                    title={
+                                      hasData
+                                        ? `${nomeSetor}: ${progresso!.concluidas}/${
+                                            progresso!.total
+                                          } (${progresso!.percentual}%)\n\nLegenda:\n● Verde: Concluído\n● Amarelo: Em progresso\n● Cinza: Pendente`
+                                        : `${nomeSetor}: Sem tarefas\n\nLegenda:\n● Verde: Concluído\n● Amarelo: Em progresso\n● Cinza: Pendente`
+                                    }
+                                  >
+                                    <div className="flex items-center space-x-1">
+                                      <span className="text-xs">
+                                        {getSetorIcon(setor)}
+                                      </span>
+                                      <span className="text-xs font-medium text-gray-700">
+                                        {nomeSetor}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center space-x-1">
+                                      <span className="text-xs font-mono text-gray-600 bg-gray-100 px-1 rounded">
+                                        {hasData
+                                          ? `${progresso!.concluidas}/${progresso!.total}`
+                                          : "0/0"}
+                                      </span>
+                                      <span
+                                        className={`text-sm ${
+                                          hasData
+                                            ? getProgressColor(
+                                                progresso!.concluidas,
+                                                progresso!.total
+                                              )
+                                            : "text-gray-300"
+                                        }`}
+                                      >
+                                        {hasData
+                                          ? getProgressIcon(
+                                              progresso!.concluidas,
+                                              progresso!.total
+                                            )
+                                          : "●"}
+                                      </span>
+                                    </div>
+                                  </div>
+                                );
+                              }
+                            )}
                           </div>
                         </td>
                         <td className="px-3 py-2 text-xs text-gray-700">

@@ -14,7 +14,6 @@ async function carregarHistoricosStatusTarefa(tarefaId) {
       valorNovo: true,
       dataAcao: true,
       usuarioResponsavelId: true,
-      equipeId: true,
       descricaoAcao: true,
       remanejamentoFuncionarioId: true,
     },
@@ -45,7 +44,6 @@ async function criarEvento({
   observacoes,
   dataEvento,
   usuarioResponsavelId,
-  equipeId,
 }) {
   return prisma.tarefaStatusEvento.create({
     data: {
@@ -56,7 +54,6 @@ async function criarEvento({
       observacoes: observacoes ?? undefined,
       dataEvento: dataEvento ?? undefined,
       usuarioResponsavelId: usuarioResponsavelId ?? null,
-      equipeId: equipeId ?? null,
     },
   });
 }
@@ -85,7 +82,6 @@ async function processarTarefa(tarefa) {
           observacoes,
           dataEvento,
           usuarioResponsavelId: h.usuarioResponsavelId ?? null,
-          equipeId: h.equipeId ?? null,
         });
         created++;
       } else {
@@ -105,7 +101,6 @@ async function processarTarefa(tarefa) {
         observacoes: 'Backfill inicial sem histórico',
         dataEvento,
         usuarioResponsavelId: null,
-        equipeId: null,
       });
       created++;
     } else {

@@ -185,6 +185,37 @@ export async function POST(request: NextRequest) {
       defaultDataLimite = new Date(Date.now() + 48 * 60 * 60 * 1000);
     }
 
+    // Derivar equipeId pelo setor
+    const norm = (s: string | null | undefined) => (s || '').normalize('NFD').replace(/[^A-Za-z0-9\s]/g, '').trim().toUpperCase();
+    const detectSetor = (s: string | null | undefined) => {
+      const v = norm(s);
+      if (!v) return '';
+      if (v.includes('TREIN')) return 'TREINAMENTO';
+      if (v.includes('MEDIC')) return 'MEDICINA';
+      if (v.includes('RECURSOS') || v.includes('HUMANOS') || v.includes(' RH') || v === 'RH' || v.includes('RH')) return 'RH';
+      return v;
+    };
+    async function findEquipeIdBySetor(setor: string) {
+      const s = norm(setor);
+      if (!s) return null;
+      if (s === 'RH') {
+        const e = await prisma.equipe.findFirst({ where: { OR: [{ nome: { contains: 'RH', mode: 'insensitive' } }, { nome: { contains: 'RECURSOS', mode: 'insensitive' } }, { nome: { contains: 'HUMANOS', mode: 'insensitive' } }] }, select: { id: true } });
+        return e?.id ?? null;
+      }
+      if (s === 'MEDICINA') {
+        const e = await prisma.equipe.findFirst({ where: { nome: { contains: 'MEDIC', mode: 'insensitive' } }, select: { id: true } });
+        return e?.id ?? null;
+      }
+      if (s === 'TREINAMENTO') {
+        const e = await prisma.equipe.findFirst({ where: { nome: { contains: 'TREIN', mode: 'insensitive' } }, select: { id: true } });
+        return e?.id ?? null;
+      }
+      const e = await prisma.equipe.findFirst({ where: { nome: { equals: s, mode: 'insensitive' } }, select: { id: true } });
+      return e?.id ?? null;
+    }
+
+    const setorIdFromSetor = await findEquipeIdBySetor(detectSetor(responsavel));
+
     // Criar a tarefa
     const tarefa = await prisma.tarefaRemanejamento.create({
       data: {
@@ -203,6 +234,7 @@ export async function POST(request: NextRequest) {
         })(),
         dataLimite: dataLimite ? new Date(dataLimite) : defaultDataLimite,
         ...(dataVencimento && { dataVencimento: new Date(dataVencimento) }),
+        ...(setorIdFromSetor ? { setorId: setorIdFromSetor } : {}),
       },
       include: {
         remanejamentoFuncionario: {

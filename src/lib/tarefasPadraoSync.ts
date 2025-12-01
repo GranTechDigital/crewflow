@@ -127,6 +127,35 @@ export async function sincronizarTarefasPadrao({
       statusAnterior: string;
     }[] = [];
 
+    // Helper para identificar equipe por setor
+    const norm = (s: string | null | undefined) => (s || '').normalize('NFD').replace(/[^A-Za-z0-9\s]/g, '').trim().toUpperCase();
+    const detectSetor = (s: string | null | undefined) => {
+      const v = norm(s);
+      if (!v) return '';
+      if (v.includes('TREIN')) return 'TREINAMENTO';
+      if (v.includes('MEDIC')) return 'MEDICINA';
+      if (v.includes('RECURSOS') || v.includes('HUMANOS') || v.includes(' RH') || v === 'RH' || v.includes('RH')) return 'RH';
+      return v;
+    };
+    async function findEquipeIdBySetor(setor: string) {
+      const s = norm(setor);
+      if (!s) return null;
+      if (s === 'RH') {
+        const e = await prisma.equipe.findFirst({ where: { OR: [{ nome: { contains: 'RH', mode: 'insensitive' } }, { nome: { contains: 'RECURSOS', mode: 'insensitive' } }, { nome: { contains: 'HUMANOS', mode: 'insensitive' } }] }, select: { id: true } });
+        return e?.id ?? null;
+      }
+      if (s === 'MEDICINA') {
+        const e = await prisma.equipe.findFirst({ where: { nome: { contains: 'MEDIC', mode: 'insensitive' } }, select: { id: true } });
+        return e?.id ?? null;
+      }
+      if (s === 'TREINAMENTO') {
+        const e = await prisma.equipe.findFirst({ where: { nome: { contains: 'TREIN', mode: 'insensitive' } }, select: { id: true } });
+        return e?.id ?? null;
+      }
+      const e = await prisma.equipe.findFirst({ where: { nome: { equals: s, mode: 'insensitive' } }, select: { id: true } });
+      return e?.id ?? null;
+    }
+
     // TREINAMENTO via matriz
     if (setoresNormalizados.includes("TREINAMENTO")) {
       const contratoId = rem.solicitacao?.contratoDestinoId || undefined;
@@ -203,6 +232,7 @@ export async function sincronizarTarefasPadrao({
               status: "PENDENTE",
               prioridade,
               dataLimite: new Date(Date.now() + 48 * 60 * 60 * 1000),
+              setorId: await findEquipeIdBySetor(detectSetor(resp)) ?? undefined,
             });
           }
 
@@ -268,6 +298,7 @@ export async function sincronizarTarefasPadrao({
           status: "PENDENTE",
           prioridade,
           dataLimite: new Date(Date.now() + 48 * 60 * 60 * 1000),
+          setorId: await findEquipeIdBySetor(detectSetor(resp)) ?? undefined,
         });
       }
 

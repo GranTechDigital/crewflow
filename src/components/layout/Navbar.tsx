@@ -3,6 +3,7 @@
 import { LogOut, User } from "lucide-react";
 import { Menu } from "@headlessui/react";
 import Link from "next/link";
+import Image from "next/image";
 import { useAuth } from "@/app/hooks/useAuth";
 
 export default function Navbar() {
@@ -22,10 +23,13 @@ export default function Navbar() {
     <nav className="bg-gradient-to-r from-gray-800 to-gray-700 border-b border-gray-600 h-12 px-4 flex items-center justify-between shadow-lg z-30">
       {/* Logo/Título */}
       <div className="flex items-center">
-        <img
+        <Image
           src="/graservices-360x63-1.png"
           alt="Gran System"
-          className="h-6 object-contain mr-3"
+          width={180}
+          height={31}
+          priority
+          className="mr-3"
         />
         {/* <h1 className="text-lg font-bold text-white">Gran System</h1> */}
       </div>
