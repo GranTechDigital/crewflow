@@ -203,6 +203,7 @@ export async function PUT(
         remanejamentoFuncionario: {
           select: {
             funcionario: { select: { id: true, nome: true, matricula: true, funcao: true } },
+            solicitacaoId: true,
           },
         },
       },
@@ -303,6 +304,7 @@ export async function PUT(
                     funcionario: {
                       select: { id: true, nome: true, matricula: true, funcao: true },
                     },
+                    solicitacaoId: true,
                   },
                 },
               },
