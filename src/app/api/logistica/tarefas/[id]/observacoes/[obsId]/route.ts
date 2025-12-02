@@ -46,17 +46,16 @@ export async function PUT(
 
     // Buscar dados da tarefa para o histórico
     const tarefa = await prisma.tarefaRemanejamento.findUnique({
-      where: { id: id },
+      where: { id },
+      select: {
+        id: true,
+        remanejamentoFuncionarioId: true,
+        tipo: true,
+      },
       include: {
         remanejamentoFuncionario: {
           include: {
-            funcionario: {
-              select: {
-                id: true,
-                nome: true,
-                matricula: true
-              }
-            }
+            funcionario: { select: { id: true, nome: true, matricula: true } }
           }
         }
       }
@@ -152,17 +151,16 @@ export async function DELETE(
 
     // Buscar dados da tarefa para o histórico
     const tarefa = await prisma.tarefaRemanejamento.findUnique({
-      where: { id: id },
+      where: { id },
+      select: {
+        id: true,
+        remanejamentoFuncionarioId: true,
+        tipo: true,
+      },
       include: {
         remanejamentoFuncionario: {
           include: {
-            funcionario: {
-              select: {
-                id: true,
-                nome: true,
-                matricula: true
-              }
-            }
+            funcionario: { select: { id: true, nome: true, matricula: true } }
           }
         }
       }

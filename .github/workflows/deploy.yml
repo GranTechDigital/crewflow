@@ -28,6 +28,11 @@ on:
         type: boolean
         required: false
         default: false
+      apply_db_changes:
+        description: "Aplicar mudanças de banco (migrations/seed/backfills). Padrão: não aplicar."
+        type: boolean
+        required: false
+        default: false
 
 jobs:
   deploy:
@@ -306,8 +311,8 @@ jobs:
             fi
           EOF
 
-      - name: 🗄️ Setup Database (only when Prisma changes)
-        if: ${{ steps.changes.outputs.prisma == 'true' }}
+      - name: 🗄️ Setup Database (somente quando solicitado manualmente)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.apply_db_changes == 'true' && steps.changes.outputs.prisma == 'true' }}
         run: |
           ssh -o StrictHostKeyChecking=no root@${{ secrets.PROD_SERVER_HOST }} << 'EOF'
             cd /opt/projetogran
@@ -332,25 +337,15 @@ jobs:
               echo "ℹ️ Fresh database (no _prisma_migrations table). 'migrate deploy' will apply baseline."
             fi
 
-            echo "🚀 Applying Postgres migrations only..."
-            docker exec crewflow-app-production npx prisma migrate deploy
-
-            echo "🔧 Prisma db push fallback (no migrations to apply) ..."
-            docker exec crewflow-app-production sh -lc 'MIG_COUNT=$(ls -1 prisma/migrations 2>/dev/null | wc -l); if [ "$MIG_COUNT" -le 1 ]; then npx prisma db push --accept-data-loss || true; else echo "ℹ️ Migrations present; skipping db push"; fi'
-
-            echo "🌱 Seeding database (idempotent) ..."
-            if docker exec crewflow-app-production npm run seed:complete 2>/dev/null; then
-              echo "✅ Database seeded successfully"
-            else
-              echo "ℹ️ Seed skipped (database already populated or error occurred)"
-            fi
-
-          echo "🔎 Ensuring admin user exists..."
-          docker exec crewflow-app-production node scripts/ensureAdmin.js || true
+            echo "🚀 Applying Postgres migrations..."
+            docker exec crewflow-app-production npx prisma migrate deploy || true
+            echo "ℹ️ db push desabilitado por padrão (evitar drift forçado)"
+            echo "ℹ️ seed desabilitado por padrão (evitar alteração não intencional)"
+            echo "ℹ️ ensureAdmin desabilitado por padrão"
           EOF
 
-      - name: 🔁 Run backfill scripts (conditional)
-        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.run_backfill == 'true') || steps.changes.outputs.scripts == 'true' }}
+      - name: 🔁 Run backfill scripts (somente quando solicitado manualmente)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.apply_db_changes == 'true' && inputs.run_backfill == 'true' }}
         run: |
           ssh -o StrictHostKeyChecking=no root@${{ secrets.PROD_SERVER_HOST }} << 'EOF'
             set -e

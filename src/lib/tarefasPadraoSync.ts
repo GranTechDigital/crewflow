@@ -84,13 +84,9 @@ export async function sincronizarTarefasPadrao({
   const rems = await prisma.remanejamentoFuncionario.findMany({
     where: whereRemanejamentos,
     include: {
-      funcionario: {
-        select: { id: true, nome: true, matricula: true, funcao: true },
-      },
-      solicitacao: {
-        select: { id: true, contratoDestinoId: true, prioridade: true },
-      },
-      tarefas: true,
+      funcionario: { select: { id: true, nome: true, matricula: true, funcao: true } },
+      solicitacao: { select: { id: true, contratoDestinoId: true, prioridade: true } },
+      tarefas: { select: { id: true, tipo: true, responsavel: true, status: true } },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -224,16 +220,16 @@ export async function sincronizarTarefasPadrao({
               m.contrato?.nome ?? "N/A"
             }`;
 
-            tarefasParaCriar.push({
-              remanejamentoFuncionarioId: rem.id,
-              tipo,
-              descricao,
-              responsavel: resp,
-              status: "PENDENTE",
-              prioridade,
-              dataLimite: new Date(Date.now() + 48 * 60 * 60 * 1000),
-              setorId: await findEquipeIdBySetor(detectSetor(resp)) ?? undefined,
-            });
+        tarefasParaCriar.push({
+          remanejamentoFuncionarioId: rem.id,
+          tipo,
+          descricao,
+          responsavel: resp,
+          status: "PENDENTE",
+          prioridade,
+          dataLimite: new Date(Date.now() + 48 * 60 * 60 * 1000),
+          setorId: await findEquipeIdBySetor(detectSetor(resp)) ?? undefined,
+        });
           }
 
           // Remover (cancelar) tarefas de treinamento que não são mais obrigatórias

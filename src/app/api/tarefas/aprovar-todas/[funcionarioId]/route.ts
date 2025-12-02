@@ -24,17 +24,10 @@ export async function POST(
       where: { id: funcionarioId },
       include: {
         tarefas: {
-          where: {
-            status: { not: "CONCLUIDO" }
-          }
+          where: { status: { not: "CONCLUIDO" } },
+          select: { id: true, status: true }
         },
-        funcionario: {
-          select: {
-            id: true,
-            nome: true,
-            matricula: true
-          }
-        }
+        funcionario: { select: { id: true, nome: true, matricula: true } }
       }
     });
 
@@ -105,7 +98,7 @@ export async function POST(
         // Carregar metadados necessários para equipe/setor
         const tarefasDetalhadas = await prisma.tarefaRemanejamento.findMany({
           where: { id: { in: tarefasPendentes.map(t => t.id) } },
-          select: { id: true, tarefaPadraoId: true, treinamentoId: true, responsavel: true, tipo: true, descricao: true, setorId: true }
+          select: { id: true, tarefaPadraoId: true, treinamentoId: true, responsavel: true, tipo: true, descricao: true }
         });
         const eventosData = [] as any[];
         for (const t of tarefasDetalhadas) {
@@ -119,7 +112,7 @@ export async function POST(
           }
           if (!setorBase) setorBase = t.responsavel || t.tipo || t.descricao || '';
           const eqId = await findEquipeIdBySetor(detectSetor(setorBase));
-          if (eqId && t.setorId !== eqId) {
+          if (eqId) {
             try { await prisma.tarefaRemanejamento.update({ where: { id: t.id }, data: { setorId: eqId } }); } catch {}
           }
           eventosData.push({

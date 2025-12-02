@@ -326,6 +326,7 @@ export async function GET() {
       pendenciasPorSetor[setor]++;
     });
 
+
     // =========================
     // SLAs solicitados
     // =========================
@@ -480,6 +481,16 @@ export async function GET() {
       slaTempoMedioPorSetorDias[setor] = qtd ? somaDias / qtd : 0;
       slaTempoMedioPorSetorHoras[setor] = qtd ? somaHoras / qtd : 0;
     });
+
+    const slaTempoPorSetor = Object.keys(slaTempoMedioPorSetorHoras).map((setor) => ({
+      setor,
+      mediaDias: slaTempoMedioPorSetorDias[setor] || 0,
+      mediaHoras: slaTempoMedioPorSetorHoras[setor] || 0,
+    }));
+    const slaTempoPorSetorComLogistica = [
+      ...slaTempoPorSetor,
+      { setor: "LOGISTICA", mediaDias: 0, mediaHoras: slaLogisticaTempoMedioAprovacaoHoras },
+    ].sort((a, b) => b.mediaHoras - a.mediaHoras);
 
     // 3) Tempo de aprovação da logística: diferença entre dataSubmetido e dataResposta
     const prestservAvaliacoes = await prisma.remanejamentoFuncionario.findMany({
@@ -713,6 +724,7 @@ export async function GET() {
       slaSolicitacoesDetalhesHoras,
       slaTempoMedioPorSetorDias,
       slaTempoMedioPorSetorHoras,
+      slaTempoPorSetor: slaTempoPorSetorComLogistica,
       slaLogisticaTempoMedioAprovacaoHoras,
       slaLogisticaDetalhesHoras,
       volumetriaCorrecoesPorTipo,

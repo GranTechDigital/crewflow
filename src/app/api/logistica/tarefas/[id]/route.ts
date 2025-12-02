@@ -10,27 +10,28 @@ export async function GET(
   try {
     const { id } = await params;
     const tarefa = await prisma.tarefaRemanejamento.findUnique({
-      where: {
-        id: id,
+      where: { id },
+      select: {
+        id: true,
+        remanejamentoFuncionarioId: true,
+        tarefaPadraoId: true,
+        treinamentoId: true,
+        tipo: true,
+        descricao: true,
+        responsavel: true,
+        status: true,
+        prioridade: true,
+        dataCriacao: true,
+        dataLimite: true,
+        dataVencimento: true,
+        dataConclusao: true,
+        observacoes: true,
       },
       include: {
         remanejamentoFuncionario: {
           include: {
-            funcionario: {
-              select: {
-                id: true,
-                nome: true,
-                matricula: true,
-                funcao: true,
-                centroCusto: true,
-              },
-            },
-            solicitacao: {
-              select: {
-                id: true,
-                justificativa: true,
-              },
-            },
+            funcionario: { select: { id: true, nome: true, matricula: true, funcao: true, centroCusto: true } },
+            solicitacao: { select: { id: true, justificativa: true } },
           },
         },
       },
@@ -99,8 +100,18 @@ export async function PUT(
 
     // Buscar a tarefa atual
     const tarefaAtual = await prisma.tarefaRemanejamento.findUnique({
-      where: {
-        id: id,
+      where: { id },
+      select: {
+        id: true,
+        remanejamentoFuncionarioId: true,
+        tarefaPadraoId: true,
+        treinamentoId: true,
+        tipo: true,
+        descricao: true,
+        responsavel: true,
+        status: true,
+        dataLimite: true,
+        dataConclusao: true,
       },
     });
 
@@ -174,21 +185,26 @@ export async function PUT(
 
     // Atualizar a tarefa
     let tarefaAtualizada = await prisma.tarefaRemanejamento.update({
-      where: {
-        id: id,
-      },
+      where: { id },
       data: updateData,
+      select: {
+        id: true,
+        remanejamentoFuncionarioId: true,
+        tarefaPadraoId: true,
+        treinamentoId: true,
+        tipo: true,
+        descricao: true,
+        responsavel: true,
+        status: true,
+        dataLimite: true,
+        dataVencimento: true,
+        dataConclusao: true,
+        observacoes: true,
+      },
       include: {
         remanejamentoFuncionario: {
           include: {
-            funcionario: {
-              select: {
-                id: true,
-                nome: true,
-                matricula: true,
-                funcao: true,
-              },
-            },
+            funcionario: { select: { id: true, nome: true, matricula: true, funcao: true } },
             solicitacao: true,
           },
         },
@@ -267,11 +283,25 @@ export async function PUT(
         }
         if (!setorBase) setorBase = tarefaAtualizada.responsavel || tarefaAtualizada.tipo || tarefaAtualizada.descricao || '';
         const eqId = await findEquipeIdBySetor(detectSetor(setorBase));
-        if (eqId && tarefaAtualizada.setorId !== eqId) {
+        if (eqId) {
           try {
             tarefaAtualizada = await prisma.tarefaRemanejamento.update({
               where: { id: tarefaAtualizada.id },
               data: { setorId: eqId },
+              select: {
+                id: true,
+                remanejamentoFuncionarioId: true,
+                tarefaPadraoId: true,
+                treinamentoId: true,
+                tipo: true,
+                descricao: true,
+                responsavel: true,
+                status: true,
+                dataLimite: true,
+                dataVencimento: true,
+                dataConclusao: true,
+                observacoes: true,
+              },
               include: {
                 remanejamentoFuncionario: {
                   include: {

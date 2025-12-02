@@ -826,26 +826,19 @@ export default function DashboardPrestserv() {
             </div>
             <div className="p-6">
               <div className="h-72">
-                {dashboardData.slaTempoMedioPorSetorHoras &&
-                Object.keys(dashboardData.slaTempoMedioPorSetorHoras).length >
-                  0 ? (
+                {Array.isArray((dashboardData as any).slaTempoPorSetor) &&
+                (dashboardData as any).slaTempoPorSetor.length > 0 ? (
                   <Bar
                     data={{
-                      labels: Object.keys(
-                        dashboardData.slaTempoMedioPorSetorHoras
-                      ).map((setor) =>
-                        setor === "LOGISTICA" ? "Logística" : setor
+                      labels: (dashboardData as any).slaTempoPorSetor.map(
+                        (item: any) =>
+                          item.setor === "LOGISTICA" ? "Logística" : item.setor
                       ),
                       datasets: [
                         {
                           label: "Horas",
-                          data: Object.keys(
-                            dashboardData.slaTempoMedioPorSetorHoras
-                          ).map(
-                            (setor) =>
-                              dashboardData.slaTempoMedioPorSetorHoras![
-                                setor
-                              ] ?? 0
+                          data: (dashboardData as any).slaTempoPorSetor.map(
+                            (item: any) => item.mediaHoras ?? 0
                           ),
                           backgroundColor: "rgba(59, 130, 246, 0.8)",
                           borderColor: "#3B82F6",

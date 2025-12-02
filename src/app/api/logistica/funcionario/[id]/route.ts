@@ -143,10 +143,10 @@ export async function PUT(
       );
     }
 
-    // Validação: só pode submeter se todas as tarefas estiverem concluídas
+    // Validação: só pode submeter se todas as tarefas estiverem concluídas, desconsiderando canceladas
     if (statusPrestserv === "EM VALIDAÇÃO") {
       const tarefasPendentes = remanejamentoFuncionario.tarefas.filter(
-        (tarefa) => tarefa.status !== "PROCESSO CONCLUIDO"
+        (tarefa) => tarefa.status !== "CONCLUIDO" && tarefa.status !== "CONCLUIDA" && tarefa.status !== "CANCELADO"
       );
 
       if (tarefasPendentes.length > 0) {
@@ -593,11 +593,11 @@ export async function PATCH(
       );
     }
 
-    // Validação: só pode submeter se todas as tarefas estiverem concluídas
+    // Validação: só pode submeter se todas as tarefas estiverem concluídas, desconsiderando canceladas
     if (statusPrestserv === "EM VALIDAÇÃO") {
-      // Considerar tarefa concluída tanto "CONCLUIDO" quanto "CONCLUIDA"
+      // Considerar tarefa concluída tanto "CONCLUIDO" quanto "CONCLUIDA" e ignorar "CANCELADO"
       const tarefasPendentes = remanejamentoFuncionario.tarefas.filter(
-        (tarefa) => tarefa.status !== "CONCLUIDO" && tarefa.status !== "CONCLUIDA"
+        (tarefa) => tarefa.status !== "CONCLUIDO" && tarefa.status !== "CONCLUIDA" && tarefa.status !== "CANCELADO"
       );
       if (tarefasPendentes.length > 0) {
         return NextResponse.json(

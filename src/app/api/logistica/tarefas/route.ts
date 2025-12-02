@@ -34,6 +34,22 @@ export async function GET(request: NextRequest) {
 
     const tarefas = await prisma.tarefaRemanejamento.findMany({
       where,
+      select: {
+        id: true,
+        remanejamentoFuncionarioId: true,
+        tarefaPadraoId: true,
+        treinamentoId: true,
+        tipo: true,
+        descricao: true,
+        responsavel: true,
+        status: true,
+        prioridade: true,
+        dataCriacao: true,
+        dataLimite: true,
+        dataVencimento: true,
+        dataConclusao: true,
+        observacoes: true,
+      },
       include: {
         observacoesTarefa: true,
         remanejamentoFuncionario: {
@@ -54,20 +70,8 @@ export async function GET(request: NextRequest) {
                 id: true,
                 contratoOrigemId: true,
                 contratoDestinoId: true,
-                contratoOrigem: {
-                  select: {
-                    id: true,
-                    nome: true,
-                    numero: true,
-                  },
-                },
-                contratoDestino: {
-                  select: {
-                    id: true,
-                    nome: true,
-                    numero: true,
-                  },
-                },
+                contratoOrigem: { select: { id: true, nome: true, numero: true } },
+                contratoDestino: { select: { id: true, nome: true, numero: true } },
               },
             },
           },

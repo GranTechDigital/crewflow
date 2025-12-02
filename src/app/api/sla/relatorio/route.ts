@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 
 type Duracao = { status: string; ms: number };
 
@@ -52,35 +53,110 @@ export async function GET(request: NextRequest) {
     const agora = new Date();
     const inicioJanela = new Date(agora.getTime() - dias * 24 * 60 * 60 * 1000);
 
-    const remanejamentos = await prisma.remanejamentoFuncionario.findMany({
-      where: {
+    let remanejamentos: any[] = [];
+    const whereBase: any = {
+      ...(somenteConcluidos
+        ? {
+          OR: [
+            { statusTarefas: { in: ["CONCLUIDO", "CONCLUIDA", "SOLICITAÇÃO CONCLUÍDA", "SOLICITAÇÃO CONCLUIDA"] } },
+            { statusTarefas: { contains: "CONCLUID", mode: "insensitive" } },
+            { statusPrestserv: { equals: "VALIDADO", mode: "insensitive" } },
+          ],
+        }
+        : {
+          OR: [
+            { dataConcluido: { gte: inicioJanela } },
+            { updatedAt: { gte: inicioJanela } },
+          ],
+        }),
+    };
+    // Buscar remanejamentos sem carregar tarefas diretamente (evita coluna ausente em tarefas)
+    try {
+      remanejamentos = await prisma.remanejamentoFuncionario.findMany({
+        where: whereBase,
+        include: {
+          solicitacao: true,
+          funcionario: { select: { id: true, nome: true, matricula: true } },
+        },
+      });
+    } catch {
+      const whereFallback: any = {
         ...(somenteConcluidos
           ? {
-            OR: [
-              { statusTarefas: { in: ["CONCLUIDO", "CONCLUIDA", "SOLICITAÇÃO CONCLUÍDA", "SOLICITAÇÃO CONCLUIDA"] } },
-              { statusTarefas: { contains: "CONCLUID", mode: "insensitive" } },
-              { statusPrestserv: { equals: "VALIDADO", mode: "insensitive" } },
-            ],
-          }
+              OR: [
+                { statusTarefas: { in: ["CONCLUIDO", "CONCLUIDA", "SOLICITAÇÃO CONCLUÍDA", "SOLICITAÇÃO CONCLUIDA"] } },
+                { statusPrestserv: { in: ["VALIDADO", "Validado", "validado"] } },
+              ],
+            }
           : {
-            OR: [
-              { dataConcluido: { gte: inicioJanela } },
-              { updatedAt: { gte: inicioJanela } },
-            ],
-          }),
-      },
-      include: {
-        solicitacao: true,
-        funcionario: { select: { id: true, nome: true, matricula: true } },
-        tarefas: {
-          include: {
-            setor: true,
-            eventosStatus: true,
-            historico: { include: { equipe: true } },
-          },
+              OR: [
+                { dataConcluido: { gte: inicioJanela } },
+                { updatedAt: { gte: inicioJanela } },
+              ],
+            }),
+      };
+      remanejamentos = await prisma.remanejamentoFuncionario.findMany({
+        where: whereFallback,
+        include: {
+          solicitacao: true,
+          funcionario: { select: { id: true, nome: true, matricula: true } },
         },
-      },
-    });
+      });
+    }
+
+    // Carregar tarefas por SQL bruto (selecionando apenas colunas existentes)
+    const remIds = remanejamentos.map((r) => r.id);
+    const tarefasByRem = new Map<string, any[]>();
+    if (remIds.length > 0) {
+      const tarefasRows: any[] = await prisma.$queryRaw(
+        Prisma.sql`SELECT id, "remanejamentoFuncionarioId", tipo, descricao, responsavel, status, "dataCriacao", "dataConclusao"
+                   FROM "TarefaRemanejamento"
+                   WHERE "remanejamentoFuncionarioId" IN (${Prisma.join(remIds)})`
+      );
+      const tarefaIds = tarefasRows.map((t) => t.id);
+      // Eventos de status das tarefas
+      const eventos = tarefaIds.length
+        ? await prisma.tarefaStatusEvento.findMany({
+            where: { tarefaId: { in: tarefaIds } },
+            select: { tarefaId: true, statusAnterior: true, statusNovo: true, dataEvento: true },
+          })
+        : [];
+      const eventosMap = new Map<string, any[]>();
+      for (const e of eventos) {
+        const arr = eventosMap.get(e.tarefaId) || [];
+        arr.push({ statusAnterior: e.statusAnterior, statusNovo: e.statusNovo, dataEvento: e.dataEvento });
+        eventosMap.set(e.tarefaId, arr);
+      }
+      // Histórico relacionado às tarefas (com equipe)
+      const historicos = tarefaIds.length
+        ? await prisma.historicoRemanejamento.findMany({
+            where: { tarefaId: { in: tarefaIds } },
+            select: { tarefaId: true, descricaoAcao: true, valorNovo: true, dataAcao: true, equipe: { select: { nome: true } } },
+            orderBy: { dataAcao: "asc" },
+          })
+        : [];
+      const histMap = new Map<string, any[]>();
+      for (const h of historicos) {
+        const arr = histMap.get(h.tarefaId) || [];
+        arr.push({ descricaoAcao: h.descricaoAcao, valorNovo: h.valorNovo, dataAcao: h.dataAcao, equipe: h.equipe });
+        histMap.set(h.tarefaId, arr);
+      }
+      // Agrupar tarefas por remanejamento e anexar eventos/histórico
+      for (const t of tarefasRows) {
+        const tFull = {
+          ...t,
+          eventosStatus: eventosMap.get(t.id) || [],
+          historico: histMap.get(t.id) || [],
+        };
+        const arr = tarefasByRem.get(t.remanejamentoFuncionarioId) || [];
+        arr.push(tFull);
+        tarefasByRem.set(t.remanejamentoFuncionarioId, arr);
+      }
+      // Anexar ao array de remanejamentos para fluxo posterior
+      for (const rf of remanejamentos) {
+        rf.tarefas = tarefasByRem.get(rf.id) || [];
+      }
+    }
 
     const porSetor = new Map<string, any>();
     const porRemanejamento: any[] = [];
@@ -153,16 +229,12 @@ export async function GET(request: NextRequest) {
         return sRaw;
       };
       const deriveSetor = (t: any) => {
-        const tarefaSetorNome = t.setor?.nome as string | undefined;
-        const tsSet = toSetor(tarefaSetorNome);
-        if (tsSet === 'RH' || tsSet === 'MEDICINA' || tsSet === 'TREINAMENTO') return tsSet;
-        // equipe removida da tarefa; manter fallback por outros campos
+        // Não usar relação t.setor; inferir somente por histórico/equipe, responsável, tipo e descrição
         const histNome = (t.historico || []).map((h: any) => h.equipe?.nome).filter(Boolean)[0] as string | undefined;
         const histSet = toSetor(histNome);
         if (histSet === 'RH' || histSet === 'MEDICINA' || histSet === 'TREINAMENTO') return histSet;
         const r = toSetor(t.responsavel);
         if (r === 'RH' || r === 'MEDICINA' || r === 'TREINAMENTO') return r;
-        // Fallback adicional: inferir por tipo/descrição da tarefa
         const tipoSet = toSetor(t.tipo);
         if (tipoSet === 'RH' || tipoSet === 'MEDICINA' || tipoSet === 'TREINAMENTO') return tipoSet;
         const descSet = toSetor(t.descricao);
@@ -475,12 +547,16 @@ export async function GET(request: NextRequest) {
         const hasLogDur = duracaoPorSetorMsArr.find((x) => x.setor === 'LOGISTICA');
         if (!hasLogDur) duracaoPorSetorMsArr.push({ setor: 'LOGISTICA', ms: logisticaMs });
       }
+      // Calcular total por setores medidos (preferível ao intervalo bruto)
+      const totalPorSetoresMs = duracaoPorSetorMsArr.reduce((acc, it) => acc + (it.ms || 0), 0);
+      const totalDuracaoMs = totalPorSetoresMs > 0 ? totalPorSetoresMs : totalDurMs;
+
       if ((rf.tarefas || []).length > 0) {
         porRemanejamento.push({
           remanejamentoId: rf.id,
           solicitacaoId: rf.solicitacaoId,
           funcionario: rf.funcionario,
-          totalDurMs: totalDurMs,
+          totalDurMs: totalDuracaoMs,
           temposMediosPorSetor: temposMediosPorSetorAug,
           periodosPorSetor: Object.entries(intervalosPorSetor).map(([setor, itv]) => ({ setor, inicio: itv.inicio, fim: itv.fim })),
           duracaoPorSetorMs: duracaoPorSetorMsArr,
