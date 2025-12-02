@@ -32,10 +32,8 @@ export async function PUT(
         dataLimite: true,
         dataVencimento: true,
         dataConclusao: true,
-      },
-      include: {
         remanejamentoFuncionario: {
-          include: {
+          select: {
             funcionario: { select: { id: true, nome: true, matricula: true, funcao: true } },
           },
         },
@@ -116,10 +114,8 @@ export async function PUT(
         dataVencimento: true,
         dataConclusao: true,
         observacoes: true,
-      },
-      include: {
         remanejamentoFuncionario: {
-          include: {
+          select: {
             funcionario: { select: { id: true, nome: true, matricula: true, funcao: true } },
           },
         },
@@ -197,10 +193,8 @@ export async function PUT(
               dataVencimento: true,
               dataConclusao: true,
               observacoes: true,
-            },
-            include: {
               remanejamentoFuncionario: {
-                include: {
+                select: {
                   funcionario: {
                     select: { id: true, nome: true, matricula: true, funcao: true },
                   },

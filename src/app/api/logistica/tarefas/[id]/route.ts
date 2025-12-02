@@ -26,11 +26,11 @@ export async function GET(
         dataVencimento: true,
         dataConclusao: true,
         observacoes: true,
-      },
-      include: {
         remanejamentoFuncionario: {
-          include: {
-            funcionario: { select: { id: true, nome: true, matricula: true, funcao: true, centroCusto: true } },
+          select: {
+            funcionario: {
+              select: { id: true, nome: true, matricula: true, funcao: true, centroCusto: true },
+            },
             solicitacao: { select: { id: true, justificativa: true } },
           },
         },
@@ -200,12 +200,9 @@ export async function PUT(
         dataVencimento: true,
         dataConclusao: true,
         observacoes: true,
-      },
-      include: {
         remanejamentoFuncionario: {
-          include: {
+          select: {
             funcionario: { select: { id: true, nome: true, matricula: true, funcao: true } },
-            solicitacao: true,
           },
         },
       },
@@ -301,14 +298,11 @@ export async function PUT(
                 dataVencimento: true,
                 dataConclusao: true,
                 observacoes: true,
-              },
-              include: {
                 remanejamentoFuncionario: {
-                  include: {
+                  select: {
                     funcionario: {
                       select: { id: true, nome: true, matricula: true, funcao: true },
                     },
-                    solicitacao: true,
                   },
                 },
               },
