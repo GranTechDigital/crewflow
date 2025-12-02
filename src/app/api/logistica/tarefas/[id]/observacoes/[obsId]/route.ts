@@ -51,14 +51,13 @@ export async function PUT(
         id: true,
         remanejamentoFuncionarioId: true,
         tipo: true,
-      },
-      include: {
         remanejamentoFuncionario: {
-          include: {
-            funcionario: { select: { id: true, nome: true, matricula: true } }
-          }
-        }
-      }
+          select: {
+            funcionario: { select: { id: true, nome: true, matricula: true } },
+            solicitacaoId: true,
+          },
+        },
+      },
     });
 
     if (!tarefa) {
@@ -156,14 +155,13 @@ export async function DELETE(
         id: true,
         remanejamentoFuncionarioId: true,
         tipo: true,
-      },
-      include: {
         remanejamentoFuncionario: {
-          include: {
-            funcionario: { select: { id: true, nome: true, matricula: true } }
-          }
-        }
-      }
+          select: {
+            funcionario: { select: { id: true, nome: true, matricula: true } },
+            solicitacaoId: true,
+          },
+        },
+      },
     });
 
     if (!tarefa) {

@@ -49,11 +49,9 @@ export async function GET(request: NextRequest) {
         dataVencimento: true,
         dataConclusao: true,
         observacoes: true,
-      },
-      include: {
         observacoesTarefa: true,
         remanejamentoFuncionario: {
-          include: {
+          select: {
             funcionario: {
               select: {
                 id: true,
