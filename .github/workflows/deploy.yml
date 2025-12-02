@@ -81,7 +81,7 @@ jobs:
           fi
 
       - name: 💾 Backup banco de dados (produção) antes do deploy
-        if: ${{ github.event_name == 'workflow_dispatch' ? (inputs.apply_db_changes == 'true' && inputs.skip_backup != 'true') : true }}
+        if: ${{ (github.event_name != 'workflow_dispatch') || (github.event_name == 'workflow_dispatch' && inputs.apply_db_changes == 'true' && inputs.skip_backup != 'true') }}
         run: |
           ssh -o StrictHostKeyChecking=no root@${{ secrets.PROD_SERVER_HOST }} << 'EOF'
             set -e
