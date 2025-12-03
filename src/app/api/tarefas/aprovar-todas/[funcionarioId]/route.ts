@@ -113,7 +113,12 @@ export async function POST(
           if (!setorBase) setorBase = t.responsavel || t.tipo || t.descricao || '';
           const eqId = await findEquipeIdBySetor(detectSetor(setorBase));
           if (eqId) {
-            try { await prisma.tarefaRemanejamento.update({ where: { id: t.id }, data: { setorId: eqId } }); } catch {}
+            try {
+              await prisma.tarefaRemanejamento.update({
+                where: { id: t.id },
+                data: ({ setor: { connect: { id: eqId } } } as any),
+              });
+            } catch {}
           }
           eventosData.push({
             tarefaId: t.id,

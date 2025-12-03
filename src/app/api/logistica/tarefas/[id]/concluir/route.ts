@@ -181,7 +181,7 @@ export async function PUT(
         try {
           tarefaAtualizada = await prisma.tarefaRemanejamento.update({
             where: { id: tarefaAtualizada.id },
-            data: { setorId: eqId },
+            data: ({ setor: { connect: { id: eqId } } } as any),
             select: {
               id: true,
               remanejamentoFuncionarioId: true,

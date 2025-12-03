@@ -137,9 +137,11 @@ export async function GET(request: NextRequest) {
         : [];
       const histMap = new Map<string, any[]>();
       for (const h of historicos) {
-        const arr = histMap.get(h.tarefaId) || [];
+        if (!h.tarefaId) continue;
+        const key = String(h.tarefaId);
+        const arr = histMap.get(key) || [];
         arr.push({ descricaoAcao: h.descricaoAcao, valorNovo: h.valorNovo, dataAcao: h.dataAcao, equipe: h.equipe });
-        histMap.set(h.tarefaId, arr);
+        histMap.set(key, arr);
       }
       // Agrupar tarefas por remanejamento e anexar eventos/histórico
       for (const t of tarefasRows) {
@@ -294,17 +296,17 @@ export async function GET(request: NextRequest) {
       }
 
       const tarefasAtivas = (rf.tarefas || []).filter((t: any) => t.status !== "CANCELADO");
-      const setores = Array.from(new Set(tarefasAtivas.map((t: any) => deriveSetor(t))));
+      const setores: string[] = Array.from(new Set(tarefasAtivas.map((t: any) => deriveSetor(t)))) as string[];
 
       const aprovacaoMs = rf.dataSubmetido && rf.dataResposta ? msDiff(new Date(rf.dataSubmetido), new Date(rf.dataResposta)) : 0;
       const todasTarefasConcluidas = tarefasAtivas.length > 0 && tarefasAtivas.every((t: any) => t.status === "CONCLUIDO" || t.status === "CONCLUIDA");
-      const fimTarefas = todasTarefasConcluidas
-        ? tarefasAtivas.reduce<Date | null>((acc, t: any) => {
-            const d = t.dataConclusao ? new Date(t.dataConclusao) : null;
-            if (!d) return acc;
-            return !acc || d > acc ? d : acc;
-          }, null)
-        : null;
+      let fimTarefas: Date | null = null;
+      if (todasTarefasConcluidas) {
+        for (const t of tarefasAtivas) {
+          const d = t.dataConclusao ? new Date(t.dataConclusao) : null;
+          if (d && (!fimTarefas || d > fimTarefas)) fimTarefas = d;
+        }
+      }
       const posConclusaoAteValidadoMs = fimTarefas ? msDiff(fimTarefas, totalEnd) : 0;
       
 

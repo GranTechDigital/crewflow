@@ -50,3 +50,5 @@ prisma/prisma/
 ~.xlsx
 # backups dumps
 backups/
+*.dump
+tmp/

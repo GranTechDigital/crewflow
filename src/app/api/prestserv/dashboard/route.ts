@@ -487,10 +487,6 @@ export async function GET() {
       mediaDias: slaTempoMedioPorSetorDias[setor] || 0,
       mediaHoras: slaTempoMedioPorSetorHoras[setor] || 0,
     }));
-    const slaTempoPorSetorComLogistica = [
-      ...slaTempoPorSetor,
-      { setor: "LOGISTICA", mediaDias: 0, mediaHoras: slaLogisticaTempoMedioAprovacaoHoras },
-    ].sort((a, b) => b.mediaHoras - a.mediaHoras);
 
     // 3) Tempo de aprovação da logística: diferença entre dataSubmetido e dataResposta
     const prestservAvaliacoes = await prisma.remanejamentoFuncionario.findMany({
@@ -519,6 +515,11 @@ export async function GET() {
       ? temposAprovacaoHoras.reduce((acc, v) => acc + v, 0) /
         temposAprovacaoHoras.length
       : 0;
+
+    const slaTempoPorSetorComLogistica = [
+      ...slaTempoPorSetor,
+      { setor: "LOGISTICA", mediaDias: 0, mediaHoras: slaLogisticaTempoMedioAprovacaoHoras },
+    ].sort((a, b) => b.mediaHoras - a.mediaHoras);
 
     const rfIds = prestservAvaliacoes.map((r) => r.id);
     const historicoRF = rfIds.length
