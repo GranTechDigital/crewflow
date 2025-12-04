@@ -110,6 +110,13 @@ export default function RelatorioSLA() {
     return ["RH", "MEDICINA", "TREINAMENTO", "LOGISTICA"];
   }, []);
 
+  const setoresVisiveis = useMemo(() => {
+    // Quando há setores selecionados, mostramos apenas eles; caso contrário, todos
+    return (filtroSetores && filtroSetores.length)
+      ? filtroSetores.map((s) => s.toUpperCase())
+      : setoresDisponiveis;
+  }, [filtroSetores, setoresDisponiveis]);
+
   const requiredSetores = useMemo(
     () => ["RH", "MEDICINA", "TREINAMENTO", "LOGISTICA"],
     []
@@ -139,157 +146,6 @@ export default function RelatorioSLA() {
     return data.porSetor;
   }, [data]);
 
-  // gráfico de downtime removido (foque no tempo médio)
-
-  const chartData = useMemo(() => {
-    return porSetorBase.map((s) => {
-      const baseMs = s.tempoMedioConclusaoMs || s.duracaoMediaAtuacaoMs || 0;
-      return { setor: s.setor, horas: Math.round(baseMs / (60 * 60 * 1000)) };
-    });
-  }, [porSetorBase]);
-
-  const chartDataDias = useMemo(() => {
-    return porSetorBase.map((s) => {
-      const baseMs = s.tempoMedioConclusaoMs || s.duracaoMediaAtuacaoMs || 0;
-      return { setor: s.setor, dias: Math.floor(baseMs / (24 * 60 * 60 * 1000)) };
-    });
-  }, [porSetorBase]);
-
-  const donutMediaSetorDias = useMemo(() => {
-    const DAY = 24 * 60 * 60 * 1000;
-    const items = setoresDisponiveis.map((s) => {
-      const item = porSetorBase.find(
-        (x) => (x.setor || "").toUpperCase() === s.toUpperCase()
-      );
-      const ms = item
-        ? item.tempoMedioConclusaoMs || item.duracaoMediaAtuacaoMs || 0
-        : 0;
-      const dias = ms / DAY;
-      return { setor: s, dias };
-    });
-    const totalDias = items.reduce((acc, it) => acc + it.dias, 0) || 1;
-    return items.map((it) => ({
-      ...it,
-      pct: (it.dias / totalDias) * 100,
-    }));
-  }, [porSetorBase, setoresDisponiveis]);
-
-  const mediaGeralHoras = useMemo(() => {
-    const total = chartData.reduce((acc, d) => acc + (d.horas || 0), 0);
-    const count = chartData.length || 1;
-    return Math.round(total / count);
-  }, [chartData]);
-
-  const mediaGeralDias = useMemo(() => {
-    const DAY = 24 * 60 * 60 * 1000;
-    const valoresMs = porSetorBase.map((s) => s.tempoMedioConclusaoMs || s.duracaoMediaAtuacaoMs || 0);
-    const totalMs = valoresMs.reduce((acc, ms) => acc + ms, 0);
-    const count = valoresMs.length || 1;
-    const mediaDias = totalMs / count / DAY;
-    return Math.round(mediaDias);
-  }, [porSetorBase]);
-
-  const pieSetoresDias = useMemo(() => {
-    const durBySetor: Record<string, number> = {};
-    porRemanejamentoValidos.forEach((r) => {
-      (r.duracaoPorSetorMs || []).forEach((d) => {
-        const key = (d.setor || "").toUpperCase();
-        durBySetor[key] = (durBySetor[key] || 0) + (d.ms || 0);
-      });
-    });
-    const DAY = 24 * 60 * 60 * 1000;
-    const items = setoresDisponiveis.map((s) => {
-      const ms = durBySetor[(s || "").toUpperCase()] || 0;
-      const dias = ms / DAY;
-      return { setor: s, dias };
-    });
-    const totalDias = items.reduce((acc, it) => acc + it.dias, 0) || 1;
-    return items.map((it) => ({ ...it, pct: (it.dias / totalDias) * 100 }));
-  }, [porRemanejamentoValidos, setoresDisponiveis]);
-
-  const bucketDistribDias = useMemo(() => {
-    const DAY = 24 * 60 * 60 * 1000;
-    const counts = { lt1: 0, d1to3: 0, d3to7: 0, gt7: 0 };
-    porRemanejamentoValidos.forEach((r) => {
-      const ms = r.totalDurMs || 0;
-      if (ms < DAY) counts.lt1++;
-      else if (ms < 3 * DAY) counts.d1to3++;
-      else if (ms < 7 * DAY) counts.d3to7++;
-      else counts.gt7++;
-    });
-    return [
-      { faixa: "< 1 dia", count: counts.lt1 },
-      { faixa: "1–3 dias", count: counts.d1to3 },
-      { faixa: "3–7 dias", count: counts.d3to7 },
-      { faixa: "> 7 dias", count: counts.gt7 },
-    ];
-  }, [porRemanejamentoValidos]);
-
-  const stackDistribBucketsSetores = useMemo(() => {
-    const DAY = 24 * 60 * 60 * 1000;
-    const initBucket = () => ({ faixa: "", RH: 0, MEDICINA: 0, TREINAMENTO: 0, LOGISTICA: 0, total: 0 });
-    const buckets: Record<string, { faixa: string; RH: number; MEDICINA: number; TREINAMENTO: number; LOGISTICA: number; total: number }> = {
-      lt1: { ...initBucket(), faixa: "< 1 dia" },
-      d1to3: { ...initBucket(), faixa: "1–3 dias" },
-      d3to7: { ...initBucket(), faixa: "3–7 dias" },
-      gt7: { ...initBucket(), faixa: "> 7 dias" },
-    } as any;
-    porRemanejamentoValidos.forEach((r) => {
-      const msTotal = r.totalDurMs || 0;
-      const key = msTotal < DAY ? "lt1" : msTotal < 3 * DAY ? "d1to3" : msTotal < 7 * DAY ? "d3to7" : "gt7";
-      const bySetor: Record<string, number> = {};
-      let sumMs = 0;
-      (r.duracaoPorSetorMs || []).forEach((d) => {
-        const k = (d.setor || "").toUpperCase();
-        if (setoresDisponiveis.includes(k)) {
-          bySetor[k] = (bySetor[k] || 0) + (d.ms || 0);
-          sumMs += d.ms || 0;
-        }
-      });
-      if (sumMs > 0) {
-        Object.entries(bySetor).forEach(([s, v]) => {
-          const w = v / sumMs; // proporção do setor no total
-          (buckets as any)[key][s] += w; // soma ponderada
-        });
-        (buckets as any)[key].total += 1;
-      } else {
-        // fallback: dividir igual entre setores presentes em periodos/tempos
-        const presentes = new Set<string>();
-        (r.periodosPorSetor || []).forEach((p) => presentes.add((p.setor || "").toUpperCase()));
-        (r.temposMediosPorSetor || []).forEach((t) => presentes.add((t.setor || "").toUpperCase()));
-        const list = Array.from(presentes).filter((s) => setoresDisponiveis.includes(s));
-        const w = list.length ? 1 / list.length : 0;
-        list.forEach((s) => {
-          (buckets as any)[key][s] += w;
-        });
-        (buckets as any)[key].total += 1;
-      }
-    });
-    // converter para array
-    return [buckets.lt1, buckets.d1to3, buckets.d3to7, buckets.gt7];
-  }, [porRemanejamentoValidos, setoresDisponiveis]);
-
-  const distribPorSetorBuckets = useMemo(() => {
-    const DAY = 24 * 60 * 60 * 1000;
-    const init = () => ({ setor: "", lt1: 0, d1to3: 0, d3to7: 0, gt7: 0, total: 0 });
-    const map: Record<string, { setor: string; lt1: number; d1to3: number; d3to7: number; gt7: number; total: number }> = {};
-    setoresDisponiveis.forEach((s) => {
-      map[s.toUpperCase()] = { ...init(), setor: s };
-    });
-    porRemanejamentoValidos.forEach((r) => {
-      (r.duracaoPorSetorMs || []).forEach((d) => {
-        const s = (d.setor || "").toUpperCase();
-        const ms = d.ms || 0;
-        if (!setoresDisponiveis.includes(s) || ms <= 0) return;
-        const key = ms < DAY ? "lt1" : ms < 3 * DAY ? "d1to3" : ms < 7 * DAY ? "d3to7" : "gt7";
-        const obj = map[s];
-        (obj as any)[key] += 1;
-        obj.total += 1;
-      });
-    });
-    return setoresDisponiveis.map((s) => map[s.toUpperCase()] || { setor: s, lt1: 0, d1to3: 0, d3to7: 0, gt7: 0, total: 0 });
-  }, [porRemanejamentoValidos, setoresDisponiveis]);
-
   const porRemanejamentoFiltrados = useMemo(() => {
     const DAY = 24 * 60 * 60 * 1000;
     const hasSetor = (r: KPISet["porRemanejamento"][number]) => {
@@ -314,6 +170,164 @@ export default function RelatorioSLA() {
       return okSetor && okBucket && okFunc;
     });
   }, [porRemanejamentoValidos, filtroSetores, filtroBuckets, filtroFuncionario]);
+
+  
+
+  // gráfico de downtime removido (foque no tempo médio)
+
+  const chartData = useMemo(() => {
+    return porSetorBase.map((s) => {
+      const baseMs = s.tempoMedioConclusaoMs || s.duracaoMediaAtuacaoMs || 0;
+      return { setor: s.setor, horas: Math.round(baseMs / (60 * 60 * 1000)) };
+    });
+  }, [porSetorBase]);
+
+  const chartDataDias = useMemo(() => {
+    return porSetorBase.map((s) => {
+      const baseMs = s.tempoMedioConclusaoMs || s.duracaoMediaAtuacaoMs || 0;
+      return { setor: s.setor, dias: Math.floor(baseMs / (24 * 60 * 60 * 1000)) };
+    });
+  }, [porSetorBase]);
+
+  const donutMediaSetorDias = useMemo(() => {
+    const DAY = 24 * 60 * 60 * 1000;
+    const acc: Record<string, { sum: number; count: number }> = {};
+    setoresVisiveis.forEach((s) => (acc[s.toUpperCase()] = { sum: 0, count: 0 }));
+    porRemanejamentoFiltrados.forEach((r) => {
+      (r.duracaoPorSetorMs || []).forEach((d) => {
+        const k = (d.setor || "").toUpperCase();
+        if (!setoresVisiveis.includes(k)) return;
+        const ms = d.ms || 0;
+        if (ms <= 0) return;
+        acc[k].sum += ms;
+        acc[k].count += 1;
+      });
+    });
+    const items = setoresVisiveis.map((s) => {
+      const k = s.toUpperCase();
+      const { sum, count } = acc[k] || { sum: 0, count: 0 };
+      const dias = count > 0 ? sum / count / DAY : 0;
+      return { setor: s, dias };
+    });
+    const totalDias = items.reduce((acc, it) => acc + it.dias, 0) || 1;
+    return items.map((it) => ({ ...it, pct: (it.dias / totalDias) * 100 }));
+  }, [porRemanejamentoFiltrados, setoresVisiveis]);
+
+  const mediaGeralHoras = useMemo(() => {
+    const total = chartData.reduce((acc, d) => acc + (d.horas || 0), 0);
+    const count = chartData.length || 1;
+    return Math.round(total / count);
+  }, [chartData]);
+
+  const mediaGeralDias = useMemo(() => {
+    const DAY = 24 * 60 * 60 * 1000;
+    const total = porRemanejamentoFiltrados.length;
+    const totalMs = porRemanejamentoFiltrados.reduce((acc, r) => acc + (r.totalDurMs || 0), 0);
+    const mediaDias = total ? totalMs / total / DAY : 0;
+    return Math.round(mediaDias);
+  }, [porRemanejamentoFiltrados]);
+
+  const pieSetoresDias = useMemo(() => {
+    const durBySetor: Record<string, number> = {};
+    porRemanejamentoFiltrados.forEach((r) => {
+      (r.duracaoPorSetorMs || []).forEach((d) => {
+        const key = (d.setor || "").toUpperCase();
+        durBySetor[key] = (durBySetor[key] || 0) + (d.ms || 0);
+      });
+    });
+    const DAY = 24 * 60 * 60 * 1000;
+    const items = setoresVisiveis.map((s) => {
+      const ms = durBySetor[(s || "").toUpperCase()] || 0;
+      const dias = ms / DAY;
+      return { setor: s, dias };
+    });
+    const totalDias = items.reduce((acc, it) => acc + it.dias, 0) || 1;
+    return items.map((it) => ({ ...it, pct: (it.dias / totalDias) * 100 }));
+  }, [porRemanejamentoFiltrados, setoresVisiveis]);
+
+  const bucketDistribDias = useMemo(() => {
+    const DAY = 24 * 60 * 60 * 1000;
+    const counts = { lt1: 0, d1to3: 0, d3to7: 0, gt7: 0 };
+    porRemanejamentoFiltrados.forEach((r) => {
+      const ms = r.totalDurMs || 0;
+      if (ms < DAY) counts.lt1++;
+      else if (ms < 3 * DAY) counts.d1to3++;
+      else if (ms < 7 * DAY) counts.d3to7++;
+      else counts.gt7++;
+    });
+    return [
+      { faixa: "< 1 dia", count: counts.lt1 },
+      { faixa: "1–3 dias", count: counts.d1to3 },
+      { faixa: "3–7 dias", count: counts.d3to7 },
+      { faixa: "> 7 dias", count: counts.gt7 },
+    ];
+  }, [porRemanejamentoFiltrados]);
+
+  const stackDistribBucketsSetores = useMemo(() => {
+    const DAY = 24 * 60 * 60 * 1000;
+    const initBucket = () => ({ faixa: "", RH: 0, MEDICINA: 0, TREINAMENTO: 0, LOGISTICA: 0, total: 0 });
+    const buckets: Record<string, { faixa: string; RH: number; MEDICINA: number; TREINAMENTO: number; LOGISTICA: number; total: number }> = {
+      lt1: { ...initBucket(), faixa: "< 1 dia" },
+      d1to3: { ...initBucket(), faixa: "1–3 dias" },
+      d3to7: { ...initBucket(), faixa: "3–7 dias" },
+      gt7: { ...initBucket(), faixa: "> 7 dias" },
+    } as any;
+    porRemanejamentoFiltrados.forEach((r) => {
+      const msTotal = r.totalDurMs || 0;
+      const key = msTotal < DAY ? "lt1" : msTotal < 3 * DAY ? "d1to3" : msTotal < 7 * DAY ? "d3to7" : "gt7";
+      const bySetor: Record<string, number> = {};
+      let sumMs = 0;
+      (r.duracaoPorSetorMs || []).forEach((d) => {
+        const k = (d.setor || "").toUpperCase();
+        if (setoresVisiveis.includes(k)) {
+          bySetor[k] = (bySetor[k] || 0) + (d.ms || 0);
+          sumMs += d.ms || 0;
+        }
+      });
+      if (sumMs > 0) {
+        Object.entries(bySetor).forEach(([s, v]) => {
+          const w = v / sumMs; // proporção do setor no total
+          (buckets as any)[key][s] += w; // soma ponderada
+        });
+        (buckets as any)[key].total += 1;
+      } else {
+        // fallback: dividir igual entre setores presentes em periodos/tempos
+        const presentes = new Set<string>();
+        (r.periodosPorSetor || []).forEach((p) => presentes.add((p.setor || "").toUpperCase()));
+        (r.temposMediosPorSetor || []).forEach((t) => presentes.add((t.setor || "").toUpperCase()));
+        const list = Array.from(presentes).filter((s) => setoresVisiveis.includes(s));
+        const w = list.length ? 1 / list.length : 0;
+        list.forEach((s) => {
+          (buckets as any)[key][s] += w;
+        });
+        (buckets as any)[key].total += 1;
+      }
+    });
+    // converter para array
+    return [buckets.lt1, buckets.d1to3, buckets.d3to7, buckets.gt7];
+  }, [porRemanejamentoFiltrados, setoresVisiveis]);
+
+  const distribPorSetorBuckets = useMemo(() => {
+    const DAY = 24 * 60 * 60 * 1000;
+    const init = () => ({ setor: "", lt1: 0, d1to3: 0, d3to7: 0, gt7: 0, total: 0 });
+    const map: Record<string, { setor: string; lt1: number; d1to3: number; d3to7: number; gt7: number; total: number }> = {};
+    setoresVisiveis.forEach((s) => {
+      map[s.toUpperCase()] = { ...init(), setor: s };
+    });
+    porRemanejamentoFiltrados.forEach((r) => {
+      (r.duracaoPorSetorMs || []).forEach((d) => {
+        const s = (d.setor || "").toUpperCase();
+        const ms = d.ms || 0;
+        if (!setoresVisiveis.includes(s) || ms <= 0) return;
+        const key = ms < DAY ? "lt1" : ms < 3 * DAY ? "d1to3" : ms < 7 * DAY ? "d3to7" : "gt7";
+        const obj = map[s];
+        (obj as any)[key] += 1;
+        obj.total += 1;
+      });
+    });
+    return setoresVisiveis.map((s) => map[s.toUpperCase()] || { setor: s, lt1: 0, d1to3: 0, d3to7: 0, gt7: 0, total: 0 });
+  }, [porRemanejamentoFiltrados, setoresVisiveis]);
+
 
   const exportDetalhadoXLSX = useCallback(() => {
     if (!data) return;
@@ -417,6 +431,12 @@ export default function RelatorioSLA() {
     };
   }, [porRemanejamentoValidos, porSetorBase]);
 
+  const mediaTotalFiltradaMs = useMemo(() => {
+    const total = porRemanejamentoFiltrados.length;
+    const totalMs = porRemanejamentoFiltrados.reduce((acc, r) => acc + (r.totalDurMs || 0), 0);
+    return total ? Math.round(totalMs / total) : 0;
+  }, [porRemanejamentoFiltrados]);
+
   const totalRows = porRemanejamentoFiltrados.length;
   const totalPages = Math.max(1, Math.ceil(totalRows / rowsPerPage));
   const pageData = useMemo(() => {
@@ -426,7 +446,7 @@ export default function RelatorioSLA() {
   }, [porRemanejamentoFiltrados, page]);
 
   const rankingSetores = useMemo(() => {
-    const fixed = setoresDisponiveis.map((s) => s.toUpperCase());
+    const fixed = setoresVisiveis.map((s) => s.toUpperCase());
     const items = porSetorBase.filter((s) =>
       fixed.includes((s.setor || "").toUpperCase())
     );
@@ -435,7 +455,7 @@ export default function RelatorioSLA() {
       const valB = b.tempoMedioConclusaoMs || b.duracaoMediaAtuacaoMs || 0;
       return valA - valB;
     });
-  }, [porSetorBase, setoresDisponiveis]);
+  }, [porSetorBase, setoresVisiveis]);
 
   const topReprovacoes = useMemo(() => {
     const entries = Object.entries(data?.reprovacoesPorTipo || {});
@@ -621,7 +641,7 @@ export default function RelatorioSLA() {
                     <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-4 flex items-center justify-between">
                       <div>
                         <p className="text-xs font-medium text-gray-600">Total de Remanejamentos Concluídos</p>
-                        <p className="text-xl font-bold text-gray-900">{data?.porRemanejamento?.length ?? 0}</p>
+                        <p className="text-xl font-bold text-gray-900">{porRemanejamentoFiltrados.length}</p>
                       </div>
                       <div className="p-3 bg-blue-500 rounded-full">
                         <UserGroupIcon className="w-6 h-6 text-white" />
@@ -630,7 +650,7 @@ export default function RelatorioSLA() {
                     <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-4 flex items-center justify-between">
                       <div>
                         <p className="text-xs font-medium text-gray-600">Média duração total</p>
-                        <p className="text-xl font-bold text-gray-900">{fmtDias(detalhadoKPIs.mediaTotalMs)}</p>
+                        <p className="text-xl font-bold text-gray-900">{fmtDias(mediaTotalFiltradaMs)}</p>
                         <p className="text-xs text-gray-500">Por remanejamento</p>
                       </div>
                       <div className="p-3 bg-indigo-500 rounded-full">
@@ -707,7 +727,7 @@ export default function RelatorioSLA() {
                         <p className="text-xl font-bold text-gray-900">{mediaGeralDias <= 0 ? "<1d" : `${mediaGeralDias}d`}</p>
                         <p className="text-xs text-gray-500">Tempo médio por setor</p>
                         <div className="mt-2 flex flex-wrap gap-2">
-                          {setoresDisponiveis.map((s) => {
+                          {setoresVisiveis.map((s) => {
                             const item = porSetorBase.find((x) => (x.setor || "").toUpperCase() === s.toUpperCase());
                             const ms = item ? item.tempoMedioConclusaoMs || item.duracaoMediaAtuacaoMs || 0 : 0;
                             const DAY = 24 * 60 * 60 * 1000;
@@ -781,7 +801,7 @@ export default function RelatorioSLA() {
                             </ResponsiveContainer>
                           </div>
                           <div className="mt-3 flex flex-wrap justify-center gap-3">
-                            {setoresDisponiveis.map((s) => {
+                            {setoresVisiveis.map((s) => {
                               const colorMap: Record<string, string> = {
                                 RH: "#60A5FA",
                                 MEDICINA: "#10B981",
@@ -925,7 +945,7 @@ export default function RelatorioSLA() {
                                   </ResponsiveContainer>
                                 </div>
                                 <div className="mt-3 flex flex-wrap justify-center gap-3">
-                                  {setoresDisponiveis.map((s) => {
+                                  {setoresVisiveis.map((s) => {
                                     const colorMap: Record<string, string> = {
                                       RH: "#60A5FA",
                                       MEDICINA: "#10B981",
@@ -944,14 +964,28 @@ export default function RelatorioSLA() {
                               </div>
                             </div>
                           </div>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="rounded-2xl bg-white shadow-xl w-full flex-1 overflow-hidden">
-                      <div className="px-4 py-3 flex items-center justify-between bg-gray-50 rounded-t-2xl">
-                        <div className="flex items-center gap-2">
-                          <UserGroupIcon className="h-5 w-5 text-indigo-600" />
-                          <h3 className="text-sm font-semibold text-gray-800">Período por setor — por remanejamento</h3>
+                  </div>
+                </div>
+              </div>
+              <div className="rounded-2xl bg-white shadow-xl p-6">
+                <div className="flex items-center gap-2 mb-3">
+                  <ChartBarIcon className="h-5 w-5 text-indigo-600" />
+                  <h3 className="text-base font-semibold text-gray-800">Guia dos gráficos</h3>
+                </div>
+                <div className="space-y-2 text-sm text-gray-700">
+                  <p><span className="font-medium">Participação por setor (dias)</span>: soma dos dias de atuação por setor dividida pelo total (percentual). Útil para ver qual setor concentra mais tempo.</p>
+                  <p><span className="font-medium">Distribuição por faixas (dias)</span>: quantos remanejamentos caem em cada faixa de duração, empilhado por setor (percentual dentro da faixa).</p>
+                  <p><span className="font-medium">Distribuição por setor e faixa (contagem)</span>: contagem absoluta por setor em cada faixa, com rótulos inteiros no topo das barras.</p>
+                  <p><span className="font-medium">Tempo médio por setor (dias)</span>: donut com média de dias por setor; usa "&lt;1" quando o tempo médio é menor que 1 dia.</p>
+                  <p><span className="font-medium">Média de conclusão (geral)</span>: média dos dias de conclusão considerando os filtros ativos.</p>
+                  <p className="text-xs text-gray-500">Observação: todos os gráficos e KPIs desta aba respeitam os filtros de setor, faixa de contagem e funcionário.</p>
+                </div>
+              </div>
+              <div className="rounded-2xl bg-white shadow-xl w-full flex-1 overflow-hidden">
+                <div className="px-4 py-3 flex items-center justify-between bg-gray-50 rounded-t-2xl">
+                  <div className="flex items-center gap-2">
+                    <UserGroupIcon className="h-5 w-5 text-indigo-600" />
+                    <h3 className="text-sm font-semibold text-gray-800">Período por setor — por remanejamento</h3>
                         </div>
                         <div className="flex items-center gap-3">
                           <span className="text-xs text-gray-500">{porRemanejamentoFiltrados.length} linha(s)</span>
@@ -968,7 +1002,7 @@ export default function RelatorioSLA() {
                           <thead className="bg-gray-50 sticky top-0 z-10">
                             <tr>
                               <th className="text-left px-3 py-2 text-xs font-medium text-gray-600 uppercase tracking-wider">Funcionário</th>
-                              {setoresDisponiveis.map((s) => {
+                              {setoresVisiveis.map((s) => {
                                 const iconMap: Record<string, any> = { RH: BuildingOfficeIcon, MEDICINA: HeartIcon, TREINAMENTO: AcademicCapIcon, LOGISTICA: TruckIcon };
                                 const Icon = iconMap[s] || ChartBarIcon;
                                 return (
@@ -992,7 +1026,7 @@ export default function RelatorioSLA() {
                                     <span className="text-xs text-gray-600">Remanejamento: {String(r.remanejamentoId)}</span>
                                   </div>
                                 </td>
-                                {setoresDisponiveis.map((s) => {
+                                {setoresVisiveis.map((s) => {
                                   const periodEntry = (r.periodosPorSetor || []).find((x) => x.setor.toUpperCase() === s.toUpperCase());
                                   const durEntry = (r.duracaoPorSetorMs || []).find((x) => x.setor.toUpperCase() === s.toUpperCase());
                                   return (
@@ -1143,7 +1177,7 @@ export default function RelatorioSLA() {
                             Total
                           </span>
                         </th>
-                        {setoresDisponiveis.map((s) => {
+                        {setoresVisiveis.map((s) => {
                           const iconMap: Record<string, any> = {
                             RH: BuildingOfficeIcon,
                             MEDICINA: HeartIcon,
@@ -1181,7 +1215,7 @@ export default function RelatorioSLA() {
                               {fmtMs(r.totalDurMs)}
                             </span>
                           </td>
-                          {setoresDisponiveis.map((s) => {
+                          {setoresVisiveis.map((s) => {
                             const entry = (r.temposMediosPorSetor || []).find(
                               (x) => x.setor.toUpperCase() === s.toUpperCase()
                             );
@@ -1325,7 +1359,7 @@ export default function RelatorioSLA() {
                           Tempo médio por setor
                         </p>
                         <div className="mt-2 flex flex-wrap gap-2">
-                          {setoresDisponiveis.map((s) => {
+                          {setoresVisiveis.map((s) => {
                             const item = porSetorBase.find(
                               (x) =>
                                 (x.setor || "").toUpperCase() ===
@@ -1503,7 +1537,7 @@ export default function RelatorioSLA() {
                               <th className="text-left px-3 py-2 text-xs font-medium text-gray-600 uppercase tracking-wider">
                                 Funcionário
                               </th>
-                              {setoresDisponiveis.map((s) => {
+                              {setoresVisiveis.map((s) => {
                                 const iconMap: Record<string, any> = {
                                   RH: BuildingOfficeIcon,
                                   MEDICINA: HeartIcon,
@@ -1551,7 +1585,7 @@ export default function RelatorioSLA() {
                                     </span>
                                   </div>
                                 </td>
-                                {setoresDisponiveis.map((s) => {
+                                {setoresVisiveis.map((s) => {
                                   const periodEntry = (
                                     r.periodosPorSetor || []
                                   ).find(
