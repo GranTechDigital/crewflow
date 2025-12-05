@@ -2,7 +2,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ChevronDown,
   ChevronRight,
@@ -69,7 +69,7 @@ export default function Sidebar() {
       key: "planejamento",
       label: "Planejamento",
       icon: LayoutDashboard,
-      items: [
+       items: [
         // { label: "Dashboard", h
         // ref: "/prestserv/dashboard" },
         //{ label: "Minhas Solicitações de Remanejamento", href: "/prestserv/remanejamentos/tabela" },
@@ -208,13 +208,13 @@ export default function Sidebar() {
   // Filtrar seções baseado nas permissões do usuário
   const sections = isAdmin
     ? allSections
-    : allSections.filter(section => {
-      if (!usuario) return false;
-      return permissions.hasPermission(section.permission);
-    });
+    : allSections.filter((section) => {
+        if (!usuario) return false;
+        if (section.key === "planejamento") return true;
+        return permissions.hasPermission(section.permission);
+      });
 
   const filteredSections = sections
-    .filter(section => section.key !== "planejamento")
     .map(section =>
       section.key === "prestserv"
         ? {
@@ -228,6 +228,23 @@ export default function Sidebar() {
           }
         : section
     );
+
+  // Fallback: se por algum motivo Planejamento não estiver presente, injeta no topo
+  const finalSections = useMemo(() => {
+    const hasPlanejamento = filteredSections.some((s) => s.key === "planejamento");
+    if (hasPlanejamento) return filteredSections;
+    const planejamento = allSections.find((s) => s.key === "planejamento");
+    return planejamento ? [planejamento, ...filteredSections] : filteredSections;
+  }, [filteredSections, allSections]);
+
+  // Garantir que Planejamento fique visível ao carregar
+  useEffect(() => {
+    const hasPlanejamento = filteredSections.some((s) => s.key === "planejamento");
+    if (userLoaded && usuario && hasPlanejamento) {
+      setCollapsed(false);
+      setActiveSection("planejamento");
+    }
+  }, [userLoaded, usuario, filteredSections]);
 
   // Se ainda estiver carregando ou usuário não foi carregado
   if (loading || !userLoaded || !usuario) {
@@ -340,7 +357,7 @@ export default function Sidebar() {
         </Link>
 
         {/* Seções com submenu */}
-        {filteredSections.map((section) => (
+        {finalSections.map((section) => (
           <div key={section.key} className="space-y-0.5">
             <button
               className={`flex items-center justify-between w-full hover:bg-gray-600/40 rounded-lg transition-all duration-200 hover:shadow-lg group border border-transparent hover:border-gray-500/20 backdrop-blur-sm ${

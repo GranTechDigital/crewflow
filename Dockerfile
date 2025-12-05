@@ -7,7 +7,8 @@ COPY prisma ./prisma/
 RUN npm ci
 RUN npx prisma generate
 COPY . .
-RUN npm run build && rm -rf .next/cache
+RUN npm run build
+RUN rm -rf .next/cache || true
 
 FROM node:18-alpine AS runner
 RUN apk add --no-cache libc6-compat

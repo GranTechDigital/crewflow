@@ -27,14 +27,25 @@ const nextConfig: NextConfig = {
       },
     ];
   },
-  webpack(config, { dev }) {
+  webpack(config, { dev, isServer }) {
     // For Docker on Windows, enable polling so file changes are detected reliably
     if (dev) {
       config.watchOptions = {
         ...(config.watchOptions || {}),
-        poll: 3000, // Reduzido de 1000ms para 3000ms para melhor performance
-        aggregateTimeout: 600, // Aumentado para reduzir recompilações frequentes
-        ignored: /node_modules/, // Ignorar node_modules para melhor performance
+        poll: 3000,
+        aggregateTimeout: 600,
+        ignored: /node_modules/,
+      };
+    }
+    // Garantir que os chunks do servidor fiquem em /server/chunks para combinar com o runtime
+    if (isServer) {
+      // Ajusta o template de nomes de chunks do webpack no lado do servidor
+      // Isso faz o runtime emitir require para "chunks/<id>.js" em vez de "./<id>.js"
+      config.output = {
+        ...config.output,
+        chunkFilename: dev ? 'chunks/[id].js' : 'chunks/[contenthash].js',
+        hotUpdateChunkFilename: 'chunks/[id].hot-update.js',
+        hotUpdateMainFilename: 'chunks/[runtime].hot-update.json',
       };
     }
     return config;
