@@ -143,9 +143,17 @@ jobs:
             docker system df || true
           EOF
 
-      - name: 🚚 Stream Docker image to server
+      - name: 🚚 Upload Docker image to server (resilient)
         run: |
-          docker save crewflow-app:${{ github.sha }} crewflow-app:latest | gzip -1 | ssh -o StrictHostKeyChecking=no root@${{ secrets.PROD_SERVER_HOST }} "gunzip | docker load"
+          set -euo pipefail
+          FILE="/tmp/crewflow_${{ github.sha }}.tar.gz"
+          echo "📦 Gerando arquivo de imagem compactado localmente: $FILE"
+          docker save crewflow-app:${{ github.sha }} crewflow-app:latest | gzip -1 > "$FILE"
+          ls -lh "$FILE"
+          echo "🚚 Transferindo imagem para o servidor via SCP com keepalive"
+          scp -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -o ServerAliveCountMax=10 "$FILE" root@${{ secrets.PROD_SERVER_HOST }}:/tmp/
+          echo "📥 Carregando imagem no Docker do servidor e removendo arquivo temporário"
+          ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -o ServerAliveCountMax=10 root@${{ secrets.PROD_SERVER_HOST }} "gunzip -c /tmp/crewflow_${{ github.sha }}.tar.gz | docker load && rm -f /tmp/crewflow_${{ github.sha }}.tar.gz"
 
       - name: 📤 Upload files and env to server
         run: |
