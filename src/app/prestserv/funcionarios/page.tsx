@@ -113,6 +113,9 @@ function FuncionariosPageContent() {
   const { showToast } = useToast();
   const { usuario } = useAuth();
   const [funcionarios, setFuncionarios] = useState<FuncionarioTableData[]>([]);
+  const [funcionariosBaseNominal, setFuncionariosBaseNominal] = useState<
+    FuncionarioTableData[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filtroStatus, setFiltroStatus] = useState<string>("TODOS");
@@ -344,6 +347,8 @@ function FuncionariosPageContent() {
 
     setIsInitialized(true);
     fetchFuncionarios();
+    // Carregar base nominal independente da aba para manter o badge de "Concluídos" consistente
+    fetchFuncionariosBaseNominal();
   }, []);
 
   // Recarregar dados quando a página atual mudar (apenas para aba solicitacao)
@@ -357,6 +362,10 @@ function FuncionariosPageContent() {
   useEffect(() => {
     if (isInitialized) {
       fetchFuncionarios();
+      // Garantir que a base nominal esteja sempre atualizada, inclusive quando estiver na aba de solicitação
+      if (activeTab === "solicitacao") {
+        fetchFuncionariosBaseNominal();
+      }
     }
   }, [activeTab]);
 
@@ -1071,6 +1080,9 @@ function FuncionariosPageContent() {
         );
 
       setFuncionarios(funcionariosTransformados);
+      if (activeTab !== "solicitacao") {
+        setFuncionariosBaseNominal(funcionariosTransformados);
+      }
 
       // Atualizar total de solicitações apenas se mudou
       if (totalSolicitacoesAPI !== totalSolicitacoes) {
@@ -1083,6 +1095,105 @@ function FuncionariosPageContent() {
       setError(err instanceof Error ? err.message : "Erro desconhecido");
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Carregar base nominal (sem paginação) para contagem estável de "Concluídos"
+  const fetchFuncionariosBaseNominal = async () => {
+    try {
+      const params = new URLSearchParams();
+      params.append("filtrarProcesso", "false");
+      const response = await fetch(`/api/logistica/remanejamentos?${params}`);
+      if (!response.ok) {
+        throw new Error("Erro ao carregar remanejamentos (base nominal)");
+      }
+      const data = await response.json();
+      const solicitacoes = Array.isArray(data) ? data : [];
+      const baseTransformada: FuncionarioTableData[] = solicitacoes.flatMap(
+        (solicitacao: any) =>
+          solicitacao.funcionarios.map((rf: any) => ({
+            id: rf.id,
+            remanejamentoId: rf.id,
+            nome: rf.funcionario.nome,
+            matricula: rf.funcionario.matricula,
+            funcao: rf.funcionario.funcao,
+            sispat: rf.funcionario.sispat || "-",
+            statusFolha: rf.funcionario.status || "-",
+            emMigracao: rf.funcionario.emMigracao || false,
+            statusTarefas: rf.statusTarefas || "ATENDER TAREFAS",
+            statusPrestserv: rf.statusPrestserv || "PENDENTE",
+            solicitacaoId: solicitacao.id,
+            tipoSolicitacao: solicitacao.tipo || "REMANEJAMENTO",
+            contratoOrigem: solicitacao.contratoOrigem?.numero || "N/A",
+            contratoDestino: solicitacao.contratoDestino?.numero || "N/A",
+            contratoOrigemNome: solicitacao.contratoOrigem?.nome || "N/A",
+            contratoDestinoNome: solicitacao.contratoDestino?.nome || "N/A",
+            totalTarefas: rf.tarefas?.length || 0,
+            tarefasConcluidas:
+              rf.tarefas?.filter((t: any) => t.status === "CONCLUIDO").length ||
+              0,
+            dataSolicitacao: solicitacao.dataSolicitacao,
+            createdAt: solicitacao.createdAt,
+            updatedAt: solicitacao.updatedAt,
+            observacoesPrestserv: rf.observacoesPrestserv || "",
+            statusFuncionario: rf.statusFuncionario,
+            funcaoAlteradaRecentemente: rf.funcaoAlteradaRecentemente || false,
+            dataMudancaFuncao: rf.dataMudancaFuncao || undefined,
+            progressoPorSetor: [
+              {
+                setor: "RH",
+                total:
+                  rf.tarefas?.filter((t: any) => t.responsavel === "RH")
+                    .length || 0,
+                concluidas:
+                  rf.tarefas?.filter(
+                    (t: any) =>
+                      t.responsavel === "RH" && t.status === "CONCLUIDO"
+                  ).length || 0,
+                percentual: 0,
+              },
+              {
+                setor: "MEDICINA",
+                total:
+                  rf.tarefas?.filter((t: any) => t.responsavel === "MEDICINA")
+                    .length || 0,
+                concluidas:
+                  rf.tarefas?.filter(
+                    (t: any) =>
+                      t.responsavel === "MEDICINA" && t.status === "CONCLUIDO"
+                  ).length || 0,
+                percentual: 0,
+              },
+              {
+                setor: "TREINAMENTO",
+                total:
+                  rf.tarefas?.filter(
+                    (t: any) =>
+                      t.responsavel === "TREINAMENTO" &&
+                      (t.descricao?.includes("Tipo: AP") || false) &&
+                      t.status !== "CANCELADO"
+                  ).length || 0,
+                concluidas:
+                  rf.tarefas?.filter(
+                    (t: any) =>
+                      t.responsavel === "TREINAMENTO" &&
+                      (t.descricao?.includes("Tipo: AP") || false) &&
+                      t.status === "CONCLUIDO"
+                  ).length || 0,
+                percentual: 0,
+              },
+            ].map((progresso) => ({
+              ...progresso,
+              percentual:
+                progresso.total > 0
+                  ? Math.round((progresso.concluidas / progresso.total) * 100)
+                  : 0,
+            })),
+          }))
+      );
+      setFuncionariosBaseNominal(baseTransformada);
+    } catch (e) {
+      console.error(e);
     }
   };
 
@@ -2105,12 +2216,12 @@ function FuncionariosPageContent() {
     );
   };
 
-  // Aplicar filtros aos funcionários
-  const funcionariosFiltrados = funcionarios.filter((funcionario) => {
-    const matchNome =
-      !filtroNome ||
-      funcionario.nome.toLowerCase().includes(filtroNome.toLowerCase()) ||
-      funcionario.matricula.toLowerCase().includes(filtroNome.toLowerCase());
+  const aplicarFiltros = (lista: FuncionarioTableData[]) =>
+    lista.filter((funcionario) => {
+      const matchNome =
+        !filtroNome ||
+        funcionario.nome.toLowerCase().includes(filtroNome.toLowerCase()) ||
+        funcionario.matricula.toLowerCase().includes(filtroNome.toLowerCase());
 
     const matchStatus =
       filtroStatus === "TODOS" ||
@@ -2158,20 +2269,83 @@ function FuncionariosPageContent() {
           progresso.concluidas < progresso.total
       );
 
-    return (
-      matchNome &&
-      matchStatus &&
-      matchContratoOrigem &&
-      matchContratoDestino &&
-      matchStatusGeral &&
-      matchStatusPrestserv &&
-      matchAcaoNecessaria &&
-      matchTipoSolicitacao &&
-      matchNumeroSolicitacao &&
-      matchResponsavel &&
-      matchPendenciasPorSetor
-    );
-  });
+      return (
+        matchNome &&
+        matchStatus &&
+        matchContratoOrigem &&
+        matchContratoDestino &&
+        matchStatusGeral &&
+        matchStatusPrestserv &&
+        matchAcaoNecessaria &&
+        matchTipoSolicitacao &&
+        matchNumeroSolicitacao &&
+        matchResponsavel &&
+        matchPendenciasPorSetor
+      );
+    });
+
+  const funcionariosFiltrados = aplicarFiltros(funcionarios);
+  const aplicarFiltrosNominal = (lista: FuncionarioTableData[]) =>
+    lista.filter((funcionario) => {
+      const matchNome =
+        !filtroNome ||
+        funcionario.nome.toLowerCase().includes(filtroNome.toLowerCase()) ||
+        funcionario.matricula.toLowerCase().includes(filtroNome.toLowerCase());
+
+      const matchStatus =
+        filtroStatus === "TODOS" ||
+        funcionario.statusTarefas === filtroStatus ||
+        funcionario.statusPrestserv === filtroStatus;
+
+      const matchContratoOrigem =
+        filtroContratoOrigem.length === 0 ||
+        filtroContratoOrigem.includes(funcionario.contratoOrigem);
+
+      const matchContratoDestino =
+        filtroContratoDestino.length === 0 ||
+        filtroContratoDestino.includes(funcionario.contratoDestino);
+
+      const matchStatusGeral =
+        filtroStatusGeral.length === 0 ||
+        filtroStatusGeral.includes(funcionario.statusTarefas);
+
+      const matchStatusPrestserv =
+        filtroStatusPrestserv.length === 0 ||
+        filtroStatusPrestserv.includes(funcionario.statusPrestserv);
+
+      const matchAcaoNecessaria =
+        !filtroAcaoNecessaria ||
+        funcionario.statusTarefas === filtroAcaoNecessaria;
+
+      const matchResponsavel =
+        filtroResponsavel.length === 0 ||
+        filtroResponsavel.includes(getResponsavelAtual(funcionario));
+
+      const matchPendenciasPorSetor =
+        filtroPendenciasPorSetor.length === 0 ||
+        funcionario.progressoPorSetor?.some(
+          (progresso) =>
+            filtroPendenciasPorSetor.includes(progresso.setor) &&
+            progresso.total > 0 &&
+            progresso.concluidas < progresso.total
+        );
+
+      return (
+        matchNome &&
+        matchStatus &&
+        matchContratoOrigem &&
+        matchContratoDestino &&
+        matchStatusGeral &&
+        matchStatusPrestserv &&
+        matchAcaoNecessaria &&
+        matchResponsavel &&
+        matchPendenciasPorSetor
+      );
+    });
+
+  const funcionariosFiltradosNominal = aplicarFiltrosNominal(
+    funcionariosBaseNominal
+  );
 
   // Aplicar ordenação
   const funcionariosOrdenados = [...funcionariosFiltrados].sort((a, b) => {
@@ -2454,7 +2628,11 @@ function FuncionariosPageContent() {
               <CheckIcon className="h-4 w-4" />
               <span>Concluídos</span>
               <span className="ml-2 inline-flex items-center justify-center rounded-full bg-sky-600 text-white text-[10px] font-bold px-2 py-0.5">
-                {funcionariosFiltradosConcluidos.length}
+                {funcionariosFiltradosNominal.filter(
+                  (f) =>
+                    f.statusPrestserv === "VALIDADO" ||
+                    f.statusTarefas === "CONCLUIDO"
+                ).length}
               </span>
             </button>
             <button

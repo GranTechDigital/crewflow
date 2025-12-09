@@ -13,6 +13,7 @@ import {
   Users,
   GraduationCap,
   Shield,
+  BarChart3,
 } from "lucide-react";
 import { useAuth, usePermissions } from "@/app/hooks/useAuth";
 import { PERMISSIONS, hasFullAccess } from "@/lib/permissions";
@@ -49,6 +50,22 @@ export default function Sidebar() {
     localStorage.setItem("sidebar-collapsed", String(collapsed));
   }, [collapsed]);
 
+  // Carregar/Salvar seção ativa no localStorage
+  useEffect(() => {
+    const storedActive = localStorage.getItem("sidebar-active-section");
+    if (storedActive && storedActive.trim().length > 0) {
+      setActiveSection(storedActive);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeSection) {
+      localStorage.setItem("sidebar-active-section", activeSection);
+    } else {
+      localStorage.removeItem("sidebar-active-section");
+    }
+  }, [activeSection]);
+
   const handleToggle = (section: string) => {
     setActiveSection((prev) => (prev === section ? null : section));
   };
@@ -64,7 +81,7 @@ export default function Sidebar() {
     });
   };
 
-  const allSections = [
+  const allSections = useMemo(() => ([
     {
       key: "planejamento",
       label: "Planejamento",
@@ -87,6 +104,15 @@ export default function Sidebar() {
           href: "/prestserv/bi",
         },
         // { label: "Visualizar Funcionários por Centro de Custo (Folha)", href: "/planejamento/funcionarios" },
+      ],
+      permission: "canAccessPlanejamento",
+    },
+    {
+      key: "relatorios",
+      label: "Relatórios",
+      icon: BarChart3,
+      items: [
+        { label: "SLA / Relatório", href: "/sla/relatorio" },
       ],
       permission: "canAccessPlanejamento",
     },
@@ -200,7 +226,7 @@ export default function Sidebar() {
       ],
       permission: PERMISSIONS.ACCESS_ADMIN,
     },
-  ];
+  ]), []);
 
   // Verificar se o usuário tem acesso total (admin)
   const isAdmin = hasFullAccess(usuario?.permissoes || []);
@@ -214,8 +240,8 @@ export default function Sidebar() {
         return permissions.hasPermission(section.permission);
       });
 
-  const filteredSections = sections
-    .map(section =>
+  const filteredSections = useMemo(() => (
+    sections.map(section =>
       section.key === "prestserv"
         ? {
             ...section,
@@ -227,7 +253,8 @@ export default function Sidebar() {
             ),
           }
         : section
-    );
+    )
+  ), [sections]);
 
   // Fallback: se por algum motivo Planejamento não estiver presente, injeta no topo
   const finalSections = useMemo(() => {
@@ -237,14 +264,7 @@ export default function Sidebar() {
     return planejamento ? [planejamento, ...filteredSections] : filteredSections;
   }, [filteredSections, allSections]);
 
-  // Garantir que Planejamento fique visível ao carregar
-  useEffect(() => {
-    const hasPlanejamento = filteredSections.some((s) => s.key === "planejamento");
-    if (userLoaded && usuario && hasPlanejamento) {
-      setCollapsed(false);
-      setActiveSection("planejamento");
-    }
-  }, [userLoaded, usuario, filteredSections]);
+  // Não forçar abertura de nenhuma seção; respeitar interação do usuário
 
   // Se ainda estiver carregando ou usuário não foi carregado
   if (loading || !userLoaded || !usuario) {
@@ -253,7 +273,7 @@ export default function Sidebar() {
         className={`
           bg-gradient-to-b from-gray-800 via-gray-750 to-gray-700 text-white h-full
           transition-all duration-300 ease-in-out
-          ${collapsed ? "w-20" : "w-64"}
+          ${collapsed && !isHovered ? "w-20" : "w-64"}
           border-r border-gray-600/50
           overflow-hidden
           flex flex-col
@@ -263,7 +283,7 @@ export default function Sidebar() {
       >
         {/* Header com loading */}
         <div className="flex items-center justify-between px-4 h-12 border-b border-gray-600/50 bg-gray-700/30 backdrop-blur-sm">
-          {!collapsed && (
+          {!(collapsed && !isHovered) && (
             <div className="flex items-center gap-3">
               <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse shadow-sm"></div>
               <span className="text-sm font-semibold text-gray-100 tracking-wide">
@@ -274,11 +294,9 @@ export default function Sidebar() {
           <button
             onClick={toggleCollapse}
             aria-label="Alternar barra lateral"
-            className={`p-1.5 hover:bg-gray-600/50 rounded-md transition-all duration-200 ${
-              collapsed ? "mx-auto" : ""
-            }`}
+            className={`p-1.5 hover:bg-gray-600/50 rounded-md transition-all duration-200 ${collapsed && !isHovered ? "mx-auto" : ""}`}
           >
-            {collapsed ? <ChevronRight size={14} className="text-gray-300" /> : <ChevronLeft size={14} className="text-gray-300" />}
+            {collapsed && !isHovered ? <ChevronRight size={14} className="text-gray-300" /> : <ChevronLeft size={14} className="text-gray-300" />}
           </button>
         </div>
 
@@ -317,9 +335,7 @@ export default function Sidebar() {
         <button
           onClick={toggleCollapse}
           aria-label="Alternar barra lateral"
-          className={`p-1.5 hover:bg-gray-600/50 rounded-md transition-all duration-200 hover:shadow-md border border-transparent hover:border-gray-500/30 ${
-            collapsed && !isHovered ? "mx-auto" : ""
-          }`}
+          className={`p-1.5 hover:bg-gray-600/50 rounded-md transition-all duration-200 hover:shadow-md border border-transparent hover:border-gray-500/30 ${collapsed && !isHovered ? "mx-auto" : ""}`}
         >
           {collapsed && !isHovered ? (
             <ChevronRight size={14} className="text-gray-300" />
@@ -331,18 +347,12 @@ export default function Sidebar() {
 
       {/* Navegação com scrollbar customizada mais fina */}
       <nav
-        className={`flex flex-col space-y-0.5 text-sm flex-1 overflow-y-auto custom-scrollbar ${
-          collapsed && !isHovered ? "px-2 py-3" : "px-3 py-3"
-        }`}
+        className={`flex flex-col space-y-0.5 text-sm flex-1 overflow-y-auto custom-scrollbar ${collapsed && !isHovered ? "px-2 py-3" : "px-3 py-3"}`}
       >
         {/* Página Inicial */}
         <Link
           href="/"
-          className={`hover:bg-gray-600/40 flex items-center rounded-lg transition-all duration-200 hover:shadow-lg group border border-transparent hover:border-gray-500/20 backdrop-blur-sm ${
-            collapsed && !isHovered
-              ? "gap-0 px-2 py-2 justify-center"
-              : "gap-2.5 px-3 py-2"
-          }`}
+          className={`hover:bg-gray-600/40 flex items-center rounded-lg transition-all duration-200 hover:shadow-lg group border border-transparent hover:border-gray-500/20 backdrop-blur-sm ${collapsed && !isHovered ? "gap-0 px-2 py-2 justify-center" : "gap-2.5 px-3 py-2"}`}
           title={collapsed && !isHovered ? "Página Inicial" : ""}
         >
           <Home
@@ -360,31 +370,15 @@ export default function Sidebar() {
         {finalSections.map((section) => (
           <div key={section.key} className="space-y-0.5">
             <button
-              className={`flex items-center justify-between w-full hover:bg-gray-600/40 rounded-lg transition-all duration-200 hover:shadow-lg group border border-transparent hover:border-gray-500/20 backdrop-blur-sm ${
-                collapsed && !isHovered ? "px-2 py-2" : "px-3 py-2"
-              }`}
+              className={`flex items-center justify-between w-full hover:bg-gray-600/40 rounded-lg transition-all duration-200 hover:shadow-lg group border border-transparent hover:border-gray-500/20 backdrop-blur-sm ${collapsed && !isHovered ? "px-2 py-2" : "px-3 py-2"}`}
               onClick={() => {
-                if (collapsed && !isHovered) {
-                  // Se estiver colapsado e não hover, expandir primeiro
-                  setCollapsed(false);
-                  // Aguardar a animação antes de abrir a seção
-                  setTimeout(() => {
-                    handleToggle(section.key);
-                  }, 150);
-                } else {
-                  // Se não estiver colapsado ou estiver em hover, toggle normal
-                  handleToggle(section.key);
-                }
+                handleToggle(section.key);
               }}
               aria-expanded={activeSection === section.key}
               title={collapsed && !isHovered ? section.label : ""}
             >
               <span
-                className={`flex items-center ${
-                  collapsed && !isHovered
-                    ? "gap-0 justify-center w-full"
-                    : "gap-2.5"
-                }`}
+                className={`flex items-center ${collapsed && !isHovered ? "gap-0 justify-center w-full" : "gap-2.5"}`}
               >
                 <section.icon
                   size={16}
@@ -412,11 +406,7 @@ export default function Sidebar() {
 
             {/* Sub-itens com transição suave */}
             <div
-              className={`transition-all duration-300 ease-in-out overflow-hidden ${
-                activeSection === section.key && !(collapsed && !isHovered)
-                  ? "max-h-96 opacity-100"
-                  : "max-h-0 opacity-0"
-              }`}
+              className={`transition-all duration-300 ease-in-out overflow-hidden ${activeSection === section.key && !(collapsed && !isHovered) ? "max-h-96 opacity-100" : "max-h-0 opacity-0"}`}
             >
               <div className="ml-5 mt-0.5 flex flex-col space-y-0.5 border-l-2 border-gray-600/50 pl-3 relative">
                 {/* Linha decorativa */}

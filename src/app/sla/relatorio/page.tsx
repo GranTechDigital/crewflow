@@ -38,7 +38,7 @@ type KPISet = {
     qtdTarefas: number;
     duracaoMediaAtuacaoMs: number;
     tempoMedioConclusaoMs: number;
-    reprovações: number;
+    reprovacoes: number;
   }[];
   porRemanejamento: {
     remanejamentoId: string | number;
@@ -50,11 +50,14 @@ type KPISet = {
     duracaoPorSetorMs?: { setor: string; ms: number }[];
     solicitacaoDataCriacao?: string | null;
     remanejamentoDataConclusao?: string | null;
+    responsabilidadeTimeline?: { responsavel: string; inicio: string; fim: string; ms: number; ciclo?: number; tipo?: string }[];
+    segmentosPorSetor?: Record<string, { inicio: string; fim: string; ms: number; ciclo?: number }[]>;
   }[];
   reprovacoesPorTipo?: Record<string, number>;
 };
 
 function fmtMs(ms: number) {
+  if (ms < 60 * 1000) return "<1m";
   const d = Math.floor(ms / (24 * 60 * 60 * 1000));
   const h = Math.floor((ms % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
   const m = Math.floor((ms % (60 * 60 * 1000)) / (60 * 1000));
@@ -70,10 +73,11 @@ function fmtDias(ms: number) {
 
 export default function RelatorioSLA() {
   const [data, setData] = useState<KPISet | null>(null);
+  const [dataAll, setDataAll] = useState<KPISet | null>(null);
   const somenteConcluidos = true;
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"simples" | "detalhado" | "dias">(
+  const [activeTab, setActiveTab] = useState<"simples" | "detalhado" | "dias" | "dias_all">(
     "detalhado"
   );
   const [page, setPage] = useState<number>(1);
@@ -101,9 +105,22 @@ export default function RelatorioSLA() {
     }
   }, [somenteConcluidos]);
 
+  const carregarAll = useCallback(async () => {
+    try {
+      const resp = await fetch(`/api/sla/relatorio`, { credentials: "include" });
+      if (!resp.ok) return;
+      const json = await resp.json();
+      setDataAll(json as KPISet);
+    } catch {}
+  }, []);
+
   useEffect(() => {
     carregar();
   }, [carregar]);
+
+  useEffect(() => {
+    carregarAll();
+  }, [carregarAll]);
 
   const setoresDisponiveis = useMemo(() => {
     // Fixar colunas principais para consistência e incluir logística
@@ -141,10 +158,33 @@ export default function RelatorioSLA() {
     );
   }, [data, requiredSetores, MIN_VALID_MS]);
 
+  const porRemanejamentoValidosAll = useMemo(() => {
+    if (!dataAll) return [] as KPISet["porRemanejamento"];
+    return dataAll.porRemanejamento.filter((r) =>
+      requiredSetores.some((s) => {
+        const entry = (r.temposMediosPorSetor || []).find(
+          (x) => x.setor.toUpperCase() === s.toUpperCase()
+        );
+        const dur = (r.duracaoPorSetorMs || []).find(
+          (x) => x.setor.toUpperCase() === s.toUpperCase()
+        );
+        const okMedia =
+          entry && entry.tempoMedioMs && entry.tempoMedioMs >= MIN_VALID_MS;
+        const okDur = dur && (dur.ms || 0) >= MIN_VALID_MS;
+        return okMedia || okDur;
+      })
+    );
+  }, [dataAll, requiredSetores, MIN_VALID_MS]);
+
   const porSetorBase = useMemo(() => {
     if (!data) return [] as KPISet["porSetor"];
     return data.porSetor;
   }, [data]);
+
+  const porSetorBaseAll = useMemo(() => {
+    if (!dataAll) return [] as KPISet["porSetor"];
+    return dataAll.porSetor;
+  }, [dataAll]);
 
   const porRemanejamentoFiltrados = useMemo(() => {
     const DAY = 24 * 60 * 60 * 1000;
@@ -171,6 +211,10 @@ export default function RelatorioSLA() {
     });
   }, [porRemanejamentoValidos, filtroSetores, filtroBuckets, filtroFuncionario]);
 
+  const porRemanejamentoFiltradosAll = useMemo(() => {
+    return porRemanejamentoValidosAll;
+  }, [porRemanejamentoValidosAll]);
+
   
 
   // gráfico de downtime removido (foque no tempo médio)
@@ -188,6 +232,13 @@ export default function RelatorioSLA() {
       return { setor: s.setor, dias: Math.floor(baseMs / (24 * 60 * 60 * 1000)) };
     });
   }, [porSetorBase]);
+
+  const chartDataDiasAll = useMemo(() => {
+    return porSetorBaseAll.map((s) => {
+      const baseMs = s.tempoMedioConclusaoMs || s.duracaoMediaAtuacaoMs || 0;
+      return { setor: s.setor, dias: Math.floor(baseMs / (24 * 60 * 60 * 1000)) };
+    });
+  }, [porSetorBaseAll]);
 
   const donutMediaSetorDias = useMemo(() => {
     const DAY = 24 * 60 * 60 * 1000;
@@ -213,6 +264,30 @@ export default function RelatorioSLA() {
     return items.map((it) => ({ ...it, pct: (it.dias / totalDias) * 100 }));
   }, [porRemanejamentoFiltrados, setoresVisiveis]);
 
+  const donutMediaSetorDiasAll = useMemo(() => {
+    const DAY = 24 * 60 * 60 * 1000;
+    const acc: Record<string, { sum: number; count: number }> = {};
+    setoresDisponiveis.forEach((s) => (acc[s.toUpperCase()] = { sum: 0, count: 0 }));
+    porRemanejamentoFiltradosAll.forEach((r) => {
+      (r.duracaoPorSetorMs || []).forEach((d) => {
+        const k = (d.setor || "").toUpperCase();
+        if (!setoresDisponiveis.includes(k)) return;
+        const ms = d.ms || 0;
+        if (ms <= 0) return;
+        acc[k].sum += ms;
+        acc[k].count += 1;
+      });
+    });
+    const items = setoresDisponiveis.map((s) => {
+      const k = s.toUpperCase();
+      const { sum, count } = acc[k] || { sum: 0, count: 0 };
+      const dias = count > 0 ? sum / count / DAY : 0;
+      return { setor: s, dias };
+    });
+    const totalDias = items.reduce((acc, it) => acc + it.dias, 0) || 1;
+    return items.map((it) => ({ ...it, pct: (it.dias / totalDias) * 100 }));
+  }, [porRemanejamentoFiltradosAll, setoresDisponiveis]);
+
   const mediaGeralHoras = useMemo(() => {
     const total = chartData.reduce((acc, d) => acc + (d.horas || 0), 0);
     const count = chartData.length || 1;
@@ -226,6 +301,14 @@ export default function RelatorioSLA() {
     const mediaDias = total ? totalMs / total / DAY : 0;
     return Math.round(mediaDias);
   }, [porRemanejamentoFiltrados]);
+
+  const mediaGeralDiasAll = useMemo(() => {
+    const DAY = 24 * 60 * 60 * 1000;
+    const total = porRemanejamentoFiltradosAll.length;
+    const totalMs = porRemanejamentoFiltradosAll.reduce((acc, r) => acc + (r.totalDurMs || 0), 0);
+    const mediaDias = total ? totalMs / total / DAY : 0;
+    return Math.round(mediaDias);
+  }, [porRemanejamentoFiltradosAll]);
 
   const pieSetoresDias = useMemo(() => {
     const durBySetor: Record<string, number> = {};
@@ -245,6 +328,24 @@ export default function RelatorioSLA() {
     return items.map((it) => ({ ...it, pct: (it.dias / totalDias) * 100 }));
   }, [porRemanejamentoFiltrados, setoresVisiveis]);
 
+  const pieSetoresDiasAll = useMemo(() => {
+    const durBySetor: Record<string, number> = {};
+    porRemanejamentoFiltradosAll.forEach((r) => {
+      (r.duracaoPorSetorMs || []).forEach((d) => {
+        const key = (d.setor || "").toUpperCase();
+        durBySetor[key] = (durBySetor[key] || 0) + (d.ms || 0);
+      });
+    });
+    const DAY = 24 * 60 * 60 * 1000;
+    const items = setoresDisponiveis.map((s) => {
+      const ms = durBySetor[(s || "").toUpperCase()] || 0;
+      const dias = ms / DAY;
+      return { setor: s, dias };
+    });
+    const totalDias = items.reduce((acc, it) => acc + it.dias, 0) || 1;
+    return items.map((it) => ({ ...it, pct: (it.dias / totalDias) * 100 }));
+  }, [porRemanejamentoFiltradosAll, setoresDisponiveis]);
+
   const bucketDistribDias = useMemo(() => {
     const DAY = 24 * 60 * 60 * 1000;
     const counts = { lt1: 0, d1to3: 0, d3to7: 0, gt7: 0 };
@@ -262,6 +363,24 @@ export default function RelatorioSLA() {
       { faixa: "> 7 dias", count: counts.gt7 },
     ];
   }, [porRemanejamentoFiltrados]);
+
+  const bucketDistribDiasAll = useMemo(() => {
+    const DAY = 24 * 60 * 60 * 1000;
+    const counts = { lt1: 0, d1to3: 0, d3to7: 0, gt7: 0 };
+    porRemanejamentoFiltradosAll.forEach((r) => {
+      const ms = r.totalDurMs || 0;
+      if (ms < DAY) counts.lt1++;
+      else if (ms < 3 * DAY) counts.d1to3++;
+      else if (ms < 7 * DAY) counts.d3to7++;
+      else counts.gt7++;
+    });
+    return [
+      { faixa: "< 1 dia", count: counts.lt1 },
+      { faixa: "1–3 dias", count: counts.d1to3 },
+      { faixa: "3–7 dias", count: counts.d3to7 },
+      { faixa: "> 7 dias", count: counts.gt7 },
+    ];
+  }, [porRemanejamentoFiltradosAll]);
 
   const stackDistribBucketsSetores = useMemo(() => {
     const DAY = 24 * 60 * 60 * 1000;
@@ -307,6 +426,48 @@ export default function RelatorioSLA() {
     return [buckets.lt1, buckets.d1to3, buckets.d3to7, buckets.gt7];
   }, [porRemanejamentoFiltrados, setoresVisiveis]);
 
+  const stackDistribBucketsSetoresAll = useMemo(() => {
+    const DAY = 24 * 60 * 60 * 1000;
+    const initBucket = () => ({ faixa: "", RH: 0, MEDICINA: 0, TREINAMENTO: 0, LOGISTICA: 0, total: 0 });
+    const buckets: Record<string, { faixa: string; RH: number; MEDICINA: number; TREINAMENTO: number; LOGISTICA: number; total: number }> = {
+      lt1: { ...initBucket(), faixa: "< 1 dia" },
+      d1to3: { ...initBucket(), faixa: "1–3 dias" },
+      d3to7: { ...initBucket(), faixa: "3–7 dias" },
+      gt7: { ...initBucket(), faixa: "> 7 dias" },
+    } as any;
+    porRemanejamentoFiltradosAll.forEach((r) => {
+      const msTotal = r.totalDurMs || 0;
+      const key = msTotal < DAY ? "lt1" : msTotal < 3 * DAY ? "d1to3" : msTotal < 7 * DAY ? "d3to7" : "gt7";
+      const bySetor: Record<string, number> = {};
+      let sumMs = 0;
+      (r.duracaoPorSetorMs || []).forEach((d) => {
+        const k = (d.setor || "").toUpperCase();
+        if (setoresDisponiveis.includes(k)) {
+          bySetor[k] = (bySetor[k] || 0) + (d.ms || 0);
+          sumMs += d.ms || 0;
+        }
+      });
+      if (sumMs > 0) {
+        Object.entries(bySetor).forEach(([s, v]) => {
+          const w = v / sumMs; // proporção do setor no total
+          (buckets as any)[key][s] += w; // soma ponderada
+        });
+        (buckets as any)[key].total += 1;
+      } else {
+        const presentes = new Set<string>();
+        (r.periodosPorSetor || []).forEach((p) => presentes.add((p.setor || "").toUpperCase()));
+        (r.temposMediosPorSetor || []).forEach((t) => presentes.add((t.setor || "").toUpperCase()));
+        const list = Array.from(presentes).filter((s) => setoresDisponiveis.includes(s));
+        const w = list.length ? 1 / list.length : 0;
+        list.forEach((s) => {
+          (buckets as any)[key][s] += w;
+        });
+        (buckets as any)[key].total += 1;
+      }
+    });
+    return [buckets.lt1, buckets.d1to3, buckets.d3to7, buckets.gt7];
+  }, [porRemanejamentoFiltradosAll, setoresDisponiveis]);
+
   const distribPorSetorBuckets = useMemo(() => {
     const DAY = 24 * 60 * 60 * 1000;
     const init = () => ({ setor: "", lt1: 0, d1to3: 0, d3to7: 0, gt7: 0, total: 0 });
@@ -328,43 +489,213 @@ export default function RelatorioSLA() {
     return setoresVisiveis.map((s) => map[s.toUpperCase()] || { setor: s, lt1: 0, d1to3: 0, d3to7: 0, gt7: 0, total: 0 });
   }, [porRemanejamentoFiltrados, setoresVisiveis]);
 
+  const distribPorSetorBucketsAll = useMemo(() => {
+    const DAY = 24 * 60 * 60 * 1000;
+    const init = () => ({ setor: "", lt1: 0, d1to3: 0, d3to7: 0, gt7: 0, total: 0 });
+    const map: Record<string, { setor: string; lt1: number; d1to3: number; d3to7: number; gt7: number; total: number }> = {};
+    setoresDisponiveis.forEach((s) => {
+      map[s.toUpperCase()] = { ...init(), setor: s };
+    });
+    porRemanejamentoFiltradosAll.forEach((r) => {
+      (r.duracaoPorSetorMs || []).forEach((d) => {
+        const s = (d.setor || "").toUpperCase();
+        const ms = d.ms || 0;
+        if (!setoresDisponiveis.includes(s) || ms <= 0) return;
+        const key = ms < DAY ? "lt1" : ms < 3 * DAY ? "d1to3" : ms < 7 * DAY ? "d3to7" : "gt7";
+        const obj = map[s];
+        (obj as any)[key] += 1;
+        obj.total += 1;
+      });
+    });
+    return setoresDisponiveis.map((s) => map[s.toUpperCase()] || { setor: s, lt1: 0, d1to3: 0, d3to7: 0, gt7: 0, total: 0 });
+  }, [porRemanejamentoFiltradosAll, setoresDisponiveis]);
+
+  const rankingSetoresAll = useMemo(() => {
+    const fixed = setoresDisponiveis.map((s) => s.toUpperCase());
+    const items = (porSetorBaseAll || []).filter((s) => fixed.includes((s.setor || "").toUpperCase()));
+    return [...items].sort((a, b) => {
+      const valA = a.tempoMedioConclusaoMs || a.duracaoMediaAtuacaoMs || 0;
+      const valB = b.tempoMedioConclusaoMs || b.duracaoMediaAtuacaoMs || 0;
+      return valA - valB;
+    });
+  }, [porSetorBaseAll, setoresDisponiveis]);
+
 
   const exportDetalhadoXLSX = useCallback(() => {
-    if (!data) return;
+    const usandoAll = activeTab === "dias_all";
+    const rems = usandoAll ? porRemanejamentoValidosAll : porRemanejamentoValidos;
+    if (!rems.length) return;
     const rows: any[] = [];
-    porRemanejamentoValidos.forEach((r) => {
-      setoresDisponiveis.forEach((s) => {
-        const per = (r.periodosPorSetor || []).find(
-          (x) => x.setor.toUpperCase() === s.toUpperCase()
-        );
-        const durEntry = (r.duracaoPorSetorMs || []).find(
-          (x) => x.setor.toUpperCase() === s.toUpperCase()
-        );
-        const mediaEntry = (r.temposMediosPorSetor || []).find(
-          (x) => x.setor.toUpperCase() === s.toUpperCase()
-        );
+    const rowsResumo: any[] = [];
+    const rowsEventos: any[] = [];
+    rems.forEach((r) => {
+
+      // Segmentos cronológicos com início pela Logística e término pela Logística
+      const segsLogAll = (r.responsabilidadeTimeline || [])
+        .filter((seg) => (seg.responsavel || "").toUpperCase() === "LOGISTICA")
+        .map((seg) => ({ setor: "LOGISTICA", inicio: seg.inicio, fim: seg.fim, ms: seg.ms, ciclo: seg.ciclo, tipo: seg.tipo }));
+      const preCandidates = segsLogAll.filter((s) => {
+        const t = (s.tipo || "").toUpperCase();
+        return t === "PRE_SETOR_APROVACAO" || t === "PRE_SETOR_APROVACAO_TAREFAS" || t === "PRE_SETOR_FALLBACK";
+      });
+      const preLog = preCandidates.length
+        ? preCandidates.sort((a, b) => new Date(a.inicio).getTime() - new Date(b.inicio).getTime())[0]
+        : (segsLogAll.length ? segsLogAll.sort((a, b) => new Date(a.inicio).getTime() - new Date(b.inicio).getTime())[0] : undefined);
+      const finalCandidates = segsLogAll.filter((s) => {
+        const t = (s.tipo || "").toUpperCase();
+        return t === "VALIDADO";
+      });
+      const finalLog = finalCandidates.length
+        ? finalCandidates.sort((a, b) => new Date(a.fim).getTime() - new Date(b.fim).getTime())[finalCandidates.length - 1]
+        : (segsLogAll.length ? segsLogAll.sort((a, b) => new Date(a.fim).getTime() - new Date(b.fim).getTime())[segsLogAll.length - 1] : undefined);
+
+      const segsSetores: { setor: string; inicio: string; fim: string; ms: number; ciclo?: number; tipo?: string }[] = [];
+      const mapSegs = r.segmentosPorSetor || {} as Record<string, { inicio: string; fim: string; ms: number; ciclo?: number; tipo?: string }[]>;
+      setoresDisponiveis.filter((s) => s.toUpperCase() !== "LOGISTICA").forEach((s) => {
+        const key = s.toUpperCase();
+        (mapSegs[key] || []).forEach((seg) => {
+          segsSetores.push({ setor: s, inicio: seg.inicio, fim: seg.fim, ms: seg.ms, ciclo: seg.ciclo });
+        });
+      });
+      const segsLogMid = segsLogAll.filter((s) => {
+        const isPre = preLog && s.inicio === preLog.inicio && s.fim === preLog.fim;
+        const isEnd = finalLog && s.inicio === finalLog.inicio && s.fim === finalLog.fim;
+        return !isPre && !isEnd;
+      });
+      const middleSegs = [...segsSetores, ...segsLogMid].sort((a, b) => {
+        const ta = a.inicio ? new Date(a.inicio).getTime() : 0;
+        const tb = b.inicio ? new Date(b.inicio).getTime() : 0;
+        return ta - tb;
+      });
+      // Fallbacks: garantir início em Logística e término em Logística quando timeline não trouxe segmentos
+      const earliestMiddleStart = middleSegs.length ? middleSegs[0].inicio : undefined;
+      const latestMiddleEnd = middleSegs.length ? middleSegs.reduce((acc, seg) => {
+        const t = seg.fim ? new Date(seg.fim).getTime() : 0;
+        return t > acc ? t : acc;
+      }, 0) : 0;
+      const latestMiddleEndISO = latestMiddleEnd ? new Date(latestMiddleEnd).toISOString() : undefined;
+      const syntheticPre = (!preLog && r.solicitacaoDataCriacao && earliestMiddleStart)
+        ? {
+            setor: "LOGISTICA",
+            inicio: r.solicitacaoDataCriacao,
+            fim: earliestMiddleStart,
+            ms: Math.max(0, new Date(earliestMiddleStart).getTime() - new Date(r.solicitacaoDataCriacao).getTime()),
+            ciclo: 0,
+            tipo: "PRE_SETOR_EXPORT_FALLBACK",
+          }
+        : undefined;
+      const syntheticFinal = (!finalLog && r.remanejamentoDataConclusao && latestMiddleEndISO)
+        ? {
+            setor: "LOGISTICA",
+            inicio: latestMiddleEndISO,
+            fim: r.remanejamentoDataConclusao,
+            ms: Math.max(0, new Date(r.remanejamentoDataConclusao).getTime() - new Date(latestMiddleEndISO).getTime()),
+            ciclo: undefined,
+            tipo: "FINAL_EXPORT_FALLBACK",
+          }
+        : undefined;
+      let segIdx = 0;
+      const toParts = (iso?: string | null) => {
+        if (!iso) return { data: "", hora: "" };
+        const d = new Date(iso);
+        return { data: d.toLocaleDateString("pt-BR"), hora: d.toLocaleTimeString("pt-BR") };
+      };
+      const pushSeg = (seg: { setor: string; inicio: string; fim: string; ms: number; ciclo?: number; tipo?: string }) => {
+        const partsInicio = toParts(seg.inicio);
+        const partsFim = toParts(seg.fim);
+        const partsIniRem = toParts(r.solicitacaoDataCriacao || null);
+        const partsFimRem = toParts(r.remanejamentoDataConclusao || null);
         rows.push({
+          TipoLinha: "SEGMENTO",
           Remanejamento: String(r.remanejamentoId),
           Funcionario: r.funcionario?.nome || "",
           Matricula: r.funcionario?.matricula || "",
-          Setor: s,
-          Inicio: per?.inicio
-            ? new Date(per.inicio).toLocaleString("pt-BR")
-            : "",
-          Fim: per?.fim ? new Date(per.fim).toLocaleString("pt-BR") : "",
-          Duracao: durEntry?.ms ? fmtMs(durEntry.ms) : "",
-          MediaConclusao: mediaEntry?.tempoMedioMs
-            ? fmtMs(mediaEntry.tempoMedioMs)
-            : "",
+          InicioRemanejamentoData: partsIniRem.data,
+          InicioRemanejamentoHora: partsIniRem.hora,
+          FimRemanejamentoData: partsFimRem.data,
+          FimRemanejamentoHora: partsFimRem.hora,
+          Setor: seg.setor,
+          Segmento: ++segIdx,
+          Ciclo: typeof seg.ciclo === "number" ? seg.ciclo : "",
+          Tipo: seg.tipo || (seg.setor.toUpperCase() === "LOGISTICA" ? "LOGISTICA" : ""),
+          InicioData: partsInicio.data,
+          InicioHora: partsInicio.hora,
+          FimData: partsFim.data,
+          FimHora: partsFim.hora,
+          Duracao: seg.ms ? fmtMs(seg.ms) : "",
           TotalRemanejamento: fmtMs(r.totalDurMs),
+        });
+      };
+      if (preLog) pushSeg(preLog);
+      else if (syntheticPre) pushSeg(syntheticPre as any);
+      middleSegs.forEach(pushSeg);
+      if (finalLog && (!preLog || (finalLog.inicio !== preLog.inicio || finalLog.fim !== preLog.fim))) pushSeg(finalLog);
+      else if (syntheticFinal) pushSeg(syntheticFinal as any);
+
+
+      // Resumo por remanejamento: totais por setor + total do remanejamento
+      const durBySetor: Record<string, number> = {};
+      (r.duracaoPorSetorMs || []).forEach((d) => {
+        const k = (d.setor || "").toUpperCase();
+        durBySetor[k] = (durBySetor[k] || 0) + (d.ms || 0);
+      });
+      rowsResumo.push({
+        Remanejamento: String(r.remanejamentoId),
+        Funcionario: r.funcionario?.nome || "",
+        Matricula: r.funcionario?.matricula || "",
+        RH: durBySetor["RH"] ? fmtMs(durBySetor["RH"]) : "",
+        MEDICINA: durBySetor["MEDICINA"] ? fmtMs(durBySetor["MEDICINA"]) : "",
+        TREINAMENTO: durBySetor["TREINAMENTO"] ? fmtMs(durBySetor["TREINAMENTO"]) : "",
+        LOGISTICA: durBySetor["LOGISTICA"] ? fmtMs(durBySetor["LOGISTICA"]) : "",
+        TotalRemanejamento: fmtMs(r.totalDurMs),
+      });
+
+      // Eventos/ciclos explicados: fonte responsabilidadeTimeline
+      // Eventos/ciclos explicados: fonte responsabilidadeTimeline (ordenados por início)
+      [...(r.responsabilidadeTimeline || [])].sort((a, b) => {
+        const ta = a.inicio ? new Date(a.inicio).getTime() : 0;
+        const tb = b.inicio ? new Date(b.inicio).getTime() : 0;
+        return ta - tb;
+      }).forEach((seg) => {
+        const partsInicio = seg.inicio ? { data: new Date(seg.inicio).toLocaleDateString("pt-BR"), hora: new Date(seg.inicio).toLocaleTimeString("pt-BR") } : { data: "", hora: "" };
+        const partsFim = seg.fim ? { data: new Date(seg.fim).toLocaleDateString("pt-BR"), hora: new Date(seg.fim).toLocaleTimeString("pt-BR") } : { data: "", hora: "" };
+        const explicacao = (() => {
+          const t = (seg.tipo || "").toUpperCase();
+          const resp = (seg.responsavel || "").toUpperCase();
+          if (resp === "LOGISTICA" && t === "PRE_SETOR_APROVACAO") return "Pré-setores: Logística da criação até a aprovação inicial.";
+          if (resp === "LOGISTICA" && t === "PRE_SETOR_APROVACAO_TAREFAS") return "Pré-setores: Logística da criação até a criação da primeira tarefa (fallback sem dataAprovado).";
+          if (resp === "LOGISTICA" && t === "PRE_SETOR_FALLBACK") return "Pré-setores: fallback usando submetido/resposta/primeira decisão quando não há aprovação.";
+          if (resp === "LOGISTICA" && (t === "VALIDADO" || t === "REJEITADO" || t === "INVALIDADO")) return `Pós-setores: Logística entre a conclusão de todas as tarefas e a decisão ${t}.`;
+          if (resp === "LOGISTICA" && t === "RESPOSTA") return "Pós-setores: janela até a resposta de Prestserv (fallback).";
+          if (resp === "LOGISTICA" && t === "SUBMETIDO") return "Pós-setores: janela usando data de submetido (fallback).";
+          if (resp === "LOGISTICA" && t === "FALLBACK_SUB_RESP_VALIDADO") return "Fallback: Submetido até Validado/Conclusão quando não há eventos suficientes.";
+          return resp === "LOGISTICA" ? "Logística ativa." : "Setores ativos.";
+        })();
+        rowsEventos.push({
+          Remanejamento: String(r.remanejamentoId),
+          Funcionario: r.funcionario?.nome || "",
+          Matricula: r.funcionario?.matricula || "",
+          Ciclo: typeof seg.ciclo === "number" ? seg.ciclo : "",
+          Responsavel: seg.responsavel,
+          Tipo: seg.tipo || "",
+          InicioData: partsInicio.data,
+          InicioHora: partsInicio.hora,
+          FimData: partsFim.data,
+          FimHora: partsFim.hora,
+          Duracao: fmtMs(seg.ms || 0),
+          Explicacao: explicacao,
         });
       });
     });
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Detalhado");
+    const wsResumo = XLSX.utils.json_to_sheet(rowsResumo);
+    XLSX.utils.book_append_sheet(wb, wsResumo, "Resumo");
+    const wsEventos = XLSX.utils.json_to_sheet(rowsEventos);
+    XLSX.utils.book_append_sheet(wb, wsEventos, "Eventos");
     XLSX.writeFile(wb, "Relatorio_SLA_Detalhado.xlsx");
-  }, [data, porRemanejamentoValidos, setoresDisponiveis]);
+  }, [activeTab, porRemanejamentoValidos, porRemanejamentoValidosAll, setoresDisponiveis]);
 
   type DetalhadoKPIs = {
     total: number;
@@ -407,7 +738,7 @@ export default function RelatorioSLA() {
         setorMaisLento = { setor, ms };
     });
     const reprovsTotal = porSetorBase.reduce(
-      (acc, s) => acc + (s.reprovações || 0),
+      (acc, s) => acc + (s.reprovacoes || 0),
       0
     );
     const setorMaiorConclusao = porSetorBase.reduce<{
@@ -444,6 +775,14 @@ export default function RelatorioSLA() {
     const end = start + rowsPerPage;
     return porRemanejamentoFiltrados.slice(start, end);
   }, [porRemanejamentoFiltrados, page]);
+
+  const totalRowsAll = porRemanejamentoFiltradosAll.length;
+  const totalPagesAll = Math.max(1, Math.ceil(totalRowsAll / rowsPerPage));
+  const pageDataAll = useMemo(() => {
+    const start = (page - 1) * rowsPerPage;
+    const end = start + rowsPerPage;
+    return porRemanejamentoFiltradosAll.slice(start, end);
+  }, [porRemanejamentoFiltradosAll, page]);
 
   const rankingSetores = useMemo(() => {
     const fixed = setoresVisiveis.map((s) => s.toUpperCase());
@@ -484,34 +823,31 @@ export default function RelatorioSLA() {
           <div>
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-4">
               <div className="border-b border-gray-200">
-                <nav className="flex space-x-8 px-6" aria-label="Tabs">
-                  {[
-                    { id: "detalhado", name: "Visão Geral", icon: ClockIcon },
-                    {
-                      id: "simples",
-                      name: "Visão Simples",
-                      icon: ChartBarIcon,
-                    },
-                    {
-                      id: "dias",
-                      name: "Overview em dias",
-                      icon: ClockIcon,
-                    },
-                  ].map((tab) => (
+              <nav className="flex space-x-8 px-6" aria-label="Tabs">
+                {[
+                  { id: "detalhado", name: "Visão Geral", icon: ClockIcon },
+                  { id: "simples", name: "Visão Simples", icon: ChartBarIcon },
+                  { id: "dias", name: "Overview em dias", icon: ClockIcon },
+                  { id: "dias_all", name: "Overview em dias (sem filtro)", icon: ClockIcon },
+                ].map((tab) => {
+                  const Icon = tab.icon as any;
+                  const isActive = activeTab === (tab.id as any);
+                  return (
                     <button
                       key={tab.id}
                       onClick={() => setActiveTab(tab.id as any)}
                       className={`py-3 px-1 border-b-2 font-medium text-xs flex items-center space-x-2 transition-colors ${
-                        activeTab === (tab.id as any)
+                        isActive
                           ? "border-blue-500 text-blue-600"
                           : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                       }`}
                     >
-                      <tab.icon className="w-4 h-4" />
+                      <Icon className="w-4 h-4" />
                       <span>{tab.name}</span>
                     </button>
-                  ))}
-                </nav>
+                  );
+                })}
+              </nav>
               </div>
             </div>
             {activeTab === "dias" && (
@@ -976,7 +1312,7 @@ export default function RelatorioSLA() {
                   <p><span className="font-medium">Participação por setor (dias)</span>: soma dos dias de atuação por setor dividida pelo total (percentual). Útil para ver qual setor concentra mais tempo.</p>
                   <p><span className="font-medium">Distribuição por faixas (dias)</span>: quantos remanejamentos caem em cada faixa de duração, empilhado por setor (percentual dentro da faixa).</p>
                   <p><span className="font-medium">Distribuição por setor e faixa (contagem)</span>: contagem absoluta por setor em cada faixa, com rótulos inteiros no topo das barras.</p>
-                  <p><span className="font-medium">Tempo médio por setor (dias)</span>: donut com média de dias por setor; usa "&lt;1" quando o tempo médio é menor que 1 dia.</p>
+                  <p><span className="font-medium">Tempo médio por setor (dias)</span>: donut com média de dias por setor; usa &lt;1 quando o tempo médio é menor que 1 dia.</p>
                   <p><span className="font-medium">Média de conclusão (geral)</span>: média dos dias de conclusão considerando os filtros ativos.</p>
                   <p className="text-xs text-gray-500">Observação: todos os gráficos e KPIs desta aba respeitam os filtros de setor, faixa de contagem e funcionário.</p>
                 </div>
@@ -1057,6 +1393,272 @@ export default function RelatorioSLA() {
                 </div>
             )}
 
+            {activeTab === "dias_all" && (
+              <Transition
+                appear
+                show={!!dataAll}
+                enter="transform transition duration-300"
+                enterFrom="opacity-0 translate-y-2"
+                enterTo="opacity-100 translate-y-0"
+              >
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 items-stretch">
+                  <div className="flex flex-col gap-4 lg:col-span-1">
+                    <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-4 flex items-center justify-between">
+                      <div>
+                        <p className="text-xs font-medium text-gray-600">Média de conclusão (geral)</p>
+                        <p className="text-xl font-bold text-gray-900">{mediaGeralDiasAll <= 0 ? "<1d" : `${mediaGeralDiasAll}d`}</p>
+                        <p className="text-xs text-gray-500">Tempo médio por setor</p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {setoresDisponiveis.map((s) => {
+                            const item = porSetorBaseAll.find((x) => (x.setor || "").toUpperCase() === s.toUpperCase());
+                            const ms = item ? item.tempoMedioConclusaoMs || item.duracaoMediaAtuacaoMs || 0 : 0;
+                            const DAY = 24 * 60 * 60 * 1000;
+                            const diasFloat = ms / DAY;
+                            const textoDias = diasFloat > 0 && diasFloat < 1 ? "<1d" : `${Math.floor(diasFloat)}d`;
+                            const cls = s === "RH" ? "bg-blue-50 text-blue-700" : s === "MEDICINA" ? "bg-emerald-50 text-emerald-700" : s === "TREINAMENTO" ? "bg-violet-50 text-violet-700" : "bg-pink-50 text-pink-700";
+                            return (
+                              <span key={`badge-diasall-${s}`} className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-xs ${cls}`}>{s}: {textoDias}</span>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      <div className="p-3 bg-green-500 rounded-full">
+                        <CheckCircleIcon className="w-6 h-6 text-white" />
+                      </div>
+                    </div>
+                    <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <div>
+                          <p className="text-xs font-medium text-gray-600">Distribuição por faixas (dias)</p>
+                          <p className="text-xs text-gray-500">Resumo por remanejamento</p>
+                        </div>
+                        <div className="p-3 bg-sky-500 rounded-full">
+                          <ChartBarIcon className="w-6 h-6 text-white" />
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {(() => {
+                          const total = bucketDistribDiasAll.reduce((acc, x) => acc + x.count, 0) || 1;
+                          return bucketDistribDiasAll.map((b) => {
+                            const pct = Math.round((b.count / total) * 100);
+                            const cls =
+                              b.faixa === '< 1 dia' ? 'bg-indigo-50 text-indigo-700' :
+                              b.faixa === '1–3 dias' ? 'bg-emerald-50 text-emerald-700' :
+                              b.faixa === '3–7 dias' ? 'bg-amber-50 text-amber-700' :
+                              'bg-pink-50 text-pink-700';
+                            return (
+                              <span key={`chip-all-${b.faixa}`} className={`inline-flex items-center px-2 py-1 rounded-full text-xs ${cls}`}>
+                                {b.faixa}: {b.count} ({pct}%)
+                              </span>
+                            );
+                          });
+                        })()}
+                      </div>
+                    </div>
+                    <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <div>
+                          <p className="text-sm font-medium text-gray-600">Tempo médio por setor (dias)</p>
+                          <p className="text-xs text-gray-500">Donut</p>
+                        </div>
+                        <div className="p-3 bg-indigo-500 rounded-full">
+                          <ClockIcon className="w-6 h-6 text-white" />
+                        </div>
+                      </div>
+                      <div className="h-[260px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie data={donutMediaSetorDiasAll} dataKey="dias" nameKey="setor" cx="50%" cy="50%" innerRadius={50} outerRadius={90} label={({ dias }) => (Number(dias) < 1 ? "<1" : String(Math.floor(Number(dias))))}>
+                              {donutMediaSetorDiasAll.map((entry) => {
+                                const colorMap: Record<string, string> = {
+                                  RH: "#60A5FA",
+                                  MEDICINA: "#10B981",
+                                  TREINAMENTO: "#8B5CF6",
+                                  LOGISTICA: "#EC4899",
+                                };
+                                const c = colorMap[(entry.setor || "").toUpperCase()] || "#9CA3AF";
+                                return <Cell key={`cell-donut-all-${entry.setor}`} fill={c} />;
+                              })}
+                            </Pie>
+                            <Tooltip formatter={(_, name, { payload }) => [`${Number(payload?.pct || 0).toFixed(1)}%`, payload?.setor ?? name]} />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div className="mt-3 flex flex-wrap justify-center gap-3">
+                        {setoresDisponiveis.map((s) => {
+                          const colorMap: Record<string, string> = {
+                            RH: "#60A5FA",
+                            MEDICINA: "#10B981",
+                            TREINAMENTO: "#8B5CF6",
+                            LOGISTICA: "#EC4899",
+                          };
+                          const c = colorMap[(s || "").toUpperCase()] || "#9CA3AF";
+                          return (
+                            <span key={`legend-donut-all-${s}`} className="inline-flex items-center gap-2 text-xs text-gray-700">
+                              <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: c }}></span>
+                              <span>{s}</span>
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-4 lg:col-span-3">
+                    <div className="rounded-2xl bg-white shadow-xl p-6">
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <ChartBarIcon className="h-5 w-5 text-indigo-600" />
+                              <h3 className="text-base font-semibold text-gray-800">Participação por setor (dias)</h3>
+                            </div>
+                            <div className="flex items-center gap-3 text-sm">
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 text-xs"><ClockIcon className="h-4 w-4" /> Média geral: {mediaGeralDiasAll <= 0 ? "<1d" : `${mediaGeralDiasAll}d`}</span>
+                            </div>
+                          </div>
+                          <div className="h-[340px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <PieChart>
+                                <Pie data={pieSetoresDiasAll} dataKey="dias" nameKey="setor" cx="50%" cy="50%" outerRadius={90} label={({ pct }) => `${Number(pct).toFixed(1)}%`}>
+                                  {pieSetoresDiasAll.map((entry) => {
+                                    const colorMap: Record<string, string> = {
+                                      RH: "#60A5FA",
+                                      MEDICINA: "#10B981",
+                                      TREINAMENTO: "#8B5CF6",
+                                      LOGISTICA: "#EC4899",
+                                    };
+                                    const c = colorMap[(entry.setor || "").toUpperCase()] || "#9CA3AF";
+                                    return <Cell key={`cell-all-${entry.setor}`} fill={c} />;
+                                  })}
+                                </Pie>
+                                <Tooltip formatter={(_, name, { payload }) => [`${Number(payload?.pct || 0).toFixed(1)}%`, payload?.setor ?? name]} />
+                              </PieChart>
+                            </ResponsiveContainer>
+                          </div>
+                          <div className="mt-3 flex flex-wrap justify-center gap-3">
+                            {setoresDisponiveis.map((s) => {
+                              const colorMap: Record<string, string> = {
+                                RH: "#60A5FA",
+                                MEDICINA: "#10B981",
+                                TREINAMENTO: "#8B5CF6",
+                                LOGISTICA: "#EC4899",
+                              };
+                              const c = colorMap[(s || "").toUpperCase()] || "#9CA3AF";
+                              return (
+                                <span key={`legend-pie-all-${s}`} className="inline-flex items-center gap-2 text-xs text-gray-700">
+                                  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: c }}></span>
+                                  <span>{s}</span>
+                                </span>
+                              );
+                            })}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <ChartBarIcon className="h-5 w-5 text-indigo-600" />
+                              <h3 className="text-base font-semibold text-gray-800">Distribuição por faixas (dias)</h3>
+                            </div>
+                          </div>
+                          <div className="h-[340px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <BarChart data={stackDistribBucketsSetoresAll}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                                <XAxis dataKey="faixa" tick={{ fill: "#6B7280" }} />
+                                <YAxis tick={{ fill: "#6B7280" }} />
+                                <Tooltip formatter={(value, name, { payload }) => [`${(((Number(value) || 0) / (payload?.total || 1)) * 100).toFixed(1)}%`, name]} />
+                                <Bar dataKey="RH" name="RH" stackId="stack" fill="#60A5FA" radius={[0, 0, 0, 0]} />
+                                <Bar dataKey="MEDICINA" name="Medicina" stackId="stack" fill="#10B981" radius={[0, 0, 0, 0]} />
+                                <Bar dataKey="TREINAMENTO" name="Treinamento" stackId="stack" fill="#8B5CF6" radius={[0, 0, 0, 0]} />
+                                <Bar dataKey="LOGISTICA" name="Logística" stackId="stack" fill="#EC4899" radius={[8, 8, 0, 0]} />
+                              </BarChart>
+                            </ResponsiveContainer>
+                          </div>
+                          <div className="mt-3 flex flex-wrap justify-center gap-3">
+                            {[
+                              { key: "RH", label: "RH", color: "#60A5FA" },
+                              { key: "MEDICINA", label: "Medicina", color: "#10B981" },
+                              { key: "TREINAMENTO", label: "Treinamento", color: "#8B5CF6" },
+                              { key: "LOGISTICA", label: "Logística", color: "#EC4899" },
+                            ].map((it) => (
+                              <span key={`legend-bar-all-${it.key}`} className="inline-flex items-center gap-2 text-xs text-gray-700">
+                                <span className="w-2.5 h-2.5 rounded" style={{ backgroundColor: it.color }}></span>
+                                <span>{it.label}</span>
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="rounded-xl bg-white border border-gray-200 p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <ClockIcon className="h-5 w-5 text-indigo-600" />
+                      <h3 className="text-sm font-semibold text-gray-800">Overview em dias (todos os remanejamentos)</h3>
+                    </div>
+                    <span className="text-xs text-gray-600">Página {page} de {totalPagesAll}</span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200 text-xs w-full">
+                      <thead className="bg-gray-50 sticky top-0 z-10">
+                        <tr>
+                          <th className="text-left px-3 py-2 text-xs font-medium text-gray-600 uppercase tracking-wider">Funcionário</th>
+                          {setoresDisponiveis.map((s) => {
+                            const iconMap: Record<string, any> = { RH: BuildingOfficeIcon, MEDICINA: HeartIcon, TREINAMENTO: AcademicCapIcon, LOGISTICA: TruckIcon };
+                            const Icon = iconMap[s] || ChartBarIcon;
+                            return (
+                              <th key={`head-det-diasall-${s}`} className="text-left px-3 py-2 text-xs font-medium text-gray-600 uppercase tracking-wider whitespace-nowrap">
+                                <span className="inline-flex items-center gap-1"><Icon className="h-4 w-4 text-gray-600" /> {s}</span>
+                              </th>
+                            );
+                          })}
+                          <th className="text-left px-3 py-2 text-xs font-medium text-gray-600 uppercase tracking-wider whitespace-nowrap">
+                            <span className="inline-flex items-center gap-1"><ClockIcon className="h-4 w-4 text-gray-600" /> Total</span>
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {pageDataAll.map((r) => (
+                          <tr key={`det-diasall-${r.remanejamentoId}`} className="hover:bg-gray-50">
+                            <td className="px-3 py-2 text-gray-800">
+                              <div className="flex flex-col">
+                                <span className="font-medium">{r.funcionario?.nome || ""}</span>
+                                <span className="text-xs text-gray-600">Matrícula: {r.funcionario?.matricula || ""}</span>
+                                <span className="text-xs text-gray-600">Remanejamento: {String(r.remanejamentoId)}</span>
+                              </div>
+                            </td>
+                            {setoresDisponiveis.map((s) => {
+                              const periodEntry = (r.periodosPorSetor || []).find((x) => x.setor.toUpperCase() === s.toUpperCase());
+                              const durEntry = (r.duracaoPorSetorMs || []).find((x) => x.setor.toUpperCase() === s.toUpperCase());
+                              return (
+                                <td key={`cell-diasall-${r.remanejamentoId}-${s}`} className="px-3 py-2 text-gray-800 whitespace-nowrap">
+                                  {periodEntry ? (
+                                    <div className="flex flex-col gap-1">
+                                      <span className="inline-flex items-center px-2 py-1 rounded-full bg-indigo-50 text-indigo-700">Início: {new Date(periodEntry.inicio).toLocaleDateString("pt-BR")}</span>
+                                      <span className="inline-flex items-center px-2 py-1 rounded-full bg-purple-50 text-purple-700">Fim: {new Date(periodEntry.fim).toLocaleDateString("pt-BR")}</span>
+                                      <span className="inline-flex items-center px-2 py-1 rounded-full bg-green-50 text-green-700">Duração: {durEntry?.ms ? fmtDias(durEntry.ms) : (() => { const ms = Math.max(0, new Date(periodEntry.fim).getTime() - new Date(periodEntry.inicio).getTime()); return ms ? fmtDias(ms) : "—"; })()}</span>
+                                    </div>
+                                  ) : (
+                                    <span className="inline-flex items-center px-2 py-1 rounded-full bg-gray-100 text-gray-500">—</span>
+                                  )}
+                                </td>
+                              );
+                            })}
+                            <td className="px-3 py-2 text-gray-800 whitespace-nowrap">
+                              <span className="inline-flex items-center px-2 py-1 rounded-full bg-blue-50 text-blue-700">{fmtDias(r.totalDurMs)}</span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+              </Transition>
+            )}
             
             {activeTab === "simples" && (
               <Transition
@@ -1491,7 +2093,7 @@ export default function RelatorioSLA() {
                         </div>
                         <div className="flex items-center gap-3">
                           <span className="text-xs text-gray-500">
-                            {porRemanejamentoValidos.length} linha(s)
+                            {porRemanejamentoValidosAll.length} linha(s)
                           </span>
                           <button
                             onClick={exportDetalhadoXLSX}
@@ -1537,7 +2139,7 @@ export default function RelatorioSLA() {
                               <th className="text-left px-3 py-2 text-xs font-medium text-gray-600 uppercase tracking-wider">
                                 Funcionário
                               </th>
-                              {setoresVisiveis.map((s) => {
+                              {setoresDisponiveis.map((s) => {
                                 const iconMap: Record<string, any> = {
                                   RH: BuildingOfficeIcon,
                                   MEDICINA: HeartIcon,
@@ -1547,7 +2149,7 @@ export default function RelatorioSLA() {
                                 const Icon = iconMap[s] || ChartBarIcon;
                                 return (
                                   <th
-                                    key={`head-det-${s}`}
+                                    key={`head-det-all-${s}`}
                                     className="text-left px-3 py-2 text-xs font-medium text-gray-600 uppercase tracking-wider whitespace-nowrap"
                                   >
                                     <span className="inline-flex items-center gap-1">
@@ -1566,9 +2168,9 @@ export default function RelatorioSLA() {
                             </tr>
                           </thead>
                           <tbody className="bg-white divide-y divide-gray-200">
-                            {pageData.map((r) => (
+                            {pageDataAll.map((r) => (
                               <tr
-                                key={`det-d-${r.remanejamentoId}`}
+                                key={`det-d-all-${r.remanejamentoId}`}
                                 className="hover:bg-gray-50"
                               >
                                 <td className="px-3 py-2 text-gray-800">
@@ -1585,7 +2187,7 @@ export default function RelatorioSLA() {
                                     </span>
                                   </div>
                                 </td>
-                                {setoresVisiveis.map((s) => {
+                                {setoresDisponiveis.map((s) => {
                                   const periodEntry = (
                                     r.periodosPorSetor || []
                                   ).find(
@@ -1600,7 +2202,7 @@ export default function RelatorioSLA() {
                                   );
                                   return (
                                     <td
-                                      key={`cell-d-${r.remanejamentoId}-${s}`}
+                                      key={`cell-d-all-${r.remanejamentoId}-${s}`}
                                       className="px-3 py-2 text-gray-800 whitespace-nowrap"
                                     >
                                       {periodEntry ? (
