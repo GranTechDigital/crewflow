@@ -8,7 +8,23 @@ const prisma = new PrismaClient();
 
 export async function POST(request: NextRequest) {
   try {
-    const { matricula, senha, email, login } = await request.json();
+    // Parse do corpo com proteção contra JSON inválido
+    let matricula: string | undefined;
+    let senha: string | undefined;
+    let email: string | undefined;
+    let login: string | undefined;
+    try {
+      const body = await request.json();
+      matricula = body?.matricula;
+      senha = body?.senha;
+      email = body?.email;
+      login = body?.login;
+    } catch (err) {
+      return NextResponse.json(
+        { error: 'Payload inválido. Envie JSON com campos "login" (ou "email"/"matricula") e "senha".' },
+        { status: 400 }
+      );
+    }
     const identifier = (login ?? email ?? matricula)?.toString().trim();
 
     if (!identifier || !senha) {
@@ -54,6 +70,13 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // Validar existência de senha no cadastro
+      if (!usuario.senha || typeof usuario.senha !== 'string') {
+        return NextResponse.json(
+          { error: 'Senha não configurada. Solicite redefinição de senha ao administrador.' },
+          { status: 401 }
+        );
+      }
       const senhaValida = await bcrypt.compare(senha, usuario.senha);
       if (!senhaValida) {
         return NextResponse.json(
@@ -143,6 +166,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (!funcionario.usuario.senha || typeof funcionario.usuario.senha !== 'string') {
+      return NextResponse.json(
+        { error: 'Senha não configurada. Solicite redefinição de senha ao administrador.' },
+        { status: 401 }
+      );
+    }
     const senhaValida = await bcrypt.compare(senha, funcionario.usuario.senha);
     if (!senhaValida) {
       return NextResponse.json(
@@ -205,8 +234,16 @@ export async function POST(request: NextRequest) {
       });
 
     return response;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Erro no login:', error);
+    // Prisma erros comuns
+    const msg = (error && error.message) ? String(error.message) : '';
+    if (msg.includes('PrismaClientInitializationError') || msg.includes('Invalid `prisma.`')) {
+      return NextResponse.json(
+        { error: 'Falha ao conectar ao banco de dados (dev). Verifique as variáveis de ambiente e o serviço postgres.' },
+        { status: 500 }
+      );
+    }
     return NextResponse.json(
       { error: 'Erro interno do servidor' },
       { status: 500 }

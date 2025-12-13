@@ -2,6 +2,9 @@
 FROM node:18-alpine AS builder
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_OPTIONS=--max-old-space-size=4096
 COPY package*.json ./
 COPY prisma ./prisma/
 RUN npm ci

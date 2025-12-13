@@ -27,6 +27,12 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  async rewrites() {
+    return [
+      { source: '/sla/relatorio/concluidos', destination: '/sla/relatorio' },
+      { source: '/sla/relatorio/completo', destination: '/sla/relatorio' },
+    ];
+  },
   webpack(config, { dev, isServer }) {
     // For Docker on Windows, enable polling so file changes are detected reliably
     if (dev) {
@@ -37,15 +43,10 @@ const nextConfig: NextConfig = {
         ignored: /node_modules/,
       };
     }
-    // Garantir que os chunks do servidor fiquem em /server/chunks para combinar com o runtime
+    // Mantém a configuração padrão de saída de chunks do lado do servidor para evitar inconsistências no runtime
     if (isServer) {
-      // Ajusta o template de nomes de chunks do webpack no lado do servidor
-      // Isso faz o runtime emitir require para "chunks/<id>.js" em vez de "./<id>.js"
       config.output = {
         ...config.output,
-        chunkFilename: dev ? 'chunks/[id].js' : 'chunks/[contenthash].js',
-        hotUpdateChunkFilename: 'chunks/[id].hot-update.js',
-        hotUpdateMainFilename: 'chunks/[runtime].hot-update.json',
       };
     }
     return config;

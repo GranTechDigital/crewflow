@@ -111,8 +111,8 @@ jobs:
             DB_USER=${DB_USER:-postgres}
             DB_NAME=${DB_NAME:-projetogran}
             docker exec postgres-prod env PGPASSWORD="$DB_PASS" psql -h localhost -U "$DB_USER" -d "$DB_NAME" -tAc "SELECT current_database();" | grep -q "^${DB_NAME}$" || { echo "❌ Conexão ao DB ${DB_NAME} falhou"; exit 1; }
-            echo "🔎 Realizando pg_dump (custom format) do banco '${DB_NAME}'..."
-            docker exec postgres-prod env PGPASSWORD="$DB_PASS" pg_dump -h localhost -U "$DB_USER" -d "$DB_NAME" -Fc > "$FILE"
+            echo "🔎 Realizando pg_dump (custom format, compress nível 1) do banco '${DB_NAME}'..."
+            docker exec postgres-prod env PGPASSWORD="$DB_PASS" pg_dump -h localhost -U "$DB_USER" -d "$DB_NAME" -Fc -Z 1 > "$FILE"
             ls -lh "$FILE" || true
             if [ ! -s "$FILE" ]; then
               echo "❌ Backup vazio ou não encontrado: $FILE"; exit 1; fi

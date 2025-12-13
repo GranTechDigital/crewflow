@@ -205,6 +205,7 @@ export async function GET(request: NextRequest) {
         orderBy: { dataAcao: 'asc' },
       });
       const normUp = (val: string | null | undefined) => (val || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase();
+      const reprovEvents: { setor: string; data: Date | null; source: string; tarefaId?: string | number }[] = [];
       const evtValidado = historicosPrestserv
         .filter((h) => {
           const v = normUp(h.valorNovo);
@@ -319,11 +320,16 @@ export async function GET(request: NextRequest) {
           temposConclusaoPorSetor[setor].push(durConclusao);
         }
 
-        const reprovsEvt = (t.eventosStatus || []).filter((e: any) => {
+        const evtsReprov = (t.eventosStatus || []).filter((e: any) => {
           const s = (e.statusNovo || '').toString().toUpperCase();
           return s.includes('REPROV') || s.includes('REJEIT') || s.includes('INVALID');
-        }).length;
-        const reprovsHist = (t.historico || []).filter((h: any) => {
+        });
+        const reprovsEvt = evtsReprov.length;
+        for (const e of evtsReprov) {
+          const d = e.dataEvento ? new Date(e.dataEvento) : null;
+          reprovEvents.push({ setor, data: d, source: 'evento', tarefaId: t.id });
+        }
+        const histReprov = (t.historico || []).filter((h: any) => {
           const vn = (h.valorNovo || '').toString().toUpperCase();
           const desc = (h.descricaoAcao || '').toString().toUpperCase();
           return (
@@ -331,7 +337,12 @@ export async function GET(request: NextRequest) {
             vn.includes('REJEIT') || desc.includes('REJEIT') ||
             vn.includes('INVALID') || desc.includes('INVALID')
           );
-        }).length;
+        });
+        const reprovsHist = histReprov.length;
+        for (const h of histReprov) {
+          const d = h.dataAcao ? new Date(h.dataAcao) : null;
+          reprovEvents.push({ setor, data: d, source: 'historico', tarefaId: t.id });
+        }
         const reprovsStatus = ((rf.tarefas || []).filter((x: any) => {
           const st = (x.status || '').toString().toUpperCase();
           return st.includes('REPROV') || st.includes('REJEIT') || st.includes('INVALID');
@@ -686,6 +697,11 @@ export async function GET(request: NextRequest) {
       const totalDuracaoMs = totalDurMs;
 
       if ((rf.tarefas || []).length > 0) {
+        const reprovacoesPorSetor: Record<string, number> = {};
+        for (const ev of reprovEvents) {
+          const k = (ev.setor || '').toString();
+          reprovacoesPorSetor[k] = (reprovacoesPorSetor[k] || 0) + 1;
+        }
         porRemanejamento.push({
           remanejamentoId: rf.id,
           solicitacaoId: rf.solicitacaoId,
@@ -698,6 +714,9 @@ export async function GET(request: NextRequest) {
           segmentosPorSetor,
           solicitacaoDataCriacao: rf.solicitacao?.dataSolicitacao ? new Date(rf.solicitacao.dataSolicitacao).toISOString() : null,
           remanejamentoDataConclusao: totalEnd ? new Date(totalEnd).toISOString() : null,
+          teveReprovacao: reprovEvents.length > 0,
+          reprovacoesPorSetor: Object.entries(reprovacoesPorSetor).map(([setor, count]) => ({ setor, count })),
+          reprovEvents: reprovEvents.map((ev) => ({ setor: ev.setor, data: ev.data ? (ev.data as Date).toISOString() : null, source: ev.source, tarefaId: ev.tarefaId })),
         });
       }
 

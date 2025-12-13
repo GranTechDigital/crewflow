@@ -112,7 +112,8 @@ export default function Sidebar() {
       label: "Relatórios",
       icon: BarChart3,
       items: [
-        { label: "SLA / Relatório", href: "/sla/relatorio" },
+        { label: "Concluídos", href: "/sla/relatorio/concluidos" },
+        { label: "Completo", href: "/sla/relatorio/completo" },
       ],
       permission: "canAccessPlanejamento",
     },
@@ -143,7 +144,7 @@ export default function Sidebar() {
           href: "/funcionarios/demitidos",
         },
         {
-          label: "Upload da Planilha (Uptime)",
+          label: "upload peoplelog",
           href: "/uptime",
         },
         {
@@ -247,7 +248,6 @@ export default function Sidebar() {
             ...section,
             items: section.items.filter(
               (item) =>
-                item.href !== "/uptime" &&
                 item.href !== "/matriz-treinamento/contratos" &&
                 item.href !== "/funcionarios/demitidos"
             ),
