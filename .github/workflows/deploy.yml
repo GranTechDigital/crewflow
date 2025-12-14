@@ -261,14 +261,21 @@ jobs:
             docker network inspect projetogran_crewflow-network >/dev/null 2>&1 || docker network create projetogran_crewflow-network
 
             # Subir serviços via compose com env-file (atualiza apenas o que mudou)
-            docker compose --env-file /opt/projetogran/.env.production -f /opt/projetogran/docker-compose.yml up -d
+          docker compose --env-file /opt/projetogran/.env.production -f /opt/projetogran/docker-compose.yml up -d
 
-            echo "📊 Disk usage after compose up:"
-            df -h
+          echo "📊 Disk usage after compose up:"
+          df -h
 
-            sleep 10
-            docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
+          sleep 10
+          docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
           docker logs --tail=200 crewflow-app-production 2>/dev/null || true
+          echo "🔎 Verificando HTTP da aplicação (porta 3002)"
+          if command -v curl >/dev/null 2>&1; then
+            CODE=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 5 http://localhost:3002/ || true)
+          else
+            CODE=$(wget --server-response -q -O - http://localhost:3002/ 2>&1 | awk '/^  HTTP/{print $2}' | tail -n1)
+          fi
+          echo "HTTP: $CODE"
           EOF
 
       - name: 🔐 Reset pgAdmin credentials (force defaults)
