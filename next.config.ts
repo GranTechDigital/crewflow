@@ -33,9 +33,19 @@ const nextConfig: NextConfig = {
   },
   async rewrites() {
     return [
-      { source: '/sla/relatorio/concluidos', destination: '/sla/relatorio' },
-      { source: '/sla/relatorio/completo', destination: '/sla/relatorio' },
-      { source: '/sla/relatorio/todos', destination: '/sla/relatorio' },
+      { source: '/sla/relatorio/concluidos', destination: '/sla/relatorio?tab=dias&hideTabs=true' },
+      { source: '/sla/relatorio/todos', destination: '/sla/relatorio?tab=dias_all&hideTabs=true' },
+      // Legado: manter acesso por "completo" apontando para a visão todos
+      { source: '/sla/relatorio/completo', destination: '/sla/relatorio?tab=dias_all&hideTabs=true' },
+    ];
+  },
+  async redirects() {
+    return [
+      {
+        source: '/sla/relatorio/completo',
+        destination: '/sla/relatorio/todos',
+        permanent: true,
+      },
     ];
   },
   webpack(config, { dev, isServer }) {

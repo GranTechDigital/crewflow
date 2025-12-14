@@ -112,8 +112,8 @@ export default function Sidebar() {
       label: "Relatórios",
       icon: BarChart3,
       items: [
-        { label: "Concluídos", href: "/sla/relatorio/concluidos" },
-        { label: "Todos", href: "/sla/relatorio/todos" },
+        { label: "Concluídos", href: "/sla/relatorio?tab=dias&hideTabs=true" },
+        { label: "Todos", href: "/sla/relatorio?tab=dias_all&hideTabs=true" },
       ],
       permission: "canAccessPlanejamento",
     },

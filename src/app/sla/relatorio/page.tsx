@@ -145,14 +145,7 @@ export default function RelatorioSLA() {
       if (hideParam === "true") {
         setHideTabs(true);
       }
-      const path = url.pathname || "";
-      if (path.endsWith("/sla/relatorio/concluidos")) {
-        setActiveTab("dias");
-        setHideTabs(true);
-      } else if (path.endsWith("/sla/relatorio/todos") || path.endsWith("/sla/relatorio/completo")) {
-        setActiveTab("dias_all");
-        setHideTabs(true);
-      }
+      // Navegação padronizada via querystring (tab, hideTabs). Sem dependência de path.
     } catch {}
   }, []);
 
