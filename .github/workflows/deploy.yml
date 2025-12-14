@@ -355,6 +355,8 @@ jobs:
             docker exec crewflow-app-production node scripts/backfill-tarefa-equipe.cjs --apply --batch=500 || true
             echo "🔁 Ajustando dataEvento dos eventos CONCLUIDO/CONCLUIDA para dataConclusao da tarefa ..."
             docker exec crewflow-app-production node scripts/fix-eventos-data-conclusao.cjs --apply --batch=500 || true
+            echo "🔁 Backfill de reprovações de tarefas a partir do histórico (valorNovo REPROVADO) ..."
+            docker exec crewflow-app-production node scripts/backfill-reprovacoes-tarefa.cjs || true
           EOF
 
       - name: 🧹 Cleanup old images (keep latest and current SHA)
