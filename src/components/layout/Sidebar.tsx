@@ -113,7 +113,7 @@ export default function Sidebar() {
       icon: BarChart3,
       items: [
         { label: "Concluídos", href: "/sla/relatorio/concluidos" },
-        { label: "Completo", href: "/sla/relatorio/completo" },
+        { label: "Todos", href: "/sla/relatorio/todos" },
       ],
       permission: "canAccessPlanejamento",
     },

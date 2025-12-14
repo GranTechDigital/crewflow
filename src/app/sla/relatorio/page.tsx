@@ -149,7 +149,7 @@ export default function RelatorioSLA() {
       if (path.endsWith("/sla/relatorio/concluidos")) {
         setActiveTab("dias");
         setHideTabs(true);
-      } else if (path.endsWith("/sla/relatorio/completo")) {
+      } else if (path.endsWith("/sla/relatorio/todos") || path.endsWith("/sla/relatorio/completo")) {
         setActiveTab("dias_all");
         setHideTabs(true);
       }
@@ -198,21 +198,8 @@ export default function RelatorioSLA() {
 
   const porRemanejamentoValidosAll = useMemo(() => {
     if (!dataAll) return [] as KPISet["porRemanejamento"];
-    return dataAll.porRemanejamento.filter((r) =>
-      requiredSetores.some((s) => {
-        const entry = (r.temposMediosPorSetor || []).find(
-          (x) => x.setor.toUpperCase() === s.toUpperCase()
-        );
-        const dur = (r.duracaoPorSetorMs || []).find(
-          (x) => x.setor.toUpperCase() === s.toUpperCase()
-        );
-        const okMedia =
-          entry && entry.tempoMedioMs && entry.tempoMedioMs >= MIN_VALID_MS;
-        const okDur = dur && (dur.ms || 0) >= MIN_VALID_MS;
-        return okMedia || okDur;
-      })
-    );
-  }, [dataAll, requiredSetores, MIN_VALID_MS]);
+    return dataAll.porRemanejamento;
+  }, [dataAll]);
 
   const porSetorBase = useMemo(() => {
     if (!data) return [] as KPISet["porSetor"];
@@ -251,13 +238,6 @@ export default function RelatorioSLA() {
 
   const porRemanejamentoFiltradosAll = useMemo(() => {
     const DAY = 24 * 60 * 60 * 1000;
-    const hasSetor = (r: KPISet["porRemanejamento"][number]) => {
-      if (!filtroSetores.length) return true;
-      const presentes = new Set<string>();
-      (r.periodosPorSetor || []).forEach((p) => presentes.add((p.setor || "").toUpperCase()));
-      (r.duracaoPorSetorMs || []).forEach((d) => presentes.add((d.setor || "").toUpperCase()));
-      return filtroSetores.some((s) => presentes.has(s.toUpperCase()));
-    };
     const bucketKey = (ms: number) => (ms < DAY ? "lt1" : ms < 3 * DAY ? "d1to3" : ms < 7 * DAY ? "d3to7" : "gt7");
     const matchFuncionario = (r: KPISet["porRemanejamento"][number]) => {
       if (!filtroFuncionario) return true;
@@ -267,12 +247,12 @@ export default function RelatorioSLA() {
       return nome.includes(q) || mat.includes(q) || String(r.remanejamentoId).toLowerCase().includes(q);
     };
     return porRemanejamentoValidosAll.filter((r) => {
-      const okSetor = hasSetor(r);
-      const okBucket = !filtroBuckets.length || filtroBuckets.includes(bucketKey(r.totalDurMs || 0));
+      const msTotal = totalMsNow(r);
+      const okBucket = !filtroBuckets.length || filtroBuckets.includes(bucketKey(msTotal));
       const okFunc = matchFuncionario(r);
-      return okSetor && okBucket && okFunc;
+      return okBucket && okFunc;
     });
-  }, [porRemanejamentoValidosAll, filtroSetores, filtroBuckets, filtroFuncionario]);
+  }, [porRemanejamentoValidosAll, filtroBuckets, filtroFuncionario]);
 
   
 
@@ -1189,7 +1169,7 @@ export default function RelatorioSLA() {
         <div className="flex flex-col gap-4 lg:col-span-1">
           <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-4 flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium text-gray-600">Total de Remanejamentos ({visaoTodos ? "Completo" : "Concluídos"})</p>
+              <p className="text-xs font-medium text-gray-600">Total de Remanejamentos ({visaoTodos ? "Todos" : "Concluídos"})</p>
               <p className="text-xl font-bold text-gray-900">{totalRems}</p>
             </div>
             <div className="p-3 bg-blue-500 rounded-full">
@@ -1530,7 +1510,7 @@ export default function RelatorioSLA() {
                 <nav className="flex space-x-8 px-6" aria-label="Tabs">
                   {[
                     { id: "dias", name: "Concluídos", icon: ClockIcon },
-                    { id: "dias_all", name: "Completo", icon: ClockIcon },
+                    { id: "dias_all", name: "Todos", icon: ClockIcon },
                   ].map((tab) => {
                     const Icon = tab.icon as any;
                     const isActive = activeTab === (tab.id as any);
@@ -2194,7 +2174,7 @@ export default function RelatorioSLA() {
                   <div className="px-4 py-3 flex items-center justify-between bg-gray-50 rounded-t-2xl">
                     <div className="flex items-center gap-2">
                       <UserGroupIcon className="h-5 w-5 text-indigo-600" />
-                      <h3 className="text-sm font-semibold text-gray-800">Período por setor — por remanejamento (Completo)</h3>
+                      <h3 className="text-sm font-semibold text-gray-800">Período por setor — por remanejamento (Todos)</h3>
                     </div>
                     <div className="flex items-center gap-3">
                       <span className="text-xs text-gray-500">{porRemanejamentoFiltradosAll.length} linha(s)</span>
