@@ -269,13 +269,11 @@ jobs:
           sleep 10
           docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
           docker logs --tail=200 crewflow-app-production 2>/dev/null || true
-          echo "🔎 Verificando HTTP da aplicação (porta 3002)"
-          if command -v curl >/dev/null 2>&1; then
-            CODE=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 5 http://localhost:3002/ || true)
-          else
-            CODE=$(wget --server-response -q -O - http://localhost:3002/ 2>&1 | awk '/^  HTTP/{print $2}' | tail -n1)
-          fi
-          echo "HTTP: $CODE"
+          echo "🔎 Verificando HTTP da aplicação nas portas 3001, 3002 e via 80 (Nginx)"
+          check_url() { URL="$1"; LABEL="$2"; CODE=""; if command -v curl >/dev/null 2>&1; then CODE=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 5 "$URL" || true); else CODE=$(wget --server-response -q -O - "$URL" 2>&1 | awk '/^  HTTP/{print $2}' | tail -n1); fi; echo "$LABEL => HTTP: $CODE"; }
+          check_url "http://localhost:3001/login" "local:3001/login"
+          check_url "http://localhost:3002/login" "local:3002/login"
+          check_url "http://localhost/login" "local:80/login"
           EOF
 
       - name: 🔐 Reset pgAdmin credentials (force defaults)
