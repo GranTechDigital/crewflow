@@ -81,7 +81,7 @@ jobs:
           fi
 
       - name: 💾 Backup banco de dados (produção) antes do deploy
-        if: ${{ (github.event_name != 'workflow_dispatch') || (github.event_name == 'workflow_dispatch' && inputs.apply_db_changes == 'true' && inputs.skip_backup != 'true') }}
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.skip_backup != 'true' }}
         run: |
           ssh -o StrictHostKeyChecking=no root@${{ secrets.PROD_SERVER_HOST }} << 'EOF'
             set -e
@@ -168,6 +168,8 @@ jobs:
           POSTGRES_PASSWORD_VALUE="${{ secrets.PROD_POSTGRES_PASSWORD }}"
           PGADMIN_EMAIL_VALUE="${{ secrets.PROD_PGADMIN_EMAIL }}"
           PGADMIN_PASSWORD_VALUE="${{ secrets.PROD_PGADMIN_PASSWORD }}"
+          PGADMIN_SETUP_EMAIL_VALUE="$PGADMIN_EMAIL_VALUE"
+          PGADMIN_SETUP_PASSWORD_VALUE="$PGADMIN_PASSWORD_VALUE"
           NEXTAUTH_URL_VALUE="http://${{ secrets.PROD_SERVER_HOST }}:3002"
           JWT_SECRET_VALUE="${{ secrets.PROD_JWT_SECRET }}"
           ADMIN_USER_VALUE="${{ secrets.PROD_ADMIN_USER }}"
@@ -201,6 +203,10 @@ jobs:
           printf 'POSTGRES_DB=%s\n' "$POSTGRES_DB_VALUE" >> "$ENV_FILE"
           printf 'PGADMIN_DEFAULT_EMAIL=%s\n' "$PGADMIN_EMAIL_VALUE" >> "$ENV_FILE"
           printf 'PGADMIN_DEFAULT_PASSWORD=%s\n' "$PGADMIN_PASSWORD_VALUE" >> "$ENV_FILE"
+          printf 'PGADMIN_SETUP_EMAIL=%s\n' "$PGADMIN_SETUP_EMAIL_VALUE" >> "$ENV_FILE"
+          printf 'PGADMIN_SETUP_PASSWORD=%s\n' "$PGADMIN_SETUP_PASSWORD_VALUE" >> "$ENV_FILE"
+          printf 'PGADMIN_CONFIG_SERVER_MODE=%s\n' "True" >> "$ENV_FILE"
+          printf 'PGADMIN_CONFIG_PATH_PREFIX=%s\n' "/pgadmin" >> "$ENV_FILE"
           printf 'NEXTAUTH_URL=%s\n' "$NEXTAUTH_URL_VALUE" >> "$ENV_FILE"
           printf 'JWT_SECRET=%s\n' "$JWT_SECRET_VALUE" >> "$ENV_FILE"
           printf 'DATABASE_URL=%s\n' "$DATABASE_URL_VALUE" >> "$ENV_FILE"
@@ -276,52 +282,31 @@ jobs:
           check_url "http://localhost/login" "local:80/login"
           EOF
 
-      - name: 🔐 Reset pgAdmin credentials (force defaults)
+      - name: 🔐 Reset pgAdmin (restart non-interactive)
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.reset_pgadmin == 'true' }}
         run: |
           ssh -o StrictHostKeyChecking=no root@${{ secrets.PROD_SERVER_HOST }} << 'EOF'
             set -e
-            echo "🔎 pgadmin-production: garantindo reconfiguração de credenciais padrão"
-            if docker ps --format '{{.Names}}' | grep -q '^pgadmin-production$'; then
-              echo "📦 Backup do banco interno do pgAdmin (se existir)"
-              docker exec pgadmin-production bash -lc 'if [ -f /var/lib/pgadmin/pgadmin4.db ]; then cp /var/lib/pgadmin/pgadmin4.db /var/lib/pgadmin/pgadmin4.db.bak.$(date -u +%Y%m%d_%H%M%S); fi'
-              echo "🗑️ Removendo pgadmin4.db para reinicializar com PGADMIN_DEFAULT_EMAIL/PASSWORD"
-              docker exec pgadmin-production bash -lc 'rm -f /var/lib/pgadmin/pgadmin4.db'
-              docker restart pgadmin-production
-              echo "⏳ Aguardando pgAdmin reiniciar com retries"
-              ATTEMPTS=20; SLEEP=3; CODE=""
-              for i in $(seq 1 $ATTEMPTS); do
-                if command -v curl >/dev/null 2>&1; then
-                  CODE=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 3 http://localhost:5050/ || true)
-                else
-                  CODE=$(wget --server-response -q -O - http://localhost:5050/ 2>&1 | awk '/^  HTTP/{print $2}' | tail -n1)
-                fi
-                echo "Tentativa #$i — HTTP: $CODE"
-                if [ "$CODE" = "200" ] || [ "$CODE" = "302" ] || [ "$CODE" = "307" ] || [ "$CODE" = "308" ]; then
-                  echo "✅ pgAdmin responde"
-                  break
-                fi
-                sleep $SLEEP
-              done
-              docker logs --tail=120 pgadmin-production || true
-              if [ "$CODE" != "200" ] && [ "$CODE" != "302" ] && [ "$CODE" != "307" ] && [ "$CODE" != "308" ]; then
-                echo "⚠️ pgAdmin não respondeu após $ATTEMPTS tentativas. Recriando container e volume..."
-                docker rm -f pgadmin-production || true
-                docker volume rm pgadmin_data || true
-                cd /opt/projetogran
-                docker compose --env-file /opt/projetogran/.env.production -f /opt/projetogran/docker-compose.yml up -d pgadmin-production
-                echo "⏳ Aguardando nova inicialização"
-                sleep 10
-                if command -v curl >/dev/null 2>&1; then
-                  CODE=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 3 http://localhost:5050/ || true)
-                else
-                  CODE=$(wget --server-response -q -O - http://localhost:5050/ 2>&1 | awk '/^  HTTP/{print $2}' | tail -n1)
-                fi
-                echo "HTTP (após recriação): $CODE"
+            echo "🔎 Reiniciando pgadmin-production com variáveis de setup (não-interativo)"
+            cd /opt/projetogran
+            # Recriar apenas o serviço do pgAdmin, preservando volume e respeitando env (.env.production)
+            docker compose --env-file /opt/projetogran/.env.production -f /opt/projetogran/docker-compose.yml up -d pgadmin-production
+            echo "⏳ Aguardando pgAdmin iniciar"
+            ATTEMPTS=20; SLEEP=3; CODE=""
+            for i in $(seq 1 $ATTEMPTS); do
+              if command -v curl >/dev/null 2>&1; then
+                CODE=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 3 http://localhost:5050/ || true)
+              else
+                CODE=$(wget --server-response -q -O - http://localhost:5050/ 2>&1 | awk '/^  HTTP/{print $2}' | tail -n1)
               fi
-            else
-              echo "⚠️ pgadmin-production não está rodando; pulando reset"
-            fi
+              echo "Tentativa #$i — HTTP: $CODE"
+              if [ "$CODE" = "200" ] || [ "$CODE" = "302" ] || [ "$CODE" = "307" ] || [ "$CODE" = "308" ]; then
+                echo "✅ pgAdmin responde"
+                break
+              fi
+              sleep $SLEEP
+            done
+            docker logs --tail=120 pgadmin-production || true
           EOF
 
       - name: 🗄️ Setup Database (somente quando solicitado manualmente)
