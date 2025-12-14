@@ -168,7 +168,7 @@ jobs:
           POSTGRES_PASSWORD_VALUE="${{ secrets.PROD_POSTGRES_PASSWORD }}"
           PGADMIN_EMAIL_VALUE="${{ secrets.PROD_PGADMIN_EMAIL }}"
           PGADMIN_PASSWORD_VALUE="${{ secrets.PROD_PGADMIN_PASSWORD }}"
-          NEXTAUTH_URL_VALUE="http://${{ secrets.PROD_SERVER_HOST }}:3001"
+          NEXTAUTH_URL_VALUE="http://${{ secrets.PROD_SERVER_HOST }}:3002"
           JWT_SECRET_VALUE="${{ secrets.PROD_JWT_SECRET }}"
           ADMIN_USER_VALUE="${{ secrets.PROD_ADMIN_USER }}"
           ADMIN_EMAIL_VALUE="${{ secrets.PROD_ADMIN_EMAIL }}"
