@@ -1,6 +1,7 @@
 "use client";
 import React, { useEffect, useMemo, useState, useCallback, Fragment } from "react";
 import { Transition } from "@headlessui/react";
+import { useSearchParams } from "next/navigation";
 import {
   ChartBarIcon,
   UserGroupIcon,
@@ -97,6 +98,7 @@ export default function RelatorioSLA() {
   const [filtroBuckets, setFiltroBuckets] = useState<string[]>(["lt1", "d1to3", "d3to7", "gt7"]);
   const [filtroFuncionario, setFiltroFuncionario] = useState<string>("");
   const [hideTabs, setHideTabs] = useState<boolean>(false);
+  const searchParams = useSearchParams();
 
   const carregar = useCallback(async () => {
     setLoading(true);
@@ -136,22 +138,26 @@ export default function RelatorioSLA() {
 
   useEffect(() => {
     try {
-      const url = new URL(window.location.href);
-      const tabParam = url.searchParams.get("tab");
-      const hideParam = url.searchParams.get("hideTabs");
+      const tabParam = searchParams.get("tab");
+      const hideParam = searchParams.get("hideTabs");
       if (tabParam === "dias" || tabParam === "dias_all") {
         setActiveTab(tabParam as any);
       }
-      if (hideParam === "true") {
-        setHideTabs(true);
-      }
-      // Navegação padronizada via querystring (tab, hideTabs). Sem dependência de path.
+      setHideTabs(hideParam === "true");
     } catch {}
-  }, []);
+  }, [searchParams]);
 
   useEffect(() => {
     setVisaoTodos(activeTab === "dias_all");
   }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab === "dias") {
+      carregar();
+    } else if (activeTab === "dias_all") {
+      carregarAll();
+    }
+  }, [activeTab, carregar, carregarAll]);
 
   const setoresDisponiveis = useMemo(() => {
     // Fixar colunas principais para consistência e incluir logística
