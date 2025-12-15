@@ -111,6 +111,7 @@ export default function Sidebar() {
       items: [
         { label: "Concluídos", href: "/sla/relatorio?tab=dias&hideTabs=true" },
         { label: "Todos", href: "/sla/relatorio?tab=dias_all&hideTabs=true" },
+        { label: "Capacitações", href: "/relatorios/capacitacoes" },
       ],
       permission: "canAccessLogistica",
     },
