@@ -13,50 +13,78 @@ export async function GET(request: NextRequest) {
 
     const skip = (page - 1) * limit;
 
-    // Construir filtros
-    const where: Prisma.TreinamentosWhereInput = {};
+    const normalizeText = (s: string) => s
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    const baseWhere: Prisma.TreinamentosWhereInput = {};
+    if (validadeUnidade) {
+      baseWhere.validadeUnidade = validadeUnidade;
+    }
 
     if (search) {
-      where.treinamento = {
-        contains: search,
-      };
+      const searchNorm = normalizeText(search);
+      const baseResults = await prisma.treinamentos.findMany({
+        where: {
+          ...baseWhere,
+          treinamento: { contains: search, mode: 'insensitive' },
+        },
+        orderBy: [{ treinamento: 'asc' }],
+      });
+      const filtered = baseResults.filter(t => normalizeText(t.treinamento).includes(searchNorm));
+      const total = filtered.length;
+      const paginated = filtered.slice(skip, skip + limit);
+
+      const unidadesValidade = await prisma.treinamentos.findMany({
+        select: { validadeUnidade: true },
+        distinct: ['validadeUnidade'],
+        orderBy: { validadeUnidade: 'asc' },
+      });
+
+      return NextResponse.json({
+        success: true,
+        data: paginated,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
+        },
+        unidadesValidade: unidadesValidade.map(u => u.validadeUnidade),
+      });
+    } else {
+      const where: Prisma.TreinamentosWhereInput = { ...baseWhere };
+      const [treinamentos, total] = await Promise.all([
+        prisma.treinamentos.findMany({
+          where,
+          skip,
+          take: limit,
+          orderBy: [{ treinamento: 'asc' }],
+        }),
+        prisma.treinamentos.count({ where }),
+      ]);
+
+      const unidadesValidade = await prisma.treinamentos.findMany({
+        select: { validadeUnidade: true },
+        distinct: ['validadeUnidade'],
+        orderBy: { validadeUnidade: 'asc' },
+      });
+
+      return NextResponse.json({
+        success: true,
+        data: treinamentos,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
+        },
+        unidadesValidade: unidadesValidade.map(u => u.validadeUnidade),
+      });
     }
-
-    if (validadeUnidade) {
-      where.validadeUnidade = validadeUnidade;
-    }
-
-    // Buscar treinamentos com paginação
-    const [treinamentos, total] = await Promise.all([
-      prisma.treinamentos.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: [
-          { treinamento: 'asc' },
-        ],
-      }),
-      prisma.treinamentos.count({ where }),
-    ]);
-
-    // Buscar unidades de validade únicas para filtro
-    const unidadesValidade = await prisma.treinamentos.findMany({
-      select: { validadeUnidade: true },
-      distinct: ['validadeUnidade'],
-      orderBy: { validadeUnidade: 'asc' },
-    });
-
-    return NextResponse.json({
-      success: true,
-      data: treinamentos,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
-      unidadesValidade: unidadesValidade.map(u => u.validadeUnidade),
-    });
   } catch (error) {
     console.error('Erro ao buscar treinamentos:', error);
     return NextResponse.json(
