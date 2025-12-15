@@ -58,7 +58,21 @@ jobs:
             mkdir -p /opt/projetogran/data || true
             mkdir -p /opt/projetogran/relatorios || true
             if [ ! -f "$EXCEL_PATH" ]; then
-              echo "❌ Arquivo Excel não encontrado: $EXCEL_PATH"; exit 1; fi
+              echo "⚠️ Excel não encontrado no caminho informado: $EXCEL_PATH"
+              echo "🔎 Buscando arquivo .xlsx em /opt/projetogran/data e /opt/projetogran"
+              CAND=""
+              if ls /opt/projetogran/data/*.xlsx >/dev/null 2>&1; then
+                CAND=$(ls -1t /opt/projetogran/data/*.xlsx | head -n1)
+              fi
+              if [ -z "$CAND" ] && ls /opt/projetogran/*.xlsx >/dev/null 2>&1; then
+                CAND=$(ls -1t /opt/projetogran/*.xlsx | head -n1)
+              fi
+              if [ -z "$CAND" ]; then
+                echo "❌ Nenhum arquivo .xlsx encontrado em /opt/projetogran/data ou /opt/projetogran"; exit 1
+              fi
+              EXCEL_PATH="$CAND"
+              echo "✅ Usando Excel detectado: $EXCEL_PATH"
+            fi
             ls -lh "$EXCEL_PATH" || true
 
             echo "📁 Garantindo diretório /app/data dentro do container"
