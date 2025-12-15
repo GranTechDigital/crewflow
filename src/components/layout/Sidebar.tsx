@@ -99,10 +99,7 @@ export default function Sidebar() {
           label: "Lista de Funcionários",
           href: "/prestserv/funcionarios-por-contrato",
         },
-        {
-          label: "BI",
-          href: "/prestserv/bi",
-        },
+        // BI removido do Planejamento
         // { label: "Visualizar Funcionários por Centro de Custo (Folha)", href: "/planejamento/funcionarios" },
       ],
       permission: "canAccessPlanejamento",
@@ -115,7 +112,7 @@ export default function Sidebar() {
         { label: "Concluídos", href: "/sla/relatorio?tab=dias&hideTabs=true" },
         { label: "Todos", href: "/sla/relatorio?tab=dias_all&hideTabs=true" },
       ],
-      permission: "canAccessPlanejamento",
+      permission: "canAccessLogistica",
     },
     {
       key: "prestserv",
@@ -237,7 +234,6 @@ export default function Sidebar() {
     ? allSections
     : allSections.filter((section) => {
         if (!usuario) return false;
-        if (section.key === "planejamento") return true;
         return permissions.hasPermission(section.permission);
       });
 

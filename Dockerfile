@@ -2,7 +2,9 @@
 FROM node:18-alpine AS builder
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
+# Garantir que devDependencies sejam instaladas no estágio de build
 ENV NODE_ENV=production
+ENV NPM_CONFIG_PRODUCTION=false
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_OPTIONS=--max-old-space-size=4096
 COPY package*.json ./

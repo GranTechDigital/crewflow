@@ -81,10 +81,7 @@ const setores: SetorCard[] = [
         label: "Lista de Funcionários",
         href: "/prestserv/funcionarios-por-contrato",
       },
-      {
-        label: "BI",
-        href: "/prestserv/bi",
-      },
+      // BI removido do card Planejamento
     ],
   },
   {
@@ -166,11 +163,7 @@ const setores: SetorCard[] = [
     borderColor: "border-indigo-200 hover:border-indigo-300",
     equipes: [
       "Administração",
-      "Planejamento",
       "Logística",
-      "Medicina",
-      "RH",
-      "Treinamento",
     ],
     links: [{ label: "Dashboard", href: "/sla/relatorio" }],
   },

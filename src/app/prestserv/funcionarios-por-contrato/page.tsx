@@ -17,7 +17,6 @@ import {
   BriefcaseIcon,
   PaintBrushIcon,
   ChartBarIcon,
-  ChartPieIcon,
   ExclamationTriangleIcon,
   ExclamationCircleIcon,
 } from "@heroicons/react/24/outline";
@@ -101,6 +100,7 @@ interface ContratoInfo {
   aprovadosOriginal?: number;
   pendentesOriginal?: number;
   rejeitadosOriginal?: number;
+  numero?: string;
 }
 
 export default function FuncionariosPorContratoPage() {
@@ -258,6 +258,7 @@ const [contratosFuturosMap, setContratosFuturosMap] = useState<Record<string, st
           nome: contrato.contratoNome,
           contratoId: contrato.contratoId,
           cliente: contrato.contratoCliente,
+          numero: contrato.contratoNumero,
           total: contrato.totalFuncionarios,
           aprovados: contrato.funcionariosAprovados,
           pendentes: contrato.funcionariosPendentes,
@@ -287,6 +288,7 @@ const [contratosFuturosMap, setContratosFuturosMap] = useState<Record<string, st
             aprovadosOriginal: contrato.aprovadosOriginal,
             pendentesOriginal: contrato.pendentesOriginal,
             rejeitadosOriginal: contrato.rejeitadosOriginal,
+            numero: contrato.numero,
           };
         });
         setContratosOriginais(contratosMap);
@@ -779,22 +781,7 @@ const [contratosFuturosMap, setContratosFuturosMap] = useState<Record<string, st
                 <ChartBarIcon className="h-5 w-5 mr-2" />
                 Dashboard
               </button>
-              <button
-                onClick={() => {
-                  setActiveTab("uptime");
-                  if (!dashboardData) {
-                    fetchDashboardData();
-                  }
-                }}
-                className={` text-white py-2 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${
-                  activeTab === "uptime"
-                    ? "border-sky-500 text-sky-300"
-                    : "border-transparent text-gray-500 hover:text-white-700 hover:border-white-300"
-                }`}
-              >
-                <ChartPieIcon className="h-5 w-5 mr-2" />
-                Uptime
-              </button>
+
             </nav>
           </div>
 
@@ -1057,6 +1044,12 @@ const [contratosFuturosMap, setContratosFuturosMap] = useState<Record<string, st
                           >
                             {contrato.nome}
                           </h4>
+
+                          {contrato.numero && (
+                            <p className="text-xs text-gray-500 mb-2" title={`Nº ${contrato.numero}`}>
+                              Nº {contrato.numero}
+                            </p>
+                          )}
 
                           {/* Cliente */}
                           {contrato.cliente && contrato.cliente !== "-" && (
@@ -2019,20 +2012,7 @@ const [contratosFuturosMap, setContratosFuturosMap] = useState<Record<string, st
               )}
             </div>
           )}
-          {activeTab === "uptime" && (
-             /* Dashboard */
-             <div className="bg-white rounded-lg shadow p-6 h-200">
-               <iframe
-                 title="Uptime Dashboard"
-                 width="1200"
-                 height="747"
-                 src="https://app.powerbi.com/view?r=eyJrIjoiNGU5MjFmNWUtNTNjZi00ZTMxLWI0NmUtODgwM2QyZTc5YzMyIiwidCI6ImNhNmEwZTdiLTUzZTktNDNjMi04YTkyLTVmNzkyZDY4ZWMwNCJ9"
-                 frameBorder="0"
-                 allowFullScreen={true}
-                 style={{ width: '100%', height: '100%' }}
-               ></iframe>
-             </div>
-           )}
+          
         </div>
       </div>
     </div>

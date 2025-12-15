@@ -40,6 +40,7 @@ interface ContratoData {
   contratoId: string;
   contratoNome: string;
   contratoCliente: string;
+  contratoNumero?: string;
   funcionarios: FuncionarioData[];
   totalFuncionarios: number;
   funcionariosAprovados: number;
@@ -51,6 +52,7 @@ interface ContratoDataOriginal {
   contratoId: string;
   contratoNome: string;
   contratoCliente: string;
+  contratoNumero?: string;
   totalFuncionarios: number;
   funcionariosAprovados: number;
   funcionariosPendentes: number;
@@ -61,6 +63,7 @@ interface ContratoInfo {
   id: number;
   nome: string;
   cliente: string;
+  numero: string;
 }
 
 interface ContratoWithOriginalData extends ContratoData {
@@ -165,6 +168,7 @@ export async function GET(request: NextRequest) {
             id: true,
             nome: true,
             cliente: true,
+            numero: true,
           }
         }
       },
@@ -184,6 +188,7 @@ export async function GET(request: NextRequest) {
             id: true,
             nome: true,
             cliente: true,
+            numero: true,
           }
         }
       }
@@ -202,6 +207,7 @@ export async function GET(request: NextRequest) {
             id: true,
             nome: true,
             cliente: true,
+            numero: true,
           }
         }
       }
@@ -257,6 +263,7 @@ export async function GET(request: NextRequest) {
       const contratoId = contratoAtual ? contratoAtual.id.toString() : 'sem_contrato';
       const contratoNome = contratoAtual ? contratoAtual.nome : 'Sem contrato';
       const contratoCliente = contratoAtual ? contratoAtual.cliente : '-';
+      const contratoNumero = contratoAtual ? contratoAtual.numero : undefined;
       
       // Criar entrada no mapa se não existir
       if (!contratoMap.has(contratoId)) {
@@ -264,6 +271,7 @@ export async function GET(request: NextRequest) {
           contratoId: contratoId,
           contratoNome: contratoNome,
           contratoCliente: contratoCliente,
+          contratoNumero: contratoNumero,
           funcionarios: [],
           totalFuncionarios: 0,
           funcionariosAprovados: 0,
@@ -335,6 +343,7 @@ export async function GET(request: NextRequest) {
       const contratoId = contratoAtual ? contratoAtual.id.toString() : 'sem_contrato';
       const contratoNome = contratoAtual ? contratoAtual.nome : 'Sem contrato';
       const contratoCliente = contratoAtual ? contratoAtual.cliente : '-';
+      const contratoNumero = contratoAtual ? contratoAtual.numero : undefined;
       
       // Criar entrada no mapa se não existir
       if (!contratoMapOriginal.has(contratoId)) {
@@ -342,6 +351,7 @@ export async function GET(request: NextRequest) {
           contratoId: contratoId,
           contratoNome: contratoNome,
           contratoCliente: contratoCliente,
+          contratoNumero: contratoNumero,
           totalFuncionarios: 0,
           funcionariosAprovados: 0,
           funcionariosPendentes: 0,
@@ -386,6 +396,7 @@ export async function GET(request: NextRequest) {
         id: true,
         nome: true,
         cliente: true,
+        numero: true,
       }
     });
 
@@ -396,6 +407,7 @@ export async function GET(request: NextRequest) {
           contratoId: contrato.id.toString(),
           contratoNome: contrato.nome,
           contratoCliente: contrato.cliente,
+          contratoNumero: contrato.numero,
           funcionarios: [],
           totalFuncionarios: 0,
           funcionariosAprovados: 0,
@@ -412,6 +424,7 @@ export async function GET(request: NextRequest) {
           contratoId: contrato.id.toString(),
           contratoNome: contrato.nome,
           contratoCliente: contrato.cliente,
+          contratoNumero: contrato.numero,
           totalFuncionarios: 0,
           funcionariosAprovados: 0,
           funcionariosPendentes: 0,
