@@ -44,28 +44,34 @@ jobs:
           [ -z "$EXCEL_PATH_INPUT" ] && EXCEL_PATH_INPUT="/opt/projetogran/data/vinculos.xlsx"
 
           echo "🔎 Host: $HOST"
-          echo "🔎 Excel: $EXCEL_PATH_INPUT"
+          echo "🔎 Excel (server path): $EXCEL_PATH_INPUT"
 
-          ssh -p "$PORT" -o StrictHostKeyChecking=no root@"$HOST" << 'EOF'
+          ssh -p "$PORT" -o StrictHostKeyChecking=no root@"$HOST" << EOF
             set -e
-            EXCEL_PATH="${EXCEL_PATH_INPUT}"
+            EXCEL_PATH="$EXCEL_PATH_INPUT"
             APP_CONT="crewflow-app-production"
             echo "📁 Garantindo diretórios de trabalho"
             mkdir -p /opt/projetogran/data || true
             mkdir -p /opt/projetogran/relatorios || true
             if [ ! -f "$EXCEL_PATH" ]; then
               echo "❌ Arquivo Excel não encontrado: $EXCEL_PATH"; exit 1; fi
+            ls -lh "$EXCEL_PATH" || true
+
+            echo "📁 Garantindo diretório /app/data dentro do container"
+            docker exec "$APP_CONT" sh -lc 'mkdir -p /app/data'
 
             echo "📥 Copiando Excel para dentro do container"
             docker cp "$EXCEL_PATH" "$APP_CONT":/app/data/vinculos.xlsx
+            docker exec "$APP_CONT" sh -lc 'ls -lh /app/data/vinculos.xlsx'
+
+            echo "🔎 Contagem de funcionários com contratoId (ANTES)"
+            docker exec postgres-prod bash -lc 'export PGPASSWORD="$POSTGRES_PASSWORD"; psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "select count(*) from \"Funcionario\" where \"contratoId\" is not null;"'
 
             echo "🚀 Executando script de vínculo dentro do container"
-            set +e
             docker exec "$APP_CONT" node scripts/vincular-funcionarios-contratos.js /app/data/vinculos.xlsx
-            CODE=$?
-            set -e
-            if [ "$CODE" -ne 0 ]; then
-              echo "⚠️ Script retornou código $CODE (verifique logs)"; fi
+
+            echo "🔎 Contagem de funcionários com contratoId (DEPOIS)"
+            docker exec postgres-prod bash -lc 'export PGPASSWORD="$POSTGRES_PASSWORD"; psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "select count(*) from \"Funcionario\" where \"contratoId\" is not null;"'
 
             echo "📤 Copiando relatório gerado para o servidor"
             if docker exec "$APP_CONT" test -f /app/relatorio-vinculos-funcionarios.xlsx; then
@@ -73,6 +79,7 @@ jobs:
               ls -lh /opt/projetogran/relatorios/relatorio-vinculos-funcionarios.xlsx || true
             else
               echo "ℹ️ Relatório não encontrado no container (pode ter falhado)"
+              exit 1
             fi
           EOF
 
