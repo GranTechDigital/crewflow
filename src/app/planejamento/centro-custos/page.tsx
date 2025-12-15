@@ -335,7 +335,7 @@ export default function ContratosPage() {
         <div className="flex items-center justify-between mb-2">
           <h1 className="text-3xl font-bold text-gray-900">Centro de Custos</h1>
           <button
-            onClick={() => router.push('/planejamento/remanejamentos/novo')}
+            onClick={() => router.push('/planejamento/remanejamentos/novo?returnTo=/planejamento/centro-custos')}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
             <ArrowsRightLeftIcon className="w-5 h-5" />

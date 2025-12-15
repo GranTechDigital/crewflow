@@ -42,13 +42,59 @@ const VisaoSolicitacoes: React.FC<VisaoSolicitacoesProps> = ({
 }) => {
   // Estados para paginação da tabela de solicitações
   const [paginaAtualSolicitacoes, setPaginaAtualSolicitacoes] = useState(1);
-  const [itensPorPaginaSolicitacoes] = useState(5);
+  const [itensPorPaginaSolicitacoes] = useState(10);
   const [totalSolicitacoes, setTotalSolicitacoes] = useState(0);
+  const [ordenacaoSolicitacoes, setOrdenacaoSolicitacoes] = useState<{
+    campo: string;
+    direcao: "asc" | "desc";
+  }>({ campo: "id", direcao: "asc" });
 
-  // Efeito para recarregar dados quando a página atual muda
+  // Atualiza total quando dados mudam
   useEffect(() => {
-    fetchFuncionarios();
-  }, [paginaAtualSolicitacoes]);
+    setTotalSolicitacoes(funcionarios.length);
+    // Resetar página se dados mudarem e página ficar fora do total
+    const totalPaginas = Math.max(1, Math.ceil(funcionarios.length / itensPorPaginaSolicitacoes));
+    if (paginaAtualSolicitacoes > totalPaginas) {
+      setPaginaAtualSolicitacoes(1);
+    }
+  }, [funcionarios, itensPorPaginaSolicitacoes]);
+
+  const alterarOrdenacaoSolicitacoes = (campo: string) => {
+    setOrdenacaoSolicitacoes((prev) => ({
+      campo,
+      direcao: prev.campo === campo && prev.direcao === "asc" ? "desc" : "asc",
+    }));
+  };
+
+  const funcionariosOrdenados = [...funcionarios].sort((a, b) => {
+    const { campo, direcao } = ordenacaoSolicitacoes;
+    let va: any = 0;
+    let vb: any = 0;
+    switch (campo) {
+      case "id":
+        va = parseInt(a.id) || 0;
+        vb = parseInt(b.id) || 0;
+        break;
+      case "createdAt":
+        va = new Date(a.createdAt).getTime() || 0;
+        vb = new Date(b.createdAt).getTime() || 0;
+        break;
+      case "dataSolicitacao":
+        va = new Date(a.dataSolicitacao).getTime() || 0;
+        vb = new Date(b.dataSolicitacao).getTime() || 0;
+        break;
+      default:
+        va = 0;
+        vb = 0;
+    }
+    if (va < vb) return direcao === "asc" ? -1 : 1;
+    if (va > vb) return direcao === "asc" ? 1 : -1;
+    return 0;
+  });
+
+  const indiceInicio = (paginaAtualSolicitacoes - 1) * itensPorPaginaSolicitacoes;
+  const indiceFim = indiceInicio + itensPorPaginaSolicitacoes;
+  const funcionariosPaginados = funcionariosOrdenados.slice(indiceInicio, indiceFim);
 
   // Função para determinar o responsável atual
   const getResponsavelAtual = (funcionario: any): string => {
@@ -85,7 +131,17 @@ const VisaoSolicitacoes: React.FC<VisaoSolicitacoesProps> = ({
                 scope="col"
                 className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
               >
-                ID Remanejamento
+                <button
+                  onClick={() => alterarOrdenacaoSolicitacoes("id")}
+                  className="flex items-center gap-1 hover:text-blue-600"
+                >
+                  <span>ID Remanejamento</span>
+                  {ordenacaoSolicitacoes.campo === "id" && (
+                    <span className="text-blue-600">
+                      {ordenacaoSolicitacoes.direcao === "asc" ? "↑" : "↓"}
+                    </span>
+                  )}
+                </button>
               </th>
               <th
                 scope="col"
@@ -97,7 +153,17 @@ const VisaoSolicitacoes: React.FC<VisaoSolicitacoesProps> = ({
                 scope="col"
                 className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
               >
-                Data Criação
+                <button
+                  onClick={() => alterarOrdenacaoSolicitacoes("createdAt")}
+                  className="flex items-center gap-1 hover:text-blue-600"
+                >
+                  <span>Data Criação</span>
+                  {ordenacaoSolicitacoes.campo === "createdAt" && (
+                    <span className="text-blue-600">
+                      {ordenacaoSolicitacoes.direcao === "asc" ? "↑" : "↓"}
+                    </span>
+                  )}
+                </button>
               </th>
               <th
                 scope="col"
@@ -150,7 +216,7 @@ const VisaoSolicitacoes: React.FC<VisaoSolicitacoesProps> = ({
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {funcionarios.map((funcionario) => (
+            {funcionariosPaginados.map((funcionario) => (
               <tr key={funcionario.id} className="hover:bg-gray-50">
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                   {funcionario.id}

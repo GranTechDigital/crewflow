@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/app/hooks/useAuth";
 import {
   ArrowRightIcon,
@@ -45,6 +45,7 @@ interface Funcionario {
 
 export default function NovoRemanejamentoPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { usuario } = useAuth();
 
   // Estados de dados
@@ -290,7 +291,19 @@ export default function NovoRemanejamentoPage() {
 
       if (response.ok) {
         alert("Solicitação de remanejamento criada com sucesso!");
-        router.push("/planejamento/remanejamentos");
+        const returnToParam = searchParams.get("returnTo");
+        let target = returnToParam || "/planejamento/remanejamentos";
+        if (!returnToParam) {
+          try {
+            const section = localStorage.getItem("sidebar-active-section");
+            if (section === "planejamento") {
+              target = "/planejamento/remanejamentos";
+            } else if (section === "prestserv") {
+              target = "/prestserv/funcionarios";
+            }
+          } catch {}
+        }
+        router.push(target);
       } else {
         throw new Error("Erro ao criar solicitação");
       }

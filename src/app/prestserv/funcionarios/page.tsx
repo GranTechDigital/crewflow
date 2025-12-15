@@ -205,6 +205,10 @@ function FuncionariosPageContent() {
   const [paginaAtualSolicitacoes, setPaginaAtualSolicitacoes] = useState(1);
   const [itensPorPaginaSolicitacoes] = useState(10);
   const [totalSolicitacoes, setTotalSolicitacoes] = useState(0);
+  const [ordenacaoSolicitacoes, setOrdenacaoSolicitacoes] = useState<{
+    campo: string;
+    direcao: "asc" | "desc";
+  }>({ campo: "solicitacaoId", direcao: "asc" });
 
   // Estado para aprovação de todas as tarefas (teste)
   const [aprovandoTodasTarefas, setAprovandoTodasTarefas] = useState<
@@ -2500,6 +2504,14 @@ function FuncionariosPageContent() {
     }));
   };
 
+  const alterarOrdenacaoSolicitacoes = (campo: string) => {
+    setOrdenacaoSolicitacoes((prev) => ({
+      campo,
+      direcao:
+        prev.campo === campo && prev.direcao === "asc" ? "desc" : "asc",
+    }));
+  };
+
   // Agrupar funcionários filtrados por solicitação
   const funcionariosAgrupados = funcionariosFiltrados.reduce(
     (acc, funcionario) => {
@@ -2511,10 +2523,27 @@ function FuncionariosPageContent() {
           contratoOrigem: funcionario.contratoOrigem,
           contratoDestino: funcionario.contratoDestino,
           dataSolicitacao: funcionario.dataSolicitacao,
+          createdAtGroup: funcionario.createdAt,
+          updatedAtGroup: funcionario.updatedAt,
           funcionarios: [],
         };
       }
       acc[solicitacaoId].funcionarios.push(funcionario);
+      // Atualizar datas agregadas
+      try {
+        const curCreated = new Date(acc[solicitacaoId].createdAtGroup).getTime();
+        const fCreated = new Date(funcionario.createdAt).getTime();
+        if (!curCreated || (fCreated && fCreated < curCreated)) {
+          acc[solicitacaoId].createdAtGroup = funcionario.createdAt;
+        }
+      } catch {}
+      try {
+        const curUpdated = new Date(acc[solicitacaoId].updatedAtGroup).getTime();
+        const fUpdated = new Date(funcionario.updatedAt).getTime();
+        if (!curUpdated || (fUpdated && fUpdated > curUpdated)) {
+          acc[solicitacaoId].updatedAtGroup = funcionario.updatedAt;
+        }
+      } catch {}
       return acc;
     },
     {} as Record<string, any>
@@ -2524,9 +2553,39 @@ function FuncionariosPageContent() {
 
   // Para a aba de solicitação, usamos a paginação da API
   // Não precisamos fatiar os dados aqui, pois já vêm paginados da API
+  const todasSolicitacoesOrdenadas = [...todasSolicitacoes].sort((a: any, b: any) => {
+    const { campo, direcao } = ordenacaoSolicitacoes;
+    let valorA: any;
+    let valorB: any;
+    switch (campo) {
+      case "solicitacaoId":
+        valorA = parseInt(a.solicitacaoId) || 0;
+        valorB = parseInt(b.solicitacaoId) || 0;
+        break;
+      case "dataSolicitacao":
+        valorA = new Date(a.dataSolicitacao).getTime() || 0;
+        valorB = new Date(b.dataSolicitacao).getTime() || 0;
+        break;
+      case "createdAt":
+        valorA = new Date(a.createdAtGroup).getTime() || 0;
+        valorB = new Date(b.createdAtGroup).getTime() || 0;
+        break;
+      case "updatedAt":
+        valorA = new Date(a.updatedAtGroup).getTime() || 0;
+        valorB = new Date(b.updatedAtGroup).getTime() || 0;
+        break;
+      default:
+        valorA = 0;
+        valorB = 0;
+    }
+    if (valorA < valorB) return direcao === "asc" ? -1 : 1;
+    if (valorA > valorB) return direcao === "asc" ? 1 : -1;
+    return 0;
+  });
+
   const solicitacoesFiltradas =
     activeTab === "solicitacao"
-      ? todasSolicitacoes
+      ? todasSolicitacoesOrdenadas
       : todasSolicitacoes.slice(
           (paginaAtualSolicitacoes - 1) * itensPorPaginaSolicitacoes,
           (paginaAtualSolicitacoes - 1) * itensPorPaginaSolicitacoes +
@@ -2594,7 +2653,11 @@ function FuncionariosPageContent() {
               Exportar Excel
             </button>
             <button
-              onClick={() => router.push("/prestserv/remanejamentos/novo")}
+              onClick={() =>
+                router.push(
+                  "/prestserv/remanejamentos/novo?returnTo=/prestserv/funcionarios"
+                )
+              }
               className="inline-flex items-center px-4 py-2 text-sm font-bold text-white bg-sky-500 border border-transparent rounded-md hover:bg-sky-600 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 shadow-sm transition-colors"
             >
               <PlusIcon className="w-4 h-4 mr-2" />
@@ -5964,7 +6027,17 @@ function FuncionariosPageContent() {
                   <thead className="bg-white-100 border-b border-slate-800">
                     <tr>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-800 uppercase tracking-wider">
-                        Solicitação
+                        <button
+                          onClick={() => alterarOrdenacaoSolicitacoes("solicitacaoId")}
+                          className="flex items-center space-x-1 hover:text-blue-600 transition-colors"
+                        >
+                          <span>Solicitação</span>
+                          {ordenacaoSolicitacoes.campo === "solicitacaoId" && (
+                            <span className="text-blue-600">
+                              {ordenacaoSolicitacoes.direcao === "asc" ? "↑" : "↓"}
+                            </span>
+                          )}
+                        </button>
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-800 uppercase tracking-wider">
                         Contratos
@@ -5976,7 +6049,30 @@ function FuncionariosPageContent() {
                         Funcionários
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-800 uppercase tracking-wider">
-                        Data
+                        <button
+                          onClick={() => alterarOrdenacaoSolicitacoes("dataSolicitacao")}
+                          className="flex items-center space-x-1 hover:text-blue-600 transition-colors"
+                        >
+                          <span>Data</span>
+                          {ordenacaoSolicitacoes.campo === "dataSolicitacao" && (
+                            <span className="text-blue-600">
+                              {ordenacaoSolicitacoes.direcao === "asc" ? "↑" : "↓"}
+                            </span>
+                          )}
+                        </button>
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-800 uppercase tracking-wider">
+                        <button
+                          onClick={() => alterarOrdenacaoSolicitacoes("createdAt")}
+                          className="flex items-center space-x-1 hover:text-blue-600 transition-colors"
+                        >
+                          <span>Criado</span>
+                          {ordenacaoSolicitacoes.campo === "createdAt" && (
+                            <span className="text-blue-600">
+                              {ordenacaoSolicitacoes.direcao === "asc" ? "↑" : "↓"}
+                            </span>
+                          )}
+                        </button>
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-800 uppercase tracking-wider">
                         Ações
@@ -6086,6 +6182,9 @@ function FuncionariosPageContent() {
                               </td>
                               <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
                                 {formatDate(solicitacao.dataSolicitacao)}
+                              </td>
+                              <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {formatDate(solicitacao.createdAtGroup)}
                               </td>
                               <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
                                 <div className="flex items-center space-x-2">

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowRightIcon,
   UserGroupIcon,
@@ -67,6 +67,7 @@ interface ResumoRemanejamento {
 
 export default function NovoRemanejamentoLogisticaPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { showToast } = useToast();
   const { usuario } = useAuth();
 
@@ -409,7 +410,21 @@ export default function NovoRemanejamentoLogisticaPage() {
         // Aguardar um momento para o toast ser exibido e então redirecionar
         // Mantém o loading ativo durante todo o processo
         setTimeout(() => {
-          window.location.href = "/prestserv/funcionarios";
+          const returnToParam = searchParams.get("returnTo");
+          let target = returnToParam || "";
+          if (!target) {
+            try {
+              const section = localStorage.getItem("sidebar-active-section");
+              if (section === "planejamento") {
+                target = "/prestserv/funcionarios/planejamento";
+              } else {
+                target = "/prestserv/funcionarios";
+              }
+            } catch {
+              target = "/prestserv/funcionarios";
+            }
+          }
+          router.push(target);
         }, 1500);
       } else {
         const error = await response.json();

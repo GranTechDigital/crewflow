@@ -201,7 +201,7 @@ export default function RemanejamentosPage() {
             <p className="text-gray-600">Gerencie as solicitações de transferência de funcionários</p>
           </div>
           <button
-            onClick={() => router.push('/planejamento/remanejamentos/novo')}
+            onClick={() => router.push('/planejamento/remanejamentos/novo?returnTo=/planejamento/remanejamentos')}
             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
           >
             <PlusIcon className="w-5 h-5" />

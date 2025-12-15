@@ -173,7 +173,7 @@ export default function TabelaRemanejamentos() {
             </div>
             <div className="flex space-x-2">
               <Link
-                href="/prestserv/remanejamentos/novo"
+                href="/prestserv/remanejamentos/novo?returnTo=/prestserv/remanejamentos/tabela"
                 className="px-3 py-1.5 text-sm bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
               >
                 ➕ Nova Solicitação
