@@ -1,0 +1,85 @@
+name: Run Vincular Funcionarios ↔ Contratos (Production)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/run-vinculos-production.yml'
+      - 'scripts/vincular-funcionarios-contratos.js'
+  workflow_dispatch:
+    inputs:
+      excel_path:
+        description: 'Caminho do Excel no servidor (ex.: /opt/projetogran/data/vinculos.xlsx)'
+        type: string
+        required: false
+        default: '/opt/projetogran/data/vinculos.xlsx'
+
+jobs:
+  vincular:
+    environment: production
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🔑 Setup SSH
+        run: |
+          set -euo pipefail
+          if [ -z "${{ secrets.PROD_SSH_PRIVATE_KEY }}" ]; then
+            echo "❌ PROD_SSH_PRIVATE_KEY secret não está configurado"; exit 1; fi
+          if [ -z "${{ secrets.PROD_SERVER_HOST }}" ]; then
+            echo "❌ PROD_SERVER_HOST secret não está configurado"; exit 1; fi
+          PORT="${{ secrets.PROD_SERVER_SSH_PORT }}"; [ -z "$PORT" ] && PORT=22
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.PROD_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          printf 'Host %s\n  Port %s\n  User root\n  StrictHostKeyChecking no\n' "${{ secrets.PROD_SERVER_HOST }}" "$PORT" >> ~/.ssh/config
+          set +e
+          ssh-keyscan -p "$PORT" -T 5 -H "${{ secrets.PROD_SERVER_HOST }}" >> ~/.ssh/known_hosts
+          set -e
+
+      - name: 🔗 Vincular funcionários aos contratos (produção)
+        run: |
+          set -euo pipefail
+          HOST="${{ secrets.PROD_SERVER_HOST }}"
+          PORT="${{ secrets.PROD_SERVER_SSH_PORT }}"; [ -z "$PORT" ] && PORT=22
+          EXCEL_PATH_INPUT="${{ github.event.inputs.excel_path }}"
+          [ -z "$EXCEL_PATH_INPUT" ] && EXCEL_PATH_INPUT="/opt/projetogran/data/vinculos.xlsx"
+
+          echo "🔎 Host: $HOST"
+          echo "🔎 Excel: $EXCEL_PATH_INPUT"
+
+          ssh -p "$PORT" -o StrictHostKeyChecking=no root@"$HOST" << 'EOF'
+            set -e
+            EXCEL_PATH="${EXCEL_PATH_INPUT}"
+            APP_CONT="crewflow-app-production"
+            echo "📁 Garantindo diretórios de trabalho"
+            mkdir -p /opt/projetogran/data || true
+            mkdir -p /opt/projetogran/relatorios || true
+            if [ ! -f "$EXCEL_PATH" ]; then
+              echo "❌ Arquivo Excel não encontrado: $EXCEL_PATH"; exit 1; fi
+
+            echo "📥 Copiando Excel para dentro do container"
+            docker cp "$EXCEL_PATH" "$APP_CONT":/app/data/vinculos.xlsx
+
+            echo "🚀 Executando script de vínculo dentro do container"
+            set +e
+            docker exec "$APP_CONT" node scripts/vincular-funcionarios-contratos.js /app/data/vinculos.xlsx
+            CODE=$?
+            set -e
+            if [ "$CODE" -ne 0 ]; then
+              echo "⚠️ Script retornou código $CODE (verifique logs)"; fi
+
+            echo "📤 Copiando relatório gerado para o servidor"
+            if docker exec "$APP_CONT" test -f /app/relatorio-vinculos-funcionarios.xlsx; then
+              docker cp "$APP_CONT":/app/relatorio-vinculos-funcionarios.xlsx /opt/projetogran/relatorios/relatorio-vinculos-funcionarios.xlsx
+              ls -lh /opt/projetogran/relatorios/relatorio-vinculos-funcionarios.xlsx || true
+            else
+              echo "ℹ️ Relatório não encontrado no container (pode ter falhado)"
+            fi
+          EOF
+
+      - name: 📦 Upload do relatório (se existir)
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+          HOST="${{ secrets.PROD_SERVER_HOST }}"
+          PORT="${{ secrets.PROD_SERVER_SSH_PORT }}"; [ -z "$PORT" ] && PORT=22
+          ssh -p "$PORT" -o StrictHostKeyChecking=no root@"$HOST" 'set -e; ls -lh /opt/projetogran/relatorios/relatorio-vinculos-funcionarios.xlsx 2>/dev/null || true'
