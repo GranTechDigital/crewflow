@@ -19,6 +19,9 @@ jobs:
     environment: production
     runs-on: ubuntu-latest
     steps:
+      - name: ♻️ Trigger marker
+        run: |
+          echo "Run iniciado em $(date -u +%Y-%m-%dT%H:%M:%SZ)"
       - name: 🔑 Setup SSH
         run: |
           set -euo pipefail
