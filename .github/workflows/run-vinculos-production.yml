@@ -48,8 +48,9 @@ jobs:
 
           echo "🔎 Host: $HOST"
           echo "🔎 Excel (server path): $EXCEL_PATH_INPUT"
-
-          ssh -p "$PORT" -o StrictHostKeyChecking=no root@"$HOST" << EOF
+          
+          # Passar variável EXCEL_PATH_INPUT para o shell remoto sem expandir o restante do script local
+          ssh -p "$PORT" -o StrictHostKeyChecking=no root@"$HOST" "EXCEL_PATH_INPUT='$EXCEL_PATH_INPUT' bash -s" << 'EOF'
             set -e
             EXCEL_PATH="$EXCEL_PATH_INPUT"
             APP_CONT="crewflow-app-production"
