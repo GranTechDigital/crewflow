@@ -477,7 +477,12 @@ export async function sincronizarTarefasPadrao({
       });
       const semPendentes =
         tarefasAtual.length === 0 ||
-        tarefasAtual.every((t) => t.status === "CONCLUIDO" || t.status === "CANCELADO");
+        tarefasAtual.every(
+          (t) =>
+            t.status === "CONCLUIDO" ||
+            t.status === "CONCLUIDA" ||
+            t.status === "CANCELADO"
+        );
       const novoStatus = semPendentes ? "SUBMETER RASCUNHO" : "ATENDER TAREFAS";
       if (rem.statusTarefas !== novoStatus) {
         await prisma.remanejamentoFuncionario.update({

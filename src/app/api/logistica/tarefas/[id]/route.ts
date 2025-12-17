@@ -564,7 +564,7 @@ async function verificarConclusaoSolicitacao(solicitacaoId: number) {
 
     // Verificar se todos os funcionários têm SUBMETER RASCUNHO E Prestserv aprovado
     const todosProntos = funcionarios.every(
-      (f) => f.statusTarefas === "CONCLUIDO" && f.statusPrestserv === "APROVADO"
+      (f) => f.statusTarefas === "SUBMETER RASCUNHO" && f.statusPrestserv === "APROVADO"
     );
 
     if (todosProntos) {
