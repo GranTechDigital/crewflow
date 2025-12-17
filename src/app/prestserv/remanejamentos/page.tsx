@@ -273,7 +273,8 @@ const [approvingStatus, setApprovingStatus] = useState(false);
       const updateData: any = { statusPrestserv: novoStatus };
       console.log(updateData);
       if (novoStatus === "EM VALIDAÇÃO") {
-        updateData.statusTarefas = "RETORNO DO PRESTSERV";
+        // Submissão: status geral deve indicar que retornou para logística
+        updateData.statusTarefas = "SUBMETER RASCUNHO";
       }
 
       // Se status for INVALIDADO, automaticamente mudar status geral para REPROVAR TAREFAS
@@ -326,7 +327,7 @@ const [approvingStatus, setApprovingStatus] = useState(false);
                   statusTarefas: "REPROVAR TAREFAS",
                 }),
                 ...(novoStatus === "EM VALIDAÇÃO" && {
-                  statusTarefas: "RETORNO DO PRESTSERV",
+                  statusTarefas: "SUBMETER RASCUNHO",
                 }),
                 ...(novoStatus === "VALIDADO" && {
                   statusTarefas: "CONCLUIDO",

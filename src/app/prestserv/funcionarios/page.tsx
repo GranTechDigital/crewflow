@@ -627,7 +627,8 @@ function FuncionariosPageContent() {
       const updateData: any = { statusPrestserv: novoStatus };
       console.log(updateData);
       if (novoStatus === "EM VALIDAÇÃO") {
-        updateData.statusTarefas = "RETORNO DO PRESTSERV";
+        // Não forçar retorno aos setores; manter statusTarefas para submissão
+        updateData.statusTarefas = "SUBMETER RASCUNHO";
       }
 
       // Se status for INVALIDADO, automaticamente mudar status geral para REPROVAR TAREFAS
@@ -679,7 +680,7 @@ function FuncionariosPageContent() {
                   statusTarefas: "REPROVAR TAREFAS",
                 }),
                 ...(novoStatus === "EM VALIDAÇÃO" && {
-                  statusTarefas: "RETORNO DO PRESTSERV",
+                  statusTarefas: "SUBMETER RASCUNHO",
                 }),
                 ...(novoStatus === "VALIDADO" && {
                   statusTarefas: "CONCLUIDO",
