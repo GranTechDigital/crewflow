@@ -303,7 +303,12 @@ async function atualizarStatusTarefasFuncionario(
     // Se não há tarefas, considera como concluído
     const todasConcluidas =
       tarefas.length === 0 ||
-      tarefas.every((tarefa) => tarefa.status === "CONCLUIDO");
+      tarefas.every(
+        (tarefa) =>
+          tarefa.status === "CONCLUIDO" ||
+          tarefa.status === "CONCLUIDA" ||
+          tarefa.status === "CANCELADO"
+      );
 
     // Atualizar o status das tarefas do funcionário
     await prisma.remanejamentoFuncionario.update({
@@ -311,9 +316,7 @@ async function atualizarStatusTarefasFuncionario(
         id: remanejamentoFuncionarioId,
       },
       data: {
-        statusTarefas: todasConcluidas
-          ? "SOLICITAÇÃO CONCLUÍDA"
-          : "ATENDER TAREFAS",
+        statusTarefas: todasConcluidas ? "SUBMETER RASCUNHO" : "ATENDER TAREFAS",
       },
     });
 
@@ -332,12 +335,10 @@ async function atualizarStatusTarefasFuncionario(
           tipoAcao: "ATUALIZACAO_STATUS",
           entidade: "STATUS_TAREFAS",
           descricaoAcao: `Status geral das tarefas atualizado para: ${
-            todasConcluidas ? "SOLICITAÇÃO CONCLUÍDA" : "ATENDER TAREFAS"
+            todasConcluidas ? "SUBMETER RASCUNHO" : "ATENDER TAREFAS"
           }`,
           campoAlterado: "statusTarefas",
-          valorNovo: todasConcluidas
-            ? "SOLICITAÇÃO CONCLUÍDA"
-            : "ATENDER TAREFAS",
+          valorNovo: todasConcluidas ? "SUBMETER RASCUNHO" : "ATENDER TAREFAS",
         })
       } catch (historicoError) {
         console.error(

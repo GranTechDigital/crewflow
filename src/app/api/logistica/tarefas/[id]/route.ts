@@ -478,7 +478,12 @@ async function atualizarStatusTarefasFuncionario(
     // Se não há tarefas, considera como concluído
     const todasConcluidas =
       tarefas.length === 0 ||
-      tarefas.every((tarefa) => tarefa.status === "CONCLUIDO");
+      tarefas.every(
+        (tarefa) =>
+          tarefa.status === "CONCLUIDO" ||
+          tarefa.status === "CONCLUIDA" ||
+          tarefa.status === "CANCELADO"
+      );
 
     // Buscar o funcionário do remanejamento com a solicitação
     const remanejamentoFuncionario =
@@ -505,9 +510,7 @@ async function atualizarStatusTarefasFuncionario(
         id: remanejamentoFuncionarioId,
       },
       data: {
-        statusTarefas: todasConcluidas
-          ? "SUBMETER RASCUNHO"
-          : "ATENDER TAREFAS",
+        statusTarefas: todasConcluidas ? "SUBMETER RASCUNHO" : "ATENDER TAREFAS",
       },
     });
 
