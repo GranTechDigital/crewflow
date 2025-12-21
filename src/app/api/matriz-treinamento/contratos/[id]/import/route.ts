@@ -607,10 +607,6 @@ export async function POST(
     wsErros.addRows(errosDetalhes.map((e) => ({ Detalhe: e })));
     wsErros.getRow(1).font = { bold: true };
 
-    // Salvar arquivo em public/import-reports
-    const reportsDir = path.resolve(process.cwd(), "public", "import-reports");
-    if (!fs.existsSync(reportsDir))
-      fs.mkdirSync(reportsDir, { recursive: true });
     const ts = new Date();
     const pad = (n: number) => String(n).padStart(2, "0");
     const filename = `resultado_import_contrato_${contratoId}_${ts.getUTCFullYear()}${pad(
@@ -618,9 +614,16 @@ export async function POST(
     )}${pad(ts.getUTCDate())}_${pad(ts.getUTCHours())}${pad(
       ts.getUTCMinutes()
     )}${pad(ts.getUTCSeconds())}.xlsx`;
-    const filePath = path.join(reportsDir, filename);
-    await wb.xlsx.writeFile(filePath);
-    const reportUrl = `/import-reports/${filename}`;
+    const reportBuffer = await wb.xlsx.writeBuffer();
+    const reportBase64 = Buffer.from(reportBuffer as Buffer).toString("base64");
+    let reportUrl: string | null = null;
+    try {
+      const reportsDir = path.resolve(process.cwd(), "public", "import-reports");
+      if (!fs.existsSync(reportsDir)) fs.mkdirSync(reportsDir, { recursive: true });
+      const filePath = path.join(reportsDir, filename);
+      await wb.xlsx.writeFile(filePath);
+      reportUrl = `/import-reports/${filename}`;
+    } catch {}
 
     return NextResponse.json({
       success: true,
@@ -628,6 +631,7 @@ export async function POST(
       stats: { criados, atualizados, removidos, ignorados, erros },
       errors: errosDetalhes,
       reportUrl,
+      reportBase64,
       reportFilename: filename,
     });
   } catch (error) {

@@ -8,6 +8,7 @@ async function ensureAdmin() {
   const adminEmail = process.env.ADMIN_EMAIL || 'admin@gransystem.com';
   const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
   const forceReset = String(process.env.ADMIN_FORCE_PASSWORD || 'false').toLowerCase() === 'true';
+  const adminTeamName = process.env.ADMIN_TEAM || 'Planejamento';
 
   let funcionario = await prisma.funcionario.findUnique({ where: { matricula: adminMatricula } });
   if (!funcionario) {
@@ -26,6 +27,12 @@ async function ensureAdmin() {
     });
   }
 
+  // Garantir equipe padrão para o usuário
+  let equipe = await prisma.equipe.findUnique({ where: { nome: adminTeamName } });
+  if (!equipe) {
+    equipe = await prisma.equipe.create({ data: { nome: adminTeamName, descricao: `Equipe ${adminTeamName}` } });
+  }
+
   const usuario = await prisma.usuario.findFirst({ where: { funcionarioId: funcionario.id } });
   const hash = await bcrypt.hash(adminPassword, 10);
   if (!usuario) {
@@ -34,12 +41,13 @@ async function ensureAdmin() {
         senha: hash,
         ativo: true,
         funcionarioId: funcionario.id,
+        equipeId: equipe.id,
       },
     });
   } else if (forceReset) {
     await prisma.usuario.update({
       where: { id: usuario.id },
-      data: { senha: hash, obrigarTrocaSenha: false },
+      data: { senha: hash, obrigarTrocaSenha: false, equipeId: equipe.id },
     });
   }
 

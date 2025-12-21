@@ -193,8 +193,25 @@ function ContratoDetalheContent() {
         }
       }
 
-      // Baixar relatório XLSX do resultado da importação (se disponível)
-      if (json.reportUrl) {
+      if (json.reportBase64) {
+        try {
+          const base64 = json.reportBase64 as string;
+          const bstr = atob(base64);
+          const bytes = new Uint8Array(bstr.length);
+          for (let i = 0; i < bstr.length; i++) bytes[i] = bstr.charCodeAt(i);
+          const blob = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = json.reportFilename || `resultado_import_contrato_${contratoId}.xlsx`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          window.URL.revokeObjectURL(url);
+        } catch (e) {
+          console.warn('Falha ao montar download do relatório via base64:', e);
+        }
+      } else if (json.reportUrl) {
         try {
           const url = json.reportUrl as string;
           const a = document.createElement('a');

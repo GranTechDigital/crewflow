@@ -15,6 +15,11 @@ services:
       - ADMIN_FORCE_PASSWORD=${ADMIN_FORCE_PASSWORD}
       - NODE_ENV=production
     container_name: crewflow-app-production
+    volumes:
+      # Disponibiliza planilhas de vínculos para o container
+      - /opt/projetogran/data:/app/data:ro
+      # Exporta relatórios gerados pelo script para o host
+      - /opt/projetogran/relatorios:/app/relatorios:rw
     restart: unless-stopped
     networks:
       - projetogran_crewflow-network

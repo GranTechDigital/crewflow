@@ -28,4 +28,6 @@ COPY --from=builder /app/scripts ./scripts
 COPY --from=builder /app/create-admin-user.js ./create-admin-user.js
 RUN npm ci --omit=dev && npm i prisma --no-save
 EXPOSE 3001
-CMD ["npm", "start"]
+# Startup: se existir um arquivo de vínculos em /app/data, executar o script antes de iniciar a app
+# Não bloqueia o start em caso de falha no script; cria /app/data se não existir
+CMD ["sh", "-lc", "mkdir -p /app/data /app/relatorios; FILE=/app/data/vinculos.xlsx; if [ ! -f \"$FILE\" ]; then CAND=$(ls -1t /app/data/*.xlsx 2>/dev/null | head -n1); if [ -n \"$CAND\" ]; then FILE=\"$CAND\"; fi; fi; if [ -f \"$FILE\" ]; then echo \"🔗 Executando vinculos com: $FILE\"; node scripts/vincular-funcionarios-contratos.js \"$FILE\" || true; if [ -f /app/relatorio-vinculos-funcionarios.xlsx ]; then cp -f /app/relatorio-vinculos-funcionarios.xlsx /app/relatorios/relatorio-vinculos-funcionarios.xlsx || true; fi; fi; npm start"]
