@@ -2285,7 +2285,9 @@ function FuncionariosPageContent() {
         matchTipoSolicitacao &&
         matchNumeroSolicitacao &&
         matchResponsavel &&
-        matchPendenciasPorSetor
+        matchPendenciasPorSetor &&
+        funcionario.statusTarefas !== "CANCELADO" &&
+        funcionario.statusPrestserv !== "CANCELADO"
       );
     });
 
@@ -2344,7 +2346,9 @@ function FuncionariosPageContent() {
         matchStatusPrestserv &&
         matchAcaoNecessaria &&
         matchResponsavel &&
-        matchPendenciasPorSetor
+        matchPendenciasPorSetor &&
+        funcionario.statusTarefas !== "CANCELADO" &&
+        funcionario.statusPrestserv !== "CANCELADO"
       );
     });
 

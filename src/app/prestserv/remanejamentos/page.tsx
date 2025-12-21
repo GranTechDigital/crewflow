@@ -1364,7 +1364,9 @@ const [approvingStatus, setApprovingStatus] = useState(false);
       matchTipoSolicitacao &&
       matchNumeroSolicitacao &&
       matchResponsavel &&
-      matchPendenciasPorSetor
+      matchPendenciasPorSetor &&
+      funcionario.statusTarefas !== "CANCELADO" &&
+      funcionario.statusPrestserv !== "CANCELADO"
     );
   });
 

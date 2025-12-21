@@ -679,7 +679,7 @@ function FuncionariosPageContent() {
     } else if (concluidas === total) {
       return "text-green-600";
     } else if (concluidas > 0) {
-      return "text-blue-500";
+      return "text-yellow-500";
     } else {
       return "text-gray-400";
     }
@@ -1596,7 +1596,9 @@ function FuncionariosPageContent() {
       matchSispat &&
       matchStatusRemanejamento &&
       matchDataSolicitacao &&
-      matchDataConclusao
+      matchDataConclusao &&
+      funcionario.statusTarefas !== "CANCELADO" &&
+      funcionario.statusPrestserv !== "CANCELADO"
     );
   });
 
@@ -3141,7 +3143,11 @@ function FuncionariosPageContent() {
                   <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Status Remanejamento</th>
                   <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Data Solicitação</th>
                   <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Data Conclusão</th>
+                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Ação Necessária</th>
+                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Responsável</th>
+                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Progresso Setores</th>
                   <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Progresso</th>
+                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Detalhes</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -3179,11 +3185,83 @@ function FuncionariosPageContent() {
                       {formatDateOrDash(getDataEncerramento(funcionario))}
                     </td>
                     <td className="px-3 py-2 text-xs text-gray-700">
+                      <span
+                        className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${getStatusColor(
+                          funcionario.statusTarefas
+                        )}`}
+                      >
+                        {getStatusGeralLabel(funcionario.statusTarefas)}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-xs text-gray-700 text-center">
+                      <span
+                        className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${getResponsavelColor(
+                          getResponsavelAtual(funcionario)
+                        )}`}
+                      >
+                        {getResponsavelAtual(funcionario)}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-xs text-gray-700">
+                      <div className="space-y-1">
+                        {["RH", "MEDICINA", "TREINAMENTO"].map((setor) => {
+                          const progresso = funcionario.progressoPorSetor?.find((p) => p.setor === setor);
+                          const hasData = !!progresso && progresso.total > 0;
+                          const nomeSetor =
+                            setor === "RH"
+                              ? "Recursos Humanos"
+                              : setor === "MEDICINA"
+                              ? "Medicina"
+                              : "Treinamento";
+                          return (
+                            <div
+                              key={setor}
+                              className="flex items-center justify-between py-0.5"
+                              title={
+                                hasData
+                                  ? `${nomeSetor}: ${progresso!.concluidas}/${progresso!.total} (${progresso!.percentual}%)\n\nLegenda:\n● Verde: Concluído\n● Amarelo: Em progresso\n● Cinza: Pendente`
+                                  : `${nomeSetor}: Sem tarefas\n\nLegenda:\n● Verde: Concluído\n● Amarelo: Em progresso\n● Cinza: Pendente`
+                              }
+                            >
+                              <div className="flex items-center space-x-1">
+                                <span className="text-xs">{getSetorIcon(setor)}</span>
+                                <span className="text-xs font-medium text-gray-700">{nomeSetor}</span>
+                              </div>
+                              <div className="flex items-center space-x-1">
+                                <span className="text-xs font-mono text-gray-600 bg-gray-100 px-1 rounded">
+                                  {hasData ? `${progresso!.concluidas}/${progresso!.total}` : "0/0"}
+                                </span>
+                                <span
+                                  className={`text-sm ${
+                                    hasData
+                                      ? getProgressColor(progresso!.concluidas, progresso!.total)
+                                      : "text-gray-300"
+                                  }`}
+                                >
+                                  {hasData ? getProgressIcon(progresso!.concluidas, progresso!.total) : "●"}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2 text-xs text-gray-700">
                       <div className="flex items-center space-x-2">
                         <span className="font-medium">{getProgressoDisplay(funcionario)}%</span>
                         <div className="w-24 h-2 bg-gray-200 rounded overflow-hidden">
                           <div className="h-2 bg-blue-500" style={{ width: `${getProgressoDisplay(funcionario)}%` }}></div>
                         </div>
+                      </div>
+                    </td>
+                    <td className="px-3 py-2 text-xs text-gray-700">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => router.push(`/prestserv/remanejamentos/${funcionario.id}`)}
+                          className="px-2 py-1 text-[11px] bg-blue-600 text-white rounded hover:bg-blue-700"
+                        >
+                          Detalhes
+                        </button>
                       </div>
                     </td>
                   </tr>
