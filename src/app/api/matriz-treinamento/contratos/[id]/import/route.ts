@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getUserFromRequest } from "@/utils/authUtils";
 import { read, utils } from "xlsx";
+import ExcelJS from "exceljs";
+import fs from "fs";
+import path from "path";
 
 function normalizeObrigatoriedade(value: string): string {
   const v = (value || "").trim().toUpperCase();
@@ -45,15 +48,18 @@ export async function POST(
 
     const form = await request.formData();
     const file = form.get("file");
-// Em runtime Node.js, garantir Blob/File para usar arrayBuffer
-if (!(file instanceof Blob)) {
-  return NextResponse.json(
-    { success: false, error: "Arquivo XLSX não enviado ou inválido (campo file)" },
-    { status: 400 }
-  );
-}
+    // Em runtime Node.js, garantir Blob/File para usar arrayBuffer
+    if (!(file instanceof Blob)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Arquivo XLSX não enviado ou inválido (campo file)",
+        },
+        { status: 400 }
+      );
+    }
 
-const arrayBuffer = await (file as Blob).arrayBuffer();
+    const arrayBuffer = await (file as Blob).arrayBuffer();
     if (!arrayBuffer || arrayBuffer.byteLength === 0) {
       return NextResponse.json(
         { success: false, error: "Arquivo XLSX vazio ou não lido." },
@@ -66,42 +72,56 @@ const arrayBuffer = await (file as Blob).arrayBuffer();
       workbook = read(Buffer.from(arrayBuffer), { type: "buffer" });
     } catch (e) {
       return NextResponse.json(
-        { success: false, error: `Não foi possível ler o arquivo XLSX: ${(e as Error)?.message || e}` },
+        {
+          success: false,
+          error: `Não foi possível ler o arquivo XLSX: ${
+            (e as Error)?.message || e
+          }`,
+        },
         { status: 400 }
       );
     }
 
-    const sheetName = workbook.SheetNames.find((n) => n === 'Matriz V2') || workbook.SheetNames[0];
+    const sheetName =
+      workbook.SheetNames.find((n) => n === "Matriz V2") ||
+      workbook.SheetNames[0];
     const sheet = workbook.Sheets[sheetName];
     if (!sheet) {
       return NextResponse.json(
-        { success: false, error: `Aba da planilha não encontrada: ${sheetName}` },
+        {
+          success: false,
+          error: `Aba da planilha não encontrada: ${sheetName}`,
+        },
         { status: 400 }
       );
     }
 
     // Utilitários para ler célula por índice (0-based)
-    const ref = (sheet as any)['!ref'] || 'A1';
+    const ref = (sheet as any)["!ref"] || "A1";
     const range = utils.decode_range(ref);
     const readCell = (r: number, c: number): string => {
       // Limitar ao range para evitar exceções
-      if (r < range.s.r || r > range.e.r || c < range.s.c || c > range.e.c) return '';
+      if (r < range.s.r || r > range.e.r || c < range.s.c || c > range.e.c)
+        return "";
       const addr = utils.encode_cell({ r, c });
       const cell = (sheet as any)[addr];
-      if (!cell) return '';
+      if (!cell) return "";
       // Preferir valor formatado/texto quando disponível
-      const raw = cell.w ?? cell.v ?? '';
+      const raw = cell.w ?? cell.v ?? "";
       try {
         return String(raw).trim();
       } catch {
-        return '';
+        return "";
       }
     };
 
     // Garantir que há ao menos 4 linhas (cabeçalho na linha 4)
     if (range.e.r < 3) {
       return NextResponse.json(
-        { success: false, error: 'Formato inválido: cabeçalho esperado na linha 4.' },
+        {
+          success: false,
+          error: "Formato inválido: cabeçalho esperado na linha 4.",
+        },
         { status: 400 }
       );
     }
@@ -111,14 +131,43 @@ const arrayBuffer = await (file as Blob).arrayBuffer();
     for (let c = 2; c <= range.e.c; c++) {
       const header = readCell(3, c); // ex: "123 - Treinamento XYZ"
       if (!header) continue;
-      const idStr = header.split(' - ')[0]?.trim();
+      const idStr = header.split(" - ")[0]?.trim();
       const idNum = Number(idStr);
       if (!idNum || isNaN(idNum)) continue;
       trainingCols.push({ colIndex: c, treinamentoId: idNum });
     }
     if (trainingCols.length === 0) {
       return NextResponse.json(
-        { success: false, error: 'Cabeçalhos de treinamentos não encontrados. Preencha/seleciona o cabeçalho (linha 4) com "ID - Nome" antes de importar.' },
+        {
+          success: false,
+          error:
+            'Cabeçalhos de treinamentos não encontrados. Preencha/seleciona o cabeçalho (linha 4) com "ID - Nome" antes de importar.',
+        },
+        { status: 400 }
+      );
+    }
+
+    const headerTrainingIds = trainingCols.map((c) => c.treinamentoId);
+    const trainingsFound = await prisma.treinamentos.findMany({
+      where: { id: { in: headerTrainingIds } },
+      select: { id: true },
+    });
+    const validIds = new Set(trainingsFound.map((t) => t.id));
+    const invalidTrainingIds = headerTrainingIds.filter(
+      (id) => !validIds.has(id)
+    );
+    if (invalidTrainingIds.length > 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `IDs de treinamento inválidos no cabeçalho: ${invalidTrainingIds.join(
+            ", "
+          )}`,
+          details: {
+            invalidTrainingIds,
+            hint: 'Use a lista no cabeçalho (linha 4) e selecione "ID - Nome" da aba Treinamentos. Se necessário, exporte novamente a planilha V2.',
+          },
+        },
         { status: 400 }
       );
     }
@@ -129,9 +178,21 @@ const arrayBuffer = await (file as Blob).arrayBuffer();
       removidos = 0,
       ignorados = 0,
       erros = 0;
+    const detalhesOperacoes: Array<{
+      acao: "CRIADO" | "ATUALIZADO" | "REMOVIDO" | "CONVERTIDO";
+      funcaoId: number;
+      funcao?: string | null;
+      regime?: string | null;
+      treinamentoId: number | null;
+      treinamento?: string | null;
+      de?: string | null;
+      para?: string | null;
+    }> = [];
 
     // Remoção em massa de treinamentos cuja coluna foi removida do cabeçalho
-    const trainingIdsHeaderSet = new Set(trainingCols.map((c) => c.treinamentoId));
+    const trainingIdsHeaderSet = new Set(
+      trainingCols.map((c) => c.treinamentoId)
+    );
     const trainingsInDb = await prisma.matrizTreinamento.findMany({
       where: { contratoId, treinamentoId: { not: null } },
       select: { treinamentoId: true },
@@ -140,11 +201,42 @@ const arrayBuffer = await (file as Blob).arrayBuffer();
       new Set(
         trainingsInDb
           .map((t) => t.treinamentoId as number)
-          .filter((id) => typeof id === 'number')
+          .filter((id) => typeof id === "number")
       )
     );
-    const trainingIdsToRemove = trainingIdsInDbUnique.filter((id) => !trainingIdsHeaderSet.has(id));
+    const trainingIdsToRemove = trainingIdsInDbUnique.filter(
+      (id) => !trainingIdsHeaderSet.has(id)
+    );
+    let colunasRemovidasResumo: Array<{
+      treinamentoId: number;
+      treinamento?: string | null;
+      removidos: number;
+    }> = [];
     if (trainingIdsToRemove.length > 0) {
+      const antesRemover = await prisma.matrizTreinamento.findMany({
+        where: { contratoId, treinamentoId: { in: trainingIdsToRemove } },
+        select: { funcaoId: true, treinamentoId: true },
+      });
+      const agrup: Record<number, number> = {};
+      for (const r of antesRemover) {
+        const tid = r.treinamentoId as number;
+        agrup[tid] = (agrup[tid] || 0) + 1;
+      }
+      const treinosInfoHead = await prisma.treinamentos.findMany({
+        where: { id: { in: trainingIdsToRemove } },
+        select: { id: true, treinamento: true },
+      });
+      const treinosMapHead = new Map<number, string | null>(
+        treinosInfoHead.map((t) => [t.id, t.treinamento ?? null])
+      );
+      colunasRemovidasResumo = Object.keys(agrup).map((k) => {
+        const idNum = Number(k);
+        return {
+          treinamentoId: idNum,
+          treinamento: treinosMapHead.get(idNum) ?? null,
+          removidos: agrup[idNum],
+        };
+      });
       const delRes = await prisma.matrizTreinamento.deleteMany({
         where: { contratoId, treinamentoId: { in: trainingIdsToRemove } },
       });
@@ -152,16 +244,20 @@ const arrayBuffer = await (file as Blob).arrayBuffer();
     }
 
     // Valid codes
-    const validObrig = new Set(['RA', 'AP', 'C', 'SD']);
+    const validObrig = new Set(["RA", "AP", "C", "SD"]);
 
-    const operacoes: Array<{ funcaoId: number; treinamentoId: number; valor: string }> = [];
+    const operacoes: Array<{
+      funcaoId: number;
+      treinamentoId: number;
+      valor: string;
+    }> = [];
     const funcoesNaPlanilha = new Set<number>();
 
     // Linhas de dados iniciam na linha 5 (r=4)
     for (let r = 4; r <= range.e.r; r++) {
       const funcaoLabel = readCell(r, 0); // coluna A (ID - Nome - Regime)
       if (!funcaoLabel) continue; // linha em branco
-      const funcaoIdStr = funcaoLabel.split(' - ')[0]?.trim();
+      const funcaoIdStr = funcaoLabel.split(" - ")[0]?.trim();
       const funcaoId = Number(funcaoIdStr);
       if (!funcaoId || isNaN(funcaoId)) {
         ignorados += 1;
@@ -170,15 +266,18 @@ const arrayBuffer = await (file as Blob).arrayBuffer();
       funcoesNaPlanilha.add(funcaoId);
 
       for (const { colIndex, treinamentoId } of trainingCols) {
-        const raw = readCell(r, colIndex).toUpperCase();
-        const valor = normalizeObrigatoriedade(raw || '');
-        if (valor === '' || valor === 'N/A') {
-          // Considerar remoção se existir no banco
-          operacoes.push({ funcaoId, treinamentoId, valor: '' });
+        const rawCell = readCell(r, colIndex);
+        const raw = (rawCell || "").trim().toUpperCase();
+        if (raw === "") {
+          operacoes.push({ funcaoId, treinamentoId, valor: "" });
+          continue;
+        }
+        const valor = normalizeObrigatoriedade(raw);
+        if (valor === "N/A") {
+          operacoes.push({ funcaoId, treinamentoId, valor: "" });
         } else if (validObrig.has(valor)) {
           operacoes.push({ funcaoId, treinamentoId, valor });
         } else {
-          // Valor inválido
           ignorados += 1;
         }
       }
@@ -190,20 +289,53 @@ const arrayBuffer = await (file as Blob).arrayBuffer();
         contratoId,
         funcaoId: { in: Array.from(funcoesNaPlanilha) },
       },
-      select: { id: true, funcaoId: true, treinamentoId: true, tipoObrigatoriedade: true },
+      select: {
+        id: true,
+        funcaoId: true,
+        treinamentoId: true,
+        tipoObrigatoriedade: true,
+      },
     });
 
-    const mapaExistentes = new Map<string, { id: number; tipo: string | null }>();
+    const mapaExistentes = new Map<
+      string,
+      { id: number; tipo: string | null }
+    >();
     const temSemTreinamento = new Map<number, number | null>(); // funcaoId -> id entry com treinamentoId null
     for (const e of existentes) {
       if (e.treinamentoId == null) {
         temSemTreinamento.set(e.funcaoId, e.id);
       } else {
-        mapaExistentes.set(`${e.funcaoId}_${e.treinamentoId}`, { id: e.id, tipo: e.tipoObrigatoriedade });
+        mapaExistentes.set(`${e.funcaoId}_${e.treinamentoId}`, {
+          id: e.id,
+          tipo: e.tipoObrigatoriedade,
+        });
       }
     }
 
     const errosDetalhes: string[] = [];
+    // Map para nomes e regimes de funções presentes na planilha
+    const funcoesInfo = await prisma.funcao.findMany({
+      where: { id: { in: Array.from(funcoesNaPlanilha) } },
+      select: { id: true, funcao: true, regime: true },
+    });
+    const funcoesMap = new Map<
+      number,
+      { funcao: string | null; regime: string | null }
+    >(
+      funcoesInfo.map((f) => [
+        f.id,
+        { funcao: f.funcao ?? null, regime: f.regime ?? null },
+      ])
+    );
+    // Map de nomes de treinamentos (do cabeçalho)
+    const treinosInfo = await prisma.treinamentos.findMany({
+      where: { id: { in: headerTrainingIds } },
+      select: { id: true, treinamento: true },
+    });
+    const treinosMap = new Map<number, string | null>(
+      treinosInfo.map((t) => [t.id, t.treinamento ?? null])
+    );
 
     for (const op of operacoes) {
       try {
@@ -213,12 +345,26 @@ const arrayBuffer = await (file as Blob).arrayBuffer();
         if (!op.valor) {
           // Remoção se existir
           if (existente) {
-            await prisma.matrizTreinamento.delete({ where: { id: existente.id } });
+            await prisma.matrizTreinamento.delete({
+              where: { id: existente.id },
+            });
             removidos += 1;
+            detalhesOperacoes.push({
+              acao: "REMOVIDO",
+              funcaoId: op.funcaoId,
+              funcao: funcoesMap.get(op.funcaoId)?.funcao ?? null,
+              regime: funcoesMap.get(op.funcaoId)?.regime ?? null,
+              treinamentoId: op.treinamentoId,
+              treinamento: treinosMap.get(op.treinamentoId) ?? null,
+              de: existente.tipo || null,
+              para: null,
+            });
             mapaExistentes.delete(chave);
 
             // Se não restou nenhum treinamento para a função, garantir entrada "sem treinamento"
-            const aindaTem = Array.from(mapaExistentes.keys()).some((k) => k.startsWith(`${op.funcaoId}_`));
+            const aindaTem = Array.from(mapaExistentes.keys()).some((k) =>
+              k.startsWith(`${op.funcaoId}_`)
+            );
             if (!aindaTem) {
               const idSem = temSemTreinamento.get(op.funcaoId) || null;
               if (!idSem) {
@@ -227,7 +373,7 @@ const arrayBuffer = await (file as Blob).arrayBuffer();
                     contratoId,
                     funcaoId: op.funcaoId,
                     treinamentoId: null,
-                    tipoObrigatoriedade: 'N/A',
+                    tipoObrigatoriedade: "N/A",
                   },
                   select: { id: true },
                 });
@@ -240,12 +386,22 @@ const arrayBuffer = await (file as Blob).arrayBuffer();
 
         // Upsert com regra de conversão de "sem treinamento" para o primeiro treinamento
         if (existente) {
-          if ((existente.tipo || '').toUpperCase() !== op.valor.toUpperCase()) {
+          if ((existente.tipo || "").toUpperCase() !== op.valor.toUpperCase()) {
             await prisma.matrizTreinamento.update({
               where: { id: existente.id },
               data: { tipoObrigatoriedade: op.valor, ativo: true },
             });
             atualizados += 1;
+            detalhesOperacoes.push({
+              acao: "ATUALIZADO",
+              funcaoId: op.funcaoId,
+              funcao: funcoesMap.get(op.funcaoId)?.funcao ?? null,
+              regime: funcoesMap.get(op.funcaoId)?.regime ?? null,
+              treinamentoId: op.treinamentoId,
+              treinamento: treinosMap.get(op.treinamentoId) ?? null,
+              de: existente.tipo || null,
+              para: op.valor,
+            });
           }
         } else {
           const idSem = temSemTreinamento.get(op.funcaoId) || null;
@@ -253,11 +409,25 @@ const arrayBuffer = await (file as Blob).arrayBuffer();
             // Converter entrada "sem treinamento" para este treinamento
             await prisma.matrizTreinamento.update({
               where: { id: idSem },
-              data: { treinamentoId: op.treinamentoId, tipoObrigatoriedade: op.valor, ativo: true },
+              data: {
+                treinamentoId: op.treinamentoId,
+                tipoObrigatoriedade: op.valor,
+                ativo: true,
+              },
             });
             atualizados += 1;
             temSemTreinamento.set(op.funcaoId, null); // deixou de ser "sem treinamento"
             mapaExistentes.set(chave, { id: idSem, tipo: op.valor });
+            detalhesOperacoes.push({
+              acao: "CONVERTIDO",
+              funcaoId: op.funcaoId,
+              funcao: funcoesMap.get(op.funcaoId)?.funcao ?? null,
+              regime: funcoesMap.get(op.funcaoId)?.regime ?? null,
+              treinamentoId: op.treinamentoId,
+              treinamento: treinosMap.get(op.treinamentoId) ?? null,
+              de: "N/A",
+              para: op.valor,
+            });
           } else {
             await prisma.matrizTreinamento.create({
               data: {
@@ -269,12 +439,26 @@ const arrayBuffer = await (file as Blob).arrayBuffer();
               },
             });
             criados += 1;
+            detalhesOperacoes.push({
+              acao: "CRIADO",
+              funcaoId: op.funcaoId,
+              funcao: funcoesMap.get(op.funcaoId)?.funcao ?? null,
+              regime: funcoesMap.get(op.funcaoId)?.regime ?? null,
+              treinamentoId: op.treinamentoId,
+              treinamento: treinosMap.get(op.treinamentoId) ?? null,
+              de: null,
+              para: op.valor,
+            });
           }
         }
       } catch (e) {
-        console.error('Erro ao aplicar operação:', e);
+        console.error("Erro ao aplicar operação:", e);
         erros += 1;
-        errosDetalhes.push(`Funcao ${op.funcaoId}, Treinamento ${op.treinamentoId}: ${(e as Error)?.message || e}`);
+        errosDetalhes.push(
+          `Funcao ${op.funcaoId}, Treinamento ${op.treinamentoId}: ${
+            (e as Error)?.message || e
+          }`
+        );
       }
     }
 
@@ -284,24 +468,175 @@ const arrayBuffer = await (file as Blob).arrayBuffer();
       select: { id: true },
     });
     const funcoesExistentesIds = funcoesExistentesContrato.map((f) => f.id);
-    const funcoesParaRemover = funcoesExistentesIds.filter((id) => !funcoesNaPlanilha.has(id));
+    const funcoesParaRemover = funcoesExistentesIds.filter(
+      (id) => !funcoesNaPlanilha.has(id)
+    );
+    let funcoesRemovidasResumo: Array<{
+      funcaoId: number;
+      funcao?: string | null;
+      regime?: string | null;
+      removidos: number;
+    }> = [];
     if (funcoesParaRemover.length > 0) {
+      const antesRemoverFunc = await prisma.matrizTreinamento.findMany({
+        where: { contratoId, funcaoId: { in: funcoesParaRemover } },
+        select: { funcaoId: true },
+      });
+      const agrupFun: Record<number, number> = {};
+      for (const r of antesRemoverFunc) {
+        agrupFun[r.funcaoId] = (agrupFun[r.funcaoId] || 0) + 1;
+      }
+      const funInfo = await prisma.funcao.findMany({
+        where: { id: { in: funcoesParaRemover } },
+        select: { id: true, funcao: true, regime: true },
+      });
+      const funMapRem = new Map<
+        number,
+        { funcao: string | null; regime: string | null }
+      >(
+        funInfo.map((f) => [
+          f.id,
+          { funcao: f.funcao ?? null, regime: f.regime ?? null },
+        ])
+      );
+      funcoesRemovidasResumo = Object.keys(agrupFun).map((k) => {
+        const idNum = Number(k);
+        const meta = funMapRem.get(idNum);
+        return {
+          funcaoId: idNum,
+          funcao: meta?.funcao ?? null,
+          regime: meta?.regime ?? null,
+          removidos: agrupFun[idNum],
+        };
+      });
       const delRes = await prisma.matrizTreinamento.deleteMany({
         where: { contratoId, funcaoId: { in: funcoesParaRemover } },
       });
       removidos += delRes.count;
     }
 
+    // Gerar planilha de resultado
+    const contrato = await prisma.contrato.findUnique({
+      where: { id: contratoId },
+      select: { id: true, nome: true, numero: true, cliente: true },
+    });
+    const wb = new ExcelJS.Workbook();
+    wb.creator = "CrewFlow";
+    wb.created = new Date();
+    const wsResumo = wb.addWorksheet("Resumo");
+    wsResumo.columns = [
+      { header: "Campo", key: "Campo", width: 28 },
+      { header: "Valor", key: "Valor", width: 48 },
+    ];
+    wsResumo.addRows([
+      { Campo: "Contrato Número", Valor: contrato?.numero ?? "" },
+      { Campo: "Contrato Nome", Valor: contrato?.nome ?? "" },
+      { Campo: "Cliente", Valor: contrato?.cliente ?? "" },
+      {
+        Campo: "Importado por",
+        Valor: (user as any)?.login ?? (user as any)?.email ?? "",
+      },
+      { Campo: "Data/Hora (UTC)", Valor: new Date().toISOString() },
+      { Campo: "Criados", Valor: String(criados) },
+      { Campo: "Atualizados", Valor: String(atualizados) },
+      { Campo: "Removidos", Valor: String(removidos) },
+      { Campo: "Ignorados", Valor: String(ignorados) },
+      { Campo: "Erros", Valor: String(erros) },
+    ]);
+    wsResumo.getRow(1).font = { bold: true };
+
+    const wsOps = wb.addWorksheet("Operacoes");
+    wsOps.columns = [
+      { header: "Acao", key: "Acao", width: 14 },
+      { header: "FuncaoID", key: "FuncaoID", width: 12 },
+      { header: "Funcao", key: "Funcao", width: 40 },
+      { header: "Regime", key: "Regime", width: 16 },
+      { header: "TreinamentoID", key: "TreinamentoID", width: 16 },
+      { header: "Treinamento", key: "Treinamento", width: 44 },
+      { header: "De", key: "De", width: 12 },
+      { header: "Para", key: "Para", width: 12 },
+    ];
+    wsOps.addRows(
+      detalhesOperacoes.map((d) => ({
+        Acao: d.acao,
+        FuncaoID: d.funcaoId,
+        Funcao: d.funcao ?? "",
+        Regime: d.regime ?? "",
+        TreinamentoID: d.treinamentoId ?? "",
+        Treinamento: d.treinamento ?? "",
+        De: d.de ?? "",
+        Para: d.para ?? "",
+      }))
+    );
+    wsOps.getRow(1).font = { bold: true };
+
+    const wsColsRem = wb.addWorksheet("ColunasRemovidas");
+    wsColsRem.columns = [
+      { header: "TreinamentoID", key: "TreinamentoID", width: 16 },
+      { header: "Treinamento", key: "Treinamento", width: 44 },
+      { header: "Removidos", key: "Removidos", width: 12 },
+    ];
+    wsColsRem.addRows(
+      colunasRemovidasResumo.map((r) => ({
+        TreinamentoID: r.treinamentoId,
+        Treinamento: r.treinamento ?? "",
+        Removidos: r.removidos,
+      }))
+    );
+    wsColsRem.getRow(1).font = { bold: true };
+
+    const wsFunRem = wb.addWorksheet("FuncoesRemovidas");
+    wsFunRem.columns = [
+      { header: "FuncaoID", key: "FuncaoID", width: 12 },
+      { header: "Funcao", key: "Funcao", width: 40 },
+      { header: "Regime", key: "Regime", width: 16 },
+      { header: "Removidos", key: "Removidos", width: 12 },
+    ];
+    wsFunRem.addRows(
+      (funcoesRemovidasResumo || []).map((r) => ({
+        FuncaoID: r.funcaoId,
+        Funcao: r.funcao ?? "",
+        Regime: r.regime ?? "",
+        Removidos: r.removidos,
+      }))
+    );
+    wsFunRem.getRow(1).font = { bold: true };
+
+    const wsErros = wb.addWorksheet("Erros");
+    wsErros.columns = [{ header: "Detalhe", key: "Detalhe", width: 120 }];
+    wsErros.addRows(errosDetalhes.map((e) => ({ Detalhe: e })));
+    wsErros.getRow(1).font = { bold: true };
+
+    // Salvar arquivo em public/import-reports
+    const reportsDir = path.resolve(process.cwd(), "public", "import-reports");
+    if (!fs.existsSync(reportsDir))
+      fs.mkdirSync(reportsDir, { recursive: true });
+    const ts = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const filename = `resultado_import_contrato_${contratoId}_${ts.getUTCFullYear()}${pad(
+      ts.getUTCMonth() + 1
+    )}${pad(ts.getUTCDate())}_${pad(ts.getUTCHours())}${pad(
+      ts.getUTCMinutes()
+    )}${pad(ts.getUTCSeconds())}.xlsx`;
+    const filePath = path.join(reportsDir, filename);
+    await wb.xlsx.writeFile(filePath);
+    const reportUrl = `/import-reports/${filename}`;
+
     return NextResponse.json({
       success: true,
-      message: 'Importação concluída',
+      message: "Importação concluída",
       stats: { criados, atualizados, removidos, ignorados, erros },
       errors: errosDetalhes,
+      reportUrl,
+      reportFilename: filename,
     });
   } catch (error) {
     console.error("Erro ao importar matriz:", error);
     return NextResponse.json(
-      { success: false, error: (error as Error)?.message || "Erro interno do servidor" },
+      {
+        success: false,
+        error: (error as Error)?.message || "Erro interno do servidor",
+      },
       { status: 500 }
     );
   }

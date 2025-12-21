@@ -193,7 +193,23 @@ function ContratoDetalheContent() {
         }
       }
 
-      alert(linhasResumo.join('\n'));
+      // Baixar relatório XLSX do resultado da importação (se disponível)
+      if (json.reportUrl) {
+        try {
+          const url = json.reportUrl as string;
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = json.reportFilename || `resultado_import_contrato_${contratoId}.xlsx`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+        } catch (e) {
+          console.warn('Falha ao iniciar download do relatório:', e);
+        }
+      } else {
+        // Fallback: mostrar resumo se não houver relatório
+        alert(linhasResumo.join('\n'));
+      }
       await fetchContratoDetalhes();
     } catch (err) {
       console.error('Erro ao importar XLSX:', err);
