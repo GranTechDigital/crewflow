@@ -5,6 +5,19 @@ import { prisma } from "@/lib/prisma";
 const SETORES_VALIDOS = ["RH", "MEDICINA", "TREINAMENTO"] as const;
 type SetorValido = (typeof SETORES_VALIDOS)[number];
 
+// Chave canônica para identificar uma tarefa única por setor+tipo
+function chaveTarefa(tipo: string, responsavel: string) {
+  const r = String(responsavel || "")
+    .normalize("NFD")
+    .replace(/\s+/g, " ")
+    .trim();
+  const t = String(tipo || "")
+    .normalize("NFD")
+    .replace(/\s+/g, " ")
+    .trim();
+  return `${r}|${t}`.toUpperCase();
+}
+
 // Função para validar e normalizar setor
 function normalizarSetor(setor: string): SetorValido | null {
   const setorUpper = setor.toUpperCase();
@@ -18,7 +31,11 @@ async function gerarTarefasTreinamento(
   remanejamentoFuncionario: Record<string, unknown>,
   funcionario: Record<string, unknown>,
   tarefasParaCriar: Record<string, unknown>[],
-  prioridadeSolicitacao: string
+  prioridadeSolicitacao: string,
+  existentesTreinoId: Set<number>,
+  existentesChaves: Set<string>,
+  novosTreinoIds: Set<number>,
+  novosChaves: Set<string>
 ) {
   console.log("=== INICIANDO GERAÇÃO DE TAREFAS DE TREINAMENTO ===");
   console.log("RemanejamentoFuncionario ID:", remanejamentoFuncionario?.id);
@@ -99,6 +116,32 @@ async function gerarTarefasTreinamento(
         continue;
       }
 
+      // Evitar duplicação por treinamentoId (preferível) e por nome (fallback)
+      const nomeTreino = String(treinamento.treinamento || "").trim();
+      const chaveNome = chaveTarefa(nomeTreino, "TREINAMENTO");
+      const temId = typeof treinamento.id === "number";
+      if (temId) {
+        if (
+          existentesTreinoId.has(treinamento.id) ||
+          novosTreinoIds.has(treinamento.id)
+        ) {
+          console.log(
+            "⏭️ Treinamento já existente, pulando:",
+            treinamento.id,
+            nomeTreino
+          );
+          continue;
+        }
+      } else {
+        if (existentesChaves.has(chaveNome) || novosChaves.has(chaveNome)) {
+          console.log(
+            "⏭️ Treinamento sem ID já existente por chave, pulando:",
+            nomeTreino
+          );
+          continue;
+        }
+      }
+
       // Usar a prioridade da solicitação de remanejamento, normalizada em maiúsculas
       const prioridade = (() => {
         const v = (prioridadeSolicitacao || "media").toLowerCase();
@@ -130,6 +173,11 @@ Contrato: ${matriz.contrato?.nome || "N/A"}`;
       };
 
       tarefasParaCriar.push(novaTarefa);
+      if (temId) {
+        novosTreinoIds.add(treinamento.id as number);
+      } else {
+        novosChaves.add(chaveNome);
+      }
       tarefasGeradas++;
       console.log(
         `✅ Tarefa ${tarefasGeradas} criada:`,
@@ -283,6 +331,77 @@ export async function POST(request: NextRequest) {
     // Preparar todas as tarefas para criação em lote
     const tarefasParaCriar = [];
 
+    // Carregar tarefas existentes para evitar duplicações e cancelar duplicadas
+    const tarefasExistentes = await prisma.tarefaRemanejamento.findMany({
+      where: { remanejamentoFuncionarioId: remanejamentoFuncionario.id },
+      select: {
+        id: true,
+        tipo: true,
+        responsavel: true,
+        status: true,
+        treinamentoId: true,
+        dataCriacao: true,
+      },
+      orderBy: { dataCriacao: "asc" },
+    });
+    const grupos = new Map<string, Array<(typeof tarefasExistentes)[number]>>();
+    for (const t of tarefasExistentes) {
+      const key =
+        t.responsavel === "TREINAMENTO"
+          ? chaveTarefa(t.tipo as string, "TREINAMENTO")
+          : chaveTarefa(t.tipo as string, t.responsavel as string);
+      const arr = grupos.get(key) || [];
+      arr.push(t);
+      grupos.set(key, arr);
+    }
+    // Cancelar duplicadas existentes preservando concluídas ou a mais antiga
+    for (const [key, arr] of grupos.entries()) {
+      if (arr.length <= 1) continue;
+      const concluida =
+        arr.find((t) => t.status === "CONCLUIDO" || t.status === "CONCLUIDA") ||
+        null;
+      const manter =
+        concluida ||
+        arr.sort(
+          (a, b) =>
+            new Date(a.dataCriacao as Date).getTime() -
+            new Date(b.dataCriacao as Date).getTime()
+        )[0];
+      for (const t of arr) {
+        if (t.id === manter.id) continue;
+        if (
+          t.status !== "CANCELADO" &&
+          t.status !== "CONCLUIDO" &&
+          t.status !== "CONCLUIDA"
+        ) {
+          try {
+            await prisma.tarefaRemanejamento.update({
+              where: { id: t.id },
+              data: { status: "CANCELADO" },
+            });
+          } catch (e) {
+            console.error("Falha ao cancelar tarefa duplicada:", key, t.id, e);
+          }
+        }
+      }
+    }
+    const existentesTreinoId = new Set<number>(
+      tarefasExistentes
+        .filter(
+          (t) =>
+            t.responsavel === "TREINAMENTO" &&
+            typeof t.treinamentoId === "number"
+        )
+        .map((t) => t.treinamentoId as number)
+    );
+    const existentesChaves = new Set<string>(
+      tarefasExistentes.map((t) =>
+        chaveTarefa(String(t.tipo || ""), String(t.responsavel || ""))
+      )
+    );
+    const novosTreinoIds = new Set<number>();
+    const novosChaves = new Set<string>();
+
     for (const setor of setoresValidos) {
       if (setor === "TREINAMENTO") {
         // Para o setor TREINAMENTO, usar a matriz de treinamento
@@ -290,7 +409,11 @@ export async function POST(request: NextRequest) {
           remanejamentoFuncionario,
           funcionario,
           tarefasParaCriar,
-          remanejamentoFuncionario.solicitacao?.prioridade || "media"
+          remanejamentoFuncionario.solicitacao?.prioridade || "media",
+          existentesTreinoId,
+          existentesChaves,
+          novosTreinoIds,
+          novosChaves
         );
       } else {
         // Para RH e MEDICINA, usar tarefas padrão como antes
@@ -313,6 +436,11 @@ export async function POST(request: NextRequest) {
 
         // Adicionar cada tarefa do setor ao array
         for (const tarefaPadrao of tarefasSetor) {
+          const chave = chaveTarefa(String(tarefaPadrao.tipo), setor);
+          if (existentesChaves.has(chave) || novosChaves.has(chave)) {
+            // Não criar duplicado
+            continue;
+          }
           tarefasParaCriar.push({
             remanejamentoFuncionarioId: remanejamentoFuncionario.id,
             tarefaPadraoId: tarefaPadrao.id,
@@ -332,6 +460,7 @@ export async function POST(request: NextRequest) {
             })(),
             dataLimite: new Date(Date.now() + 48 * 60 * 60 * 1000),
           });
+          novosChaves.add(chave);
         }
       }
     }

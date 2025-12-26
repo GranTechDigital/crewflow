@@ -23,6 +23,10 @@
     "staging:cleanup-remanejamentos": "node scripts/cleanup-remanejamentos.cjs",
     "staging:add-funcionarios-extra": "node scripts/add-funcionarios-extra.js",
     "open": "powershell -Command Start-Process 'http://localhost:3000'"
+    ,
+    "db:backup:prod": "node scripts/prod-dump-and-fetch.cjs",
+    "db:restore:dev": "node scripts/dev-restore-from-dump.cjs --file=",
+    "db:sync:prod-to-dev": "node scripts/db-sync-prod-to-dev.cjs"
   },
   "prisma": {
     "seed": "node prisma/seed-complete.cjs"

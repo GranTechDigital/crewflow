@@ -2,7 +2,20 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { jwtVerify } from "jose";
 
-const publicRoutes = ["/login", "/unauthorized", "/api/auth/login", "/dashboard-teste", "/dashboard-data", "/dashboard-sla", "/dashboard-downtime", "/dashboard", "/dashboard-gantt", "/gantt", "/gantt-timeline", "/gantt-dia"];
+const publicRoutes = [
+  "/login",
+  "/unauthorized",
+  "/api/auth/login",
+  "/dashboard-teste",
+  "/dashboard-data",
+  "/dashboard-sla",
+  "/dashboard-downtime",
+  "/dashboard",
+  "/dashboard-gantt",
+  "/gantt",
+  "/gantt-timeline",
+  "/gantt-dia",
+];
 const publicApiRoutes = [
   "/api/auth/login",
   "/api/auth/register",
@@ -46,12 +59,17 @@ export async function middleware(request: NextRequest) {
           );
           const { payload } = await jwtVerify(token, secret);
           const mustAddEmail = (payload as any).mustAddEmail === true;
-          const mustChangePassword = (payload as any).mustChangePassword === true;
+          const mustChangePassword =
+            (payload as any).mustChangePassword === true;
           if (mustAddEmail) {
-            return NextResponse.redirect(new URL("/conta/adicionar-email", request.url));
+            return NextResponse.redirect(
+              new URL("/conta/adicionar-email", request.url)
+            );
           }
           if (mustChangePassword) {
-            return NextResponse.redirect(new URL("/conta/trocar-senha", request.url));
+            return NextResponse.redirect(
+              new URL("/conta/trocar-senha", request.url)
+            );
           }
         } catch (error) {
           // Token inválido: permitir acesso à página de login
@@ -87,6 +105,21 @@ export async function middleware(request: NextRequest) {
   ) {
     return NextResponse.next();
   }
+  // Permitir sincronização manual de tarefas (logística) via token de manutenção
+  if (
+    pathname.startsWith("/api/logistica/tarefas/sync") &&
+    manutencaoToken &&
+    authHeader === `Bearer ${manutencaoToken}`
+  ) {
+    return NextResponse.next();
+  }
+  if (
+    pathname.startsWith("/api/logistica/tarefas/sync/undo") &&
+    manutencaoToken &&
+    authHeader === `Bearer ${manutencaoToken}`
+  ) {
+    return NextResponse.next();
+  }
 
   // Obter token do cookie
   const token = request.cookies.get("auth-token")?.value;
@@ -113,21 +146,29 @@ export async function middleware(request: NextRequest) {
     const mustAddEmail = (payload as any).mustAddEmail === true;
     const mustChangePassword = (payload as any).mustChangePassword === true;
 
-    const isOnAddEmail = pathname.startsWith("/conta/adicionar-email") || pathname.startsWith("/api/account/email");
-    const isOnChangePassword = pathname.startsWith("/conta/trocar-senha") || pathname.startsWith("/api/account/password");
+    const isOnAddEmail =
+      pathname.startsWith("/conta/adicionar-email") ||
+      pathname.startsWith("/api/account/email");
+    const isOnChangePassword =
+      pathname.startsWith("/conta/trocar-senha") ||
+      pathname.startsWith("/api/account/password");
 
     const isApi = pathname.startsWith("/api/");
 
     if (mustAddEmail) {
       if (!isApi && !isOnAddEmail) {
-        return NextResponse.redirect(new URL("/conta/adicionar-email", request.url));
+        return NextResponse.redirect(
+          new URL("/conta/adicionar-email", request.url)
+        );
       }
       return NextResponse.next();
     }
 
     if (mustChangePassword) {
       if (!isApi && !isOnChangePassword) {
-        return NextResponse.redirect(new URL("/conta/trocar-senha", request.url));
+        return NextResponse.redirect(
+          new URL("/conta/trocar-senha", request.url)
+        );
       }
       return NextResponse.next();
     }

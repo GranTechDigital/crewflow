@@ -1,9 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-// Agrupa por chave (responsavel|tipo), mantendo apenas uma tarefa ativa
 function chaveTarefa(tipo: string, responsavel: string) {
-  return `${(responsavel || "").toUpperCase()}|${(tipo || "").toUpperCase()}`;
+  const r = String(responsavel || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toUpperCase();
+  const t = String(tipo || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toUpperCase();
+  return `${r}|${t}`;
 }
 
 export async function GET() {
@@ -46,7 +57,19 @@ export async function POST(request: NextRequest) {
       // Buscar todos os remanejamentos do funcionário com tarefas vinculadas
       const rems = await prisma.remanejamentoFuncionario.findMany({
         where: { funcionarioId: func.id },
-        include: { tarefas: true, solicitacao: true },
+        include: {
+          tarefas: {
+            select: {
+              id: true,
+              tipo: true,
+              responsavel: true,
+              status: true,
+              treinamentoId: true,
+              dataCriacao: true,
+            },
+          },
+          solicitacao: true,
+        },
       });
 
       let canceladasFuncionario = 0;
@@ -58,7 +81,11 @@ export async function POST(request: NextRequest) {
         const grupos = new Map<string, typeof tarefas>();
 
         for (const t of tarefas) {
-          const key = chaveTarefa(t.tipo, t.responsavel);
+          const key =
+            t.responsavel === "TREINAMENTO" &&
+            typeof (t as any).treinamentoId === "number"
+              ? `TREINAMENTO|ID:${(t as any).treinamentoId}`
+              : chaveTarefa(t.tipo as string, t.responsavel as string);
           const arr = grupos.get(key) || [];
           arr.push(t);
           grupos.set(key, arr);
@@ -78,13 +105,12 @@ export async function POST(request: NextRequest) {
           // Se não há ativos, não cancelar concluídos automaticamente
           if (ativos.length === 0) continue;
 
-          // Ordenar por createdAt asc para manter o mais antigo ativo
           ativos.sort((a, b) => {
-            const ad = (a as any).createdAt
-              ? new Date((a as any).createdAt).getTime()
+            const ad = (a as any).dataCriacao
+              ? new Date((a as any).dataCriacao as Date).getTime()
               : 0;
-            const bd = (b as any).createdAt
-              ? new Date((b as any).createdAt).getTime()
+            const bd = (b as any).dataCriacao
+              ? new Date((b as any).dataCriacao as Date).getTime()
               : 0;
             return ad - bd;
           });
@@ -153,6 +179,34 @@ export async function POST(request: NextRequest) {
           canceladas: canceladasNesteRem,
         });
         canceladasFuncionario += canceladasNesteRem;
+
+        // Atualizar statusTarefas do remanejamento conforme situação pós-deduplicação
+        try {
+          const tarefasAtual = await prisma.tarefaRemanejamento.findMany({
+            where: { remanejamentoFuncionarioId: rem.id },
+            select: { status: true },
+          });
+          const semPendentes =
+            tarefasAtual.length === 0 ||
+            tarefasAtual.every(
+              (t) =>
+                t.status === "CONCLUIDO" ||
+                t.status === "CONCLUIDA" ||
+                t.status === "CANCELADO"
+            );
+          const novoStatus = semPendentes
+            ? "SUBMETER RASCUNHO"
+            : "ATENDER TAREFAS";
+          await prisma.remanejamentoFuncionario.update({
+            where: { id: rem.id },
+            data: { statusTarefas: novoStatus },
+          });
+        } catch (statusErr) {
+          console.error(
+            "Erro ao atualizar statusTarefas após deduplicação:",
+            statusErr
+          );
+        }
       }
 
       resultados.push({

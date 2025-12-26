@@ -9,6 +9,7 @@ import {
   ChevronLeft,
   Home,
   LayoutDashboard,
+  Boxes,
   Stethoscope,
   Users,
   GraduationCap,
@@ -118,7 +119,7 @@ export default function Sidebar() {
     {
       key: "prestserv",
       label: "Logística",
-      icon: Stethoscope,
+      icon: Boxes,
       items: [
         // { label: "Dashboard", href: "/prestserv/dashboard" },
         {

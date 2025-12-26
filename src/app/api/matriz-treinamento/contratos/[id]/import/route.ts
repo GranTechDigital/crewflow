@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getUserFromRequest } from "@/utils/authUtils";
+import { sincronizarTarefasPadrao } from "@/lib/tarefasPadraoSync";
 import { read, utils } from "xlsx";
 import ExcelJS from "exceljs";
 import fs from "fs";
@@ -296,6 +297,32 @@ export async function POST(
         tipoObrigatoriedade: true,
       },
     });
+
+    const gruposDuplicados = new Map<
+      string,
+      Array<(typeof existentes)[number]>
+    >();
+    for (const e of existentes) {
+      if (e.treinamentoId == null) continue;
+      const chave = `${e.funcaoId}_${e.treinamentoId}`;
+      const arr = gruposDuplicados.get(chave) || [];
+      arr.push(e);
+      gruposDuplicados.set(chave, arr);
+    }
+    const idsParaExcluir: number[] = [];
+    for (const [_, arr] of gruposDuplicados.entries()) {
+      if (arr.length <= 1) continue;
+      const manter = arr[0];
+      for (const e of arr) {
+        if (e.id !== manter.id) idsParaExcluir.push(e.id);
+      }
+    }
+    if (idsParaExcluir.length > 0) {
+      const delDup = await prisma.matrizTreinamento.deleteMany({
+        where: { id: { in: idsParaExcluir } },
+      });
+      removidos += delDup.count;
+    }
 
     const mapaExistentes = new Map<
       string,
@@ -615,15 +642,42 @@ export async function POST(
       ts.getUTCMinutes()
     )}${pad(ts.getUTCSeconds())}.xlsx`;
     const reportBuffer = await wb.xlsx.writeBuffer();
-    const reportBase64 = Buffer.from(reportBuffer as Buffer).toString("base64");
+    // Converter o buffer do relatório para base64 de forma compatível com Node 20+
+    // ExcelJS pode retornar ArrayBuffer ou Buffer dependendo do ambiente
+    const reportBase64 = (
+      reportBuffer instanceof Buffer
+        ? reportBuffer
+        : Buffer.from(reportBuffer as unknown as Uint8Array)
+    ).toString("base64");
     let reportUrl: string | null = null;
     try {
-      const reportsDir = path.resolve(process.cwd(), "public", "import-reports");
-      if (!fs.existsSync(reportsDir)) fs.mkdirSync(reportsDir, { recursive: true });
+      const reportsDir = path.resolve(
+        process.cwd(),
+        "public",
+        "import-reports"
+      );
+      if (!fs.existsSync(reportsDir))
+        fs.mkdirSync(reportsDir, { recursive: true });
       const filePath = path.join(reportsDir, filename);
       await wb.xlsx.writeFile(filePath);
       reportUrl = `/import-reports/${filename}`;
     } catch {}
+
+    try {
+      await sincronizarTarefasPadrao({
+        setores: ["TREINAMENTO"],
+        usuarioResponsavel:
+          (user as any)?.funcionario?.nome ||
+          "Sistema - Importação de Matriz de Treinamento",
+        usuarioResponsavelId: (user as any)?.id,
+        equipeId: (user as any)?.equipeId,
+      });
+    } catch (syncErr) {
+      console.error(
+        "Erro na sincronização automática após importação de matriz:",
+        syncErr
+      );
+    }
 
     return NextResponse.json({
       success: true,

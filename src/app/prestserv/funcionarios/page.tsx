@@ -26,6 +26,7 @@ import {
   ClipboardDocumentListIcon,
   ExclamationTriangleIcon,
   ExclamationCircleIcon,
+  ArrowPathIcon,
 } from "@heroicons/react/24/outline";
 import {
   Chart as ChartJS,
@@ -179,6 +180,7 @@ function FuncionariosPageContent() {
     "TREINAMENTO",
   ]);
   const [generatingTarefas, setGeneratingTarefas] = useState(false);
+  const [sincronizando, setSincronizando] = useState(false);
   const [rejectingStatus, setRejectingStatus] = useState(false);
   const [approvingStatus, setApprovingStatus] = useState(false);
   const [activeTab, setActiveTab] = useState<
@@ -218,6 +220,42 @@ function FuncionariosPageContent() {
   // Função para verificar se o usuário é administrador
   const isAdmin = () => {
     return usuario?.equipe === "Administração";
+  };
+
+  const handleSincronizar = async () => {
+    try {
+      setSincronizando(true);
+      const response = await fetch("/api/logistica/tarefas/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ setores: selectedSetores }),
+      });
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(
+          err?.error || "Erro ao sincronizar tarefas com a matriz"
+        );
+      }
+      const result = await response.json();
+      const criadas = Number(result?.totalTarefasCriadas || 0);
+      const canceladas = Number(result?.totalTarefasCanceladas || 0);
+      const reativadas = Number(result?.totalTarefasReativadas || 0);
+      showToast(
+        `Sincronização concluída: ${criadas} criadas, ${canceladas} canceladas, ${reativadas} reativadas`,
+        "success"
+      );
+      try {
+        localStorage.setItem("tarefasPadraoAtualizadas", String(Date.now()));
+      } catch {}
+      await fetchFuncionarios();
+    } catch (error) {
+      showToast(
+        error instanceof Error ? error.message : "Erro ao sincronizar tarefas",
+        "error"
+      );
+    } finally {
+      setSincronizando(false);
+    }
   };
 
   // Função para carregar dados do dashboard com filtros aplicados
@@ -1014,6 +1052,17 @@ function FuncionariosPageContent() {
             emMigracao: rf.funcionario.emMigracao || false,
             statusTarefas: rf.statusTarefas || "ATENDER TAREFAS",
             statusPrestserv: rf.statusPrestserv || "PENDENTE",
+            // Definir responsável atual de forma consistente:
+            // - "SETORES" quando há tarefas a atender
+            // - "LOGÍSTICA" quando está em "SUBMETER RASCUNHO" (tudo concluído)
+            // - "N/A" para cancelado/concluído
+            responsavelAtual:
+              rf.statusTarefas === "CANCELADO" ||
+              rf.statusTarefas === "CONCLUIDO"
+                ? "N/A"
+                : rf.statusTarefas === "ATENDER TAREFAS"
+                ? "SETORES"
+                : "LOGÍSTICA",
             solicitacaoId: solicitacao.id,
             tipoSolicitacao: solicitacao.tipo || "REMANEJAMENTO",
             contratoOrigem: solicitacao.contratoOrigem?.numero || "N/A",
@@ -2228,51 +2277,51 @@ function FuncionariosPageContent() {
         funcionario.nome.toLowerCase().includes(filtroNome.toLowerCase()) ||
         funcionario.matricula.toLowerCase().includes(filtroNome.toLowerCase());
 
-    const matchStatus =
-      filtroStatus === "TODOS" ||
-      funcionario.statusTarefas === filtroStatus ||
-      funcionario.statusPrestserv === filtroStatus;
+      const matchStatus =
+        filtroStatus === "TODOS" ||
+        funcionario.statusTarefas === filtroStatus ||
+        funcionario.statusPrestserv === filtroStatus;
 
-    const matchContratoOrigem =
-      filtroContratoOrigem.length === 0 ||
-      filtroContratoOrigem.includes(funcionario.contratoOrigem);
+      const matchContratoOrigem =
+        filtroContratoOrigem.length === 0 ||
+        filtroContratoOrigem.includes(funcionario.contratoOrigem);
 
-    const matchContratoDestino =
-      filtroContratoDestino.length === 0 ||
-      filtroContratoDestino.includes(funcionario.contratoDestino);
+      const matchContratoDestino =
+        filtroContratoDestino.length === 0 ||
+        filtroContratoDestino.includes(funcionario.contratoDestino);
 
-    const matchStatusGeral =
-      filtroStatusGeral.length === 0 ||
-      filtroStatusGeral.includes(funcionario.statusTarefas);
+      const matchStatusGeral =
+        filtroStatusGeral.length === 0 ||
+        filtroStatusGeral.includes(funcionario.statusTarefas);
 
-    const matchStatusPrestserv =
-      filtroStatusPrestserv.length === 0 ||
-      filtroStatusPrestserv.includes(funcionario.statusPrestserv);
+      const matchStatusPrestserv =
+        filtroStatusPrestserv.length === 0 ||
+        filtroStatusPrestserv.includes(funcionario.statusPrestserv);
 
-    const matchAcaoNecessaria =
-      !filtroAcaoNecessaria ||
-      funcionario.statusTarefas === filtroAcaoNecessaria;
+      const matchAcaoNecessaria =
+        !filtroAcaoNecessaria ||
+        funcionario.statusTarefas === filtroAcaoNecessaria;
 
-    const matchTipoSolicitacao =
-      filtroTipoSolicitacao.length === 0 ||
-      filtroTipoSolicitacao.includes(funcionario.tipoSolicitacao);
+      const matchTipoSolicitacao =
+        filtroTipoSolicitacao.length === 0 ||
+        filtroTipoSolicitacao.includes(funcionario.tipoSolicitacao);
 
-    const matchNumeroSolicitacao =
-      filtroNumeroSolicitacao.length === 0 ||
-      filtroNumeroSolicitacao.includes(funcionario.solicitacaoId);
+      const matchNumeroSolicitacao =
+        filtroNumeroSolicitacao.length === 0 ||
+        filtroNumeroSolicitacao.includes(funcionario.solicitacaoId);
 
-    const matchResponsavel =
-      filtroResponsavel.length === 0 ||
-      filtroResponsavel.includes(getResponsavelAtual(funcionario));
+      const matchResponsavel =
+        filtroResponsavel.length === 0 ||
+        filtroResponsavel.includes(getResponsavelAtual(funcionario));
 
-    const matchPendenciasPorSetor =
-      filtroPendenciasPorSetor.length === 0 ||
-      funcionario.progressoPorSetor?.some(
-        (progresso) =>
-          filtroPendenciasPorSetor.includes(progresso.setor) &&
-          progresso.total > 0 &&
-          progresso.concluidas < progresso.total
-      );
+      const matchPendenciasPorSetor =
+        filtroPendenciasPorSetor.length === 0 ||
+        funcionario.progressoPorSetor?.some(
+          (progresso) =>
+            filtroPendenciasPorSetor.includes(progresso.setor) &&
+            progresso.total > 0 &&
+            progresso.concluidas < progresso.total
+        );
 
       return (
         matchNome &&
@@ -2512,8 +2561,7 @@ function FuncionariosPageContent() {
   const alterarOrdenacaoSolicitacoes = (campo: string) => {
     setOrdenacaoSolicitacoes((prev) => ({
       campo,
-      direcao:
-        prev.campo === campo && prev.direcao === "asc" ? "desc" : "asc",
+      direcao: prev.campo === campo && prev.direcao === "asc" ? "desc" : "asc",
     }));
   };
 
@@ -2536,14 +2584,18 @@ function FuncionariosPageContent() {
       acc[solicitacaoId].funcionarios.push(funcionario);
       // Atualizar datas agregadas
       try {
-        const curCreated = new Date(acc[solicitacaoId].createdAtGroup).getTime();
+        const curCreated = new Date(
+          acc[solicitacaoId].createdAtGroup
+        ).getTime();
         const fCreated = new Date(funcionario.createdAt).getTime();
         if (!curCreated || (fCreated && fCreated < curCreated)) {
           acc[solicitacaoId].createdAtGroup = funcionario.createdAt;
         }
       } catch {}
       try {
-        const curUpdated = new Date(acc[solicitacaoId].updatedAtGroup).getTime();
+        const curUpdated = new Date(
+          acc[solicitacaoId].updatedAtGroup
+        ).getTime();
         const fUpdated = new Date(funcionario.updatedAt).getTime();
         if (!curUpdated || (fUpdated && fUpdated > curUpdated)) {
           acc[solicitacaoId].updatedAtGroup = funcionario.updatedAt;
@@ -2558,35 +2610,37 @@ function FuncionariosPageContent() {
 
   // Para a aba de solicitação, usamos a paginação da API
   // Não precisamos fatiar os dados aqui, pois já vêm paginados da API
-  const todasSolicitacoesOrdenadas = [...todasSolicitacoes].sort((a: any, b: any) => {
-    const { campo, direcao } = ordenacaoSolicitacoes;
-    let valorA: any;
-    let valorB: any;
-    switch (campo) {
-      case "solicitacaoId":
-        valorA = parseInt(a.solicitacaoId) || 0;
-        valorB = parseInt(b.solicitacaoId) || 0;
-        break;
-      case "dataSolicitacao":
-        valorA = new Date(a.dataSolicitacao).getTime() || 0;
-        valorB = new Date(b.dataSolicitacao).getTime() || 0;
-        break;
-      case "createdAt":
-        valorA = new Date(a.createdAtGroup).getTime() || 0;
-        valorB = new Date(b.createdAtGroup).getTime() || 0;
-        break;
-      case "updatedAt":
-        valorA = new Date(a.updatedAtGroup).getTime() || 0;
-        valorB = new Date(b.updatedAtGroup).getTime() || 0;
-        break;
-      default:
-        valorA = 0;
-        valorB = 0;
+  const todasSolicitacoesOrdenadas = [...todasSolicitacoes].sort(
+    (a: any, b: any) => {
+      const { campo, direcao } = ordenacaoSolicitacoes;
+      let valorA: any;
+      let valorB: any;
+      switch (campo) {
+        case "solicitacaoId":
+          valorA = parseInt(a.solicitacaoId) || 0;
+          valorB = parseInt(b.solicitacaoId) || 0;
+          break;
+        case "dataSolicitacao":
+          valorA = new Date(a.dataSolicitacao).getTime() || 0;
+          valorB = new Date(b.dataSolicitacao).getTime() || 0;
+          break;
+        case "createdAt":
+          valorA = new Date(a.createdAtGroup).getTime() || 0;
+          valorB = new Date(b.createdAtGroup).getTime() || 0;
+          break;
+        case "updatedAt":
+          valorA = new Date(a.updatedAtGroup).getTime() || 0;
+          valorB = new Date(b.updatedAtGroup).getTime() || 0;
+          break;
+        default:
+          valorA = 0;
+          valorB = 0;
+      }
+      if (valorA < valorB) return direcao === "asc" ? -1 : 1;
+      if (valorA > valorB) return direcao === "asc" ? 1 : -1;
+      return 0;
     }
-    if (valorA < valorB) return direcao === "asc" ? -1 : 1;
-    if (valorA > valorB) return direcao === "asc" ? 1 : -1;
-    return 0;
-  });
+  );
 
   const solicitacoesFiltradas =
     activeTab === "solicitacao"
@@ -2651,6 +2705,23 @@ function FuncionariosPageContent() {
               />
             </button>
             <button
+              onClick={handleSincronizar}
+              className="inline-flex items-center px-4 py-2 text-sm font-bold text-white bg-green-600 border border-transparent rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={sincronizando}
+            >
+              {sincronizando ? (
+                <>
+                  <ArrowPathIcon className="w-4 h-4 mr-2 animate-spin" />
+                  Sincronizando...
+                </>
+              ) : (
+                <>
+                  <ArrowPathIcon className="w-4 h-4 mr-2" />
+                  Sincronizar Tarefas
+                </>
+              )}
+            </button>
+            <button
               onClick={exportarParaExcel}
               className="inline-flex items-center px-4 py-2 text-sm font-medium text-slate-600 border border-gray-300 rounded-md hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-2 shadow-sm transition-colors"
             >
@@ -2696,11 +2767,13 @@ function FuncionariosPageContent() {
               <CheckIcon className="h-4 w-4" />
               <span>Concluídos</span>
               <span className="ml-2 inline-flex items-center justify-center rounded-full bg-sky-600 text-white text-[10px] font-bold px-2 py-0.5">
-                {funcionariosFiltradosNominal.filter(
-                  (f) =>
-                    f.statusPrestserv === "VALIDADO" ||
-                    f.statusTarefas === "CONCLUIDO"
-                ).length}
+                {
+                  funcionariosFiltradosNominal.filter(
+                    (f) =>
+                      f.statusPrestserv === "VALIDADO" ||
+                      f.statusTarefas === "CONCLUIDO"
+                  ).length
+                }
               </span>
             </button>
             <button
@@ -5667,67 +5740,69 @@ function FuncionariosPageContent() {
                         </td>
                         <td className="px-3 py-2 text-xs text-gray-700">
                           <div className="space-y-1">
-                            {["RH", "MEDICINA", "TREINAMENTO"].map(
-                              (setor) => {
-                                const progresso =
-                                  funcionario.progressoPorSetor?.find(
-                                    (p) => p.setor === setor
-                                  );
-                                const hasData = progresso && progresso.total > 0;
-                                const nomeSetor =
-                                  setor === "RH"
-                                    ? "Recursos Humanos"
-                                    : setor === "MEDICINA"
-                                    ? "Medicina"
-                                    : "Treinamento";
-                                return (
-                                  <div
-                                    key={setor}
-                                    className="flex items-center justify-between py-0.5"
-                                    title={
-                                      hasData
-                                        ? `${nomeSetor}: ${progresso!.concluidas}/${
+                            {["RH", "MEDICINA", "TREINAMENTO"].map((setor) => {
+                              const progresso =
+                                funcionario.progressoPorSetor?.find(
+                                  (p) => p.setor === setor
+                                );
+                              const hasData = progresso && progresso.total > 0;
+                              const nomeSetor =
+                                setor === "RH"
+                                  ? "Recursos Humanos"
+                                  : setor === "MEDICINA"
+                                  ? "Medicina"
+                                  : "Treinamento";
+                              return (
+                                <div
+                                  key={setor}
+                                  className="flex items-center justify-between py-0.5"
+                                  title={
+                                    hasData
+                                      ? `${nomeSetor}: ${
+                                          progresso!.concluidas
+                                        }/${progresso!.total} (${
+                                          progresso!.percentual
+                                        }%)\n\nLegenda:\n● Verde: Concluído\n● Amarelo: Em progresso\n● Cinza: Pendente`
+                                      : `${nomeSetor}: Sem tarefas\n\nLegenda:\n● Verde: Concluído\n● Amarelo: Em progresso\n● Cinza: Pendente`
+                                  }
+                                >
+                                  <div className="flex items-center space-x-1">
+                                    <span className="text-xs">
+                                      {getSetorIcon(setor)}
+                                    </span>
+                                    <span className="text-xs font-medium text-gray-700">
+                                      {nomeSetor}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center space-x-1">
+                                    <span className="text-xs font-mono text-gray-600 bg-gray-100 px-1 rounded">
+                                      {hasData
+                                        ? `${progresso!.concluidas}/${
                                             progresso!.total
-                                          } (${progresso!.percentual}%)\n\nLegenda:\n● Verde: Concluído\n● Amarelo: Em progresso\n● Cinza: Pendente`
-                                        : `${nomeSetor}: Sem tarefas\n\nLegenda:\n● Verde: Concluído\n● Amarelo: Em progresso\n● Cinza: Pendente`
-                                    }
-                                  >
-                                    <div className="flex items-center space-x-1">
-                                      <span className="text-xs">
-                                        {getSetorIcon(setor)}
-                                      </span>
-                                      <span className="text-xs font-medium text-gray-700">
-                                        {nomeSetor}
-                                      </span>
-                                    </div>
-                                    <div className="flex items-center space-x-1">
-                                      <span className="text-xs font-mono text-gray-600 bg-gray-100 px-1 rounded">
-                                        {hasData
-                                          ? `${progresso!.concluidas}/${progresso!.total}`
-                                          : "0/0"}
-                                      </span>
-                                      <span
-                                        className={`text-sm ${
-                                          hasData
-                                            ? getProgressColor(
-                                                progresso!.concluidas,
-                                                progresso!.total
-                                              )
-                                            : "text-gray-300"
-                                        }`}
-                                      >
-                                        {hasData
-                                          ? getProgressIcon(
+                                          }`
+                                        : "0/0"}
+                                    </span>
+                                    <span
+                                      className={`text-sm ${
+                                        hasData
+                                          ? getProgressColor(
                                               progresso!.concluidas,
                                               progresso!.total
                                             )
-                                          : "●"}
-                                      </span>
-                                    </div>
+                                          : "text-gray-300"
+                                      }`}
+                                    >
+                                      {hasData
+                                        ? getProgressIcon(
+                                            progresso!.concluidas,
+                                            progresso!.total
+                                          )
+                                        : "●"}
+                                    </span>
                                   </div>
-                                );
-                              }
-                            )}
+                                </div>
+                              );
+                            })}
                           </div>
                         </td>
                         <td className="px-3 py-2 text-xs text-gray-700">
@@ -6033,13 +6108,17 @@ function FuncionariosPageContent() {
                     <tr>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-800 uppercase tracking-wider">
                         <button
-                          onClick={() => alterarOrdenacaoSolicitacoes("solicitacaoId")}
+                          onClick={() =>
+                            alterarOrdenacaoSolicitacoes("solicitacaoId")
+                          }
                           className="flex items-center space-x-1 hover:text-blue-600 transition-colors"
                         >
                           <span>Solicitação</span>
                           {ordenacaoSolicitacoes.campo === "solicitacaoId" && (
                             <span className="text-blue-600">
-                              {ordenacaoSolicitacoes.direcao === "asc" ? "↑" : "↓"}
+                              {ordenacaoSolicitacoes.direcao === "asc"
+                                ? "↑"
+                                : "↓"}
                             </span>
                           )}
                         </button>
@@ -6055,26 +6134,35 @@ function FuncionariosPageContent() {
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-800 uppercase tracking-wider">
                         <button
-                          onClick={() => alterarOrdenacaoSolicitacoes("dataSolicitacao")}
+                          onClick={() =>
+                            alterarOrdenacaoSolicitacoes("dataSolicitacao")
+                          }
                           className="flex items-center space-x-1 hover:text-blue-600 transition-colors"
                         >
                           <span>Data</span>
-                          {ordenacaoSolicitacoes.campo === "dataSolicitacao" && (
+                          {ordenacaoSolicitacoes.campo ===
+                            "dataSolicitacao" && (
                             <span className="text-blue-600">
-                              {ordenacaoSolicitacoes.direcao === "asc" ? "↑" : "↓"}
+                              {ordenacaoSolicitacoes.direcao === "asc"
+                                ? "↑"
+                                : "↓"}
                             </span>
                           )}
                         </button>
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-800 uppercase tracking-wider">
                         <button
-                          onClick={() => alterarOrdenacaoSolicitacoes("createdAt")}
+                          onClick={() =>
+                            alterarOrdenacaoSolicitacoes("createdAt")
+                          }
                           className="flex items-center space-x-1 hover:text-blue-600 transition-colors"
                         >
                           <span>Criado</span>
                           {ordenacaoSolicitacoes.campo === "createdAt" && (
                             <span className="text-blue-600">
-                              {ordenacaoSolicitacoes.direcao === "asc" ? "↑" : "↓"}
+                              {ordenacaoSolicitacoes.direcao === "asc"
+                                ? "↑"
+                                : "↓"}
                             </span>
                           )}
                         </button>

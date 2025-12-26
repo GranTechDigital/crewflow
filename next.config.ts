@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   // Configurações para melhorar performance e evitar timeouts
-  serverExternalPackages: ['prisma'],
+  serverExternalPackages: ['prisma', '@floating-ui/react', '@floating-ui/dom', 'flowbite-react'],
   
   // Desabilitar ESLint durante o build para produção
   eslint: {
