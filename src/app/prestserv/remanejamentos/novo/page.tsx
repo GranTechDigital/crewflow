@@ -25,6 +25,8 @@ import {
 } from "@heroicons/react/24/outline";
 import { useToast } from "@/components/Toast";
 import { useAuth } from "@/app/hooks/useAuth";
+import ProtectedRoute from "@/components/ProtectedRoute";
+import { ROUTE_PROTECTION } from "@/lib/permissions";
 
 interface Contrato {
   id: number;
@@ -66,6 +68,19 @@ interface ResumoRemanejamento {
 }
 
 export default function NovoRemanejamentoLogisticaPage() {
+  return (
+    <ProtectedRoute
+      requiredEquipe={ROUTE_PROTECTION.NOVO_REMANEJAMENTO.requiredEquipe}
+      requiredPermissions={
+        ROUTE_PROTECTION.NOVO_REMANEJAMENTO.requiredPermissions
+      }
+    >
+      <NovoRemanejamentoContent />
+    </ProtectedRoute>
+  );
+}
+
+function NovoRemanejamentoContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { showToast } = useToast();

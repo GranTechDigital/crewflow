@@ -56,7 +56,8 @@ ChartJS.register(
   ChartDataLabels
 );
 import ProtectedRoute from "@/components/ProtectedRoute";
-import { ROUTE_PROTECTION } from "@/lib/permissions";
+import { ROUTE_PROTECTION, PERMISSIONS } from "@/lib/permissions";
+import { usePermissions } from "@/app/hooks/useAuth";
 import ListaTarefasModal from "@/components/ListaTarefasModal";
 import CheckIcon from "@heroicons/react/24/solid/CheckIcon";
 import { useAuth } from "@/app/hooks/useAuth";
@@ -113,6 +114,7 @@ function FuncionariosPageContent() {
   const router = useRouter();
   const { showToast } = useToast();
   const { usuario } = useAuth();
+  const { hasAnyPermission } = usePermissions();
   const [funcionarios, setFuncionarios] = useState<FuncionarioTableData[]>([]);
   const [funcionariosBaseNominal, setFuncionariosBaseNominal] = useState<
     FuncionarioTableData[]
@@ -2728,17 +2730,23 @@ function FuncionariosPageContent() {
               <DocumentArrowDownIcon className="w-4 h-4 mr-2" />
               Exportar Excel
             </button>
-            <button
-              onClick={() =>
-                router.push(
-                  "/prestserv/remanejamentos/novo?returnTo=/prestserv/funcionarios"
-                )
-              }
-              className="inline-flex items-center px-4 py-2 text-sm font-bold text-white bg-sky-500 border border-transparent rounded-md hover:bg-sky-600 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 shadow-sm transition-colors"
-            >
-              <PlusIcon className="w-4 h-4 mr-2" />
-              Criar Solicitação
-            </button>
+            {hasAnyPermission([
+              PERMISSIONS.ADMIN,
+              PERMISSIONS.ACCESS_LOGISTICA,
+              PERMISSIONS.ACCESS_PREST_SERV,
+            ]) && (
+              <button
+                onClick={() =>
+                  router.push(
+                    "/prestserv/remanejamentos/novo?returnTo=/prestserv/funcionarios"
+                  )
+                }
+                className="inline-flex items-center px-4 py-2 text-sm font-bold text-white bg-sky-500 border border-transparent rounded-md hover:bg-sky-600 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 shadow-sm transition-colors"
+              >
+                <PlusIcon className="w-4 h-4 mr-2" />
+                Criar Solicitação
+              </button>
+            )}
           </div>
         </div>
 

@@ -52,7 +52,8 @@ ChartJS.register(
   ChartDataLabels
 );
 import ProtectedRoute from "@/components/ProtectedRoute";
-import { ROUTE_PROTECTION } from "@/lib/permissions";
+import { ROUTE_PROTECTION, PERMISSIONS } from "@/lib/permissions";
+import { usePermissions } from "@/app/hooks/useAuth";
 import ListaTarefasModal from "@/components/ListaTarefasModal";
 
 interface ProgressoPorSetor {
@@ -101,6 +102,7 @@ export default function FuncionariosPage() {
 function FuncionariosPageContent() {
   const router = useRouter();
   const { showToast } = useToast();
+  const { hasAnyPermission } = usePermissions();
   const [funcionarios, setFuncionarios] = useState<FuncionarioTableData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -129,12 +131,19 @@ function FuncionariosPageContent() {
     useState(false);
   const [filtroSispat, setFiltroSispat] = useState<string[]>([]);
   const [dropdownSispatOpen, setDropdownSispatOpen] = useState(false);
-  const [filtroStatusRemanejamento, setFiltroStatusRemanejamento] = useState<string[]>([]);
-  const [dropdownStatusRemanejamentoOpen, setDropdownStatusRemanejamentoOpen] = useState(false);
-  const [filtroDataSolicitacaoInicio, setFiltroDataSolicitacaoInicio] = useState<string>("");
-  const [filtroDataSolicitacaoFim, setFiltroDataSolicitacaoFim] = useState<string>("");
-  const [filtroDataConclusaoInicio, setFiltroDataConclusaoInicio] = useState<string>("");
-  const [filtroDataConclusaoFim, setFiltroDataConclusaoFim] = useState<string>("");
+  const [filtroStatusRemanejamento, setFiltroStatusRemanejamento] = useState<
+    string[]
+  >([]);
+  const [dropdownStatusRemanejamentoOpen, setDropdownStatusRemanejamentoOpen] =
+    useState(false);
+  const [filtroDataSolicitacaoInicio, setFiltroDataSolicitacaoInicio] =
+    useState<string>("");
+  const [filtroDataSolicitacaoFim, setFiltroDataSolicitacaoFim] =
+    useState<string>("");
+  const [filtroDataConclusaoInicio, setFiltroDataConclusaoInicio] =
+    useState<string>("");
+  const [filtroDataConclusaoFim, setFiltroDataConclusaoFim] =
+    useState<string>("");
   const [setoresSelecionados, setSetoresSelecionados] = useState<string[]>([]);
   const [paginaAtual, setPaginaAtual] = useState(1);
   const [itensPorPagina, setItensPorPagina] = useState(10);
@@ -161,7 +170,8 @@ function FuncionariosPageContent() {
   const [rejectingStatus, setRejectingStatus] = useState(false);
   const [approvingStatus, setApprovingStatus] = useState(false);
   const [showListaTarefasModal, setShowListaTarefasModal] = useState(false);
-  const [funcionarioSelecionadoTarefas, setFuncionarioSelecionadoTarefas] = useState<FuncionarioTableData | null>(null);
+  const [funcionarioSelecionadoTarefas, setFuncionarioSelecionadoTarefas] =
+    useState<FuncionarioTableData | null>(null);
   const [activeTab, setActiveTab] = useState<
     "nominal" | "solicitacao" | "dashboard"
   >("nominal");
@@ -171,7 +181,8 @@ function FuncionariosPageContent() {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [isInitialized, setIsInitialized] = useState(false);
   // Filtros do Dashboard
-  const [dashboardPeriodoInicio, setDashboardPeriodoInicio] = useState<string>("");
+  const [dashboardPeriodoInicio, setDashboardPeriodoInicio] =
+    useState<string>("");
   const [dashboardPeriodoFim, setDashboardPeriodoFim] = useState<string>("");
 
   // Função para carregar dados do dashboard com filtros aplicados
@@ -224,13 +235,14 @@ function FuncionariosPageContent() {
               }
 
               // Aplicar filtros de status
-              if (
-                filtroStatusRemanejamento.length > 0
-              ) {
+              if (filtroStatusRemanejamento.length > 0) {
                 const stTarefas = String(funcionario.statusTarefas || "");
-                const tarefasConcluidas = Number(funcionario.tarefasConcluidas || 0);
+                const tarefasConcluidas = Number(
+                  funcionario.tarefasConcluidas || 0
+                );
                 const totalTarefas = Number(funcionario.totalTarefas || 0);
-                const dataConcluido = funcionario.dataConcluido || funcionario.dataResposta || null;
+                const dataConcluido =
+                  funcionario.dataConcluido || funcionario.dataResposta || null;
                 let st = "Pendente";
                 if (stTarefas === "CANCELADO") st = "Cancelado";
                 else if (dataConcluido) st = "Concluído";
@@ -286,7 +298,9 @@ function FuncionariosPageContent() {
         setFiltroNumeroSolicitacao(filters.filtroNumeroSolicitacao || []);
         setFiltroSispat(filters.filtroSispat || []);
         setFiltroStatusRemanejamento(filters.filtroStatusRemanejamento || []);
-        setFiltroDataSolicitacaoInicio(filters.filtroDataSolicitacaoInicio || "");
+        setFiltroDataSolicitacaoInicio(
+          filters.filtroDataSolicitacaoInicio || ""
+        );
         setFiltroDataSolicitacaoFim(filters.filtroDataSolicitacaoFim || "");
         setFiltroDataConclusaoInicio(filters.filtroDataConclusaoInicio || "");
         setFiltroDataConclusaoFim(filters.filtroDataConclusaoFim || "");
@@ -400,7 +414,6 @@ function FuncionariosPageContent() {
     return () => clearInterval(interval);
   }, []);
 
-
   // Função para exibir status com numeração apenas no frontend
   const getStatusLabel = (status: string): string => {
     return getStatusDisplayText(status);
@@ -503,7 +516,6 @@ function FuncionariosPageContent() {
     return Array.from(allStatus).sort();
   };
 
-
   const fetchFuncionarios = async () => {
     try {
       setLoading(true);
@@ -536,7 +548,8 @@ function FuncionariosPageContent() {
             nome: rf.funcionario.nome,
             matricula: rf.funcionario.matricula,
             sispat:
-              rf.funcionario?.sispat !== null && rf.funcionario?.sispat !== undefined
+              rf.funcionario?.sispat !== null &&
+              rf.funcionario?.sispat !== undefined
                 ? String(rf.funcionario.sispat)
                 : undefined,
             funcao: rf.funcionario.funcao,
@@ -686,7 +699,9 @@ function FuncionariosPageContent() {
   };
 
   const isConcluido = (funcionario: FuncionarioTableData) => {
-    return funcionario.statusTarefas === "CONCLUIDO" || !!funcionario.dataConcluido;
+    return (
+      funcionario.statusTarefas === "CONCLUIDO" || !!funcionario.dataConcluido
+    );
   };
 
   const getRemanejamentoStatus = React.useCallback(
@@ -718,9 +733,16 @@ function FuncionariosPageContent() {
       const sispatStr = String(funcionario.sispat ?? "").trim();
       const hasSispat = sispatStr.length > 0; // considera "0" como válido
 
-      const prestserv = String(funcionario.statusPrestserv ?? "").trim().toUpperCase();
-      const statusFunc = String(funcionario.statusFuncionario ?? "").trim().toUpperCase();
-      const prestservConcl = prestserv === "VALIDADO" || prestserv === "APROVADO" || prestserv === "ATIVO";
+      const prestserv = String(funcionario.statusPrestserv ?? "")
+        .trim()
+        .toUpperCase();
+      const statusFunc = String(funcionario.statusFuncionario ?? "")
+        .trim()
+        .toUpperCase();
+      const prestservConcl =
+        prestserv === "VALIDADO" ||
+        prestserv === "APROVADO" ||
+        prestserv === "ATIVO";
       const funcAtivo = statusFunc === "ATIVO";
 
       const remConcluido = getRemanejamentoStatus(funcionario) === "Concluído";
@@ -755,7 +777,9 @@ function FuncionariosPageContent() {
   const getDataEncerramento = React.useCallback(
     (funcionario: FuncionarioTableData): string | undefined => {
       if (isConcluido(funcionario)) {
-        return funcionario.dataConcluido || funcionario.dataResposta || undefined;
+        return (
+          funcionario.dataConcluido || funcionario.dataResposta || undefined
+        );
       }
       return undefined;
     },
@@ -794,7 +818,7 @@ function FuncionariosPageContent() {
     const counts: Record<string, number> = {
       Pendente: 0,
       "Em andamento": 0,
-      "Concluído": 0,
+      Concluído: 0,
       Cancelado: 0,
     };
     funcionarios.forEach((f) => {
@@ -809,7 +833,8 @@ function FuncionariosPageContent() {
     ];
   }, [funcionarios, getRemanejamentoStatus]);
 
-  const toMonthKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  const toMonthKey = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
   const parseMonthKey = (key: string) => {
     const [y, m] = key.split("-");
     return new Date(Number(y), Number(m) - 1, 1);
@@ -817,14 +842,26 @@ function FuncionariosPageContent() {
   const formatMonthLabel = (value: Date) =>
     value.toLocaleDateString("pt-BR", { month: "short", year: "2-digit" });
 
-
   const funcionariosPorContratoStatus = React.useMemo(() => {
-    const mapa: Record<string, { concluido: number; andamento: number; pendente: number; cancelado: number }> = {};
+    const mapa: Record<
+      string,
+      {
+        concluido: number;
+        andamento: number;
+        pendente: number;
+        cancelado: number;
+      }
+    > = {};
     funcionarios.forEach((f) => {
       const st = getRemanejamentoStatus(f);
       const contrato = f.contratoDestino || f.contratoOrigem || "N/A";
       if (!mapa[contrato]) {
-        mapa[contrato] = { concluido: 0, andamento: 0, pendente: 0, cancelado: 0 };
+        mapa[contrato] = {
+          concluido: 0,
+          andamento: 0,
+          pendente: 0,
+          cancelado: 0,
+        };
       }
       if (st === "Concluído") mapa[contrato].concluido++;
       else if (st === "Em andamento") mapa[contrato].andamento++;
@@ -956,8 +993,6 @@ function FuncionariosPageContent() {
       ...new Set(funcionarios.map((f) => f.solicitacaoId).filter(Boolean)),
     ].sort();
   };
-
-  
 
   const limparFiltros = () => {
     setFiltroStatus("TODOS");
@@ -1092,7 +1127,9 @@ function FuncionariosPageContent() {
         break;
       case "statusRemanejamento":
         if (valor) {
-          setFiltroStatusRemanejamento((prev) => prev.filter((v) => v !== valor));
+          setFiltroStatusRemanejamento((prev) =>
+            prev.filter((v) => v !== valor)
+          );
         } else {
           setFiltroStatusRemanejamento([]);
         }
@@ -1381,13 +1418,18 @@ function FuncionariosPageContent() {
   };
 
   // Função para abrir o modal de lista de tarefas
-  const abrirListaTarefas = (funcionario: FuncionarioTableData, statusAtualizado?: string) => {
+  const abrirListaTarefas = (
+    funcionario: FuncionarioTableData,
+    statusAtualizado?: string
+  ) => {
     // Se um status atualizado for fornecido, usar ele; caso contrário, usar o status atual do funcionário
-    const funcionarioParaModal = statusAtualizado ? {
-      ...funcionario,
-      statusPrestserv: statusAtualizado
-    } : funcionario;
-    
+    const funcionarioParaModal = statusAtualizado
+      ? {
+          ...funcionario,
+          statusPrestserv: statusAtualizado,
+        }
+      : funcionario;
+
     setFuncionarioSelecionadoTarefas(funcionarioParaModal);
     setShowListaTarefasModal(true);
   };
@@ -1402,7 +1444,7 @@ function FuncionariosPageContent() {
   const handleTarefaReprovada = () => {
     // Recarregar os dados dos funcionários para refletir as mudanças
     fetchFuncionarios();
-    
+
     // Se estiver na aba dashboard, também atualizar os dados do dashboard
     if (activeTab === "dashboard") {
       fetchDashboardData();
@@ -1437,7 +1479,9 @@ function FuncionariosPageContent() {
     setExpandedRows(newExpanded);
   };
 
-  const [expandedFilters, setExpandedFilters] = useState<Record<string, string | null>>({});
+  const [expandedFilters, setExpandedFilters] = useState<
+    Record<string, string | null>
+  >({});
   const openRow = (solicitacaoId: string) => {
     const newExpanded = new Set(expandedRows);
     newExpanded.add(solicitacaoId);
@@ -1464,7 +1508,9 @@ function FuncionariosPageContent() {
     ).length;
 
     // Concluídos definitivos: somente quem já tem sispat e está ATIVO no Prestserv
-    const concluidos = funcionarios.filter((f) => isConclusaoDefinitiva(f)).length;
+    const concluidos = funcionarios.filter((f) =>
+      isConclusaoDefinitiva(f)
+    ).length;
 
     return { pendentes, emAndamento, concluidos, total: funcionarios.length };
   };
@@ -1548,8 +1594,8 @@ function FuncionariosPageContent() {
     const hasSispat = String(funcionario.sispat ?? "").trim().length > 0;
     const matchSispat =
       filtroSispat.length === 0 ||
-      ((filtroSispat.includes("COM") && hasSispat) ||
-        (filtroSispat.includes("SEM") && !hasSispat));
+      (filtroSispat.includes("COM") && hasSispat) ||
+      (filtroSispat.includes("SEM") && !hasSispat);
 
     const statusRemanejamentoAtual = getRemanejamentoStatus(funcionario);
     const matchStatusRemanejamento =
@@ -1557,7 +1603,8 @@ function FuncionariosPageContent() {
       filtroStatusRemanejamento.includes(statusRemanejamentoAtual);
 
     const matchDataSolicitacao = (() => {
-      if (!filtroDataSolicitacaoInicio && !filtroDataSolicitacaoFim) return true;
+      if (!filtroDataSolicitacaoInicio && !filtroDataSolicitacaoFim)
+        return true;
       const d = new Date(funcionario.dataSolicitacao);
       if (filtroDataSolicitacaoInicio) {
         const inicio = new Date(filtroDataSolicitacaoInicio);
@@ -1661,8 +1708,7 @@ function FuncionariosPageContent() {
   const alterarOrdenacaoSolicitacoes = (campo: string) => {
     setOrdenacaoSolicitacoes((prev) => ({
       campo,
-      direcao:
-        prev.campo === campo && prev.direcao === "asc" ? "desc" : "asc",
+      direcao: prev.campo === campo && prev.direcao === "asc" ? "desc" : "asc",
     }));
   };
 
@@ -1685,14 +1731,18 @@ function FuncionariosPageContent() {
       acc[solicitacaoId].funcionarios.push(funcionario);
       // Atualizar datas agregadas
       try {
-        const curCreated = new Date(acc[solicitacaoId].createdAtGroup).getTime();
+        const curCreated = new Date(
+          acc[solicitacaoId].createdAtGroup
+        ).getTime();
         const fCreated = new Date(funcionario.createdAt).getTime();
         if (!curCreated || (fCreated && fCreated < curCreated)) {
           acc[solicitacaoId].createdAtGroup = funcionario.createdAt;
         }
       } catch {}
       try {
-        const curUpdated = new Date(acc[solicitacaoId].updatedAtGroup).getTime();
+        const curUpdated = new Date(
+          acc[solicitacaoId].updatedAtGroup
+        ).getTime();
         const fUpdated = new Date(funcionario.updatedAt).getTime();
         if (!curUpdated || (fUpdated && fUpdated > curUpdated)) {
           acc[solicitacaoId].updatedAtGroup = funcionario.updatedAt;
@@ -1703,35 +1753,37 @@ function FuncionariosPageContent() {
     {} as Record<string, any>
   );
   const todasSolicitacoes = Object.values(funcionariosAgrupados);
-  const todasSolicitacoesOrdenadas = [...todasSolicitacoes].sort((a: any, b: any) => {
-    const { campo, direcao } = ordenacaoSolicitacoes;
-    let valorA: any;
-    let valorB: any;
-    switch (campo) {
-      case "solicitacaoId":
-        valorA = parseInt(a.solicitacaoId) || 0;
-        valorB = parseInt(b.solicitacaoId) || 0;
-        break;
-      case "dataSolicitacao":
-        valorA = new Date(a.dataSolicitacao).getTime() || 0;
-        valorB = new Date(b.dataSolicitacao).getTime() || 0;
-        break;
-      case "createdAt":
-        valorA = new Date(a.createdAtGroup).getTime() || 0;
-        valorB = new Date(b.createdAtGroup).getTime() || 0;
-        break;
-      case "updatedAt":
-        valorA = new Date(a.updatedAtGroup).getTime() || 0;
-        valorB = new Date(b.updatedAtGroup).getTime() || 0;
-        break;
-      default:
-        valorA = 0;
-        valorB = 0;
+  const todasSolicitacoesOrdenadas = [...todasSolicitacoes].sort(
+    (a: any, b: any) => {
+      const { campo, direcao } = ordenacaoSolicitacoes;
+      let valorA: any;
+      let valorB: any;
+      switch (campo) {
+        case "solicitacaoId":
+          valorA = parseInt(a.solicitacaoId) || 0;
+          valorB = parseInt(b.solicitacaoId) || 0;
+          break;
+        case "dataSolicitacao":
+          valorA = new Date(a.dataSolicitacao).getTime() || 0;
+          valorB = new Date(b.dataSolicitacao).getTime() || 0;
+          break;
+        case "createdAt":
+          valorA = new Date(a.createdAtGroup).getTime() || 0;
+          valorB = new Date(b.createdAtGroup).getTime() || 0;
+          break;
+        case "updatedAt":
+          valorA = new Date(a.updatedAtGroup).getTime() || 0;
+          valorB = new Date(b.updatedAtGroup).getTime() || 0;
+          break;
+        default:
+          valorA = 0;
+          valorB = 0;
+      }
+      if (valorA < valorB) return direcao === "asc" ? -1 : 1;
+      if (valorA > valorB) return direcao === "asc" ? 1 : -1;
+      return 0;
     }
-    if (valorA < valorB) return direcao === "asc" ? -1 : 1;
-    if (valorA > valorB) return direcao === "asc" ? 1 : -1;
-    return 0;
-  });
+  );
 
   const totalSolicitacoesAgrupadas = todasSolicitacoesOrdenadas.length;
   const solicitacoesFiltradas =
@@ -1744,12 +1796,14 @@ function FuncionariosPageContent() {
       : todasSolicitacoesOrdenadas;
 
   const solicitacoesStatusDistribuicao = React.useMemo(() => {
-    const inicio = dashboardPeriodoInicio ? new Date(dashboardPeriodoInicio) : null;
+    const inicio = dashboardPeriodoInicio
+      ? new Date(dashboardPeriodoInicio)
+      : null;
     const fim = dashboardPeriodoFim ? new Date(dashboardPeriodoFim) : null;
     const counts: Record<string, number> = {
       Pendente: 0,
       "Em andamento": 0,
-      "Concluído": 0,
+      Concluído: 0,
     };
     solicitacoesFiltradas.forEach((s: any) => {
       const d = new Date(s.dataSolicitacao);
@@ -1763,10 +1817,17 @@ function FuncionariosPageContent() {
       { status: "Em andamento", count: counts["Em andamento"] || 0 },
       { status: "Concluído", count: counts["Concluído"] || 0 },
     ];
-  }, [solicitacoesFiltradas, getSolicitacaoStatusFromFuncionarios, dashboardPeriodoInicio, dashboardPeriodoFim]);
+  }, [
+    solicitacoesFiltradas,
+    getSolicitacaoStatusFromFuncionarios,
+    dashboardPeriodoInicio,
+    dashboardPeriodoFim,
+  ]);
 
   const solicitacoesPorMesData = React.useMemo(() => {
-    const inicio = dashboardPeriodoInicio ? new Date(dashboardPeriodoInicio) : null;
+    const inicio = dashboardPeriodoInicio
+      ? new Date(dashboardPeriodoInicio)
+      : null;
     const fim = dashboardPeriodoFim ? new Date(dashboardPeriodoFim) : null;
     const createdMap = new Map<string, number>();
     const concludedMap = new Map<string, number>();
@@ -1784,7 +1845,10 @@ function FuncionariosPageContent() {
         concludedMap.set(conclKey, (concludedMap.get(conclKey) || 0) + 1);
       }
     });
-    const keysSet = new Set<string>([...createdMap.keys(), ...concludedMap.keys()]);
+    const keysSet = new Set<string>([
+      ...createdMap.keys(),
+      ...concludedMap.keys(),
+    ]);
     const keysSorted = Array.from(keysSet).sort(
       (a, b) => parseMonthKey(a).getTime() - parseMonthKey(b).getTime()
     );
@@ -1792,7 +1856,12 @@ function FuncionariosPageContent() {
     const createdSeries = keysSorted.map((k) => createdMap.get(k) || 0);
     const concludedSeries = keysSorted.map((k) => concludedMap.get(k) || 0);
     return { labels, createdSeries, concludedSeries };
-  }, [solicitacoesFiltradas, getSolicitacaoDataConclusao, dashboardPeriodoInicio, dashboardPeriodoFim]);
+  }, [
+    solicitacoesFiltradas,
+    getSolicitacaoDataConclusao,
+    dashboardPeriodoInicio,
+    dashboardPeriodoFim,
+  ]);
 
   if (loading) {
     return (
@@ -1853,17 +1922,23 @@ function FuncionariosPageContent() {
             <DocumentArrowDownIcon className="w-4 h-4 mr-2" />
             Exportar Excel
           </button>
-          <button
-            onClick={() =>
-              router.push(
-                "/prestserv/remanejamentos/novo?returnTo=/prestserv/funcionarios/planejamento"
-              )
-            }
-            className="inline-flex items-center px-4 py-2 text-sm font-bold text-white bg-sky-500 border border-transparent rounded-md hover:bg-sky-600 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 shadow-sm transition-colors"
-          >
-            <PlusIcon className="w-4 h-4 mr-2" />
-            Criar Solicitação
-          </button>
+          {hasAnyPermission([
+            PERMISSIONS.ADMIN,
+            PERMISSIONS.ACCESS_PLANEJAMENTO,
+            PERMISSIONS.ACCESS_PLANEJAMENTO_GESTOR,
+          ]) && (
+            <button
+              onClick={() =>
+                router.push(
+                  "/prestserv/remanejamentos/novo?returnTo=/prestserv/funcionarios/planejamento"
+                )
+              }
+              className="inline-flex items-center px-4 py-2 text-sm font-bold text-white bg-sky-500 border border-transparent rounded-md hover:bg-sky-600 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 shadow-sm transition-colors"
+            >
+              <PlusIcon className="w-4 h-4 mr-2" />
+              Criar Solicitação
+            </button>
+          )}
         </div>
       </div>
 
@@ -1953,16 +2028,22 @@ function FuncionariosPageContent() {
               <div className="bg-white rounded-lg shadow border border-slate-400 p-4">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Início</label>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Início
+                    </label>
                     <input
                       type="date"
                       value={dashboardPeriodoInicio}
-                      onChange={(e) => setDashboardPeriodoInicio(e.target.value)}
+                      onChange={(e) =>
+                        setDashboardPeriodoInicio(e.target.value)
+                      }
                       className="w-full px-3 py-2 text-sm border-slate-800 bg-slate-100 text-slate-500 rounded-md shadow-sm focus:border-slate-300 focus:ring-slate-300"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Fim</label>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Fim
+                    </label>
                     <input
                       type="date"
                       value={dashboardPeriodoFim}
@@ -1998,7 +2079,10 @@ function FuncionariosPageContent() {
               {/* Cards de Resumo - Design Minimalista */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
                 {[
-                  { label: "Solicitações", value: solicitacoesFiltradas.length },
+                  {
+                    label: "Solicitações",
+                    value: solicitacoesFiltradas.length,
+                  },
                   ...solicitacoesStatusDistribuicao.map((s) => ({
                     label: `Solicitações ${s.status}`,
                     value: s.count,
@@ -2018,7 +2102,9 @@ function FuncionariosPageContent() {
                       <div className="flex items-center justify-between w-full">
                         <div>
                           <p className="text-sm text-slate-500">{item.label}</p>
-                          <p className="text-2xl font-semibold text-sky-400">{item.value}</p>
+                          <p className="text-2xl font-semibold text-sky-400">
+                            {item.value}
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -2040,11 +2126,16 @@ function FuncionariosPageContent() {
                       funcionariosPorStatusRemanejamento.length > 0 ? (
                         <Doughnut
                           data={{
-                            labels: funcionariosPorStatusRemanejamento.map((item: any) => item.status),
+                            labels: funcionariosPorStatusRemanejamento.map(
+                              (item: any) => item.status
+                            ),
                             datasets: [
                               {
-                                data: funcionariosPorStatusRemanejamento.map((item: any) =>
-                                  typeof item.count === "number" ? item.count : Number(item.count) || 0
+                                data: funcionariosPorStatusRemanejamento.map(
+                                  (item: any) =>
+                                    typeof item.count === "number"
+                                      ? item.count
+                                      : Number(item.count) || 0
                                 ),
                                 backgroundColor: [
                                   "#94A3B8", // slate-400
@@ -2095,13 +2186,17 @@ function FuncionariosPageContent() {
                                 callbacks: {
                                   label: function (context) {
                                     const total = context.dataset.data.reduce(
-                                      (a: number, b: any) => a + (typeof b === 'number' ? b : 0),
+                                      (a: number, b: any) =>
+                                        a + (typeof b === "number" ? b : 0),
                                       0
                                     );
-                                    const percentage = total > 0 ? (
-                                      (context.parsed / total) *
-                                      100
-                                    ).toFixed(1) : '0';
+                                    const percentage =
+                                      total > 0
+                                        ? (
+                                            (context.parsed / total) *
+                                            100
+                                          ).toFixed(1)
+                                        : "0";
                                     return `${context.label}: ${context.parsed} (${percentage}%)`;
                                   },
                                 },
@@ -2109,13 +2204,14 @@ function FuncionariosPageContent() {
                               datalabels: {
                                 formatter: (value: number, ctx) => {
                                   const total = ctx.dataset.data.reduce(
-                                    (a: number, b: any) => a + (typeof b === 'number' ? b : 0),
+                                    (a: number, b: any) =>
+                                      a + (typeof b === "number" ? b : 0),
                                     0
                                   );
-                                  const percentage = total > 0 ? (
-                                    (value / total) *
-                                    100
-                                  ).toFixed(0) : '0';
+                                  const percentage =
+                                    total > 0
+                                      ? ((value / total) * 100).toFixed(0)
+                                      : "0";
                                   return value > 0 ? value : "";
                                 },
                                 color: "#ffffff",
@@ -2156,12 +2252,17 @@ function FuncionariosPageContent() {
                       solicitacoesStatusDistribuicao.length > 0 ? (
                         <Bar
                           data={{
-                            labels: solicitacoesStatusDistribuicao.map((item: any) => item.status),
+                            labels: solicitacoesStatusDistribuicao.map(
+                              (item: any) => item.status
+                            ),
                             datasets: [
                               {
                                 label: "Funcionários",
-                                data: solicitacoesStatusDistribuicao.map((item: any) =>
-                                  typeof item.count === "number" ? item.count : Number(item.count) || 0
+                                data: solicitacoesStatusDistribuicao.map(
+                                  (item: any) =>
+                                    typeof item.count === "number"
+                                      ? item.count
+                                      : Number(item.count) || 0
                                 ),
                                 backgroundColor: [
                                   "rgba(14, 165, 233, 0.7)", // sky-500
@@ -2323,7 +2424,9 @@ function FuncionariosPageContent() {
                         />
                       ) : (
                         <div className="h-full flex items-center justify-center">
-                          <p className="text-gray-500">Nenhum dado disponível</p>
+                          <p className="text-gray-500">
+                            Nenhum dado disponível
+                          </p>
                         </div>
                       )}
                     </div>
@@ -2331,30 +2434,61 @@ function FuncionariosPageContent() {
                 </div>
                 <div className="bg-white-300 rounded-lg shadow-lg border border-slate-400">
                   <div className="p-5 border-b border-slate-500">
-                    <h2 className="text-lg font-medium text-slate-500">Funcionários por Contrato (Top 10)</h2>
+                    <h2 className="text-lg font-medium text-slate-500">
+                      Funcionários por Contrato (Top 10)
+                    </h2>
                   </div>
                   <div className="p-6 overflow-x-auto">
                     {funcionariosPorContratoStatus.length > 0 ? (
                       <table className="min-w-full divide-y divide-gray-300 border-slate-800 rounded-lg shadow-md overflow-hidden">
                         <thead className="bg-slate-700">
                           <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Contrato</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Concluídos</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Em andamento</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Pendentes</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Cancelados</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Total</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">
+                              Contrato
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">
+                              Concluídos
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">
+                              Em andamento
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">
+                              Pendentes
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">
+                              Cancelados
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">
+                              Total
+                            </th>
                           </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
                           {funcionariosPorContratoStatus.map((item, idx) => (
-                            <tr key={idx} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                              <td className="px-6 py-3 text-sm text-gray-700 font-medium">{item.contrato}</td>
-                              <td className="px-6 py-3 text-sm text-green-700">{item.concluido}</td>
-                              <td className="px-6 py-3 text-sm text-blue-700">{item.andamento}</td>
-                              <td className="px-6 py-3 text-sm text-gray-700">{item.pendente}</td>
-                              <td className="px-6 py-3 text-sm text-red-700">{item.cancelado}</td>
-                              <td className="px-6 py-3 text-sm text-gray-900 font-semibold">{item.total}</td>
+                            <tr
+                              key={idx}
+                              className={
+                                idx % 2 === 0 ? "bg-white" : "bg-gray-50"
+                              }
+                            >
+                              <td className="px-6 py-3 text-sm text-gray-700 font-medium">
+                                {item.contrato}
+                              </td>
+                              <td className="px-6 py-3 text-sm text-green-700">
+                                {item.concluido}
+                              </td>
+                              <td className="px-6 py-3 text-sm text-blue-700">
+                                {item.andamento}
+                              </td>
+                              <td className="px-6 py-3 text-sm text-gray-700">
+                                {item.pendente}
+                              </td>
+                              <td className="px-6 py-3 text-sm text-red-700">
+                                {item.cancelado}
+                              </td>
+                              <td className="px-6 py-3 text-sm text-gray-900 font-semibold">
+                                {item.total}
+                              </td>
                             </tr>
                           ))}
                         </tbody>
@@ -2589,7 +2723,6 @@ function FuncionariosPageContent() {
                   </div>
                 </div>
               </div> */}
-
             </div>
           )}
         </div>
@@ -2780,7 +2913,9 @@ function FuncionariosPageContent() {
                     {filtroSispat.length === 0
                       ? "Todos"
                       : filtroSispat.length === 1
-                      ? (filtroSispat[0] === "COM" ? "Com" : "Sem")
+                      ? filtroSispat[0] === "COM"
+                        ? "Com"
+                        : "Sem"
                       : `${filtroSispat.length} selecionados`}
                   </span>
                   <svg
@@ -2887,13 +3022,17 @@ function FuncionariosPageContent() {
                                 ]);
                               } else {
                                 setFiltroStatusRemanejamento(
-                                  filtroStatusRemanejamento.filter((s) => s !== status)
+                                  filtroStatusRemanejamento.filter(
+                                    (s) => s !== status
+                                  )
                                 );
                               }
                             }}
                             className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                           />
-                          <span className="text-sm text-gray-700">{status}</span>
+                          <span className="text-sm text-gray-700">
+                            {status}
+                          </span>
                         </label>
                       ))}
                     </div>
@@ -3040,7 +3179,9 @@ function FuncionariosPageContent() {
                 <input
                   type="date"
                   value={filtroDataSolicitacaoInicio}
-                  onChange={(e) => setFiltroDataSolicitacaoInicio(e.target.value)}
+                  onChange={(e) =>
+                    setFiltroDataSolicitacaoInicio(e.target.value)
+                  }
                   className="w-full px-3 py-2 text-sm border-slate-800 bg-slate-100 text-slate-500 rounded-md shadow-sm focus:border-slate-300 focus:ring-slate-300"
                   placeholder="Início"
                 />
@@ -3129,25 +3270,55 @@ function FuncionariosPageContent() {
                       onClick={() => alterarOrdenacao("nome")}
                       className="flex items-center space-x-1 hover:text-blue-600 transition-colors"
                     >
-                      <span className="px-2 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Nome</span>
+                      <span className="px-2 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                        Nome
+                      </span>
                       {ordenacao.campo === "nome" && (
-                        <span className="text-blue-600">{ordenacao.direcao === "asc" ? "↑" : "↓"}</span>
+                        <span className="text-blue-600">
+                          {ordenacao.direcao === "asc" ? "↑" : "↓"}
+                        </span>
                       )}
                     </button>
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Matrícula</th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Sispat</th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">ID Solicitação</th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Contrato Origem</th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Contrato Destino</th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Status Remanejamento</th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Data Solicitação</th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Data Conclusão</th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Ação Necessária</th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Responsável</th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Progresso Setores</th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Progresso</th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Detalhes</th>
+                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                    Matrícula
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                    Sispat
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                    ID Solicitação
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                    Contrato Origem
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                    Contrato Destino
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                    Status Remanejamento
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                    Data Solicitação
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                    Data Conclusão
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                    Ação Necessária
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                    Responsável
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                    Progresso Setores
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                    Progresso
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                    Detalhes
+                  </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -3160,21 +3331,37 @@ function FuncionariosPageContent() {
                     title={getTooltipMessage(funcionario)}
                   >
                     <td className="px-3 py-2 text-xs text-gray-900">
-                      <div className="font-medium text-xs">{funcionario.nome}</div>
+                      <div className="font-medium text-xs">
+                        {funcionario.nome}
+                      </div>
                     </td>
-                    <td className="px-3 py-2 text-xs text-gray-600">{funcionario.matricula}</td>
-                    <td className="px-3 py-2 text-xs text-gray-600">{funcionario.sispat ?? "-"}</td>
-                    <td className="px-3 py-2 text-xs text-gray-700">
-                      <span className="font-mono">{funcionario.solicitacaoId}</span>
+                    <td className="px-3 py-2 text-xs text-gray-600">
+                      {funcionario.matricula}
                     </td>
-                    <td className="px-3 py-2 text-xs text-gray-700">
-                      <span className="font-mono">{funcionario.contratoOrigem}</span>
-                    </td>
-                    <td className="px-3 py-2 text-xs text-gray-700">
-                      <span className="font-mono">{funcionario.contratoDestino}</span>
+                    <td className="px-3 py-2 text-xs text-gray-600">
+                      {funcionario.sispat ?? "-"}
                     </td>
                     <td className="px-3 py-2 text-xs text-gray-700">
-                      <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${getRemanejamentoStatusColor(getRemanejamentoStatus(funcionario))}`}>
+                      <span className="font-mono">
+                        {funcionario.solicitacaoId}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-xs text-gray-700">
+                      <span className="font-mono">
+                        {funcionario.contratoOrigem}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-xs text-gray-700">
+                      <span className="font-mono">
+                        {funcionario.contratoDestino}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-xs text-gray-700">
+                      <span
+                        className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${getRemanejamentoStatusColor(
+                          getRemanejamentoStatus(funcionario)
+                        )}`}
+                      >
                         {getRemanejamentoStatus(funcionario)}
                       </span>
                     </td>
@@ -3205,7 +3392,9 @@ function FuncionariosPageContent() {
                     <td className="px-3 py-2 text-xs text-gray-700">
                       <div className="space-y-1">
                         {["RH", "MEDICINA", "TREINAMENTO"].map((setor) => {
-                          const progresso = funcionario.progressoPorSetor?.find((p) => p.setor === setor);
+                          const progresso = funcionario.progressoPorSetor?.find(
+                            (p) => p.setor === setor
+                          );
                           const hasData = !!progresso && progresso.total > 0;
                           const nomeSetor =
                             setor === "RH"
@@ -3219,26 +3408,46 @@ function FuncionariosPageContent() {
                               className="flex items-center justify-between py-0.5"
                               title={
                                 hasData
-                                  ? `${nomeSetor}: ${progresso!.concluidas}/${progresso!.total} (${progresso!.percentual}%)\n\nLegenda:\n● Verde: Concluído\n● Amarelo: Em progresso\n● Cinza: Pendente`
+                                  ? `${nomeSetor}: ${progresso!.concluidas}/${
+                                      progresso!.total
+                                    } (${
+                                      progresso!.percentual
+                                    }%)\n\nLegenda:\n● Verde: Concluído\n● Amarelo: Em progresso\n● Cinza: Pendente`
                                   : `${nomeSetor}: Sem tarefas\n\nLegenda:\n● Verde: Concluído\n● Amarelo: Em progresso\n● Cinza: Pendente`
                               }
                             >
                               <div className="flex items-center space-x-1">
-                                <span className="text-xs">{getSetorIcon(setor)}</span>
-                                <span className="text-xs font-medium text-gray-700">{nomeSetor}</span>
+                                <span className="text-xs">
+                                  {getSetorIcon(setor)}
+                                </span>
+                                <span className="text-xs font-medium text-gray-700">
+                                  {nomeSetor}
+                                </span>
                               </div>
                               <div className="flex items-center space-x-1">
                                 <span className="text-xs font-mono text-gray-600 bg-gray-100 px-1 rounded">
-                                  {hasData ? `${progresso!.concluidas}/${progresso!.total}` : "0/0"}
+                                  {hasData
+                                    ? `${progresso!.concluidas}/${
+                                        progresso!.total
+                                      }`
+                                    : "0/0"}
                                 </span>
                                 <span
                                   className={`text-sm ${
                                     hasData
-                                      ? getProgressColor(progresso!.concluidas, progresso!.total)
+                                      ? getProgressColor(
+                                          progresso!.concluidas,
+                                          progresso!.total
+                                        )
                                       : "text-gray-300"
                                   }`}
                                 >
-                                  {hasData ? getProgressIcon(progresso!.concluidas, progresso!.total) : "●"}
+                                  {hasData
+                                    ? getProgressIcon(
+                                        progresso!.concluidas,
+                                        progresso!.total
+                                      )
+                                    : "●"}
                                 </span>
                               </div>
                             </div>
@@ -3248,16 +3457,27 @@ function FuncionariosPageContent() {
                     </td>
                     <td className="px-3 py-2 text-xs text-gray-700">
                       <div className="flex items-center space-x-2">
-                        <span className="font-medium">{getProgressoDisplay(funcionario)}%</span>
+                        <span className="font-medium">
+                          {getProgressoDisplay(funcionario)}%
+                        </span>
                         <div className="w-24 h-2 bg-gray-200 rounded overflow-hidden">
-                          <div className="h-2 bg-blue-500" style={{ width: `${getProgressoDisplay(funcionario)}%` }}></div>
+                          <div
+                            className="h-2 bg-blue-500"
+                            style={{
+                              width: `${getProgressoDisplay(funcionario)}%`,
+                            }}
+                          ></div>
                         </div>
                       </div>
                     </td>
                     <td className="px-3 py-2 text-xs text-gray-700">
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={() => router.push(`/prestserv/remanejamentos/${funcionario.id}`)}
+                          onClick={() =>
+                            router.push(
+                              `/prestserv/remanejamentos/${funcionario.id}`
+                            )
+                          }
                           className="px-2 py-1 text-[11px] bg-blue-600 text-white rounded hover:bg-blue-700"
                         >
                           Detalhes
@@ -3362,7 +3582,8 @@ function FuncionariosPageContent() {
                           if (
                             i === 1 ||
                             i === totalPaginas ||
-                            (i >= paginaAtual - delta && i <= paginaAtual + delta)
+                            (i >= paginaAtual - delta &&
+                              i <= paginaAtual + delta)
                           ) {
                             range.push(i);
                           }
@@ -3381,7 +3602,7 @@ function FuncionariosPageContent() {
                         }
 
                         return result;
-                      })().map((item, idx) => (
+                      })().map((item, idx) =>
                         typeof item === "string" ? (
                           <span
                             key={`ellipsis-${idx}`}
@@ -3403,7 +3624,7 @@ function FuncionariosPageContent() {
                             {item}
                           </button>
                         )
-                      ))}
+                      )}
 
                       <button
                         onClick={() =>
@@ -3457,13 +3678,17 @@ function FuncionariosPageContent() {
                   <tr>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-800 uppercase tracking-wider">
                       <button
-                        onClick={() => alterarOrdenacaoSolicitacoes("solicitacaoId")}
+                        onClick={() =>
+                          alterarOrdenacaoSolicitacoes("solicitacaoId")
+                        }
                         className="flex items-center space-x-1 hover:text-blue-600 transition-colors"
                       >
                         <span>Solicitação</span>
                         {ordenacaoSolicitacoes.campo === "solicitacaoId" && (
                           <span className="text-blue-600">
-                            {ordenacaoSolicitacoes.direcao === "asc" ? "↑" : "↓"}
+                            {ordenacaoSolicitacoes.direcao === "asc"
+                              ? "↑"
+                              : "↓"}
                           </span>
                         )}
                       </button>
@@ -3479,26 +3704,34 @@ function FuncionariosPageContent() {
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-800 uppercase tracking-wider">
                       <button
-                        onClick={() => alterarOrdenacaoSolicitacoes("dataSolicitacao")}
+                        onClick={() =>
+                          alterarOrdenacaoSolicitacoes("dataSolicitacao")
+                        }
                         className="flex items-center space-x-1 hover:text-blue-600 transition-colors"
                       >
                         <span>Data</span>
                         {ordenacaoSolicitacoes.campo === "dataSolicitacao" && (
                           <span className="text-blue-600">
-                            {ordenacaoSolicitacoes.direcao === "asc" ? "↑" : "↓"}
+                            {ordenacaoSolicitacoes.direcao === "asc"
+                              ? "↑"
+                              : "↓"}
                           </span>
                         )}
                       </button>
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-800 uppercase tracking-wider">
                       <button
-                        onClick={() => alterarOrdenacaoSolicitacoes("createdAt")}
+                        onClick={() =>
+                          alterarOrdenacaoSolicitacoes("createdAt")
+                        }
                         className="flex items-center space-x-1 hover:text-blue-600 transition-colors"
                       >
                         <span>Criado</span>
                         {ordenacaoSolicitacoes.campo === "createdAt" && (
                           <span className="text-blue-600">
-                            {ordenacaoSolicitacoes.direcao === "asc" ? "↑" : "↓"}
+                            {ordenacaoSolicitacoes.direcao === "asc"
+                              ? "↑"
+                              : "↓"}
                           </span>
                         )}
                       </button>
@@ -3511,9 +3744,10 @@ function FuncionariosPageContent() {
                       const resumo = getFuncionariosResumo(
                         solicitacao.funcionarios
                       );
-                      const statusSolicitacao = getSolicitacaoStatusFromFuncionarios(
-                        solicitacao.funcionarios
-                      );
+                      const statusSolicitacao =
+                        getSolicitacaoStatusFromFuncionarios(
+                          solicitacao.funcionarios
+                        );
                       const isExpanded = expandedRows.has(
                         solicitacao.solicitacaoId
                       );
@@ -3597,34 +3831,77 @@ function FuncionariosPageContent() {
                                 >
                                   {statusSolicitacao}
                                 </span>
-                                  <div className="space-y-1">
-                                    <div className="flex items-center space-x-2">
-                                      <button
-                                        type="button"
-                                        onClick={() => handleChipClick(solicitacao.solicitacaoId, "Pendente")}
-                                        title={`Pendentes: ${resumo.pendentes} (${resumo.total > 0 ? Math.round((resumo.pendentes / resumo.total) * 100) : 0}%)`}
-                                        className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium rounded bg-amber-100 text-amber-700 hover:bg-amber-200"
-                                      >
-                                        P {resumo.pendentes}
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleChipClick(solicitacao.solicitacaoId, "Em andamento")}
-                                        title={`Em andamento: ${resumo.emAndamento} (${resumo.total > 0 ? Math.round((resumo.emAndamento / resumo.total) * 100) : 0}%)`}
-                                        className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium rounded bg-sky-100 text-sky-700 hover:bg-sky-200"
-                                      >
-                                        A {resumo.emAndamento}
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleChipClick(solicitacao.solicitacaoId, "Concluído")}
-                                        title={`Concluídos: ${resumo.concluidos} (${resumo.total > 0 ? Math.round((resumo.concluidos / resumo.total) * 100) : 0}%)`}
-                                        className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium rounded bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
-                                      >
-                                        C {resumo.concluidos}
-                                      </button>
-                                    </div>
+                                <div className="space-y-1">
+                                  <div className="flex items-center space-x-2">
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        handleChipClick(
+                                          solicitacao.solicitacaoId,
+                                          "Pendente"
+                                        )
+                                      }
+                                      title={`Pendentes: ${resumo.pendentes} (${
+                                        resumo.total > 0
+                                          ? Math.round(
+                                              (resumo.pendentes /
+                                                resumo.total) *
+                                                100
+                                            )
+                                          : 0
+                                      }%)`}
+                                      className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium rounded bg-amber-100 text-amber-700 hover:bg-amber-200"
+                                    >
+                                      P {resumo.pendentes}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        handleChipClick(
+                                          solicitacao.solicitacaoId,
+                                          "Em andamento"
+                                        )
+                                      }
+                                      title={`Em andamento: ${
+                                        resumo.emAndamento
+                                      } (${
+                                        resumo.total > 0
+                                          ? Math.round(
+                                              (resumo.emAndamento /
+                                                resumo.total) *
+                                                100
+                                            )
+                                          : 0
+                                      }%)`}
+                                      className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium rounded bg-sky-100 text-sky-700 hover:bg-sky-200"
+                                    >
+                                      A {resumo.emAndamento}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        handleChipClick(
+                                          solicitacao.solicitacaoId,
+                                          "Concluído"
+                                        )
+                                      }
+                                      title={`Concluídos: ${
+                                        resumo.concluidos
+                                      } (${
+                                        resumo.total > 0
+                                          ? Math.round(
+                                              (resumo.concluidos /
+                                                resumo.total) *
+                                                100
+                                            )
+                                          : 0
+                                      }%)`}
+                                      className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium rounded bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+                                    >
+                                      C {resumo.concluidos}
+                                    </button>
                                   </div>
+                                </div>
                               </div>
                             </td>
                             <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -3639,17 +3916,22 @@ function FuncionariosPageContent() {
                             <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
                               {formatDate(solicitacao.createdAtGroup)}
                             </td>
-                            
                           </tr>
 
                           {/* Linhas Expandidas */}
                           {isExpanded &&
                             (expandedFilters[solicitacao.solicitacaoId]
-                              ? solicitacao.funcionarios.filter((f: FuncionarioTableData) => {
-                                  const filtro = expandedFilters[solicitacao.solicitacaoId];
-                                  if (filtro === "Concluído") return isConclusaoDefinitiva(f);
-                                  return getRemanejamentoStatus(f) === filtro;
-                                })
+                              ? solicitacao.funcionarios.filter(
+                                  (f: FuncionarioTableData) => {
+                                    const filtro =
+                                      expandedFilters[
+                                        solicitacao.solicitacaoId
+                                      ];
+                                    if (filtro === "Concluído")
+                                      return isConclusaoDefinitiva(f);
+                                    return getRemanejamentoStatus(f) === filtro;
+                                  }
+                                )
                               : solicitacao.funcionarios
                             ).map(
                               (
@@ -3662,37 +3944,76 @@ function FuncionariosPageContent() {
                                 >
                                   <td className="px-4 py-3 pl-8 text-xs text-gray-600">
                                     <div className="space-y-1">
-                                      <div className="font-medium text-gray-900">{funcionario.nome}</div>
-                                      <div className="text-[11px] text-gray-600">
-                                        Matrícula: <span className="font-mono">{funcionario.matricula}</span>
+                                      <div className="font-medium text-gray-900">
+                                        {funcionario.nome}
                                       </div>
                                       <div className="text-[11px] text-gray-600">
-                                        Sispat: <span className="font-mono">{funcionario.sispat ?? "-"}</span>
+                                        Matrícula:{" "}
+                                        <span className="font-mono">
+                                          {funcionario.matricula}
+                                        </span>
+                                      </div>
+                                      <div className="text-[11px] text-gray-600">
+                                        Sispat:{" "}
+                                        <span className="font-mono">
+                                          {funcionario.sispat ?? "-"}
+                                        </span>
                                       </div>
                                     </div>
                                   </td>
                                   <td className="px-4 py-3 text-xs text-gray-700">
                                     <div className="space-y-1">
-                                      <div className="text-[11px]"><span className="font-medium">De:</span> {funcionario.contratoOrigem}</div>
-                                      <div className="text-[11px]"><span className="font-medium">Para:</span> {funcionario.contratoDestino}</div>
+                                      <div className="text-[11px]">
+                                        <span className="font-medium">De:</span>{" "}
+                                        {funcionario.contratoOrigem}
+                                      </div>
+                                      <div className="text-[11px]">
+                                        <span className="font-medium">
+                                          Para:
+                                        </span>{" "}
+                                        {funcionario.contratoDestino}
+                                      </div>
                                     </div>
                                   </td>
                                   <td className="px-4 py-3 text-xs text-gray-700">
-                                    <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${getRemanejamentoStatusColor(getRemanejamentoStatus(funcionario))}`}>
+                                    <span
+                                      className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${getRemanejamentoStatusColor(
+                                        getRemanejamentoStatus(funcionario)
+                                      )}`}
+                                    >
                                       {getRemanejamentoStatus(funcionario)}
                                     </span>
                                   </td>
                                   <td className="px-4 py-3 text-xs text-gray-700">
                                     <div className="space-y-1">
-                                      <div className="text-[11px]">Solicitação: {formatDateOrDash(funcionario.dataSolicitacao)}</div>
-                                      <div className="text-[11px]">Conclusão: {formatDateOrDash(getDataEncerramento(funcionario))}</div>
+                                      <div className="text-[11px]">
+                                        Solicitação:{" "}
+                                        {formatDateOrDash(
+                                          funcionario.dataSolicitacao
+                                        )}
+                                      </div>
+                                      <div className="text-[11px]">
+                                        Conclusão:{" "}
+                                        {formatDateOrDash(
+                                          getDataEncerramento(funcionario)
+                                        )}
+                                      </div>
                                     </div>
                                   </td>
                                   <td className="px-4 py-3 text-xs text-gray-700">
                                     <div className="flex items-center space-x-2">
-                                      <span className="font-medium">{getProgressoDisplay(funcionario)}%</span>
+                                      <span className="font-medium">
+                                        {getProgressoDisplay(funcionario)}%
+                                      </span>
                                       <div className="w-20 h-2 bg-gray-200 rounded overflow-hidden">
-                                        <div className="h-2 bg-blue-500" style={{ width: `${getProgressoDisplay(funcionario)}%` }}></div>
+                                        <div
+                                          className="h-2 bg-blue-500"
+                                          style={{
+                                            width: `${getProgressoDisplay(
+                                              funcionario
+                                            )}%`,
+                                          }}
+                                        ></div>
                                       </div>
                                     </div>
                                   </td>
@@ -3716,27 +4037,36 @@ function FuncionariosPageContent() {
                       Mostrando
                       <span className="font-medium ml-1">
                         {Math.min(
-                          (paginaAtualSolicitacoes - 1) * itensPorPaginaSolicitacoes + 1,
+                          (paginaAtualSolicitacoes - 1) *
+                            itensPorPaginaSolicitacoes +
+                            1,
                           totalSolicitacoesAgrupadas
                         )}
-                      </span>
-                      {" "}até{" "}
+                      </span>{" "}
+                      até{" "}
                       <span className="font-medium">
                         {Math.min(
                           paginaAtualSolicitacoes * itensPorPaginaSolicitacoes,
                           totalSolicitacoesAgrupadas
                         )}
-                      </span>
-                      {" "}de{" "}
+                      </span>{" "}
+                      de{" "}
                       <span className="font-medium">
                         {totalSolicitacoesAgrupadas}
                       </span>{" "}
                       solicitações
                     </span>
                   </div>
-                  <nav className="inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+                  <nav
+                    className="inline-flex -space-x-px rounded-md shadow-sm"
+                    aria-label="Pagination"
+                  >
                     <button
-                      onClick={() => setPaginaAtualSolicitacoes((prev) => Math.max(prev - 1, 1))}
+                      onClick={() =>
+                        setPaginaAtualSolicitacoes((prev) =>
+                          Math.max(prev - 1, 1)
+                        )
+                      }
                       disabled={paginaAtualSolicitacoes === 1}
                       className="relative inline-flex items-center px-2 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-l-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
@@ -3744,7 +4074,12 @@ function FuncionariosPageContent() {
                       <ChevronLeftIcon className="h-5 w-5" aria-hidden="true" />
                     </button>
                     {Array.from(
-                      { length: Math.ceil(totalSolicitacoesAgrupadas / itensPorPaginaSolicitacoes) },
+                      {
+                        length: Math.ceil(
+                          totalSolicitacoesAgrupadas /
+                            itensPorPaginaSolicitacoes
+                        ),
+                      },
                       (_, i) => i + 1
                     ).map((numeroPagina) => {
                       const totalPaginas = Math.ceil(
@@ -3759,7 +4094,9 @@ function FuncionariosPageContent() {
                         return (
                           <button
                             key={numeroPagina}
-                            onClick={() => setPaginaAtualSolicitacoes(numeroPagina)}
+                            onClick={() =>
+                              setPaginaAtualSolicitacoes(numeroPagina)
+                            }
                             className={`relative inline-flex items-center px-4 py-2 text-sm font-medium border ${
                               numeroPagina === paginaAtualSolicitacoes
                                 ? "bg-blue-50 border-blue-500 text-blue-600"
@@ -3789,18 +4126,27 @@ function FuncionariosPageContent() {
                         setPaginaAtualSolicitacoes((prev) =>
                           Math.min(
                             prev + 1,
-                            Math.ceil(totalSolicitacoesAgrupadas / itensPorPaginaSolicitacoes)
+                            Math.ceil(
+                              totalSolicitacoesAgrupadas /
+                                itensPorPaginaSolicitacoes
+                            )
                           )
                         )
                       }
                       disabled={
                         paginaAtualSolicitacoes >=
-                        Math.ceil(totalSolicitacoesAgrupadas / itensPorPaginaSolicitacoes)
+                        Math.ceil(
+                          totalSolicitacoesAgrupadas /
+                            itensPorPaginaSolicitacoes
+                        )
                       }
                       className="relative inline-flex items-center px-2 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-r-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <span className="sr-only">Próximo</span>
-                      <ChevronRightIcon className="h-5 w-5" aria-hidden="true" />
+                      <ChevronRightIcon
+                        className="h-5 w-5"
+                        aria-hidden="true"
+                      />
                     </button>
                   </nav>
                 </div>
@@ -3980,11 +4326,15 @@ function FuncionariosPageContent() {
       <ListaTarefasModal
         isOpen={showListaTarefasModal}
         onClose={fecharListaTarefas}
-        funcionario={funcionarioSelecionadoTarefas ? {
-          id: funcionarioSelecionadoTarefas.id,
-          nome: funcionarioSelecionadoTarefas.nome,
-          matricula: funcionarioSelecionadoTarefas.matricula
-        } : null}
+        funcionario={
+          funcionarioSelecionadoTarefas
+            ? {
+                id: funcionarioSelecionadoTarefas.id,
+                nome: funcionarioSelecionadoTarefas.nome,
+                matricula: funcionarioSelecionadoTarefas.matricula,
+              }
+            : null
+        }
         statusPrestserv={funcionarioSelecionadoTarefas?.statusPrestserv}
         onTarefaReprovada={handleTarefaReprovada}
       />

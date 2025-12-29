@@ -82,151 +82,160 @@ export default function Sidebar() {
     });
   };
 
-  const allSections = useMemo(() => ([
-    {
-      key: "planejamento",
-      label: "Planejamento",
-      icon: LayoutDashboard,
-       items: [
-        // { label: "Dashboard", h
-        // ref: "/prestserv/dashboard" },
-        //{ label: "Minhas Solicitações de Remanejamento", href: "/prestserv/remanejamentos/tabela" },
-        // { label: "Criar Solicitação", href: "/prestserv/remanejamentos/novo" },
-        {
-          label: "Solicitações de Remanejamento",
-          href: "/prestserv/funcionarios/planejamento",
-        },
-        {
-          label: "Lista de Funcionários",
-          href: "/prestserv/funcionarios-por-contrato",
-        },
-        // BI removido do Planejamento
-        // { label: "Visualizar Funcionários por Centro de Custo (Folha)", href: "/planejamento/funcionarios" },
-      ],
-      permission: "canAccessPlanejamento",
-    },
-    {
-      key: "relatorios",
-      label: "Relatórios",
-      icon: BarChart3,
-      items: [
-        { label: "Concluídos", href: "/sla/relatorio?tab=dias&hideTabs=true" },
-        { label: "Todos", href: "/sla/relatorio?tab=dias_all&hideTabs=true" },
-        { label: "Capacitações", href: "/relatorios/capacitacoes" },
-      ],
-      permission: "canAccessLogistica",
-    },
-    {
-      key: "prestserv",
-      label: "Logística",
-      icon: Boxes,
-      items: [
-        // { label: "Dashboard", href: "/prestserv/dashboard" },
-        {
-          label: "Solicitações de Remanejamento",
-          href: "/prestserv/funcionarios",
-        },
+  const allSections = useMemo(
+    () => [
+      {
+        key: "planejamento",
+        label: "Planejamento",
+        icon: LayoutDashboard,
+        items: [
+          // { label: "Dashboard", h
+          // ref: "/prestserv/dashboard" },
+          //{ label: "Minhas Solicitações de Remanejamento", href: "/prestserv/remanejamentos/tabela" },
+          // { label: "Criar Solicitação", href: "/prestserv/remanejamentos/novo" },
+          {
+            label: "Solicitações de Remanejamento",
+            href: "/prestserv/funcionarios/planejamento",
+          },
+          {
+            label: "Lista de Funcionários",
+            href: "/prestserv/funcionarios-por-contrato",
+          },
+          // BI removido do Planejamento
+          // { label: "Visualizar Funcionários por Centro de Custo (Folha)", href: "/planejamento/funcionarios" },
+        ],
+        permission: "canAccessPlanejamento",
+      },
+      {
+        key: "relatorios",
+        label: "Relatórios",
+        icon: BarChart3,
+        items: [
+          {
+            label: "Concluídos",
+            href: "/sla/relatorio?tab=dias&hideTabs=true",
+          },
+          { label: "Todos", href: "/sla/relatorio?tab=dias_all&hideTabs=true" },
+          { label: "Capacitações", href: "/relatorios/capacitacoes" },
+        ],
+        permission: "canAccessLogistica",
+      },
+      {
+        key: "prestserv",
+        label: "Logística",
+        icon: Boxes,
+        items: [
+          // { label: "Dashboard", href: "/prestserv/dashboard" },
+          {
+            label: "Solicitações de Remanejamento",
+            href: "/prestserv/funcionarios",
+          },
 
-        //{ label: "Criar Solicitação", href: "/prestserv/remanejamentos/novo" },
+          //{ label: "Criar Solicitação", href: "/prestserv/remanejamentos/novo" },
 
-        // {
-        //   label: "Visualizar Funcionários por Centro de Custo (Folha)",
-        //   href: "/prestserv/funcionarios-por-contrato",
-        // },
-        { label: "Tarefas dos Setores", href: "/tarefas" },
-        {
-          label: "Lista de Funcionários",
-          href: "/prestserv/funcionarios-por-contrato",
-        },
-        {
-          label: "Demitidos",
-          href: "/funcionarios/demitidos",
-        },
-        {
-          label: "upload peoplelog",
-          href: "/uptime",
-        },
-        {
-          label: "Sincronizar Lista de Funcionários",
-          href: "/funcionarios",
-        },
-        // {
-        //   label: "Upload do Downtime",
-        //   href: "/downtime",
-        // },
-        // {
-        //   label: "Upload de Período",
-        //   href: "/periodo",
-        // },
-        // {
-        //   label: "Business Intelligence",
-        //   href: "/prestserv/bi",
-        // },
-        {
-          label: "Matriz de Treinamento",
-          href: "/matriz-treinamento/contratos",
-        },
-        // {
-        //   label: "Matriz de Status",
-        //   href: "/prestserv/funcionarios/matriz-status",
-        // },
-      ],
-      permission: "canAccessPrestServ",
-    },
-    {
-      key: "rh",
-      label: "Recursos Humanos",
-      icon: Users,
-      items: [{ label: "Minhas Tarefas", href: "/tarefas?setor=rh" }],
-      permission: "canAccessRH",
-    },
-    {
-      key: "treinamento",
-      label: "Treinamento",
-      icon: GraduationCap,
-      items: [
-        { label: "Minhas Tarefas", href: "/tarefas?setor=treinamento" },
-        { label: "Matriz de Treinamento", href: "/matriz-treinamento/contratos" },
-        { label: "Cadastrar Treinamentos", href: "/treinamentos" },
-      ],
-      permission: "canAccessTreinamento",
-    },
-    {
-      key: "medicina",
-      label: "Medicina",
-      icon: Stethoscope,
-      items: [
-        // { label: "Geral", href: "/medicina/geral" },
-        // { label: "Segurança", href: "/medicina/seguranca" },
-        { label: "Minhas Tarefas", href: "/tarefas?setor=medicina" },
-      ],
-      permission: "canAccessMedicina",
-    },
-    // {
-    //   key: "logistica",
-    //   label: "Logística",
-    //   icon: Boxes,
-    //   items: [
-    //     { label: "Minhas Tarefas", href: "/tarefas/logistica" },
-    //   ],
-    //   permission: "canAccessLogistica",
-    // },
-    {
-      key: "administracao",
-      label: "Administração",
-      icon: Shield,
-      items: [
-        { label: "Gerenciar Usuários", href: "/admin/usuarios" },
-        { label: "Gerenciar Equipes", href: "/admin/equipes" },
-        { label: "Gerenciar Tarefas Padrão", href: "/admin/tarefas-padrao" },
-        { label: "Sincronizar Lista de Funcionários", href: "/funcionarios" },
-        { label: "Criar Contratos", href: "/planejamento/contratos" },
-        { label: "Gerenciar Status", href: "/status" },
-        //{ label: "Centros de Custo - Projetos", href: "/centros-custo-projetos" },
-      ],
-      permission: PERMISSIONS.ACCESS_ADMIN,
-    },
-  ]), []);
+          // {
+          //   label: "Visualizar Funcionários por Centro de Custo (Folha)",
+          //   href: "/prestserv/funcionarios-por-contrato",
+          // },
+          { label: "Tarefas dos Setores", href: "/tarefas" },
+          {
+            label: "Lista de Funcionários",
+            href: "/prestserv/funcionarios-por-contrato",
+          },
+          {
+            label: "Demitidos",
+            href: "/funcionarios/demitidos",
+          },
+          {
+            label: "upload peoplelog",
+            href: "/uptime",
+          },
+          {
+            label: "Sincronizar Lista de Funcionários",
+            href: "/funcionarios",
+          },
+          // {
+          //   label: "Upload do Downtime",
+          //   href: "/downtime",
+          // },
+          // {
+          //   label: "Upload de Período",
+          //   href: "/periodo",
+          // },
+          // {
+          //   label: "Business Intelligence",
+          //   href: "/prestserv/bi",
+          // },
+          {
+            label: "Matriz de Treinamento",
+            href: "/matriz-treinamento/contratos",
+          },
+          // {
+          //   label: "Matriz de Status",
+          //   href: "/prestserv/funcionarios/matriz-status",
+          // },
+        ],
+        permission: "canAccessPrestServ",
+      },
+      {
+        key: "rh",
+        label: "Recursos Humanos",
+        icon: Users,
+        items: [{ label: "Minhas Tarefas", href: "/tarefas?setor=rh" }],
+        permission: "canAccessRH",
+      },
+      {
+        key: "treinamento",
+        label: "Treinamento",
+        icon: GraduationCap,
+        items: [
+          { label: "Minhas Tarefas", href: "/tarefas?setor=treinamento" },
+          {
+            label: "Matriz de Treinamento",
+            href: "/matriz-treinamento/contratos",
+          },
+          { label: "Cadastrar Treinamentos", href: "/treinamentos" },
+        ],
+        permission: "canAccessTreinamento",
+      },
+      {
+        key: "medicina",
+        label: "Medicina",
+        icon: Stethoscope,
+        items: [
+          // { label: "Geral", href: "/medicina/geral" },
+          // { label: "Segurança", href: "/medicina/seguranca" },
+          { label: "Minhas Tarefas", href: "/tarefas?setor=medicina" },
+        ],
+        permission: "canAccessMedicina",
+      },
+      // {
+      //   key: "logistica",
+      //   label: "Logística",
+      //   icon: Boxes,
+      //   items: [
+      //     { label: "Minhas Tarefas", href: "/tarefas/logistica" },
+      //   ],
+      //   permission: "canAccessLogistica",
+      // },
+      {
+        key: "administracao",
+        label: "Administração",
+        icon: Shield,
+        items: [
+          { label: "Gerenciar Usuários", href: "/admin/usuarios" },
+          { label: "Gerenciar Equipes", href: "/admin/equipes" },
+          { label: "Gerenciar Tarefas Padrão", href: "/admin/tarefas-padrao" },
+          { label: "Sincronizar Lista de Funcionários", href: "/funcionarios" },
+          { label: "Criar Contratos", href: "/planejamento/contratos" },
+          { label: "Gerenciar Status", href: "/status" },
+          //{ label: "Centros de Custo - Projetos", href: "/centros-custo-projetos" },
+        ],
+        permission: PERMISSIONS.ACCESS_ADMIN,
+      },
+    ],
+    []
+  );
 
   // Verificar se o usuário tem acesso total (admin)
   const isAdmin = hasFullAccess(usuario?.permissoes || []);
@@ -236,31 +245,69 @@ export default function Sidebar() {
     ? allSections
     : allSections.filter((section) => {
         if (!usuario) return false;
-        return permissions.hasPermission(section.permission);
+
+        switch (section.key) {
+          case "planejamento":
+            return (
+              permissions.hasPermission(PERMISSIONS.ACCESS_PLANEJAMENTO) ||
+              permissions.hasPermission(
+                PERMISSIONS.ACCESS_PLANEJAMENTO_GESTOR
+              ) ||
+              permissions.hasPermission(
+                PERMISSIONS.ACCESS_PLANEJAMENTO_VISUALIZADOR
+              )
+            );
+          case "prestserv": // Logística e PrestServ
+            return (
+              permissions.hasPermission(PERMISSIONS.ACCESS_PREST_SERV) ||
+              permissions.hasPermission(PERMISSIONS.ACCESS_PREST_SERV_GESTOR) ||
+              permissions.hasPermission(
+                PERMISSIONS.ACCESS_PREST_SERV_VISUALIZADOR
+              ) ||
+              permissions.hasPermission(PERMISSIONS.ACCESS_LOGISTICA) ||
+              permissions.hasPermission(PERMISSIONS.ACCESS_LOGISTICA_GESTOR) ||
+              permissions.hasPermission(
+                PERMISSIONS.ACCESS_LOGISTICA_VISUALIZADOR
+              )
+            );
+          case "rh":
+            return (
+              permissions.hasPermission(PERMISSIONS.ACCESS_RH) ||
+              permissions.hasPermission(PERMISSIONS.ACCESS_RH_GESTOR) ||
+              permissions.hasPermission(PERMISSIONS.ACCESS_RH_VISUALIZADOR)
+            );
+          case "treinamento":
+            return (
+              permissions.hasPermission(PERMISSIONS.ACCESS_TREINAMENTO) ||
+              permissions.hasPermission(
+                PERMISSIONS.ACCESS_TREINAMENTO_GESTOR
+              ) ||
+              permissions.hasPermission(
+                PERMISSIONS.ACCESS_TREINAMENTO_VISUALIZADOR
+              )
+            );
+          case "medicina":
+            return (
+              permissions.hasPermission(PERMISSIONS.ACCESS_MEDICINA) ||
+              permissions.hasPermission(PERMISSIONS.ACCESS_MEDICINA_GESTOR) ||
+              permissions.hasPermission(
+                PERMISSIONS.ACCESS_MEDICINA_VISUALIZADOR
+              )
+            );
+          case "relatorios":
+            return (
+              permissions.hasPermission(PERMISSIONS.ACCESS_LOGISTICA) ||
+              permissions.hasPermission(PERMISSIONS.ACCESS_LOGISTICA_GESTOR) ||
+              permissions.hasPermission(
+                PERMISSIONS.ACCESS_LOGISTICA_VISUALIZADOR
+              )
+            );
+          default:
+            return permissions.hasPermission(section.permission);
+        }
       });
 
-  const filteredSections = useMemo(() => (
-    sections.map(section =>
-      section.key === "prestserv"
-        ? {
-            ...section,
-            items: section.items.filter(
-              (item) =>
-                item.href !== "/matriz-treinamento/contratos" &&
-                item.href !== "/funcionarios/demitidos"
-            ),
-          }
-        : section
-    )
-  ), [sections]);
-
-  // Fallback: se por algum motivo Planejamento não estiver presente, injeta no topo
-  const finalSections = useMemo(() => {
-    const hasPlanejamento = filteredSections.some((s) => s.key === "planejamento");
-    if (hasPlanejamento) return filteredSections;
-    const planejamento = allSections.find((s) => s.key === "planejamento");
-    return planejamento ? [planejamento, ...filteredSections] : filteredSections;
-  }, [filteredSections, allSections]);
+  const filteredSections = useMemo(() => sections, [sections]);
 
   // Não forçar abertura de nenhuma seção; respeitar interação do usuário
 
@@ -292,9 +339,15 @@ export default function Sidebar() {
           <button
             onClick={toggleCollapse}
             aria-label="Alternar barra lateral"
-            className={`p-1.5 hover:bg-gray-600/50 rounded-md transition-all duration-200 ${collapsed && !isHovered ? "mx-auto" : ""}`}
+            className={`p-1.5 hover:bg-gray-600/50 rounded-md transition-all duration-200 ${
+              collapsed && !isHovered ? "mx-auto" : ""
+            }`}
           >
-            {collapsed && !isHovered ? <ChevronRight size={14} className="text-gray-300" /> : <ChevronLeft size={14} className="text-gray-300" />}
+            {collapsed && !isHovered ? (
+              <ChevronRight size={14} className="text-gray-300" />
+            ) : (
+              <ChevronLeft size={14} className="text-gray-300" />
+            )}
           </button>
         </div>
 
@@ -333,7 +386,9 @@ export default function Sidebar() {
         <button
           onClick={toggleCollapse}
           aria-label="Alternar barra lateral"
-          className={`p-1.5 hover:bg-gray-600/50 rounded-md transition-all duration-200 hover:shadow-md border border-transparent hover:border-gray-500/30 ${collapsed && !isHovered ? "mx-auto" : ""}`}
+          className={`p-1.5 hover:bg-gray-600/50 rounded-md transition-all duration-200 hover:shadow-md border border-transparent hover:border-gray-500/30 ${
+            collapsed && !isHovered ? "mx-auto" : ""
+          }`}
         >
           {collapsed && !isHovered ? (
             <ChevronRight size={14} className="text-gray-300" />
@@ -345,12 +400,18 @@ export default function Sidebar() {
 
       {/* Navegação com scrollbar customizada mais fina */}
       <nav
-        className={`flex flex-col space-y-0.5 text-sm flex-1 overflow-y-auto custom-scrollbar ${collapsed && !isHovered ? "px-2 py-3" : "px-3 py-3"}`}
+        className={`flex flex-col space-y-0.5 text-sm flex-1 overflow-y-auto custom-scrollbar ${
+          collapsed && !isHovered ? "px-2 py-3" : "px-3 py-3"
+        }`}
       >
         {/* Página Inicial */}
         <Link
           href="/"
-          className={`hover:bg-gray-600/40 flex items-center rounded-lg transition-all duration-200 hover:shadow-lg group border border-transparent hover:border-gray-500/20 backdrop-blur-sm ${collapsed && !isHovered ? "gap-0 px-2 py-2 justify-center" : "gap-2.5 px-3 py-2"}`}
+          className={`hover:bg-gray-600/40 flex items-center rounded-lg transition-all duration-200 hover:shadow-lg group border border-transparent hover:border-gray-500/20 backdrop-blur-sm ${
+            collapsed && !isHovered
+              ? "gap-0 px-2 py-2 justify-center"
+              : "gap-2.5 px-3 py-2"
+          }`}
           title={collapsed && !isHovered ? "Página Inicial" : ""}
         >
           <Home
@@ -365,10 +426,12 @@ export default function Sidebar() {
         </Link>
 
         {/* Seções com submenu */}
-        {finalSections.map((section) => (
+        {filteredSections.map((section) => (
           <div key={section.key} className="space-y-0.5">
             <button
-              className={`flex items-center justify-between w-full hover:bg-gray-600/40 rounded-lg transition-all duration-200 hover:shadow-lg group border border-transparent hover:border-gray-500/20 backdrop-blur-sm ${collapsed && !isHovered ? "px-2 py-2" : "px-3 py-2"}`}
+              className={`flex items-center justify-between w-full hover:bg-gray-600/40 rounded-lg transition-all duration-200 hover:shadow-lg group border border-transparent hover:border-gray-500/20 backdrop-blur-sm ${
+                collapsed && !isHovered ? "px-2 py-2" : "px-3 py-2"
+              }`}
               onClick={() => {
                 handleToggle(section.key);
               }}
@@ -376,7 +439,11 @@ export default function Sidebar() {
               title={collapsed && !isHovered ? section.label : ""}
             >
               <span
-                className={`flex items-center ${collapsed && !isHovered ? "gap-0 justify-center w-full" : "gap-2.5"}`}
+                className={`flex items-center ${
+                  collapsed && !isHovered
+                    ? "gap-0 justify-center w-full"
+                    : "gap-2.5"
+                }`}
               >
                 <section.icon
                   size={16}
@@ -404,7 +471,11 @@ export default function Sidebar() {
 
             {/* Sub-itens com transição suave */}
             <div
-              className={`transition-all duration-300 ease-in-out overflow-hidden ${activeSection === section.key && !(collapsed && !isHovered) ? "max-h-96 opacity-100" : "max-h-0 opacity-0"}`}
+              className={`transition-all duration-300 ease-in-out overflow-hidden ${
+                activeSection === section.key && !(collapsed && !isHovered)
+                  ? "max-h-96 opacity-100"
+                  : "max-h-0 opacity-0"
+              }`}
             >
               <div className="ml-5 mt-0.5 flex flex-col space-y-0.5 border-l-2 border-gray-600/50 pl-3 relative">
                 {/* Linha decorativa */}

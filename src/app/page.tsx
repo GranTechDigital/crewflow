@@ -71,7 +71,13 @@ const setores: SetorCard[] = [
     color: "text-blue-700",
     bgColor: "bg-blue-50",
     borderColor: "border-blue-200 hover:border-blue-300",
-    equipes: ["Administração", "Planejamento"], // Administração e Planejamento
+    equipes: [
+      "Administração",
+      "Planejamento",
+      "Planejamento (Gestor)",
+      "Planejamento (Editor)",
+      "Planejamento (Visualizador)",
+    ], // Administração e Planejamento
     links: [
       {
         label: "Criar Solicitação",
@@ -93,7 +99,13 @@ const setores: SetorCard[] = [
     color: "text-green-700",
     bgColor: "bg-green-50",
     borderColor: "border-green-200 hover:border-green-300",
-    equipes: ["Administração", "Logística"], // Administração e Planejamento (prestserv)
+    equipes: [
+      "Administração",
+      "Logística",
+      "Logística (Gestor)",
+      "Logística (Editor)",
+      "Logística (Visualizador)",
+    ], // Administração e Planejamento (prestserv)
     links: [
       // { label: 'Dashboard', href: '/prestserv/dashboard' },
       {
@@ -124,7 +136,13 @@ const setores: SetorCard[] = [
     color: "text-red-700",
     bgColor: "bg-red-50",
     borderColor: "border-red-200 hover:border-red-300",
-    equipes: ["Administração", "Medicina"], // Administração e Medicina
+    equipes: [
+      "Administração",
+      "Medicina",
+      "Medicina (Gestor)",
+      "Medicina (Editor)",
+      "Medicina (Visualizador)",
+    ], // Administração e Medicina
     links: [{ label: "Minhas Tarefas", href: "/tarefas?setor=medicina" }],
   },
   {
@@ -135,7 +153,13 @@ const setores: SetorCard[] = [
     color: "text-purple-700",
     bgColor: "bg-purple-50",
     borderColor: "border-purple-200 hover:border-purple-300",
-    equipes: ["Administração", "RH"], // Administração e RH
+    equipes: [
+      "Administração",
+      "RH",
+      "RH (Gestor)",
+      "RH (Editor)",
+      "RH (Visualizador)",
+    ], // Administração e RH
     links: [{ label: "Minhas Tarefas", href: "/tarefas?setor=rh" }],
   },
   {
@@ -146,7 +170,13 @@ const setores: SetorCard[] = [
     color: "text-orange-700",
     bgColor: "bg-orange-50",
     borderColor: "border-orange-200 hover:border-orange-300",
-    equipes: ["Administração", "Treinamento"], // Administração e Treinamento
+    equipes: [
+      "Administração",
+      "Treinamento",
+      "Treinamento (Gestor)",
+      "Treinamento (Editor)",
+      "Treinamento (Visualizador)",
+    ], // Administração e Treinamento
     links: [
       { label: "Minhas Tarefas", href: "/tarefas?setor=treinamento" },
       { label: "Matriz de Treinamento", href: "/matriz-treinamento/contratos" },
@@ -164,8 +194,18 @@ const setores: SetorCard[] = [
     equipes: [
       "Administração",
       "Logística",
+      "Logística (Gestor)",
+      "Logística (Editor)",
+      "Logística (Visualizador)",
     ],
-    links: [{ label: "Dashboard", href: "/sla/relatorio" }],
+    links: [
+      {
+        label: "Concluídos",
+        href: "/sla/relatorio?tab=dias&hideTabs=true",
+      },
+      { label: "Todos", href: "/sla/relatorio?tab=dias_all&hideTabs=true" },
+      { label: "Capacitações", href: "/relatorios/capacitacoes" },
+    ],
   },
 ];
 
@@ -202,6 +242,18 @@ export default function HomePage() {
     (setor) => setor.key !== "planejamento"
   );
 
+  // Filtrar links baseado nas permissões (ex: ocultar "Criar Solicitação" para visualizadores)
+  const filterLinks = (
+    links: { label: string; href: string }[],
+    equipe: string
+  ) => {
+    // Se for visualizador, filtrar links de criação
+    if (equipe.includes("Visualizador")) {
+      return links.filter((link) => !link.label.includes("Criar Solicitação"));
+    }
+    return links;
+  };
+
   return (
     <div className="min-h-full bg-gray-50">
       {/* Cards dos Setores */}
@@ -222,6 +274,11 @@ export default function HomePage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {setoresAtualizados.map((setor) => {
               const IconComponent = setor.icon;
+              const filteredLinks = filterLinks(
+                setor.links,
+                usuario?.equipe || ""
+              );
+
               return (
                 <div
                   key={setor.key}
@@ -251,7 +308,7 @@ export default function HomePage() {
                   {/* Links do Card */}
                   <div className="px-4 py-3">
                     <div className="space-y-1">
-                      {setor.links.map((link, index) => (
+                      {filteredLinks.map((link, index) => (
                         <Link
                           key={index}
                           href={link.href}
