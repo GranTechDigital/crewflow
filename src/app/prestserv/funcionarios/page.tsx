@@ -2706,30 +2706,42 @@ function FuncionariosPageContent() {
                 }`}
               />
             </button>
-            <button
-              onClick={handleSincronizar}
-              className="inline-flex items-center px-4 py-2 text-sm font-bold text-white bg-green-600 border border-transparent rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={sincronizando}
-            >
-              {sincronizando ? (
-                <>
-                  <ArrowPathIcon className="w-4 h-4 mr-2 animate-spin" />
-                  Sincronizando...
-                </>
-              ) : (
-                <>
-                  <ArrowPathIcon className="w-4 h-4 mr-2" />
-                  Sincronizar Tarefas
-                </>
-              )}
-            </button>
-            <button
-              onClick={exportarParaExcel}
-              className="inline-flex items-center px-4 py-2 text-sm font-medium text-slate-600 border border-gray-300 rounded-md hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-2 shadow-sm transition-colors"
-            >
-              <DocumentArrowDownIcon className="w-4 h-4 mr-2" />
-              Exportar Excel
-            </button>
+            {hasAnyPermission([
+              PERMISSIONS.ADMIN,
+              PERMISSIONS.ACCESS_LOGISTICA,
+              PERMISSIONS.ACCESS_PREST_SERV,
+            ]) && (
+              <button
+                onClick={handleSincronizar}
+                className="inline-flex items-center px-4 py-2 text-sm font-bold text-white bg-green-600 border border-transparent rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={sincronizando}
+              >
+                {sincronizando ? (
+                  <>
+                    <ArrowPathIcon className="w-4 h-4 mr-2 animate-spin" />
+                    Sincronizando...
+                  </>
+                ) : (
+                  <>
+                    <ArrowPathIcon className="w-4 h-4 mr-2" />
+                    Sincronizar Tarefas
+                  </>
+                )}
+              </button>
+            )}
+            {hasAnyPermission([
+              PERMISSIONS.ADMIN,
+              PERMISSIONS.ACCESS_LOGISTICA,
+              PERMISSIONS.ACCESS_PREST_SERV,
+            ]) && (
+              <button
+                onClick={exportarParaExcel}
+                className="inline-flex items-center px-4 py-2 text-sm font-medium text-slate-600 border border-gray-300 rounded-md hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-2 shadow-sm transition-colors"
+              >
+                <DocumentArrowDownIcon className="w-4 h-4 mr-2" />
+                Exportar Excel
+              </button>
+            )}
             {hasAnyPermission([
               PERMISSIONS.ADMIN,
               PERMISSIONS.ACCESS_LOGISTICA,

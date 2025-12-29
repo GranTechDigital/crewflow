@@ -1915,13 +1915,19 @@ function FuncionariosPageContent() {
               }`}
             />
           </button>
-          <button
-            onClick={exportarParaExcel}
-            className="inline-flex items-center px-4 py-2 text-sm font-medium text-slate-600 border border-gray-300 rounded-md hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-2 shadow-sm transition-colors"
-          >
-            <DocumentArrowDownIcon className="w-4 h-4 mr-2" />
-            Exportar Excel
-          </button>
+          {hasAnyPermission([
+            PERMISSIONS.ADMIN,
+            PERMISSIONS.ACCESS_PLANEJAMENTO,
+            PERMISSIONS.ACCESS_PLANEJAMENTO_GESTOR,
+          ]) && (
+            <button
+              onClick={exportarParaExcel}
+              className="inline-flex items-center px-4 py-2 text-sm font-medium text-slate-600 border border-gray-300 rounded-md hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-2 shadow-sm transition-colors"
+            >
+              <DocumentArrowDownIcon className="w-4 h-4 mr-2" />
+              Exportar Excel
+            </button>
+          )}
           {hasAnyPermission([
             PERMISSIONS.ADMIN,
             PERMISSIONS.ACCESS_PLANEJAMENTO,
