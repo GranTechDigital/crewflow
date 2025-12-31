@@ -1,6 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import ProtectedRoute from '@/components/ProtectedRoute'
+import { usePermissions } from '@/app/hooks/useAuth'
+import { PERMISSIONS, ROUTE_PROTECTION } from '@/lib/permissions'
 
 type Funcionario = {
   id: number
@@ -22,7 +25,7 @@ type Funcionario = {
   excluidoEm: string | null
 }
 
-export default function PlanejamentoGeral() {
+function PlanejamentoGeralContent() {
   const [dados, setDados] = useState<Funcionario[]>([])
   const [loading, setLoading] = useState(false)
 
@@ -35,6 +38,8 @@ export default function PlanejamentoGeral() {
 
   const [sortColumn, setSortColumn] = useState<keyof Funcionario | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  const { hasPermission } = usePermissions()
+  const isEditor = hasPermission(PERMISSIONS.ACCESS_PLANEJAMENTO)
 
   const fetchDados = async () => {
     setLoading(true)
@@ -56,6 +61,7 @@ export default function PlanejamentoGeral() {
   }, [])
 
   const handleImport = async () => {
+    if (!isEditor) return
     setLoading(true)
     try {
       const res = await fetch('/api/dados/import', { method: 'POST' })
@@ -72,6 +78,7 @@ export default function PlanejamentoGeral() {
 
   const handleDelete = async () => {
     if (!confirm('Tem certeza que deseja excluir todos os dados?')) return
+    if (!isEditor) return
     setLoading(true)
     try {
       const res = await fetch('/api/dados/delete', { method: 'DELETE' })
@@ -87,6 +94,7 @@ export default function PlanejamentoGeral() {
   }
 
   const handleSincronizar = async () => {
+    if (!isEditor) return
     setSyncLoading(true)
     setSyncMsg(null)
     setSyncError(null)
@@ -159,27 +167,31 @@ export default function PlanejamentoGeral() {
       <h1 className="text-2xl font-bold mb-4">Planejamento Geral</h1>
 
       <div className="mb-4 flex flex-wrap gap-2 items-center">
-        <button
-          onClick={handleImport}
-          disabled={loading}
-          className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
-        >
-          Importar Dados
-        </button>
-        <button
-          onClick={handleDelete}
-          disabled={loading}
-          className="px-4 py-2 bg-red-600 text-white rounded disabled:opacity-50"
-        >
-          Excluir Todos
-        </button>
-        <button
-          onClick={handleSincronizar}
-          disabled={syncLoading}
-          className="px-4 py-2 bg-green-600 text-white rounded disabled:opacity-50"
-        >
-          {syncLoading ? 'Sincronizando...' : 'Sincronizar Funcionários'}
-        </button>
+        {isEditor && (
+          <>
+            <button
+              onClick={handleImport}
+              disabled={loading}
+              className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
+            >
+              Importar Dados
+            </button>
+            <button
+              onClick={handleDelete}
+              disabled={loading}
+              className="px-4 py-2 bg-red-600 text-white rounded disabled:opacity-50"
+            >
+              Excluir Todos
+            </button>
+            <button
+              onClick={handleSincronizar}
+              disabled={syncLoading}
+              className="px-4 py-2 bg-green-600 text-white rounded disabled:opacity-50"
+            >
+              {syncLoading ? 'Sincronizando...' : 'Sincronizar Funcionários'}
+            </button>
+          </>
+        )}
 
         <div className="ml-auto">
           <label className="mr-2">Linhas por página:</label>
@@ -285,5 +297,16 @@ export default function PlanejamentoGeral() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function PlanejamentoGeral() {
+  return (
+    <ProtectedRoute
+      requiredEquipe={ROUTE_PROTECTION.PLANEJAMENTO.requiredEquipe}
+      requiredPermissions={ROUTE_PROTECTION.PLANEJAMENTO.requiredPermissions}
+    >
+      <PlanejamentoGeralContent />
+    </ProtectedRoute>
   )
 }

@@ -5,6 +5,7 @@ import { Menu } from "@headlessui/react";
 import Link from "next/link";
 import Image from "next/image";
 import { useAuth } from "@/app/hooks/useAuth";
+import NotificationsDropdown from "./NotificationsDropdown";
 
 export default function Navbar() {
   const { usuario, logout } = useAuth();

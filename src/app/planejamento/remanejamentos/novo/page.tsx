@@ -3,6 +3,8 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/app/hooks/useAuth";
+import ProtectedRoute from "@/components/ProtectedRoute";
+import { ROUTE_PROTECTION, PERMISSIONS } from "@/lib/permissions";
 import {
   ArrowRightIcon,
   UserGroupIcon,
@@ -327,6 +329,10 @@ export default function NovoRemanejamentoPage() {
   }
 
   return (
+    <ProtectedRoute
+      requiredEquipe={ROUTE_PROTECTION.PLANEJAMENTO.requiredEquipe}
+      requiredPermissions={[PERMISSIONS.ADMIN, PERMISSIONS.ACCESS_PLANEJAMENTO]}
+    >
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-white shadow-sm border-b border-gray-200">
@@ -855,5 +861,6 @@ export default function NovoRemanejamentoPage() {
         </div>
       </div>
     </div>
+    </ProtectedRoute>
   );
 }

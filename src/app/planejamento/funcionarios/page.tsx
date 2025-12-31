@@ -6,6 +6,8 @@ import { getStatusColor } from '../../../utils/statusColors';
 import { InlineStatusBadges, BlockStatusBadges } from '../../../components/StatusBadges';
 import { CompactStatusLegend } from '../../../components/StatusLegend';
 import { useRouter } from 'next/navigation';
+import { usePermissions } from '@/app/hooks/useAuth';
+import { PERMISSIONS } from '@/lib/permissions';
 
 interface Funcionario {
   id: string;
@@ -40,6 +42,8 @@ export default function FuncionariosPage() {
   const [buscaFuncionario, setBuscaFuncionario] = useState('');
   const [funcoesExpandidas, setFuncoesExpandidas] = useState<Set<string>>(new Set());
   const router = useRouter();
+  const { hasPermission } = usePermissions();
+  const isEditor = hasPermission(PERMISSIONS.ACCESS_PLANEJAMENTO);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -240,13 +244,15 @@ export default function FuncionariosPage() {
       <div className="mb-8">
         <div className="flex items-center justify-between mb-2">
           <h1 className="text-3xl font-bold text-gray-900">Gestão de Funcionários</h1>
-          <button
-            onClick={() => router.push('/planejamento/remanejamentos/novo?returnTo=/planejamento/funcionarios')}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <ArrowsRightLeftIcon className="w-5 h-5" />
-            Remanejar Funcionários
-          </button>
+          {isEditor && (
+            <button
+              onClick={() => router.push('/planejamento/remanejamentos/novo?returnTo=/planejamento/funcionarios')}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <ArrowsRightLeftIcon className="w-5 h-5" />
+              Remanejar Funcionários
+            </button>
+          )}
         </div>
         <p className="text-gray-600">Gerencie funcionários por centro de custo</p>
       </div>

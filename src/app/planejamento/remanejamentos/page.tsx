@@ -2,6 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import ProtectedRoute from '@/components/ProtectedRoute';
+import { usePermissions } from '@/app/hooks/useAuth';
+import { PERMISSIONS, ROUTE_PROTECTION } from '@/lib/permissions';
 import {
   ClockIcon,
   CheckCircleIcon,
@@ -38,6 +41,8 @@ interface SolicitacaoCompleta extends Omit<Remanejamento, 'contratoOrigem' | 'co
 
 export default function RemanejamentosPage() {
   const router = useRouter();
+  const { hasPermission } = usePermissions();
+  const isEditor = hasPermission(PERMISSIONS.ACCESS_PLANEJAMENTO);
   const [solicitacoes, setSolicitacoes] = useState<SolicitacaoCompleta[]>([]);
   const [loading, setLoading] = useState(true);
   const [filtroStatus, setFiltroStatus] = useState<StatusRemanejamento | 'Todos'>('Todos');
@@ -193,6 +198,10 @@ export default function RemanejamentosPage() {
   }
 
   return (
+    <ProtectedRoute
+      requiredEquipe={ROUTE_PROTECTION.PLANEJAMENTO.requiredEquipe}
+      requiredPermissions={ROUTE_PROTECTION.PLANEJAMENTO.requiredPermissions}
+    >
     <div className="p-6 max-w-7xl mx-auto">
       <div className="mb-8">
         <div className="flex items-center justify-between">
@@ -200,13 +209,15 @@ export default function RemanejamentosPage() {
             <h1 className="text-3xl font-bold text-gray-900 mb-2">Solicitações de Remanejamento</h1>
             <p className="text-gray-600">Gerencie as solicitações de transferência de funcionários</p>
           </div>
-          <button
-            onClick={() => router.push('/planejamento/remanejamentos/novo?returnTo=/planejamento/remanejamentos')}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
-          >
-            <PlusIcon className="w-5 h-5" />
-            Nova Solicitação
-          </button>
+          {isEditor && (
+            <button
+              onClick={() => router.push('/planejamento/remanejamentos/novo?returnTo=/planejamento/remanejamentos')}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
+            >
+              <PlusIcon className="w-5 h-5" />
+              Nova Solicitação
+            </button>
+          )}
         </div>
       </div>
 
@@ -362,7 +373,7 @@ export default function RemanejamentosPage() {
                     Ver Detalhes
                   </button>
 
-                  {solicitacao.status === 'Pendente' && (
+                  {isEditor && solicitacao.status === 'Pendente' && (
                     <>
                       <button
                         onClick={() => atualizarStatus(solicitacao.id, 'Concluido')}
@@ -396,7 +407,7 @@ export default function RemanejamentosPage() {
                     </>
                   )}
 
-                  {solicitacao.status === 'Concluido' && (
+                  {isEditor && solicitacao.status === 'Concluido' && (
                     <>
                       <button
                         onClick={() => {
@@ -553,5 +564,6 @@ export default function RemanejamentosPage() {
         </div>
       )}
     </div>
+    </ProtectedRoute>
   );
 }

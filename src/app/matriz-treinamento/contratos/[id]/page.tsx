@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useRef } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { 
+import { useState, useEffect, useRef } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import {
   BuildingOfficeIcon,
   UsersIcon,
   AcademicCapIcon,
@@ -13,11 +13,11 @@ import {
   XMarkIcon,
   CheckIcon,
   ArrowDownTrayIcon,
-  ArrowUpTrayIcon
-} from '@heroicons/react/24/outline';
-import ProtectedRoute from '@/components/ProtectedRoute';
-import { ROUTE_PROTECTION } from '@/lib/permissions';
-import ModalTreinamentos from './modal-novo';
+  ArrowUpTrayIcon,
+} from "@heroicons/react/24/outline";
+import ProtectedRoute from "@/components/ProtectedRoute";
+import { ROUTE_PROTECTION } from "@/lib/permissions";
+import ModalTreinamentos from "./modal-novo";
 
 interface Contrato {
   id: number;
@@ -72,8 +72,10 @@ interface ApiResponse {
 
 export default function ContratoDetalhePage() {
   return (
-    <ProtectedRoute 
-      requiredPermissions={ROUTE_PROTECTION.MATRIZ_TREINAMENTO.requiredPermissions}
+    <ProtectedRoute
+      requiredPermissions={
+        ROUTE_PROTECTION.MATRIZ_TREINAMENTO.requiredPermissions
+      }
       requiredEquipe={ROUTE_PROTECTION.MATRIZ_TREINAMENTO.requiredEquipe}
     >
       <ContratoDetalheContent />
@@ -84,17 +86,29 @@ export default function ContratoDetalhePage() {
 function ContratoDetalheContent() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const contratoId = parseInt(params.id as string);
 
   const [contrato, setContrato] = useState<Contrato | null>(null);
   const [funcoes, setFuncoes] = useState<Funcao[]>([]);
-  const [todasFuncoes, setTodasFuncoes] = useState<{id: number, funcao: string, regime: string | null}[]>([]);
+  const [todasFuncoes, setTodasFuncoes] = useState<
+    { id: number; funcao: string; regime: string | null }[]
+  >([]);
   const [treinamentos, setTreinamentos] = useState<Treinamento[]>([]);
-  const [tiposObrigatoriedade, setTiposObrigatoriedade] = useState<TipoObrigatoriedade[]>([]);
+  const [tiposObrigatoriedade, setTiposObrigatoriedade] = useState<
+    TipoObrigatoriedade[]
+  >([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
+
+  useEffect(() => {
+    const search = searchParams.get("search");
+    if (search) {
+      setSearchTerm(search);
+    }
+  }, [searchParams]);
   const [expandedFuncao, setExpandedFuncao] = useState<number | null>(null);
-  
+
   // Modal states
   const [showModal, setShowModal] = useState(false);
   const [showAddFuncaoModal, setShowAddFuncaoModal] = useState(false);
@@ -102,48 +116,53 @@ function ContratoDetalheContent() {
   const [selectedFuncao, setSelectedFuncao] = useState<number | null>(null);
   const [funcoesSelecionadas, setFuncoesSelecionadas] = useState<number[]>([]);
   // Estados para filtros e busca
-  const [buscaFuncao, setBuscaFuncao] = useState('');
+  const [buscaFuncao, setBuscaFuncao] = useState("");
   // Estado para upload
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Estados auxiliares
-  const [savingObrigatoriedadeId, setSavingObrigatoriedadeId] = useState<number | null>(null);
-  const [buscaTreinamento, setBuscaTreinamento] = useState('');
-  const [filtroObrigatoriedade, setFiltroObrigatoriedade] = useState('');
-  const [filtroRegime, setFiltroRegime] = useState('');
-
-
+  const [savingObrigatoriedadeId, setSavingObrigatoriedadeId] = useState<
+    number | null
+  >(null);
+  const [buscaTreinamento, setBuscaTreinamento] = useState("");
+  const [filtroObrigatoriedade, setFiltroObrigatoriedade] = useState("");
+  const [filtroRegime, setFiltroRegime] = useState("");
 
   // Exportar XLSX V2 (funções nas linhas, treinamentos nas colunas)
   const handleExportV2 = async () => {
     try {
       if (!contratoId) return;
-      const res = await fetch(`/api/matriz-treinamento/contratos/${contratoId}/export-v2`, { cache: 'no-store' });
+      const res = await fetch(
+        `/api/matriz-treinamento/contratos/${contratoId}/export-v2`,
+        { cache: "no-store" }
+      );
       if (!res.ok) {
         const text = await res.text();
-        throw new Error(text || 'Falha ao exportar XLSX V2');
+        throw new Error(text || "Falha ao exportar XLSX V2");
       }
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
+      const a = document.createElement("a");
       a.href = url;
-      const nomeContrato = contrato?.nome ? contrato.nome.replace(/[^a-zA-Z0-9-_ ]/g, '') : `contrato-${contratoId}`;
+      const nomeContrato = contrato?.nome
+        ? contrato.nome.replace(/[^a-zA-Z0-9-_ ]/g, "")
+        : `contrato-${contratoId}`;
       a.download = `matriz_treinamento_${nomeContrato}_v2.xlsx`;
       document.body.appendChild(a);
       a.click();
       a.remove();
       window.URL.revokeObjectURL(url);
     } catch (err) {
-      console.error('Erro ao exportar XLSX V2:', err);
-      alert(err instanceof Error ? err.message : 'Erro ao exportar XLSX V2');
+      console.error("Erro ao exportar XLSX V2:", err);
+      alert(err instanceof Error ? err.message : "Erro ao exportar XLSX V2");
     }
   };
 
   // Importar XLSX
   const triggerImportSelect = () => {
     if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+      fileInputRef.current.value = "";
       fileInputRef.current.click();
     }
   };
@@ -154,14 +173,17 @@ function ContratoDetalheContent() {
     try {
       setUploading(true);
       const formData = new FormData();
-      formData.append('file', file);
-      const res = await fetch(`/api/matriz-treinamento/contratos/${contratoId}/import`, {
-        method: 'POST',
-        body: formData,
-      });
+      formData.append("file", file);
+      const res = await fetch(
+        `/api/matriz-treinamento/contratos/${contratoId}/import`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
       const json = await res.json();
       if (!res.ok || !json.success) {
-        throw new Error(json.error || json.message || 'Falha ao importar XLSX');
+        throw new Error(json.error || json.message || "Falha ao importar XLSX");
       }
       const stats = json.stats || json.data?.stats || {};
       const criados = stats.criados ?? 0;
@@ -169,15 +191,17 @@ function ContratoDetalheContent() {
       const removidos = stats.removidos ?? 0;
       const ignorados = stats.ignorados ?? 0;
       const erros = stats.erros ?? 0;
-      const errosDetalhes: string[] = Array.isArray(json.errors) ? json.errors : [];
+      const errosDetalhes: string[] = Array.isArray(json.errors)
+        ? json.errors
+        : [];
 
-      console.log('Importação concluída. Estatísticas:', stats);
+      console.log("Importação concluída. Estatísticas:", stats);
       if (errosDetalhes.length) {
-        console.error('Erros na importação:', errosDetalhes);
+        console.error("Erros na importação:", errosDetalhes);
       }
 
       const linhasResumo: string[] = [
-        'Importação concluída:',
+        "Importação concluída:",
         `- Criados: ${criados}`,
         `- Atualizados: ${atualizados}`,
         `- Removidos: ${removidos}`,
@@ -187,9 +211,17 @@ function ContratoDetalheContent() {
 
       if (errosDetalhes.length) {
         const mostrados = errosDetalhes.slice(0, 20);
-        linhasResumo.push('', 'Alguns erros:', ...mostrados.map((msg, i) => `${i + 1}. ${msg}`));
+        linhasResumo.push(
+          "",
+          "Alguns erros:",
+          ...mostrados.map((msg, i) => `${i + 1}. ${msg}`)
+        );
         if (errosDetalhes.length > mostrados.length) {
-          linhasResumo.push(`... e mais ${errosDetalhes.length - mostrados.length} erro(s). Consulte o console para lista completa.`);
+          linhasResumo.push(
+            `... e mais ${
+              errosDetalhes.length - mostrados.length
+            } erro(s). Consulte o console para lista completa.`
+          );
         }
       }
 
@@ -199,42 +231,48 @@ function ContratoDetalheContent() {
           const bstr = atob(base64);
           const bytes = new Uint8Array(bstr.length);
           for (let i = 0; i < bstr.length; i++) bytes[i] = bstr.charCodeAt(i);
-          const blob = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+          const blob = new Blob([bytes], {
+            type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          });
           const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
+          const a = document.createElement("a");
           a.href = url;
-          a.download = json.reportFilename || `resultado_import_contrato_${contratoId}.xlsx`;
+          a.download =
+            json.reportFilename ||
+            `resultado_import_contrato_${contratoId}.xlsx`;
           document.body.appendChild(a);
           a.click();
           a.remove();
           window.URL.revokeObjectURL(url);
         } catch (e) {
-          console.warn('Falha ao montar download do relatório via base64:', e);
+          console.warn("Falha ao montar download do relatório via base64:", e);
         }
       } else if (json.reportUrl) {
         try {
           const url = json.reportUrl as string;
-          const a = document.createElement('a');
+          const a = document.createElement("a");
           a.href = url;
-          a.download = json.reportFilename || `resultado_import_contrato_${contratoId}.xlsx`;
+          a.download =
+            json.reportFilename ||
+            `resultado_import_contrato_${contratoId}.xlsx`;
           document.body.appendChild(a);
           a.click();
           a.remove();
         } catch (e) {
-          console.warn('Falha ao iniciar download do relatório:', e);
+          console.warn("Falha ao iniciar download do relatório:", e);
         }
       } else {
         // Fallback: mostrar resumo se não houver relatório
-        alert(linhasResumo.join('\n'));
+        alert(linhasResumo.join("\n"));
       }
       await fetchContratoDetalhes();
     } catch (err) {
-      console.error('Erro ao importar XLSX:', err);
-      alert(err instanceof Error ? err.message : 'Erro ao importar XLSX');
+      console.error("Erro ao importar XLSX:", err);
+      alert(err instanceof Error ? err.message : "Erro ao importar XLSX");
     } finally {
       setUploading(false);
       if (fileInputRef.current) {
-        fileInputRef.current.value = '';
+        fileInputRef.current.value = "";
       }
     }
   };
@@ -249,11 +287,14 @@ function ContratoDetalheContent() {
 
   const fetchContratoDetalhes = async () => {
     try {
-      const response = await fetch(`/api/matriz-treinamento/contratos/${contratoId}`, { cache: 'no-store' });
+      const response = await fetch(
+        `/api/matriz-treinamento/contratos/${contratoId}`,
+        { cache: "no-store" }
+      );
       const data: ApiResponse = await response.json();
       if (!data.success) {
-        console.error('Erro ao buscar detalhes do contrato:', data.error);
-        alert(data.error || 'Erro ao buscar detalhes do contrato');
+        console.error("Erro ao buscar detalhes do contrato:", data.error);
+        alert(data.error || "Erro ao buscar detalhes do contrato");
         setLoading(false);
         return;
       }
@@ -263,8 +304,8 @@ function ContratoDetalheContent() {
       setTreinamentos(data.filters?.treinamentos || []);
       setLoading(false);
     } catch (error) {
-      console.error('Erro ao buscar detalhes do contrato:', error);
-      alert('Erro ao buscar detalhes do contrato');
+      console.error("Erro ao buscar detalhes do contrato:", error);
+      alert("Erro ao buscar detalhes do contrato");
       setLoading(false);
     }
   };
@@ -272,7 +313,9 @@ function ContratoDetalheContent() {
   const fetchTodasFuncoes = async () => {
     try {
       // Buscar TODAS as funções (paginada), sem filtrar por ativo
-      const response = await fetch('/api/funcoes?page=1&limit=10000', { cache: 'no-store' });
+      const response = await fetch("/api/funcoes?page=1&limit=10000", {
+        cache: "no-store",
+      });
       // Clonar resposta para inspeção de texto bruto em caso de formato inesperado
       const responseClone = response.clone();
       let rawText: string | null = null;
@@ -286,7 +329,14 @@ function ContratoDetalheContent() {
       try {
         data = await response.json();
       } catch (parseErr) {
-        console.error('Falha ao parsear JSON de /api/funcoes:', parseErr, '| status:', response.status, '| body:', rawText?.slice(0, 500));
+        console.error(
+          "Falha ao parsear JSON de /api/funcoes:",
+          parseErr,
+          "| status:",
+          response.status,
+          "| body:",
+          rawText?.slice(0, 500)
+        );
         setTodasFuncoes([]);
         return;
       }
@@ -300,39 +350,52 @@ function ContratoDetalheContent() {
       } else if (data && Array.isArray(data.funcoes)) {
         funcoesLista = data.funcoes;
       } else {
-        console.error('Resposta inesperada ao buscar funções:', data, '| status:', response.status, '| body:', rawText?.slice(0, 500));
+        console.error(
+          "Resposta inesperada ao buscar funções:",
+          data,
+          "| status:",
+          response.status,
+          "| body:",
+          rawText?.slice(0, 500)
+        );
         setTodasFuncoes([]);
         return;
       }
 
-      console.log('[Funcoes/ALL] total:', funcoesLista.length);
+      console.log("[Funcoes/ALL] total:", funcoesLista.length);
       setTodasFuncoes(funcoesLista);
     } catch (error) {
-      console.error('Erro ao buscar funções:', error);
+      console.error("Erro ao buscar funções:", error);
       setTodasFuncoes([]);
     }
   };
 
   // Definição duplicada de fetchContratoDetalhes removida para evitar conflitos.
 
-
   // Atualizar tipo de obrigatoriedade de um item da matriz
-  const handleChangeObrigatoriedade = async (matrizId: number, novoTipo: string) => {
+  const handleChangeObrigatoriedade = async (
+    matrizId: number,
+    novoTipo: string
+  ) => {
     try {
       setSavingObrigatoriedadeId(matrizId);
       const resp = await fetch(`/api/matriz-treinamento/${matrizId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tipoObrigatoriedade: novoTipo })
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tipoObrigatoriedade: novoTipo }),
       });
       const result = await resp.json();
       if (!resp.ok || !result.success) {
-        throw new Error(result.message || 'Erro ao atualizar obrigatoriedade');
+        throw new Error(result.message || "Erro ao atualizar obrigatoriedade");
       }
       await fetchContratoDetalhes();
     } catch (err) {
-      console.error('Falha ao atualizar obrigatoriedade:', err);
-      alert(err instanceof Error ? err.message : 'Falha ao atualizar obrigatoriedade');
+      console.error("Falha ao atualizar obrigatoriedade:", err);
+      alert(
+        err instanceof Error
+          ? err.message
+          : "Falha ao atualizar obrigatoriedade"
+      );
     } finally {
       setSavingObrigatoriedadeId(null);
     }
@@ -352,8 +415,8 @@ function ContratoDetalheContent() {
     setShowAddFuncaoModal(false);
     setFuncoesSelecionadas([]);
     setModalLoading(false);
-    setBuscaFuncao('');
-    setFiltroRegime('');
+    setBuscaFuncao("");
+    setFiltroRegime("");
   };
 
   // Função para confirmar seleção de funções
@@ -361,28 +424,31 @@ function ContratoDetalheContent() {
     if (funcoesSelecionadas.length === 0) return;
 
     try {
-      const funcoesNovas = funcoesSelecionadas.filter(id => 
-        !funcoes.some(f => f.id === id)
+      const funcoesNovas = funcoesSelecionadas.filter(
+        (id) => !funcoes.some((f) => f.id === id)
       );
 
-      let mensagem = '';
+      let mensagem = "";
 
       // Se há funções novas para adicionar
       if (funcoesNovas.length > 0) {
-        const response = await fetch(`/api/matriz-treinamento/contratos/${contrato?.id}/funcoes`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            funcaoIds: funcoesNovas
-          }),
-        });
+        const response = await fetch(
+          `/api/matriz-treinamento/contratos/${contrato?.id}/funcoes`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              funcaoIds: funcoesNovas,
+            }),
+          }
+        );
 
         const data = await response.json();
 
         if (!response.ok) {
-          throw new Error(data.error || 'Erro ao adicionar funções');
+          throw new Error(data.error || "Erro ao adicionar funções");
         }
 
         mensagem += `${data.data.adicionadas} função(ões) adicionada(s). `;
@@ -390,24 +456,27 @@ function ContratoDetalheContent() {
 
       // Se há funções existentes para remover
       const funcoesParaRemover = funcoes
-        .filter(f => !funcoesSelecionadas.includes(f.id))
-        .map(f => f.id);
+        .filter((f) => !funcoesSelecionadas.includes(f.id))
+        .map((f) => f.id);
 
       if (funcoesParaRemover.length > 0) {
-        const response = await fetch(`/api/matriz-treinamento/contratos/${contrato?.id}/funcoes`, {
-          method: 'DELETE',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            funcaoIds: funcoesParaRemover
-          }),
-        });
+        const response = await fetch(
+          `/api/matriz-treinamento/contratos/${contrato?.id}/funcoes`,
+          {
+            method: "DELETE",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              funcaoIds: funcoesParaRemover,
+            }),
+          }
+        );
 
         const data = await response.json();
 
         if (!response.ok) {
-          throw new Error(data.error || 'Erro ao remover funções');
+          throw new Error(data.error || "Erro ao remover funções");
         }
 
         mensagem += `${data.data.removidas} função(ões) removida(s). `;
@@ -415,16 +484,18 @@ function ContratoDetalheContent() {
 
       // Recarregar dados
       await fetchContratoDetalhes();
-      
+
       // Fechar modal
       closeFuncaoModal();
 
       // Mostrar mensagem de sucesso
-      alert(mensagem || 'Funções atualizadas com sucesso!');
-
+      alert(mensagem || "Funções atualizadas com sucesso!");
     } catch (error) {
-      console.error('Erro ao confirmar seleção:', error);
-      alert('Erro ao salvar alterações: ' + (error instanceof Error ? error.message : 'Erro desconhecido'));
+      console.error("Erro ao confirmar seleção:", error);
+      alert(
+        "Erro ao salvar alterações: " +
+          (error instanceof Error ? error.message : "Erro desconhecido")
+      );
     }
   };
 
@@ -432,49 +503,58 @@ function ContratoDetalheContent() {
   const openFuncaoModal = () => {
     setShowAddFuncaoModal(true);
     // Carregar funções que já estão na matriz
-    const funcoesExistentes = funcoes.map(f => f.id);
+    const funcoesExistentes = funcoes.map((f) => f.id);
     setFuncoesSelecionadas(funcoesExistentes);
   };
 
-  const handleSubmit = async (treinamentosSelecionados: number[], tipoObrigatoriedadeGlobal: string) => {
-    if (!selectedFuncao || treinamentosSelecionados.length === 0 || !tipoObrigatoriedadeGlobal) {
-      alert('Por favor, preencha todos os campos obrigatórios');
+  const handleSubmit = async (
+    treinamentosSelecionados: number[],
+    tipoObrigatoriedadeGlobal: string
+  ) => {
+    if (
+      !selectedFuncao ||
+      treinamentosSelecionados.length === 0 ||
+      !tipoObrigatoriedadeGlobal
+    ) {
+      alert("Por favor, preencha todos os campos obrigatórios");
       return;
     }
 
     try {
       setModalLoading(true);
-      
+
       // Criar múltiplos treinamentos
-      const promises = treinamentosSelecionados.map(treinamentoId => 
-        fetch('/api/matriz-treinamento', {
-          method: 'POST',
+      const promises = treinamentosSelecionados.map((treinamentoId) =>
+        fetch("/api/matriz-treinamento", {
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({
             contratoId,
             funcaoId: selectedFuncao,
             treinamentoId,
-            tipoObrigatoriedade: tipoObrigatoriedadeGlobal
+            tipoObrigatoriedade: tipoObrigatoriedadeGlobal,
           }),
         })
       );
 
       const responses = await Promise.all(promises);
-      const results = await Promise.all(responses.map(r => r.json()));
-      
-      const errors = results.filter(r => !r.success);
+      const results = await Promise.all(responses.map((r) => r.json()));
+
+      const errors = results.filter((r) => !r.success);
       if (errors.length > 0) {
         alert(`Erro ao adicionar ${errors.length} treinamento(s)`);
       } else {
-        alert(`${treinamentosSelecionados.length} treinamento(s) adicionado(s) com sucesso!`);
+        alert(
+          `${treinamentosSelecionados.length} treinamento(s) adicionado(s) com sucesso!`
+        );
         await fetchContratoDetalhes();
         closeModal();
       }
     } catch (error) {
-      console.error('Erro ao adicionar treinamentos:', error);
-      alert('Erro ao adicionar treinamentos');
+      console.error("Erro ao adicionar treinamentos:", error);
+      alert("Erro ao adicionar treinamentos");
     } finally {
       setModalLoading(false);
     }
@@ -483,10 +563,10 @@ function ContratoDetalheContent() {
   // Função para alternar seleção de função
   const handleFuncaoToggle = (funcaoId: string) => {
     const funcaoIdNum = parseInt(funcaoId);
-    setFuncoesSelecionadas(prev => {
+    setFuncoesSelecionadas((prev) => {
       if (prev.includes(funcaoIdNum)) {
         // Remove a função e seus treinamentos
-        return prev.filter(id => id !== funcaoIdNum);
+        return prev.filter((id) => id !== funcaoIdNum);
       } else {
         // Adiciona a função
         return [...prev, funcaoIdNum];
@@ -495,68 +575,82 @@ function ContratoDetalheContent() {
   };
 
   const handleRemoveTreinamento = async (matrizId: number) => {
-    if (!confirm('Tem certeza que deseja remover este treinamento?')) return;
+    if (!confirm("Tem certeza que deseja remover este treinamento?")) return;
 
     try {
       const response = await fetch(`/api/matriz-treinamento/${matrizId}`, {
-        method: 'DELETE',
+        method: "DELETE",
       });
 
       const data = await response.json();
-      
+
       if (data.success) {
         await fetchContratoDetalhes();
       } else {
-        alert(data.error || 'Erro ao remover treinamento');
+        alert(data.error || "Erro ao remover treinamento");
       }
     } catch (error) {
-      console.error('Erro ao remover treinamento:', error);
-      alert('Erro ao remover treinamento');
+      console.error("Erro ao remover treinamento:", error);
+      alert("Erro ao remover treinamento");
     }
   };
 
   const handleRemoveFuncao = async (funcaoId: number) => {
     if (!contrato?.id) return;
-    if (!confirm('Tem certeza que deseja excluir esta função e todos os seus treinamentos?')) return;
+    if (
+      !confirm(
+        "Tem certeza que deseja excluir esta função e todos os seus treinamentos?"
+      )
+    )
+      return;
 
     try {
-      const response = await fetch(`/api/matriz-treinamento/contratos/${contrato.id}/funcoes`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ funcaoIds: [funcaoId] })
-      });
+      const response = await fetch(
+        `/api/matriz-treinamento/contratos/${contrato.id}/funcoes`,
+        {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ funcaoIds: [funcaoId] }),
+        }
+      );
 
       const data = await response.json();
-      
+
       if (data.success) {
         setExpandedFuncao(null);
         await fetchContratoDetalhes();
       } else {
-        alert(data.error || 'Erro ao remover função');
+        alert(data.error || "Erro ao remover função");
       }
     } catch (error) {
-      console.error('Erro ao remover função:', error);
-      alert('Erro ao remover função');
+      console.error("Erro ao remover função:", error);
+      alert("Erro ao remover função");
     }
   };
 
-  const filteredFuncoes = funcoes.filter(funcao =>
+  const filteredFuncoes = funcoes.filter((funcao) =>
     funcao.funcao.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const getTipoObrigatoriedadeLabel = (tipo: string) => {
-    const tipoObj = tiposObrigatoriedade.find(t => t.value === tipo);
+    const tipoObj = tiposObrigatoriedade.find((t) => t.value === tipo);
     return tipoObj ? `${tipo} - ${tipoObj.label}` : tipo;
   };
 
   const getTipoObrigatoriedadeColor = (tipo: string) => {
     switch (tipo) {
-      case 'RA': return 'bg-red-100 text-red-800';
-      case 'AP': return 'bg-blue-100 text-blue-800';
-      case 'C': return 'bg-yellow-100 text-yellow-800';
-      case 'SD': return 'bg-green-100 text-green-800';
-      case 'N/A': return 'bg-gray-100 text-gray-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case "RA":
+        return "bg-red-100 text-red-800";
+      case "AP":
+        return "bg-blue-100 text-blue-800";
+      case "C":
+        return "bg-yellow-100 text-yellow-800";
+      case "SD":
+        return "bg-green-100 text-green-800";
+      case "N/A":
+        return "bg-gray-100 text-gray-800";
+      default:
+        return "bg-gray-100 text-gray-800";
     }
   };
 
@@ -565,7 +659,9 @@ function ContratoDetalheContent() {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Carregando detalhes do contrato...</p>
+          <p className="mt-4 text-gray-600">
+            Carregando detalhes do contrato...
+          </p>
         </div>
       </div>
     );
@@ -576,8 +672,12 @@ function ContratoDetalheContent() {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <BuildingOfficeIcon className="mx-auto h-12 w-12 text-gray-400" />
-          <h3 className="mt-2 text-sm font-medium text-gray-900">Contrato não encontrado</h3>
-          <p className="mt-1 text-sm text-gray-500">O contrato solicitado não existe.</p>
+          <h3 className="mt-2 text-sm font-medium text-gray-900">
+            Contrato não encontrado
+          </h3>
+          <p className="mt-1 text-sm text-gray-500">
+            O contrato solicitado não existe.
+          </p>
         </div>
       </div>
     );
@@ -590,36 +690,55 @@ function ContratoDetalheContent() {
         <div className="mb-8">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <button onClick={() => router.back()} className="p-2 bg-white rounded-lg border hover:border-blue-300 shadow-sm">
+              <button
+                onClick={() => router.back()}
+                className="p-2 bg-white rounded-lg border hover:border-blue-300 shadow-sm"
+              >
                 <ChevronLeftIcon className="h-5 w-5 text-gray-700" />
               </button>
               <div className="p-3 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl shadow-lg">
                 <AcademicCapIcon className="h-8 w-8 text-white" />
               </div>
               <div>
-                <h1 className="text-3xl font-bold text-gray-900">Matriz do Contrato</h1>
-                <p className="text-sm text-gray-600">Gerencie treinamentos obrigatórios por função</p>
+                <h1 className="text-3xl font-bold text-gray-900">
+                  Matriz do Contrato
+                </h1>
+                <p className="text-sm text-gray-600">
+                  Gerencie treinamentos obrigatórios por função
+                </p>
                 {/* Contrato info: número e descrição (nome) */}
                 {contrato && (
                   <div className="mt-1 text-sm text-gray-700">
-                    <span className="font-medium">Contrato:</span> {contrato.numero}
-                    {contrato.nome ? (
-                      <span> — {contrato.nome}</span>
-                    ) : null}
+                    <span className="font-medium">Contrato:</span>{" "}
+                    {contrato.numero}
+                    {contrato.nome ? <span> — {contrato.nome}</span> : null}
                   </div>
                 )}
               </div>
             </div>
             <div className="flex items-center gap-3">
-                <button onClick={handleExportV2} className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg shadow hover:bg-blue-700">
+              <button
+                onClick={handleExportV2}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg shadow hover:bg-blue-700"
+              >
                 <ArrowDownTrayIcon className="h-5 w-5" />
                 Exportar Matriz
-                </button>
-                <button onClick={triggerImportSelect} disabled={uploading} className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg shadow hover:bg-green-700 disabled:opacity-50">
-                <ArrowUpTrayIcon className="h-5 w-5" />
-                {uploading ? 'Importando...' : 'Importar XLSX'}
               </button>
-              <input ref={fileInputRef} type="file" accept=".xlsx" className="hidden" onChange={handleImportChange} />
+              <button
+                onClick={triggerImportSelect}
+                disabled={uploading}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg shadow hover:bg-green-700 disabled:opacity-50"
+              >
+                <ArrowUpTrayIcon className="h-5 w-5" />
+                {uploading ? "Importando..." : "Importar XLSX"}
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".xlsx"
+                className="hidden"
+                onChange={handleImportChange}
+              />
             </div>
           </div>
         </div>
@@ -648,22 +767,38 @@ function ContratoDetalheContent() {
         {/* Funções */}
         <div className="space-y-4">
           {filteredFuncoes.map((funcao) => (
-            <div key={funcao.id} className="bg-white rounded-lg shadow-sm border border-gray-200">
-              <div 
+            <div
+              key={funcao.id}
+              className="bg-white rounded-lg shadow-sm border border-gray-200"
+            >
+              <div
                 className="p-6 cursor-pointer hover:bg-gray-50"
-                onClick={() => { setExpandedFuncao(expandedFuncao === funcao.id ? null : funcao.id); setBuscaTreinamento(''); setFiltroObrigatoriedade(''); }}
+                onClick={() => {
+                  setExpandedFuncao(
+                    expandedFuncao === funcao.id ? null : funcao.id
+                  );
+                  setBuscaTreinamento("");
+                  setFiltroObrigatoriedade("");
+                }}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
                     <UsersIcon className="h-6 w-6 text-blue-600" />
                     <div>
-                      <h3 className="font-semibold text-gray-900">{funcao.funcao}</h3>
+                      <h3 className="font-semibold text-gray-900">
+                        {funcao.funcao}
+                      </h3>
                       <p className="text-sm text-gray-500">{funcao.regime}</p>
                     </div>
                   </div>
                   <div className="flex items-center space-x-4">
                     <span className="text-sm text-gray-600">
-                      {funcao.matrizTreinamento.filter(item => item.treinamento !== null).length} treinamentos
+                      {
+                        funcao.matrizTreinamento.filter(
+                          (item) => item.treinamento !== null
+                        ).length
+                      }{" "}
+                      treinamentos
                     </span>
                     <button
                       onClick={(e) => {
@@ -711,7 +846,9 @@ function ContratoDetalheContent() {
                     >
                       <option value="">Todas</option>
                       {tiposObrigatoriedade.map((tipo) => (
-                        <option key={tipo.value} value={tipo.value}>{tipo.label}</option>
+                        <option key={tipo.value} value={tipo.value}>
+                          {tipo.label}
+                        </option>
                       ))}
                     </select>
                   </div>
@@ -721,33 +858,69 @@ function ContratoDetalheContent() {
                       <table className="min-w-full text-xs border-2 border-blue-900 rounded">
                         <thead className="bg-gray-100">
                           <tr>
-                            <th className="px-3 py-2 text-left font-medium text-gray-600">Treinamento</th>
-                            <th className="px-3 py-2 text-left font-medium text-gray-600">Carga Horária</th>
-                            <th className="px-3 py-2 text-left font-medium text-gray-600">Validade</th>
-                            <th className="px-3 py-2 text-left font-medium text-gray-600">Obrigatoriedade</th>
-                            <th className="px-3 py-2 text-right font-medium text-gray-600">Ações</th>
+                            <th className="px-3 py-2 text-left font-medium text-gray-600">
+                              Treinamento
+                            </th>
+                            <th className="px-3 py-2 text-left font-medium text-gray-600">
+                              Carga Horária
+                            </th>
+                            <th className="px-3 py-2 text-left font-medium text-gray-600">
+                              Validade
+                            </th>
+                            <th className="px-3 py-2 text-left font-medium text-gray-600">
+                              Obrigatoriedade
+                            </th>
+                            <th className="px-3 py-2 text-right font-medium text-gray-600">
+                              Ações
+                            </th>
                           </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
                           {funcao.matrizTreinamento
-                            .filter((item) => item.treinamento && item.treinamento.treinamento.toLowerCase().includes(buscaTreinamento.toLowerCase()) && (filtroObrigatoriedade === '' || item.tipoObrigatoriedade === filtroObrigatoriedade))
+                            .filter(
+                              (item) =>
+                                item.treinamento &&
+                                item.treinamento.treinamento
+                                  .toLowerCase()
+                                  .includes(buscaTreinamento.toLowerCase()) &&
+                                (filtroObrigatoriedade === "" ||
+                                  item.tipoObrigatoriedade ===
+                                    filtroObrigatoriedade)
+                            )
                             .map((item) => (
                               <tr key={item.id} className="hover:bg-gray-50">
                                 <td className="px-3 py-2">
-                                  <div className="font-medium text-gray-900 truncate max-w-[320px]">{item.treinamento!.treinamento}</div>
+                                  <div className="font-medium text-gray-900 truncate max-w-[320px]">
+                                    {item.treinamento!.treinamento}
+                                  </div>
                                 </td>
-                                <td className="px-3 py-2 text-gray-900">{item.treinamento!.cargaHoraria}h</td>
-                                <td className="px-3 py-2 text-gray-900">{item.treinamento!.validadeValor} {item.treinamento!.validadeUnidade}</td>
+                                <td className="px-3 py-2 text-gray-900">
+                                  {item.treinamento!.cargaHoraria}h
+                                </td>
+                                <td className="px-3 py-2 text-gray-900">
+                                  {item.treinamento!.validadeValor}{" "}
+                                  {item.treinamento!.validadeUnidade}
+                                </td>
                                 <td className="px-3 py-2">
                                   <select
                                     value={item.tipoObrigatoriedade}
-                                    onChange={(e) => handleChangeObrigatoriedade(item.id, e.target.value)}
-                                    disabled={savingObrigatoriedadeId === item.id}
+                                    onChange={(e) =>
+                                      handleChangeObrigatoriedade(
+                                        item.id,
+                                        e.target.value
+                                      )
+                                    }
+                                    disabled={
+                                      savingObrigatoriedadeId === item.id
+                                    }
                                     className="text-xs border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                     title="Editar obrigatoriedade"
                                   >
                                     {tiposObrigatoriedade.map((tipo) => (
-                                      <option key={tipo.value} value={tipo.value}>
+                                      <option
+                                        key={tipo.value}
+                                        value={tipo.value}
+                                      >
                                         {tipo.label}
                                       </option>
                                     ))}
@@ -755,7 +928,9 @@ function ContratoDetalheContent() {
                                 </td>
                                 <td className="px-3 py-2 text-right">
                                   <button
-                                    onClick={() => handleRemoveTreinamento(item.id)}
+                                    onClick={() =>
+                                      handleRemoveTreinamento(item.id)
+                                    }
                                     className="p-1 text-red-600 hover:bg-red-50 rounded"
                                     title="Remover treinamento"
                                   >
@@ -765,9 +940,23 @@ function ContratoDetalheContent() {
                               </tr>
                             ))}
 
-                          {funcao.matrizTreinamento.filter((item) => item.treinamento && item.treinamento.treinamento.toLowerCase().includes(buscaTreinamento.toLowerCase()) && (filtroObrigatoriedade === '' || item.tipoObrigatoriedade === filtroObrigatoriedade)).length === 0 && (
+                          {funcao.matrizTreinamento.filter(
+                            (item) =>
+                              item.treinamento &&
+                              item.treinamento.treinamento
+                                .toLowerCase()
+                                .includes(buscaTreinamento.toLowerCase()) &&
+                              (filtroObrigatoriedade === "" ||
+                                item.tipoObrigatoriedade ===
+                                  filtroObrigatoriedade)
+                          ).length === 0 && (
                             <tr>
-                              <td colSpan={5} className="px-3 py-3 text-center text-gray-500">Nenhum treinamento encontrado para este filtro</td>
+                              <td
+                                colSpan={5}
+                                className="px-3 py-3 text-center text-gray-500"
+                              >
+                                Nenhum treinamento encontrado para este filtro
+                              </td>
                             </tr>
                           )}
                         </tbody>
@@ -778,8 +967,12 @@ function ContratoDetalheContent() {
                       <div className="flex items-center space-x-3">
                         <AcademicCapIcon className="h-5 w-5 text-gray-300" />
                         <div>
-                          <h4 className="font-medium text-gray-500 italic">Função sem treinamento</h4>
-                          <p className="text-sm text-gray-400">Clique em [Adicionar Treinamento] para configurar</p>
+                          <h4 className="font-medium text-gray-500 italic">
+                            Função sem treinamento
+                          </h4>
+                          <p className="text-sm text-gray-400">
+                            Clique em [Adicionar Treinamento] para configurar
+                          </p>
                         </div>
                       </div>
                       <div className="flex items-center space-x-3">
@@ -808,9 +1001,13 @@ function ContratoDetalheContent() {
         {filteredFuncoes.length === 0 && (
           <div className="text-center py-12">
             <UsersIcon className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-2 text-sm font-medium text-gray-900">Nenhuma função encontrada</h3>
+            <h3 className="mt-2 text-sm font-medium text-gray-900">
+              Nenhuma função encontrada
+            </h3>
             <p className="mt-1 text-sm text-gray-500">
-              {searchTerm ? 'Tente ajustar os termos de busca.' : 'Não há funções cadastradas para este contrato.'}
+              {searchTerm
+                ? "Tente ajustar os termos de busca."
+                : "Não há funções cadastradas para este contrato."}
             </p>
           </div>
         )}
@@ -847,14 +1044,31 @@ function ContratoDetalheContent() {
                 {/* Painel Esquerdo - Funções Disponíveis */}
                 <div className="w-3/5 flex flex-col">
                   <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-medium text-gray-900 text-sm">Funções Disponíveis</h4>
+                    <h4 className="font-medium text-gray-900 text-sm">
+                      Funções Disponíveis
+                    </h4>
                     <div className="text-xs text-gray-500">
-                      {todasFuncoes.filter(funcao => {
-                        const searchTerm = buscaFuncao.toLowerCase();
-                        return funcao.funcao.toLowerCase().includes(searchTerm) ||
-                               (funcao.regime ?? '').toLowerCase().includes(searchTerm) ||
-                               funcao.id.toString().includes(searchTerm);
-                      }).filter(funcao => filtroRegime === '' || funcao.regime === filtroRegime).length} funções
+                      {
+                        todasFuncoes
+                          .filter((funcao) => {
+                            const searchTerm = buscaFuncao.toLowerCase();
+                            return (
+                              funcao.funcao
+                                .toLowerCase()
+                                .includes(searchTerm) ||
+                              (funcao.regime ?? "")
+                                .toLowerCase()
+                                .includes(searchTerm) ||
+                              funcao.id.toString().includes(searchTerm)
+                            );
+                          })
+                          .filter(
+                            (funcao) =>
+                              filtroRegime === "" ||
+                              funcao.regime === filtroRegime
+                          ).length
+                      }{" "}
+                      funções
                     </div>
                   </div>
 
@@ -875,8 +1089,12 @@ function ContratoDetalheContent() {
                       className="px-3 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     >
                       <option value="">Todos os regimes</option>
-                      {Array.from(new Set(todasFuncoes.map(f => f.regime))).map(regime => (
-                        <option key={String(regime)} value={String(regime)}>{String(regime)}</option>
+                      {Array.from(
+                        new Set(todasFuncoes.map((f) => f.regime))
+                      ).map((regime) => (
+                        <option key={String(regime)} value={String(regime)}>
+                          {String(regime)}
+                        </option>
                       ))}
                     </select>
                   </div>
@@ -885,32 +1103,48 @@ function ContratoDetalheContent() {
                   <div className="flex-1 overflow-y-auto">
                     <div className="space-y-1.5">
                       {todasFuncoes
-                        .filter(funcao => {
+                        .filter((funcao) => {
                           const searchTerm = buscaFuncao.toLowerCase();
-                          return funcao.funcao.toLowerCase().includes(searchTerm) ||
-                                 (funcao.regime ? funcao.regime.toLowerCase().includes(searchTerm) : false) ||
-                                 funcao.id.toString().includes(searchTerm);
+                          return (
+                            funcao.funcao.toLowerCase().includes(searchTerm) ||
+                            (funcao.regime
+                              ? funcao.regime.toLowerCase().includes(searchTerm)
+                              : false) ||
+                            funcao.id.toString().includes(searchTerm)
+                          );
                         })
-                        .filter(funcao => filtroRegime === '' || String(funcao.regime) === filtroRegime)
+                        .filter(
+                          (funcao) =>
+                            filtroRegime === "" ||
+                            String(funcao.regime) === filtroRegime
+                        )
                         .map((funcao) => {
-                          const jaExiste = funcoes.some(f => f.id === funcao.id);
+                          const jaExiste = funcoes.some(
+                            (f) => f.id === funcao.id
+                          );
                           return (
                             <div
                               key={funcao.id}
                               className={`p-2 border rounded cursor-pointer transition-all hover:shadow-sm ${
                                 funcoesSelecionadas.includes(funcao.id)
-                                  ? 'border-blue-500 bg-blue-50 shadow-sm'
+                                  ? "border-blue-500 bg-blue-50 shadow-sm"
                                   : jaExiste
-                                  ? 'border-green-500 bg-green-50'
-                                  : 'border-gray-200 hover:border-gray-300'
+                                  ? "border-green-500 bg-green-50"
+                                  : "border-gray-200 hover:border-gray-300"
                               }`}
-                              onClick={() => handleFuncaoToggle(funcao.id.toString())}
+                              onClick={() =>
+                                handleFuncaoToggle(funcao.id.toString())
+                              }
                             >
                               <div className="flex items-start space-x-2">
                                 <input
                                   type="checkbox"
-                                  checked={funcoesSelecionadas.includes(funcao.id)}
-                                  onChange={() => handleFuncaoToggle(funcao.id.toString())}
+                                  checked={funcoesSelecionadas.includes(
+                                    funcao.id
+                                  )}
+                                  onChange={() =>
+                                    handleFuncaoToggle(funcao.id.toString())
+                                  }
                                   className="h-3.5 w-3.5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mt-0.5"
                                 />
                                 <div className="flex-1 min-w-0">
@@ -923,9 +1157,11 @@ function ContratoDetalheContent() {
                                     )}
                                   </div>
                                   <div className="text-xs text-gray-500 mt-0.5 flex items-center gap-2">
-                                    <span>{funcao.regime ?? '—'}</span>
+                                    <span>{funcao.regime ?? "—"}</span>
                                     <span className="text-gray-400">•</span>
-                                    <span className="text-gray-600 font-mono">ID: {funcao.id}</span>
+                                    <span className="text-gray-600 font-mono">
+                                      ID: {funcao.id}
+                                    </span>
                                   </div>
                                 </div>
                               </div>
@@ -933,13 +1169,22 @@ function ContratoDetalheContent() {
                           );
                         })}
                     </div>
-                    
-                    {todasFuncoes.filter(funcao => {
-                      const searchTerm = buscaFuncao.toLowerCase();
-                      return funcao.funcao.toLowerCase().includes(searchTerm) ||
-                             (funcao.regime ?? '').toLowerCase().includes(searchTerm) ||
-                             funcao.id.toString().includes(searchTerm);
-                    }).filter(funcao => filtroRegime === '' || funcao.regime === filtroRegime).length === 0 && (
+
+                    {todasFuncoes
+                      .filter((funcao) => {
+                        const searchTerm = buscaFuncao.toLowerCase();
+                        return (
+                          funcao.funcao.toLowerCase().includes(searchTerm) ||
+                          (funcao.regime ?? "")
+                            .toLowerCase()
+                            .includes(searchTerm) ||
+                          funcao.id.toString().includes(searchTerm)
+                        );
+                      })
+                      .filter(
+                        (funcao) =>
+                          filtroRegime === "" || funcao.regime === filtroRegime
+                      ).length === 0 && (
                       <div className="text-center py-6 text-gray-500">
                         <UsersIcon className="h-10 w-10 mx-auto mb-2 text-gray-400" />
                         <p className="text-sm">Nenhuma função encontrada</p>
@@ -951,7 +1196,9 @@ function ContratoDetalheContent() {
                 {/* Painel Direito - Funções Selecionadas */}
                 <div className="w-2/5 flex flex-col border-l border-gray-200 pl-4">
                   <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-medium text-gray-900 text-sm">Selecionadas</h4>
+                    <h4 className="font-medium text-gray-900 text-sm">
+                      Selecionadas
+                    </h4>
                     <div className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded">
                       {funcoesSelecionadas.length}
                     </div>
@@ -962,16 +1209,20 @@ function ContratoDetalheContent() {
                       <div className="text-center text-gray-500">
                         <CheckIcon className="h-8 w-8 mx-auto mb-2 text-gray-400" />
                         <p className="text-xs">Nenhuma função selecionada</p>
-                        <p className="text-xs mt-1 text-gray-400">Clique nas funções à esquerda</p>
+                        <p className="text-xs mt-1 text-gray-400">
+                          Clique nas funções à esquerda
+                        </p>
                       </div>
                     </div>
                   ) : (
                     <div className="flex-1 overflow-y-auto">
                       <div className="space-y-1.5">
                         {funcoesSelecionadas.map((funcaoId) => {
-                          const funcao = todasFuncoes.find(f => f.id === funcaoId);
+                          const funcao = todasFuncoes.find(
+                            (f) => f.id === funcaoId
+                          );
                           if (!funcao) return null;
-                          
+
                           return (
                             <div
                               key={funcaoId}
@@ -985,11 +1236,15 @@ function ContratoDetalheContent() {
                                   <div className="text-xs text-blue-700 mt-0.5 flex items-center gap-2">
                                     <span>{funcao.regime}</span>
                                     <span className="text-blue-400">•</span>
-                                    <span className="font-mono">ID: {funcao.id}</span>
+                                    <span className="font-mono">
+                                      ID: {funcao.id}
+                                    </span>
                                   </div>
                                 </div>
                                 <button
-                                  onClick={() => handleFuncaoToggle(funcaoId.toString())}
+                                  onClick={() =>
+                                    handleFuncaoToggle(funcaoId.toString())
+                                  }
                                   className="ml-2 text-blue-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"
                                 >
                                   <XMarkIcon className="h-3.5 w-3.5" />

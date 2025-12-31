@@ -49,7 +49,7 @@ async function main() {
   // Restaurar no postgres-dev
   // Resetar schema public por completo para evitar duplicatas em COPY/constraints
   run(`docker exec postgres-dev sh -lc "psql -U ${POSTGRES_USER} -d ${POSTGRES_DB} -c 'DROP SCHEMA IF EXISTS public CASCADE;' -c 'CREATE SCHEMA public;' -c 'GRANT ALL ON SCHEMA public TO ${POSTGRES_USER};' -c 'GRANT ALL ON SCHEMA public TO public;'"`);
-  run(`docker exec postgres-dev sh -lc "pg_restore -U ${POSTGRES_USER} -d ${POSTGRES_DB} -Fc /tmp/restore.dump"`);
+  run(`docker exec postgres-dev sh -lc "pg_restore -U ${POSTGRES_USER} -d ${POSTGRES_DB} -Fc --no-owner --no-acl --role=${POSTGRES_USER} /tmp/restore.dump"`);
 
   // Ajustes de dados pré-push (ex.: slug de função requerido e duplicatas) diretamente via SQL
   run(`docker exec postgres-dev sh -lc "psql -U ${POSTGRES_USER} -d ${POSTGRES_DB} <<'SQL'\n-- Preencher funcao_slug para nulos/vazios; quando funcao for nula/vazia, use fallback baseado no id\nUPDATE \\\"Funcao\\\" f\nSET funcao_slug = CASE \n  WHEN f.funcao IS NULL OR btrim(f.funcao) = '' THEN CONCAT('funcao-', f.id)\n  ELSE lower(regexp_replace(f.funcao, '[^a-z0-9]+', '-', 'g'))\nEND\nWHERE f.funcao_slug IS NULL OR f.funcao_slug = '';\n\n-- Resolver duplicatas por (funcao_slug, regime) adicionando sufixos incrementais\nWITH cte AS (\n  SELECT id, funcao_slug, regime,\n         ROW_NUMBER() OVER (PARTITION BY funcao_slug, regime ORDER BY id) AS rn\n  FROM \\\"Funcao\\\"\n)\nUPDATE \\\"Funcao\\\" f\nSET funcao_slug = f.funcao_slug || '-' || cte.rn\nFROM cte\nWHERE f.id = cte.id AND cte.rn > 1;\nSQL"`);

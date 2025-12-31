@@ -5,6 +5,9 @@ import { useEffect, useState } from 'react';
 import { getStatusColor } from '../../../utils/statusColors';
 import { InlineStatusBadges, BlockStatusBadges } from '../../../components/StatusBadges';
 import { useRouter } from 'next/navigation';
+import ProtectedRoute from '@/components/ProtectedRoute';
+import { usePermissions } from '@/app/hooks/useAuth';
+import { PERMISSIONS, ROUTE_PROTECTION } from '@/lib/permissions';
 
 
 interface Contrato {
@@ -31,7 +34,7 @@ interface CentroCusto {
   totalFuncionarios: number;
 }
 
-export default function ContratosPage() {
+function CentroCustosContent() {
   const [contratos, setContratos] = useState<Contrato[]>([]);
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,6 +48,8 @@ export default function ContratosPage() {
   const [filtroStatus, setFiltroStatus] = useState('');
   const [funcoesExpandidas, setFuncoesExpandidas] = useState<Set<string>>(new Set());
   const router = useRouter();
+  const { hasPermission } = usePermissions();
+  const isEditor = hasPermission(PERMISSIONS.ACCESS_PLANEJAMENTO);
 
   // Função para agrupar funcionários por função
   const getFuncionariosPorFuncao = (funcionarios: Funcionario[]) => {
@@ -334,13 +339,15 @@ export default function ContratosPage() {
       <div className="mb-8">
         <div className="flex items-center justify-between mb-2">
           <h1 className="text-3xl font-bold text-gray-900">Centro de Custos</h1>
-          <button
-            onClick={() => router.push('/planejamento/remanejamentos/novo?returnTo=/planejamento/centro-custos')}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <ArrowsRightLeftIcon className="w-5 h-5" />
-            Remanejar Funcionários
-          </button>
+          {isEditor && (
+            <button
+              onClick={() => router.push('/planejamento/remanejamentos/novo?returnTo=/planejamento/centro-custos')}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <ArrowsRightLeftIcon className="w-5 h-5" />
+              Remanejar Funcionários
+            </button>
+          )}
         </div>
         <p className="text-gray-600">Navegue pelos contratos, centros de custos e funcionários</p>
       </div>
@@ -574,5 +581,16 @@ export default function ContratosPage() {
 
 
     </div>
+  );
+}
+
+export default function ContratosPage() {
+  return (
+    <ProtectedRoute
+      requiredEquipe={ROUTE_PROTECTION.PLANEJAMENTO.requiredEquipe}
+      requiredPermissions={ROUTE_PROTECTION.PLANEJAMENTO.requiredPermissions}
+    >
+      <CentroCustosContent />
+    </ProtectedRoute>
   );
 }

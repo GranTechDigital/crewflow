@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   TarefaRemanejamento,
   StatusTarefa,
@@ -42,6 +42,7 @@ interface TarefaComFuncionario extends TarefaRemanejamento {
 
 export default function TarefasPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [tarefas, setTarefas] = useState<TarefaComFuncionario[]>([]);
   const [funcionarios, setFuncionarios] = useState<any[]>([]);
@@ -54,7 +55,9 @@ export default function TarefasPage() {
     [tarefaId: string]: ObservacaoTarefa[];
   }>({});
   // Mapa de contagem de observações por tarefa
-  const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>({});
+  const [observacoesCount, setObservacoesCount] = useState<
+    Record<string, number>
+  >({});
   const [mostrarObservacoesTarefa, setMostrarObservacoesTarefa] = useState<
     string | null
   >(null);
@@ -94,6 +97,15 @@ export default function TarefasPage() {
   const [filtroTipo, setFiltroTipo] = useState<string>("");
 
   useEffect(() => {
+    const statusParam = searchParams.get("status");
+    if (statusParam) setFiltroStatus(statusParam);
+
+    const prioridadeParam = searchParams.get("prioridade");
+    if (prioridadeParam) setFiltroPrioridade(prioridadeParam);
+
+    const responsavelParam = searchParams.get("responsavel");
+    if (responsavelParam) setFiltroResponsavel(responsavelParam);
+
     fetchTarefas();
     fetchFuncionarios();
   }, []);
@@ -103,7 +115,11 @@ export default function TarefasPage() {
       const ids = Array.from(new Set(tarefas.map((t) => t.id)));
       const qs = encodeURIComponent(ids.join(","));
       fetch(`/api/logistica/tarefas/observacoes/count?ids=${qs}`)
-        .then((resp) => (resp.ok ? resp.json() : Promise.reject(new Error("Erro ao contar observações"))))
+        .then((resp) =>
+          resp.ok
+            ? resp.json()
+            : Promise.reject(new Error("Erro ao contar observações"))
+        )
         .then((data) => {
           const normalized = Object.fromEntries(
             Object.entries(data || {}).map(([k, v]) => [String(k), v as number])
@@ -874,7 +890,13 @@ export default function TarefasPage() {
                             className="px-3 py-1 text-sm bg-purple-600 text-white rounded hover:bg-purple-700 relative"
                           >
                             Observações
-                            <span className={`ml-1 px-1.5 py-0.5 text-xs rounded-full ${observacoesCount[tarefa.id] > 0 ? "bg-purple-800" : "bg-gray-500"}`}>
+                            <span
+                              className={`ml-1 px-1.5 py-0.5 text-xs rounded-full ${
+                                observacoesCount[tarefa.id] > 0
+                                  ? "bg-purple-800"
+                                  : "bg-gray-500"
+                              }`}
+                            >
                               {observacoesCount[tarefa.id] ?? 0}
                             </span>
                           </button>
@@ -894,7 +916,8 @@ export default function TarefasPage() {
                                       .toISOString()
                                       .split("T")[0]
                                   : "",
-                                remanejamentoFuncionarioId: tarefa.remanejamentoFuncionarioId || "",
+                                remanejamentoFuncionarioId:
+                                  tarefa.remanejamentoFuncionarioId || "",
                               });
                             }}
                             className="px-3 py-1 text-sm bg-gray-600 text-white rounded hover:bg-gray-700"

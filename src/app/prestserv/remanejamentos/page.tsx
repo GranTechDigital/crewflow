@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useToast } from "@/components/Toast";
 import { RemanejamentoFuncionario } from "@/types/remanejamento-funcionario";
 import { read, utils, write } from "xlsx";
@@ -64,6 +64,7 @@ export default function FuncionariosPage() {
 
 function FuncionariosPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { showToast } = useToast();
   const [funcionarios, setFuncionarios] = useState<FuncionarioTableData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -120,15 +121,30 @@ function FuncionariosPageContent() {
   ]);
   const [generatingTarefas, setGeneratingTarefas] = useState(false);
   const [rejectingStatus, setRejectingStatus] = useState(false);
-const [approvingStatus, setApprovingStatus] = useState(false);
+  const [approvingStatus, setApprovingStatus] = useState(false);
   const [activeTab, setActiveTab] = useState<"nominal" | "solicitacao">(
     "nominal"
   );
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // Carregar estado dos filtros do localStorage
+  // Carregar estado dos filtros do localStorage ou URL
   useEffect(() => {
+    // Verificar parâmetros da URL primeiro (prioridade sobre localStorage)
+    const paramNome = searchParams.get("nome");
+    const paramPendencias = searchParams.get("pendencias");
+
+    if (paramNome || paramPendencias) {
+      if (paramNome) setFiltroNome(paramNome);
+      if (paramPendencias) {
+        setFiltroPendenciasPorSetor([paramPendencias.toUpperCase()]);
+        setDropdownPendenciasSetorOpen(true);
+      }
+      setIsInitialized(true);
+      fetchFuncionarios();
+      return;
+    }
+
     const savedFiltersVisible = localStorage.getItem(
       "funcionarios-filtros-visiveis"
     );

@@ -1,6 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import ProtectedRoute from '@/components/ProtectedRoute';
+import { usePermissions } from '@/app/hooks/useAuth';
+import { PERMISSIONS, ROUTE_PROTECTION } from '@/lib/permissions';
 
 type CentroCusto = {
   id: number;
@@ -21,6 +24,8 @@ type CentroCusto = {
 export default function CentrosCustoPage() {
   const [centrosCusto, setCentrosCusto] = useState<CentroCusto[]>([]);
   const [loading, setLoading] = useState(false);
+  const { hasPermission } = usePermissions();
+  const isEditor = hasPermission(PERMISSIONS.ACCESS_PLANEJAMENTO);
 
   // Modal states
   const [modalOpen, setModalOpen] = useState(false);
@@ -51,12 +56,14 @@ export default function CentrosCustoPage() {
   }, []);
 
   function openAddModal() {
+    if (!isEditor) return;
     setEditingCentroCusto(null);
     setForm({ num_centro_custo: '', nome_centro_custo: '', status: 'Ativo' });
     setModalOpen(true);
   }
 
   function openEditModal(centroCusto: CentroCusto) {
+    if (!isEditor) return;
     setEditingCentroCusto(centroCusto);
     setForm({
       num_centro_custo: centroCusto.num_centro_custo,
@@ -68,6 +75,7 @@ export default function CentrosCustoPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!isEditor) return;
 
     if (!form.num_centro_custo || !form.nome_centro_custo || !form.status) {
       alert('Preencha todos os campos');
@@ -105,6 +113,7 @@ export default function CentrosCustoPage() {
 
   async function handleDelete(id: number) {
     if (!confirm('Tem certeza que deseja excluir este centro de custo?')) return;
+    if (!isEditor) return;
 
     try {
       const res = await fetch(`/api/centros-custo/${id}`, {
@@ -124,15 +133,21 @@ export default function CentrosCustoPage() {
   }
 
   return (
+    <ProtectedRoute
+      requiredEquipe={ROUTE_PROTECTION.PLANEJAMENTO.requiredEquipe}
+      requiredPermissions={ROUTE_PROTECTION.PLANEJAMENTO.requiredPermissions}
+    >
     <div className="p-6 max-w-6xl mx-auto space-y-8">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Gestão de Centros de Custo</h1>
-        <button
-          onClick={openAddModal}
-          className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition"
-        >
-          Adicionar Centro de Custo
-        </button>
+        {isEditor && (
+          <button
+            onClick={openAddModal}
+            className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition"
+          >
+            Adicionar Centro de Custo
+          </button>
+        )}
       </div>
 
       {loading ? (
@@ -195,18 +210,22 @@ export default function CentrosCustoPage() {
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-center space-x-2">
-                      <button
-                        onClick={() => openEditModal(cc)}
-                        className="px-3 py-1 bg-yellow-400 text-yellow-900 rounded hover:bg-yellow-500 transition text-sm"
-                      >
-                        Editar
-                      </button>
-                      <button
-                        onClick={() => handleDelete(cc.id)}
-                        className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition text-sm"
-                      >
-                        Excluir
-                      </button>
+                      {isEditor && (
+                        <>
+                          <button
+                            onClick={() => openEditModal(cc)}
+                            className="px-3 py-1 bg-yellow-400 text-yellow-900 rounded hover:bg-yellow-500 transition text-sm"
+                          >
+                            Editar
+                          </button>
+                          <button
+                            onClick={() => handleDelete(cc.id)}
+                            className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition text-sm"
+                          >
+                            Excluir
+                          </button>
+                        </>
+                      )}
                     </td>
                   </tr>
                 ))
@@ -217,7 +236,7 @@ export default function CentrosCustoPage() {
       )}
 
       {/* Modal */}
-      {modalOpen && (
+      {isEditor && modalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-lg relative shadow-xl">
             <h2 className="text-xl font-bold mb-4">
@@ -281,5 +300,6 @@ export default function CentrosCustoPage() {
         </div>
       )}
     </div>
+    </ProtectedRoute>
   );
 }

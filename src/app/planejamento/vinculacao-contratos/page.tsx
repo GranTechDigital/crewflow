@@ -1,6 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import ProtectedRoute from '@/components/ProtectedRoute';
+import { usePermissions } from '@/app/hooks/useAuth';
+import { PERMISSIONS, ROUTE_PROTECTION } from '@/lib/permissions';
 
 type Contrato = {
   id: number;
@@ -31,6 +34,8 @@ export default function VinculacaoContratosPage() {
   const [centrosCusto, setCentrosCusto] = useState<CentroCusto[]>([]);
   const [vinculacoes, setVinculacoes] = useState<Vinculacao[]>([]);
   const [loading, setLoading] = useState(false);
+  const { hasPermission } = usePermissions();
+  const isEditor = hasPermission(PERMISSIONS.ACCESS_PLANEJAMENTO);
 
   // Modal states
   const [modalOpen, setModalOpen] = useState(false);
@@ -78,12 +83,14 @@ export default function VinculacaoContratosPage() {
   }, []);
 
   function openAddModal() {
+    if (!isEditor) return;
     setForm({ contratoId: '', centroCustoId: '' });
     setModalOpen(true);
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!isEditor) return;
 
     if (!form.contratoId || !form.centroCustoId) {
       alert('Selecione um contrato e um centro de custo');
@@ -115,6 +122,7 @@ export default function VinculacaoContratosPage() {
 
   async function handleDelete(id: number) {
     if (!confirm('Tem certeza que deseja remover esta vinculação?')) return;
+    if (!isEditor) return;
 
     try {
       const res = await fetch(`/api/contratos-centros-custo/${id}`, {
@@ -156,18 +164,24 @@ export default function VinculacaoContratosPage() {
   });
 
   return (
+    <ProtectedRoute
+      requiredEquipe={ROUTE_PROTECTION.PLANEJAMENTO.requiredEquipe}
+      requiredPermissions={ROUTE_PROTECTION.PLANEJAMENTO.requiredPermissions}
+    >
     <div className="p-6 max-w-7xl mx-auto space-y-8">
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold">Vinculação Contratos x Centros de Custo</h1>
           <p className="text-gray-600 mt-2">Gerencie as vinculações entre contratos e centros de custo</p>
         </div>
-        <button
-          onClick={openAddModal}
-          className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition"
-        >
-          Nova Vinculação
-        </button>
+        {isEditor && (
+          <button
+            onClick={openAddModal}
+            className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition"
+          >
+            Nova Vinculação
+          </button>
+        )}
       </div>
 
       {/* Filtros */}
@@ -254,12 +268,14 @@ export default function VinculacaoContratosPage() {
                       {new Date(vinculacao.createdAt).toLocaleDateString('pt-BR')}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-center">
-                      <button
-                        onClick={() => handleDelete(vinculacao.id)}
-                        className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition text-sm"
-                      >
-                        Remover
-                      </button>
+                      {isEditor && (
+                        <button
+                          onClick={() => handleDelete(vinculacao.id)}
+                          className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition text-sm"
+                        >
+                          Remover
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))
@@ -270,7 +286,7 @@ export default function VinculacaoContratosPage() {
       )}
 
       {/* Modal */}
-      {modalOpen && (
+      {isEditor && modalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-lg relative shadow-xl">
             <h2 className="text-xl font-bold mb-4">Nova Vinculação</h2>
@@ -341,5 +357,6 @@ export default function VinculacaoContratosPage() {
         </div>
       )}
     </div>
+    </ProtectedRoute>
   );
 }
