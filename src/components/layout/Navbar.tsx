@@ -15,7 +15,7 @@ export default function Navbar() {
       await logout();
       // console.log('🚪 NAVBAR - Logout concluído');
     } catch (error) {
-      console.error('🚪 NAVBAR - Erro no logout:', error);
+      console.error("🚪 NAVBAR - Erro no logout:", error);
     }
   };
 
@@ -37,11 +37,11 @@ export default function Navbar() {
       {/* Informações do usuário */}
       {usuario && (
         <div className="flex items-center gap-3">
+          <NotificationsDropdown />
+
           {/* Dados do usuário */}
           <div className="text-right">
-            <div className="text-sm font-medium text-white">
-              {usuario.nome}
-            </div>
+            <div className="text-sm font-medium text-white">{usuario.nome}</div>
             <div className="text-xs text-gray-300">
               {usuario.equipe} • {usuario.matricula}
             </div>
