@@ -2709,6 +2709,7 @@ function FuncionariosPageContent() {
             {hasAnyPermission([
               PERMISSIONS.ADMIN,
               PERMISSIONS.ACCESS_LOGISTICA,
+              PERMISSIONS.ACCESS_LOGISTICA_GESTOR,
               PERMISSIONS.ACCESS_PREST_SERV,
             ]) && (
               <button

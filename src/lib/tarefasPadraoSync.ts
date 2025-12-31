@@ -922,7 +922,7 @@ export async function sincronizarTarefasPadrao({
     try {
       const tarefasAtual = await prisma.tarefaRemanejamento.findMany({
         where: { remanejamentoFuncionarioId: rem.id },
-        select: { status: true },
+        select: { status: true, responsavel: true },
       });
       const semPendentes =
         tarefasAtual.length === 0 ||
@@ -932,7 +932,28 @@ export async function sincronizarTarefasPadrao({
             t.status === "CONCLUIDA" ||
             t.status === "CANCELADO"
         );
-      const novoStatus = semPendentes ? "SUBMETER RASCUNHO" : "ATENDER TAREFAS";
+
+      let novoStatus = semPendentes ? "SUBMETER RASCUNHO" : "ATENDER TAREFAS";
+      let novoResponsavel: string | null = null;
+      let obsMudancaResponsavel: string | null = null;
+
+      // Lógica Especial: Se responsável for Logística e não houver tarefas de Treinamento ativas (0/0),
+      // devolver para Treinamento (ATENDER TAREFAS) para criação da matriz.
+      if (rem.responsavelAtual === "LOGISTICA") {
+        const temTreinamentoAtivo = tarefasAtual.some(
+          (t) =>
+            t.status !== "CANCELADO" &&
+            detectSetor(t.responsavel) === "TREINAMENTO"
+        );
+
+        if (!temTreinamentoAtivo) {
+          novoStatus = "ATENDER TAREFAS";
+          novoResponsavel = "TREINAMENTO";
+          obsMudancaResponsavel =
+            "Devolvido para TREINAMENTO automaticamente: Nenhuma tarefa de treinamento gerada (Matriz inexistente ou vazia). Necessário criar matriz.";
+        }
+      }
+
       if (rem.statusTarefas !== novoStatus) {
         await prisma.remanejamentoFuncionario.update({
           where: { id: rem.id },
@@ -962,7 +983,8 @@ export async function sincronizarTarefasPadrao({
             },
           });
         } catch {}
-        if (novoStatus === "SUBMETER RASCUNHO") {
+
+        if (novoStatus === "SUBMETER RASCUNHO" && !novoResponsavel) {
           try {
             await prisma.remanejamentoFuncionario.update({
               where: { id: rem.id },
@@ -976,6 +998,53 @@ export async function sincronizarTarefasPadrao({
             });
           }
         }
+      }
+
+      // Aplicar mudança de responsável se houver (caso especial Treinamento)
+      if (novoResponsavel && rem.responsavelAtual !== novoResponsavel) {
+        const obsTexto = obsMudancaResponsavel
+          ? `${
+              rem.observacoesPrestserv ? rem.observacoesPrestserv + "\n" : ""
+            }${obsMudancaResponsavel} Data: ${new Date().toISOString()}`
+          : undefined;
+
+        await prisma.remanejamentoFuncionario.update({
+          where: { id: rem.id },
+          data: {
+            responsavelAtual: novoResponsavel,
+            ...(obsTexto ? { observacoesPrestserv: obsTexto } : {}),
+          },
+        });
+
+        if (verbose) {
+          alteracoesResumo.push({
+            campo: "responsavelAtual",
+            de: rem.responsavelAtual,
+            para: novoResponsavel,
+            observacoes: obsMudancaResponsavel || undefined,
+          });
+        }
+
+        try {
+          await prisma.historicoRemanejamento.create({
+            data: {
+              solicitacaoId: rem.solicitacao!.id,
+              remanejamentoFuncionarioId: rem.id,
+              tipoAcao: "ATUALIZACAO_RESPONSAVEL",
+              entidade: "RESPONSAVEL_ATUAL",
+              descricaoAcao:
+                obsMudancaResponsavel ||
+                `Responsável atualizado para ${novoResponsavel}`,
+              campoAlterado: "responsavelAtual",
+              valorAnterior: rem.responsavelAtual,
+              valorNovo: novoResponsavel,
+              usuarioResponsavel: usuarioResponsavel || "Sistema",
+              usuarioResponsavelId: usuarioResponsavelId,
+              equipeId: equipeId,
+              observacoes: obsMudancaResponsavel || undefined,
+            },
+          });
+        } catch {}
       }
 
       const temPendentes = !semPendentes;
