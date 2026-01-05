@@ -96,7 +96,7 @@ function UsuariosAdminContent() {
         if (equipe.nome === "Administração") {
           role = "Total";
         } else {
-          role = "Editor"; // Assume que o nome base (ex: "Planejamento") equivale a Editor
+          role = "Geral"; // Nome para equipes sem sufixo (ex: "Planejamento") para diferenciar de "Editor" explícito
         }
       }
 
