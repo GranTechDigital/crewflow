@@ -8,7 +8,6 @@ import {
   CheckCircle,
   XCircle,
   Clock,
-  AlertTriangle,
   AlertCircle,
 } from "lucide-react";
 import Link from "next/link";

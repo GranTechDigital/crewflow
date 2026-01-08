@@ -6,6 +6,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useAuth } from "@/app/hooks/useAuth";
 import NotificationsDropdown from "./NotificationsDropdown";
+import MissingFunctionsDropdown from "./MissingFunctionsDropdown";
 
 export default function Navbar() {
   const { usuario, logout } = useAuth();
@@ -38,6 +39,7 @@ export default function Navbar() {
       {/* Informações do usuário */}
       {usuario && (
         <div className="flex items-center gap-3">
+          <MissingFunctionsDropdown />
           <NotificationsDropdown />
 
           {/* Dados do usuário */}

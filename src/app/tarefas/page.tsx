@@ -1060,6 +1060,11 @@ export default function TarefasPage() {
 
       const data = await response.json();
       setObservacoes(data);
+      // Atualizar a contagem de observações para esta tarefa
+      setObservacoesCount((prev) => ({
+        ...prev,
+        [tarefaId]: data.length,
+      }));
     } catch (error) {
       console.error("Erro ao buscar observações:", error);
       toast.error("Erro ao carregar observações");
