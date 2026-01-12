@@ -208,7 +208,7 @@ jobs:
           printf 'PGADMIN_SETUP_EMAIL=%s\n' "$PGADMIN_SETUP_EMAIL_VALUE" >> "$ENV_FILE"
           printf 'PGADMIN_SETUP_PASSWORD=%s\n' "$PGADMIN_SETUP_PASSWORD_VALUE" >> "$ENV_FILE"
           printf 'PGADMIN_CONFIG_SERVER_MODE=%s\n' "True" >> "$ENV_FILE"
-          printf 'PGADMIN_CONFIG_PATH_PREFIX=%s\n' "/pgadmin" >> "$ENV_FILE"
+          printf 'PGADMIN_CONFIG_PATH_PREFIX=%s\n' "\"/pgadmin\"" >> "$ENV_FILE"
           printf 'NEXTAUTH_URL=%s\n' "$NEXTAUTH_URL_VALUE" >> "$ENV_FILE"
           printf 'JWT_SECRET=%s\n' "$JWT_SECRET_VALUE" >> "$ENV_FILE"
           printf 'DATABASE_URL=%s\n' "$DATABASE_URL_VALUE" >> "$ENV_FILE"
