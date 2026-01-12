@@ -267,7 +267,6 @@ interface ParametrosBuscaRemanejamento {
   page?: number;
   limit?: number;
   nome?: string;
-  matricula?: string | string[];
   contratoOrigem?: string | string[];
   contratoDestino?: string | string[];
   tipoSolicitacao?: string | string[];
@@ -288,7 +287,6 @@ async function buscarRemanejamentos(
     page,
     limit,
     nome,
-    matricula,
     contratoOrigem,
     contratoDestino,
     tipoSolicitacao,
@@ -371,21 +369,12 @@ async function buscarRemanejamentos(
     nome?: {
       contains: string;
     };
-    matricula?: {
-      in: string[];
-    };
   }
 
   const funcionarioWhere: FuncionarioWhereClause = {};
   if (nome) {
     funcionarioWhere.nome = {
       contains: nome,
-    };
-  }
-
-  if (matricula) {
-    funcionarioWhere.matricula = {
-      in: Array.isArray(matricula) ? matricula : [matricula],
     };
   }
 
@@ -471,11 +460,6 @@ async function buscarRemanejamentos(
             },
           },
           tarefas: true,
-          _count: {
-            select: {
-              observacoes: true,
-            },
-          },
         },
       },
     },
@@ -487,9 +471,7 @@ async function buscarRemanejamentos(
   // Badge: função alterada recentemente (últimos 30 dias) para RFs em processo
   try {
     const rfIds: string[] = [];
-    solicitacoes.forEach((s: any) =>
-      s.funcionarios?.forEach((rf: any) => rfIds.push(rf.id))
-    );
+    solicitacoes.forEach((s: any) => s.funcionarios?.forEach((rf: any) => rfIds.push(rf.id)));
     if (rfIds.length > 0) {
       const limite = new Date();
       limite.setDate(limite.getDate() - 30);
@@ -524,10 +506,9 @@ async function buscarRemanejamentos(
   }
 
   // Filtrar solicitações que não têm funcionários (após a filtragem)
-  let solicitacoesFiltradas: SolicitacaoRemanejamentoComplete[] =
-    solicitacoes.filter(
-      (s) => s.funcionarios.length > 0
-    ) as unknown as SolicitacaoRemanejamentoComplete[];
+  let solicitacoesFiltradas: SolicitacaoRemanejamentoComplete[] = (
+    solicitacoes.filter((s) => s.funcionarios.length > 0) as unknown as SolicitacaoRemanejamentoComplete[]
+  );
 
   // Aplicar filtro adicional ANTES da paginação se estiver filtrando para processo
   if (params.filtrarProcesso) {
@@ -583,8 +564,6 @@ export async function GET(request: NextRequest) {
 
     // Novos parâmetros de filtro
     const nome = searchParams.get("nome");
-    const matriculaParams = searchParams.getAll("matricula");
-    const matricula = matriculaParams.length > 0 ? matriculaParams : undefined;
     const contratoOrigemParams = searchParams.getAll("contratoOrigem");
     const contratoOrigem =
       contratoOrigemParams.length > 0 ? contratoOrigemParams : undefined;
@@ -611,7 +590,6 @@ export async function GET(request: NextRequest) {
       page,
       limit,
       nome: nome || undefined,
-      matricula,
       contratoOrigem,
       contratoDestino,
       tipoSolicitacao,
@@ -649,13 +627,11 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body: NovasolicitacaoRemanejamento = await request.json();
-    const { getUserFromRequest } = await import("@/utils/authUtils");
+    const { getUserFromRequest } = await import('@/utils/authUtils');
     const usuarioAutenticado = await getUserFromRequest(request);
     const usuarioId = usuarioAutenticado?.id ?? null;
     const usuarioNome =
-      usuarioAutenticado?.funcionario?.nome ||
-      usuarioAutenticado?.funcionario?.matricula ||
-      "Sistema";
+      usuarioAutenticado?.funcionario?.nome || usuarioAutenticado?.funcionario?.matricula || 'Sistema';
 
     const {
       tipo = "REMANEJAMENTO",
@@ -767,28 +743,26 @@ export async function POST(request: NextRequest) {
     try {
       const solicitacaoRel = solicitacao as any;
       await Promise.all(
-        (solicitacaoRel.funcionarios as any[]).map(
-          async (funcionarioRem: any) => {
-            await prisma.historicoRemanejamento.create({
-              data: {
-                solicitacaoId: solicitacaoRel.id,
-                remanejamentoFuncionarioId: funcionarioRem.id,
-                tipoAcao: "CRIACAO",
-                entidade: "SOLICITACAO",
-                descricaoAcao: `Solicitação de ${tipo.toLowerCase()} criada para ${
-                  funcionarioRem.funcionario.nome
-                } (${funcionarioRem.funcionario.matricula})`,
-                usuarioResponsavel: usuarioNome,
-                usuarioResponsavelId: usuarioId ?? undefined,
-                observacoes: `Contrato origem: ${
-                  solicitacaoRel.contratoOrigem?.nome || "N/A"
-                } → Contrato destino: ${
-                  solicitacaoRel.contratoDestino?.nome || "N/A"
-                }. Justificativa: ${justificativa}`,
-              },
-            });
-          }
-        )
+        (solicitacaoRel.funcionarios as any[]).map(async (funcionarioRem: any) => {
+          await prisma.historicoRemanejamento.create({
+            data: {
+              solicitacaoId: solicitacaoRel.id,
+              remanejamentoFuncionarioId: funcionarioRem.id,
+              tipoAcao: "CRIACAO",
+              entidade: "SOLICITACAO",
+              descricaoAcao: `Solicitação de ${tipo.toLowerCase()} criada para ${
+                funcionarioRem.funcionario.nome
+              } (${funcionarioRem.funcionario.matricula})`,
+              usuarioResponsavel: usuarioNome,
+              usuarioResponsavelId: usuarioId ?? undefined,
+              observacoes: `Contrato origem: ${
+                solicitacaoRel.contratoOrigem?.nome || "N/A"
+              } → Contrato destino: ${
+                solicitacaoRel.contratoDestino?.nome || "N/A"
+              }. Justificativa: ${justificativa}`,
+            },
+          });
+        })
       );
     } catch (historicoError) {
       console.error("Erro ao registrar histórico:", historicoError);

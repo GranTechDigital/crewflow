@@ -16,25 +16,13 @@ function ordenarEventos(evts: any[]) {
   });
 }
 
-function segmentosTarefa(
-  task: any,
-  eventos: {
-    statusAnterior?: string | null;
-    statusNovo?: string | null;
-    dataEvento: Date | null;
-  }[],
-  inicioPadrao: Date,
-  fimPadrao: Date
-): Duracao[] {
+function segmentosTarefa(task: any, eventos: { statusAnterior?: string | null; statusNovo?: string | null; dataEvento: Date | null }[], inicioPadrao: Date, fimPadrao: Date): Duracao[] {
   const evts = ordenarEventos(eventos);
   const inicio = task.dataCriacao || inicioPadrao;
   const fim = task.dataConclusao || fimPadrao;
   const segs: Duracao[] = [];
   let lastTs = inicio;
-  let currentStatus =
-    evts.length > 0
-      ? evts[0].statusAnterior ?? task.status ?? "PENDENTE"
-      : task.status ?? "PENDENTE";
+  let currentStatus = evts.length > 0 ? (evts[0].statusAnterior ?? task.status ?? "PENDENTE") : (task.status ?? "PENDENTE");
   for (const e of evts) {
     const ts = e.dataEvento || fim;
     const ms = msDiff(lastTs, ts);
@@ -48,9 +36,7 @@ function segmentosTarefa(
 }
 
 function somar(segs: Duracao[], status: string) {
-  return segs
-    .filter((s) => s.status === status)
-    .reduce((acc, s) => acc + s.ms, 0);
+  return segs.filter((s) => s.status === status).reduce((acc, s) => acc + s.ms, 0);
 }
 
 function media(vals: number[]) {
@@ -62,96 +48,37 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const diasParam = searchParams.get("dias");
-    const startParam = searchParams.get("start");
-    const endParam = searchParams.get("end");
-
     const dias = diasParam ? parseInt(diasParam, 10) : 90;
-    const somenteConcluidos =
-      (searchParams.get("concluidos") || "").toLowerCase() === "true";
+    const somenteConcluidos = (searchParams.get("concluidos") || "").toLowerCase() === "true";
     const agora = new Date();
     const inicioJanela = new Date(agora.getTime() - dias * 24 * 60 * 60 * 1000);
 
-    let whereBase: any = {};
-
-    if (startParam && endParam) {
-      // Se houver range de datas explícito, filtrar por data de criação
-      const start = new Date(startParam);
-      const end = new Date(endParam);
-      // Ajustar fim para cobrir o dia inteiro se necessário, ou assumir que o front manda inclusivo
-      // Vamos garantir que end pegue o final do dia
-      end.setHours(23, 59, 59, 999);
-
-      whereBase = {
-        createdAt: {
-          gte: start,
-          lte: end,
-        },
-        AND: [
-          { statusPrestserv: { not: "CANCELADO" } },
-          { statusTarefas: { not: "CANCELADO" } },
-        ],
-      };
-
-      if (somenteConcluidos) {
-        whereBase.AND.push({
-          OR: [
-            {
-              statusTarefas: {
-                in: [
-                  "CONCLUIDO",
-                  "CONCLUIDA",
-                  "SOLICITAÇÃO CONCLUÍDA",
-                  "SOLICITAÇÃO CONCLUIDA",
-                ],
-              },
-            },
-            { statusTarefas: { contains: "CONCLUID", mode: "insensitive" } },
-            { statusPrestserv: { equals: "VALIDADO", mode: "insensitive" } },
-          ],
-        });
-      }
-    } else {
-      // Lógica original baseada em dias / status
-      whereBase = {
-        ...(somenteConcluidos
-          ? {
-              OR: [
-                {
-                  statusTarefas: {
-                    in: [
-                      "CONCLUIDO",
-                      "CONCLUIDA",
-                      "SOLICITAÇÃO CONCLUÍDA",
-                      "SOLICITAÇÃO CONCLUIDA",
-                    ],
-                  },
-                },
-                {
-                  statusTarefas: { contains: "CONCLUID", mode: "insensitive" },
-                },
-                {
-                  statusPrestserv: { equals: "VALIDADO", mode: "insensitive" },
-                },
-              ],
-              AND: [
-                { statusPrestserv: { not: "CANCELADO" } },
-                { statusTarefas: { not: "CANCELADO" } },
-              ],
-            }
-          : {
-              OR: [
-                { dataConcluido: { gte: inicioJanela } },
-                { updatedAt: { gte: inicioJanela } },
-              ],
-              AND: [
-                { statusPrestserv: { not: "CANCELADO" } },
-                { statusTarefas: { not: "CANCELADO" } },
-              ],
-            }),
-      };
-    }
-    // Buscar remanejamentos sem carregar tarefas diretamente (evita coluna ausente em tarefas)
     let remanejamentos: any[] = [];
+    const whereBase: any = {
+      ...(somenteConcluidos
+        ? {
+            OR: [
+              { statusTarefas: { in: ["CONCLUIDO", "CONCLUIDA", "SOLICITAÇÃO CONCLUÍDA", "SOLICITAÇÃO CONCLUIDA"] } },
+              { statusTarefas: { contains: "CONCLUID", mode: "insensitive" } },
+              { statusPrestserv: { equals: "VALIDADO", mode: "insensitive" } },
+            ],
+            AND: [
+              { statusPrestserv: { not: "CANCELADO" } },
+              { statusTarefas: { not: "CANCELADO" } },
+            ],
+          }
+        : {
+            OR: [
+              { dataConcluido: { gte: inicioJanela } },
+              { updatedAt: { gte: inicioJanela } },
+            ],
+            AND: [
+              { statusPrestserv: { not: "CANCELADO" } },
+              { statusTarefas: { not: "CANCELADO" } },
+            ],
+          }),
+    };
+    // Buscar remanejamentos sem carregar tarefas diretamente (evita coluna ausente em tarefas)
     try {
       remanejamentos = await prisma.remanejamentoFuncionario.findMany({
         where: whereBase,
@@ -165,19 +92,8 @@ export async function GET(request: NextRequest) {
         ...(somenteConcluidos
           ? {
               OR: [
-                {
-                  statusTarefas: {
-                    in: [
-                      "CONCLUIDO",
-                      "CONCLUIDA",
-                      "SOLICITAÇÃO CONCLUÍDA",
-                      "SOLICITAÇÃO CONCLUIDA",
-                    ],
-                  },
-                },
-                {
-                  statusPrestserv: { in: ["VALIDADO", "Validado", "validado"] },
-                },
+                { statusTarefas: { in: ["CONCLUIDO", "CONCLUIDA", "SOLICITAÇÃO CONCLUÍDA", "SOLICITAÇÃO CONCLUIDA"] } },
+                { statusPrestserv: { in: ["VALIDADO", "Validado", "validado"] } },
               ],
               AND: [
                 { statusPrestserv: { not: "CANCELADO" } },
@@ -211,44 +127,27 @@ export async function GET(request: NextRequest) {
       const tarefasRows: any[] = await prisma.$queryRaw(
         Prisma.sql`SELECT id, "remanejamentoFuncionarioId", tipo, descricao, responsavel, status, "dataCriacao", "dataConclusao"
                    FROM "TarefaRemanejamento"
-                   WHERE "remanejamentoFuncionarioId" IN (${Prisma.join(
-                     remIds
-                   )})`
+                   WHERE "remanejamentoFuncionarioId" IN (${Prisma.join(remIds)})`
       );
       const tarefaIds = tarefasRows.map((t) => t.id);
       // Eventos de status das tarefas
       const eventos = tarefaIds.length
         ? await prisma.tarefaStatusEvento.findMany({
             where: { tarefaId: { in: tarefaIds } },
-            select: {
-              tarefaId: true,
-              statusAnterior: true,
-              statusNovo: true,
-              dataEvento: true,
-            },
+            select: { tarefaId: true, statusAnterior: true, statusNovo: true, dataEvento: true },
           })
         : [];
       const eventosMap = new Map<string, any[]>();
       for (const e of eventos) {
         const arr = eventosMap.get(e.tarefaId) || [];
-        arr.push({
-          statusAnterior: e.statusAnterior,
-          statusNovo: e.statusNovo,
-          dataEvento: e.dataEvento,
-        });
+        arr.push({ statusAnterior: e.statusAnterior, statusNovo: e.statusNovo, dataEvento: e.dataEvento });
         eventosMap.set(e.tarefaId, arr);
       }
       // Histórico relacionado às tarefas (com equipe)
       const historicos = tarefaIds.length
         ? await prisma.historicoRemanejamento.findMany({
             where: { tarefaId: { in: tarefaIds } },
-            select: {
-              tarefaId: true,
-              descricaoAcao: true,
-              valorNovo: true,
-              dataAcao: true,
-              equipe: { select: { nome: true } },
-            },
+            select: { tarefaId: true, descricaoAcao: true, valorNovo: true, dataAcao: true, equipe: { select: { nome: true } } },
             orderBy: { dataAcao: "asc" },
           })
         : [];
@@ -257,12 +156,7 @@ export async function GET(request: NextRequest) {
         if (!h.tarefaId) continue;
         const key = String(h.tarefaId);
         const arr = histMap.get(key) || [];
-        arr.push({
-          descricaoAcao: h.descricaoAcao,
-          valorNovo: h.valorNovo,
-          dataAcao: h.dataAcao,
-          equipe: h.equipe,
-        });
+        arr.push({ descricaoAcao: h.descricaoAcao, valorNovo: h.valorNovo, dataAcao: h.dataAcao, equipe: h.equipe });
         histMap.set(key, arr);
       }
       // Agrupar tarefas por remanejamento e anexar eventos/histórico
@@ -294,43 +188,28 @@ export async function GET(request: NextRequest) {
           remanejamentoFuncionarioId: rf.id,
           OR: [
             {
-              entidade: { equals: "PRESTSERV", mode: "insensitive" },
-              campoAlterado: { contains: "status", mode: "insensitive" },
+              entidade: { equals: 'PRESTSERV', mode: 'insensitive' },
+              campoAlterado: { contains: 'status', mode: 'insensitive' },
             },
             {
-              entidade: { contains: "LOGIST", mode: "insensitive" },
-              campoAlterado: { contains: "prestserv", mode: "insensitive" },
+              entidade: { contains: 'LOGIST', mode: 'insensitive' },
+              campoAlterado: { contains: 'prestserv', mode: 'insensitive' },
             },
             {
-              entidade: { contains: "PRESTSERV", mode: "insensitive" },
-              campoAlterado: { contains: "prestserv", mode: "insensitive" },
+              entidade: { contains: 'PRESTSERV', mode: 'insensitive' },
+              campoAlterado: { contains: 'prestserv', mode: 'insensitive' },
             },
           ],
         },
         select: { valorNovo: true, dataAcao: true },
-        orderBy: { dataAcao: "asc" },
+        orderBy: { dataAcao: 'asc' },
       });
-      const normUp = (val: string | null | undefined) =>
-        (val || "")
-          .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "")
-          .trim()
-          .toUpperCase();
-      const reprovEvents: {
-        setor: string;
-        data: Date | null;
-        source: string;
-        tarefaId?: string | number;
-      }[] = [];
+      const normUp = (val: string | null | undefined) => (val || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase();
+      const reprovEvents: { setor: string; data: Date | null; source: string; tarefaId?: string | number }[] = [];
       const evtValidado = historicosPrestserv
         .filter((h) => {
           const v = normUp(h.valorNovo);
-          return (
-            (v.includes("VALIDAD") ||
-              v.includes("INVALIDAD") ||
-              v.includes("REJEIT")) &&
-            !!h.dataAcao
-          );
+          return (v.includes('VALIDAD') || v.includes('INVALIDAD') || v.includes('REJEIT')) && !!h.dataAcao;
         })
         .reduce<Date | null>((acc, h) => {
           const d = h.dataAcao ? new Date(h.dataAcao) : null;
@@ -339,15 +218,9 @@ export async function GET(request: NextRequest) {
         }, null);
 
       const evtValidadoPrimeiro = historicosPrestserv
-        .map((h) => ({
-          v: normUp(h.valorNovo),
-          d: h.dataAcao ? new Date(h.dataAcao) : null,
-        }))
-        .filter((x) => x.d && x.v === "VALIDADO")
-        .reduce<Date | null>(
-          (acc, x) => (!acc || (x.d as Date) < acc ? (x.d as Date) : acc),
-          null
-        );
+        .map((h) => ({ v: normUp(h.valorNovo), d: h.dataAcao ? new Date(h.dataAcao) : null }))
+        .filter((x) => x.d && x.v === 'VALIDADO')
+        .reduce<Date | null>((acc, x) => (!acc || (x.d as Date) < acc ? (x.d as Date) : acc), null);
 
       // Fim total com fallback robusto para evitar duração zero
       const totalStart = rf.solicitacao?.dataSolicitacao || rf.createdAt;
@@ -359,18 +232,17 @@ export async function GET(request: NextRequest) {
       //  4) rf.dataSubmetido (último recurso para registros antigos, pouco ideal)
       //  5) rf.updatedAt
       //  6) agora
-      const tentativeEnd = (rf.dataConcluido ||
-        evtValidadoPrimeiro ||
-        (rf.dataResposta ? new Date(rf.dataResposta) : null) ||
-        (rf.dataSubmetido ? new Date(rf.dataSubmetido) : null) ||
-        rf.updatedAt ||
-        agora) as Date;
-      const totalEnd =
-        tentativeEnd &&
-        totalStart &&
-        (tentativeEnd as Date).getTime() <= (totalStart as Date).getTime()
-          ? agora
-          : tentativeEnd;
+      const tentativeEnd = (
+        rf.dataConcluido
+          || evtValidadoPrimeiro
+          || (rf.dataResposta ? new Date(rf.dataResposta) : null)
+          || (rf.dataSubmetido ? new Date(rf.dataSubmetido) : null)
+          || rf.updatedAt
+          || agora
+      ) as Date;
+      const totalEnd = (tentativeEnd && totalStart && (tentativeEnd as Date).getTime() <= (totalStart as Date).getTime())
+        ? agora
+        : tentativeEnd;
       const totalDurMs = msDiff(totalStart, totalEnd);
 
       const setorDur: Record<string, number> = {};
@@ -379,199 +251,123 @@ export async function GET(request: NextRequest) {
       let downtimeMsSum = 0;
 
       const toSetor = (val: string | null | undefined) => {
-        const sRaw = (val || "")
-          .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "")
-          .trim()
-          .toUpperCase();
-        if (!sRaw) return "";
+        const sRaw = (val || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase();
+        if (!sRaw) return '';
         // TREINAMENTO: abrangencia maior
         if (
-          sRaw.includes("TREIN") ||
-          sRaw.includes("CAPACIT") ||
-          sRaw.includes("CAPACITA") ||
-          sRaw.includes("CURSO") ||
-          sRaw.includes("INSTRU") ||
-          sRaw.includes("CERTIFIC")
-        )
-          return "TREINAMENTO";
+          sRaw.includes('TREIN') ||
+          sRaw.includes('CAPACIT') ||
+          sRaw.includes('CAPACITA') ||
+          sRaw.includes('CURSO') ||
+          sRaw.includes('INSTRU') ||
+          sRaw.includes('CERTIFIC')
+        ) return 'TREINAMENTO';
         // MEDICINA: incluir termos comuns do fluxo ocupacional
         if (
-          sRaw.includes("MEDIC") ||
-          sRaw.includes("SAUDE") ||
-          sRaw.includes("ENFERM") ||
-          sRaw.includes("AMBULATORIO") ||
-          sRaw.includes("ASO") ||
-          sRaw.includes("EXAME") ||
-          sRaw.includes("MEDICO")
-        )
-          return "MEDICINA";
+          sRaw.includes('MEDIC') ||
+          sRaw.includes('SAUDE') ||
+          sRaw.includes('ENFERM') ||
+          sRaw.includes('AMBULATORIO') ||
+          sRaw.includes('ASO') ||
+          sRaw.includes('EXAME') ||
+          sRaw.includes('MEDICO')
+        ) return 'MEDICINA';
         // RH / Departamento Pessoal
         if (
-          sRaw.includes("RECURSOS") ||
-          sRaw.includes("HUMANOS") ||
-          sRaw.includes(" DEPARTAMENTO PESSOAL") ||
-          sRaw.includes("DEPARTAMENTO PESSOAL") ||
-          sRaw.includes("DP") ||
-          sRaw.includes("ADMISS") ||
-          sRaw.includes("DOCUMENTACAO RH") ||
-          sRaw.includes("DOC RH") ||
-          sRaw.includes(" RH") ||
-          sRaw === "RH" ||
-          sRaw.includes("RH")
-        )
-          return "RH";
+          sRaw.includes('RECURSOS') ||
+          sRaw.includes('HUMANOS') ||
+          sRaw.includes(' DEPARTAMENTO PESSOAL') ||
+          sRaw.includes('DEPARTAMENTO PESSOAL') ||
+          sRaw.includes('DP') ||
+          sRaw.includes('ADMISS') ||
+          sRaw.includes('DOCUMENTACAO RH') ||
+          sRaw.includes('DOC RH') ||
+          sRaw.includes(' RH') ||
+          sRaw === 'RH' ||
+          sRaw.includes('RH')
+        ) return 'RH';
         return sRaw;
       };
       const deriveSetor = (t: any) => {
         // Não usar relação t.setor; inferir somente por histórico/equipe, responsável, tipo e descrição
-        const histNome = (t.historico || [])
-          .map((h: any) => h.equipe?.nome)
-          .filter(Boolean)[0] as string | undefined;
+        const histNome = (t.historico || []).map((h: any) => h.equipe?.nome).filter(Boolean)[0] as string | undefined;
         const histSet = toSetor(histNome);
-        if (
-          histSet === "RH" ||
-          histSet === "MEDICINA" ||
-          histSet === "TREINAMENTO"
-        )
-          return histSet;
+        if (histSet === 'RH' || histSet === 'MEDICINA' || histSet === 'TREINAMENTO') return histSet;
         const r = toSetor(t.responsavel);
-        if (r === "RH" || r === "MEDICINA" || r === "TREINAMENTO") return r;
+        if (r === 'RH' || r === 'MEDICINA' || r === 'TREINAMENTO') return r;
         const tipoSet = toSetor(t.tipo);
-        if (
-          tipoSet === "RH" ||
-          tipoSet === "MEDICINA" ||
-          tipoSet === "TREINAMENTO"
-        )
-          return tipoSet;
+        if (tipoSet === 'RH' || tipoSet === 'MEDICINA' || tipoSet === 'TREINAMENTO') return tipoSet;
         const descSet = toSetor(t.descricao);
-        if (
-          descSet === "RH" ||
-          descSet === "MEDICINA" ||
-          descSet === "TREINAMENTO"
-        )
-          return descSet;
-        return "DESCONHECIDO";
+        if (descSet === 'RH' || descSet === 'MEDICINA' || descSet === 'TREINAMENTO') return descSet;
+        return 'DESCONHECIDO';
       };
 
       // Removido filtro rígido de pré-validação para evitar resposta vazia. Filtramos somente no momento de montar a lista porRemanejamento.
 
       for (const t of rf.tarefas) {
-        const segs = segmentosTarefa(
-          t,
-          t.eventosStatus || [],
-          totalStart,
-          totalEnd
-        );
+        const segs = segmentosTarefa(t, t.eventosStatus || [], totalStart, totalEnd);
         downtimeMsSum += somar(segs, "PENDENTE");
         const setor = deriveSetor(t);
-        setorDur[setor] =
-          (setorDur[setor] || 0) + segs.reduce((acc, s) => acc + s.ms, 0);
+        setorDur[setor] = (setorDur[setor] || 0) + segs.reduce((acc, s) => acc + s.ms, 0);
 
-        const conclEvt = (t.eventosStatus || []).find(
-          (e: any) =>
-            e.statusNovo === "CONCLUIDO" || e.statusNovo === "CONCLUIDA"
-        );
+      const conclEvt = (t.eventosStatus || []).find((e: any) => e.statusNovo === "CONCLUIDO" || e.statusNovo === "CONCLUIDA");
         const conclDate = conclEvt?.dataEvento
           ? new Date(conclEvt.dataEvento)
-          : t.dataConclusao
-          ? new Date(t.dataConclusao)
-          : null;
+          : (t.dataConclusao ? new Date(t.dataConclusao) : null);
         if (conclDate) {
           const durConclusao = msDiff(totalStart, conclDate);
-          if (!temposConclusaoPorSetor[setor])
-            temposConclusaoPorSetor[setor] = [];
+          if (!temposConclusaoPorSetor[setor]) temposConclusaoPorSetor[setor] = [];
           temposConclusaoPorSetor[setor].push(durConclusao);
         }
 
         const evtsReprov = (t.eventosStatus || []).filter((e: any) => {
-          const s = (e.statusNovo || "").toString().toUpperCase();
-          return (
-            s.includes("REPROV") ||
-            s.includes("REJEIT") ||
-            s.includes("INVALID")
-          );
+          const s = (e.statusNovo || '').toString().toUpperCase();
+          return s.includes('REPROV') || s.includes('REJEIT') || s.includes('INVALID');
         });
         const reprovsEvt = evtsReprov.length;
         for (const e of evtsReprov) {
           const d = e.dataEvento ? new Date(e.dataEvento) : null;
-          reprovEvents.push({
-            setor,
-            data: d,
-            source: "evento",
-            tarefaId: t.id,
-          });
+          reprovEvents.push({ setor, data: d, source: 'evento', tarefaId: t.id });
         }
         const histReprov = (t.historico || []).filter((h: any) => {
-          const vn = (h.valorNovo || "").toString().toUpperCase();
-          const desc = (h.descricaoAcao || "").toString().toUpperCase();
+          const vn = (h.valorNovo || '').toString().toUpperCase();
+          const desc = (h.descricaoAcao || '').toString().toUpperCase();
           return (
-            vn.includes("REPROV") ||
-            desc.includes("REPROV") ||
-            vn.includes("REJEIT") ||
-            desc.includes("REJEIT") ||
-            vn.includes("INVALID") ||
-            desc.includes("INVALID")
+            vn.includes('REPROV') || desc.includes('REPROV') ||
+            vn.includes('REJEIT') || desc.includes('REJEIT') ||
+            vn.includes('INVALID') || desc.includes('INVALID')
           );
         });
         const reprovsHist = histReprov.length;
         for (const h of histReprov) {
           const d = h.dataAcao ? new Date(h.dataAcao) : null;
-          reprovEvents.push({
-            setor,
-            data: d,
-            source: "historico",
-            tarefaId: t.id,
-          });
+          reprovEvents.push({ setor, data: d, source: 'historico', tarefaId: t.id });
         }
-        const reprovsStatus =
-          (rf.tarefas || []).filter((x: any) => {
-            const st = (x.status || "").toString().toUpperCase();
-            return (
-              st.includes("REPROV") ||
-              st.includes("REJEIT") ||
-              st.includes("INVALID")
-            );
-          }).length || 0;
+        const reprovsStatus = ((rf.tarefas || []).filter((x: any) => {
+          const st = (x.status || '').toString().toUpperCase();
+          return st.includes('REPROV') || st.includes('REJEIT') || st.includes('INVALID');
+        }).length) || 0;
         const reprovs = reprovsEvt + reprovsHist + reprovsStatus;
         if (reprovs > 0) {
           const key = `${setor}|${t.tipo}`;
           tarefaReprovCount[key] = (tarefaReprovCount[key] || 0) + reprovs;
-          const tipoKey = t.tipo || "Não definido";
+          const tipoKey = t.tipo || 'Não definido';
           reprovPorTipo[tipoKey] = (reprovPorTipo[tipoKey] || 0) + reprovs;
         }
 
-        const setorAgg = porSetor.get(setor) || {
-          setor,
-          qtdTarefas: 0,
-          downtimeMs: 0,
-          conclusoesMs: [] as number[],
-          reprovações: 0,
-        };
+        const setorAgg = porSetor.get(setor) || { setor, qtdTarefas: 0, downtimeMs: 0, conclusoesMs: [] as number[], reprovações: 0 };
         setorAgg.qtdTarefas += 1;
         setorAgg.downtimeMs += somar(segs, "PENDENTE");
-        if (conclDate)
-          setorAgg.conclusoesMs.push(msDiff(totalStart, conclDate));
+        if (conclDate) setorAgg.conclusoesMs.push(msDiff(totalStart, conclDate));
         setorAgg.reprovações += reprovs;
         porSetor.set(setor, setorAgg);
       }
 
-      const tarefasAtivas = (rf.tarefas || []).filter(
-        (t: any) => t.status !== "CANCELADO"
-      );
-      const setores: string[] = Array.from(
-        new Set(tarefasAtivas.map((t: any) => deriveSetor(t)))
-      ) as string[];
+      const tarefasAtivas = (rf.tarefas || []).filter((t: any) => t.status !== "CANCELADO");
+      const setores: string[] = Array.from(new Set(tarefasAtivas.map((t: any) => deriveSetor(t)))) as string[];
 
-      const aprovacaoMs =
-        rf.dataSubmetido && rf.dataResposta
-          ? msDiff(new Date(rf.dataSubmetido), new Date(rf.dataResposta))
-          : 0;
-      const todasTarefasConcluidas =
-        tarefasAtivas.length > 0 &&
-        tarefasAtivas.every(
-          (t: any) => t.status === "CONCLUIDO" || t.status === "CONCLUIDA"
-        );
+      const aprovacaoMs = rf.dataSubmetido && rf.dataResposta ? msDiff(new Date(rf.dataSubmetido), new Date(rf.dataResposta)) : 0;
+      const todasTarefasConcluidas = tarefasAtivas.length > 0 && tarefasAtivas.every((t: any) => t.status === "CONCLUIDO" || t.status === "CONCLUIDA");
       let fimTarefas: Date | null = null;
       if (todasTarefasConcluidas) {
         for (const t of tarefasAtivas) {
@@ -579,9 +375,8 @@ export async function GET(request: NextRequest) {
           if (d && (!fimTarefas || d > fimTarefas)) fimTarefas = d;
         }
       }
-      const posConclusaoAteValidadoMs = fimTarefas
-        ? msDiff(fimTarefas, totalEnd)
-        : 0;
+      const posConclusaoAteValidadoMs = fimTarefas ? msDiff(fimTarefas, totalEnd) : 0;
+      
 
       // Adiar push para após cálculo de logística
 
@@ -591,19 +386,9 @@ export async function GET(request: NextRequest) {
       // - Ciclos: SETORES trabalham até todas as tarefas concluírem; LOGÍSTICA decide
       //   • Se REJEITADO/INVALIDADO: volta para SETORES e repete
       //   • Se VALIDADO: encerra
-      const responsabilidadeTimeline: {
-        responsavel: string;
-        inicio: string;
-        fim: string;
-        ms: number;
-        ciclo?: number;
-        tipo?: string;
-      }[] = [];
+      const responsabilidadeTimeline: { responsavel: string; inicio: string; fim: string; ms: number; ciclo?: number; tipo?: string }[] = [];
       const ciclos: { inicio: Date; fim: Date }[] = [];
-      const intervalosPorSetor: Record<
-        string,
-        { inicio: string; fim: string }
-      > = {};
+      const intervalosPorSetor: Record<string, { inicio: string; fim: string }> = {};
       const ciclosSetorDurMs: Record<string, number[]> = {};
 
       // Segmento 0 (pré-setores): LOGÍSTICA da criação da solicitação até a aprovação inicial (dataAprovado)
@@ -611,59 +396,37 @@ export async function GET(request: NextRequest) {
       // Fallback do fim: rf.dataSubmetido, rf.dataResposta ou primeira decisão de Prestserv
       const tCriacaoSolic = rf.solicitacao?.dataSolicitacao
         ? new Date(rf.solicitacao.dataSolicitacao)
-        : rf.createdAt
-        ? new Date(rf.createdAt)
-        : null;
+        : (rf.createdAt ? new Date(rf.createdAt) : null);
       const tAprovado = rf.dataAprovado ? new Date(rf.dataAprovado) : null;
       const taskStartCandidates: Date[] = [];
       for (const t of tarefasAtivas) {
         if (t.dataCriacao) taskStartCandidates.push(new Date(t.dataCriacao));
       }
-      const earliestTaskStart = taskStartCandidates.length
-        ? new Date(Math.min(...taskStartCandidates.map((d) => d.getTime())))
-        : null;
+      const earliestTaskStart = taskStartCandidates.length ? new Date(Math.min(...taskStartCandidates.map((d) => d.getTime()))) : null;
       const firstPrestservDecision = historicosPrestserv
-        .map((h) => ({
-          v: (h.valorNovo || "").toUpperCase(),
-          d: h.dataAcao ? new Date(h.dataAcao) : null,
-        }))
-        .filter(
-          (x) =>
-            x.d &&
-            (x.v === "VALIDADO" || x.v === "INVALIDADO" || x.v === "REJEITADO")
-        )
-        .reduce<Date | null>(
-          (acc, x) => (!acc || (x.d as Date) < acc ? (x.d as Date) : acc),
-          null
-        );
-      const preEndFallback =
-        (rf.dataSubmetido ? new Date(rf.dataSubmetido) : null) ||
-        (rf.dataResposta ? new Date(rf.dataResposta) : null) ||
-        firstPrestservDecision ||
-        null;
+        .map((h) => ({ v: (h.valorNovo || '').toUpperCase(), d: h.dataAcao ? new Date(h.dataAcao) : null }))
+        .filter((x) => x.d && (x.v === 'VALIDADO' || x.v === 'INVALIDADO' || x.v === 'REJEITADO'))
+        .reduce<Date | null>((acc, x) => (!acc || (x.d as Date) < acc ? (x.d as Date) : acc), null);
+      const preEndFallback = (rf.dataSubmetido ? new Date(rf.dataSubmetido) : null)
+        || (rf.dataResposta ? new Date(rf.dataResposta) : null)
+        || firstPrestservDecision
+        || null;
       let preEndBound: Date | null = null;
-      let tipoPre = "PRE_SETOR_APROVACAO";
+      let tipoPre = 'PRE_SETOR_APROVACAO';
       if (tAprovado) {
         preEndBound = tAprovado;
-        tipoPre = "PRE_SETOR_APROVACAO";
+        tipoPre = 'PRE_SETOR_APROVACAO';
       } else if (earliestTaskStart) {
         // Se não há dataAprovado, considerar criação de tarefas como fim do pré-setores
         preEndBound = earliestTaskStart;
-        tipoPre = "PRE_SETOR_APROVACAO_TAREFAS";
+        tipoPre = 'PRE_SETOR_APROVACAO_TAREFAS';
       } else if (preEndFallback) {
         preEndBound = preEndFallback;
-        tipoPre = "PRE_SETOR_FALLBACK";
+        tipoPre = 'PRE_SETOR_FALLBACK';
       }
       if (tCriacaoSolic && preEndBound && preEndBound > tCriacaoSolic) {
         const ms = msDiff(tCriacaoSolic, preEndBound);
-        responsabilidadeTimeline.push({
-          responsavel: "LOGISTICA",
-          inicio: tCriacaoSolic.toISOString(),
-          fim: preEndBound.toISOString(),
-          ms,
-          ciclo: 0,
-          tipo: tipoPre,
-        });
+        responsabilidadeTimeline.push({ responsavel: 'LOGISTICA', inicio: tCriacaoSolic.toISOString(), fim: preEndBound.toISOString(), ms, ciclo: 0, tipo: tipoPre });
       }
 
       // Função utilitária: encontrar momento em que todas as tarefas (não canceladas) estão concluídas após uma data base
@@ -671,37 +434,20 @@ export async function GET(request: NextRequest) {
       // Usa tanto eventos (tarefaStatusEvento) quanto o campo dataConclusao para tolerar registros antigos
       const allTasksConcludedAfter = (after: Date | null): Date | null => {
         if (!after) return null;
-        const tasks = (rf.tarefas || []).filter(
-          (t: any) => t.status !== "CANCELADO"
-        );
+        const tasks = (rf.tarefas || []).filter((t: any) => t.status !== 'CANCELADO');
         if (tasks.length === 0) return after;
         let maxConclusao: Date | null = null;
         for (const t of tasks) {
           // Encontrar primeiro evento CONCLUIDO após a data base
           const evts = ordenarEventos(t.eventosStatus || []);
-          const conclEvt = evts.find(
-            (e: any) =>
-              (e.statusNovo === "CONCLUIDO" || e.statusNovo === "CONCLUIDA") &&
-              e.dataEvento &&
-              new Date(e.dataEvento) >= after
-          );
+          const conclEvt = evts.find((e: any) => (e.statusNovo === 'CONCLUIDO' || e.statusNovo === 'CONCLUIDA') && e.dataEvento && new Date(e.dataEvento) >= after);
           const candEvt = conclEvt ? new Date(conclEvt.dataEvento) : null;
-          const candConclusao =
-            t.dataConclusao && new Date(t.dataConclusao) >= after
-              ? new Date(t.dataConclusao)
-              : null;
-          const candidato =
-            candConclusao && candEvt
-              ? candConclusao > candEvt
-                ? candConclusao
-                : candEvt
-              : candConclusao || candEvt;
+          const candConclusao = t.dataConclusao && new Date(t.dataConclusao) >= after ? new Date(t.dataConclusao) : null;
+          const candidato = candConclusao && candEvt ? (candConclusao > candEvt ? candConclusao : candEvt) : (candConclusao || candEvt);
           // Se não houver conclusão após a base e a tarefa não está concluída atualmente, então ainda não concluiu
-          const statusAtualConcl =
-            t.status === "CONCLUIDO" || t.status === "CONCLUIDA";
+          const statusAtualConcl = t.status === 'CONCLUIDO' || t.status === 'CONCLUIDA';
           if (!candidato && !statusAtualConcl) return null;
-          if (candidato && (!maxConclusao || candidato > maxConclusao))
-            maxConclusao = candidato;
+          if (candidato && (!maxConclusao || candidato > maxConclusao)) maxConclusao = candidato;
         }
         return maxConclusao || after;
       };
@@ -713,50 +459,39 @@ export async function GET(request: NextRequest) {
       //  2) Primeiro histórico com VALIDADO após "after"
       //  3) rf.dataResposta após "after" (quando há resposta/decisão fora do histórico)
       //  4) rf.dataSubmetido após "after" (último recurso para registros antigos)
-      const nextPrestservDecisionAfter = (
-        after: Date | null
-      ): { tipo: string; quando: Date } | null => {
+      const nextPrestservDecisionAfter = (after: Date | null): { tipo: string; quando: Date } | null => {
         if (!after) return null;
         const decis = historicosPrestserv.find((h) => {
           const ts = h.dataAcao ? new Date(h.dataAcao) : null;
           if (!ts) return false;
-          const v = (h.valorNovo || "").toUpperCase();
-          return (
-            ts > after &&
-            (v === "VALIDADO" || v === "INVALIDADO" || v === "REJEITADO")
-          );
+          const v = (h.valorNovo || '').toUpperCase();
+          return ts > after && (v === 'VALIDADO' || v === 'INVALIDADO' || v === 'REJEITADO');
         });
         if (!decis) {
           // Fallback: preferir data de conclusão como VALIDADO
           if (rf.dataConcluido && new Date(rf.dataConcluido) > after) {
-            return { tipo: "VALIDADO", quando: new Date(rf.dataConcluido) };
+            return { tipo: 'VALIDADO', quando: new Date(rf.dataConcluido) };
           }
           // Ou primeira data em que statusPrestserv ficou VALIDADO
           const validadoDepois = historicosPrestserv.find((h) => {
             const ts = h.dataAcao ? new Date(h.dataAcao) : null;
-            const v = (h.valorNovo || "").toUpperCase();
-            return ts && ts > after && v === "VALIDADO";
+            const v = (h.valorNovo || '').toUpperCase();
+            return ts && ts > after && v === 'VALIDADO';
           });
           if (validadoDepois) {
-            return {
-              tipo: "VALIDADO",
-              quando: new Date(validadoDepois.dataAcao!),
-            };
+            return { tipo: 'VALIDADO', quando: new Date(validadoDepois.dataAcao!) };
           }
           // dataResposta como decisão
           if (rf.dataResposta && new Date(rf.dataResposta) > after) {
-            return { tipo: "RESPOSTA", quando: new Date(rf.dataResposta) };
+            return { tipo: 'RESPOSTA', quando: new Date(rf.dataResposta) };
           }
           // dataSubmetido como último recurso
           if (rf.dataSubmetido && new Date(rf.dataSubmetido) > after) {
-            return { tipo: "SUBMETIDO", quando: new Date(rf.dataSubmetido) };
+            return { tipo: 'SUBMETIDO', quando: new Date(rf.dataSubmetido) };
           }
           return null;
         }
-        return {
-          tipo: (decis.valorNovo || "").toUpperCase(),
-          quando: new Date(decis.dataAcao!),
-        };
+        return { tipo: (decis.valorNovo || '').toUpperCase(), quando: new Date(decis.dataAcao!) };
       };
 
       // Ciclos: após aprovação inicial, SETORES trabalham até concluir; então LOGÍSTICA decide;
@@ -775,21 +510,11 @@ export async function GET(request: NextRequest) {
           const ms = msDiff(tConclTudo, decisao.quando);
           if (ms > 0) {
             const cicloIdx = ciclos.length; // ciclo recém adicionado
-            responsabilidadeTimeline.push({
-              responsavel: "LOGISTICA",
-              inicio: tConclTudo.toISOString(),
-              fim: decisao.quando.toISOString(),
-              ms,
-              ciclo: cicloIdx,
-              tipo: decisao.tipo,
-            });
+            responsabilidadeTimeline.push({ responsavel: 'LOGISTICA', inicio: tConclTudo.toISOString(), fim: decisao.quando.toISOString(), ms, ciclo: cicloIdx, tipo: decisao.tipo });
           }
-          if (decisao.tipo === "VALIDADO") {
+          if (decisao.tipo === 'VALIDADO') {
             break; // encerrado
-          } else if (
-            decisao.tipo === "INVALIDADO" ||
-            decisao.tipo === "REJEITADO"
-          ) {
+          } else if (decisao.tipo === 'INVALIDADO' || decisao.tipo === 'REJEITADO') {
             // volta para os setores: novo ciclo inicia na decisão
             cicloStart = decisao.quando;
             continue;
@@ -799,21 +524,11 @@ export async function GET(request: NextRequest) {
           }
         } else {
           // Sem decisão registrada; se há dataConcluido e é após, já encerra
-          if (
-            rf.dataConcluido &&
-            new Date(rf.dataConcluido) >= (tConclTudo as Date)
-          ) {
+          if (rf.dataConcluido && new Date(rf.dataConcluido) >= (tConclTudo as Date)) {
             const ms = msDiff(tConclTudo as Date, new Date(rf.dataConcluido));
             if (ms > 0) {
               const cicloIdx = ciclos.length; // ciclo recém adicionado
-              responsabilidadeTimeline.push({
-                responsavel: "LOGISTICA",
-                inicio: (tConclTudo as Date).toISOString(),
-                fim: new Date(rf.dataConcluido).toISOString(),
-                ms,
-                ciclo: cicloIdx,
-                tipo: "VALIDADO",
-              });
+              responsabilidadeTimeline.push({ responsavel: 'LOGISTICA', inicio: (tConclTudo as Date).toISOString(), fim: new Date(rf.dataConcluido).toISOString(), ms, ciclo: cicloIdx, tipo: 'VALIDADO' });
             }
           }
           break;
@@ -837,23 +552,12 @@ export async function GET(request: NextRequest) {
         const endLog = concl || evtValidadoPrimeiro || (totalEnd as Date);
         if (sub && endLog && endLog > sub) {
           const ms = msDiff(sub, endLog);
-          if (ms > 0)
-            responsabilidadeTimeline.push({
-              responsavel: "LOGISTICA",
-              inicio: sub.toISOString(),
-              fim: endLog.toISOString(),
-              ms,
-              ciclo: 0,
-              tipo: "FALLBACK_SUB_RESP_VALIDADO",
-            });
+          if (ms > 0) responsabilidadeTimeline.push({ responsavel: 'LOGISTICA', inicio: sub.toISOString(), fim: endLog.toISOString(), ms, ciclo: 0, tipo: 'FALLBACK_SUB_RESP_VALIDADO' });
         }
       }
 
       const downtimePorSetor: Record<string, number> = {};
-      const segmentosPorSetor: Record<
-        string,
-        { inicio: string; fim: string; ms: number; ciclo?: number }[]
-      > = {};
+      const segmentosPorSetor: Record<string, { inicio: string; fim: string; ms: number; ciclo?: number }[]> = {};
       for (const setor of setores) downtimePorSetor[setor] = 0;
 
       // Calcular atuação por setor dentro de cada ciclo, com fallback proporcional por contagem de tarefas se eventos forem insuficientes
@@ -862,15 +566,10 @@ export async function GET(request: NextRequest) {
         const cicloDur = msDiff(ciclo.inicio, ciclo.fim);
         const medidosPorSetor: Record<string, number> = {};
         const contagemPorSetor: Record<string, number> = {};
-        const displayIntervalBySetor: Record<
-          string,
-          { inicio: Date; fim: Date }
-        > = {};
+        const displayIntervalBySetor: Record<string, { inicio: Date; fim: Date }> = {};
 
-        for (const setor of setores) {
-          const tsSetor = tarefasAtivas.filter(
-            (t: any) => deriveSetor(t) === setor
-          );
+      for (const setor of setores) {
+          const tsSetor = tarefasAtivas.filter((t: any) => deriveSetor(t) === setor);
           contagemPorSetor[setor] = tsSetor.length;
           if (tsSetor.length === 0) continue;
 
@@ -878,80 +577,46 @@ export async function GET(request: NextRequest) {
           const fimCandidates: Date[] = [];
           for (const t of tsSetor) {
             if (t.dataCriacao) inicioCandidates.push(new Date(t.dataCriacao));
-            for (const e of t.eventosStatus || []) {
-              if (e.statusNovo === "REPROVADO" && e.dataEvento)
-                inicioCandidates.push(new Date(e.dataEvento));
-              if (
-                (e.statusNovo === "CONCLUIDO" ||
-                  e.statusNovo === "CONCLUIDA") &&
-                e.dataEvento
-              )
-                fimCandidates.push(new Date(e.dataEvento));
+            for (const e of (t.eventosStatus || [])) {
+              if (e.statusNovo === 'REPROVADO' && e.dataEvento) inicioCandidates.push(new Date(e.dataEvento));
+              if ((e.statusNovo === 'CONCLUIDO' || e.statusNovo === 'CONCLUIDA') && e.dataEvento) fimCandidates.push(new Date(e.dataEvento));
             }
             if (t.dataConclusao) fimCandidates.push(new Date(t.dataConclusao));
           }
 
-          const inicioSetorRaw = inicioCandidates.length
-            ? new Date(Math.min(...inicioCandidates.map((d) => d.getTime())))
-            : ciclo.inicio;
-          const fimSetorRaw = fimCandidates.length
-            ? new Date(Math.max(...fimCandidates.map((d) => d.getTime())))
-            : ciclo.fim;
-          const inicioSetor = new Date(
-            Math.max(inicioSetorRaw.getTime(), ciclo.inicio.getTime())
-          );
-          const fimSetor = new Date(
-            Math.min(fimSetorRaw.getTime(), ciclo.fim.getTime())
-          );
+          const inicioSetorRaw = inicioCandidates.length ? new Date(Math.min(...inicioCandidates.map((d) => d.getTime()))) : ciclo.inicio;
+          const fimSetorRaw = fimCandidates.length ? new Date(Math.max(...fimCandidates.map((d) => d.getTime()))) : ciclo.fim;
+          const inicioSetor = new Date(Math.max(inicioSetorRaw.getTime(), ciclo.inicio.getTime()));
+          const fimSetor = new Date(Math.min(fimSetorRaw.getTime(), ciclo.fim.getTime()));
           const ms = msDiff(inicioSetor, fimSetor);
-          if (ms > 0)
-            medidosPorSetor[setor] = (medidosPorSetor[setor] || 0) + ms;
+          if (ms > 0) medidosPorSetor[setor] = (medidosPorSetor[setor] || 0) + ms;
 
           // Acumular intervalos de início/fim por setor ao longo dos ciclos (exibir início real se anterior ao ciclo)
-          const displayInicio =
-            inicioSetorRaw < ciclo.inicio ? inicioSetorRaw : inicioSetor;
+          const displayInicio = inicioSetorRaw < ciclo.inicio ? inicioSetorRaw : inicioSetor;
           const displayFim = fimSetor;
           if (displayFim >= displayInicio) {
-            displayIntervalBySetor[setor] = {
-              inicio: displayInicio,
-              fim: displayFim,
-            };
+            displayIntervalBySetor[setor] = { inicio: displayInicio, fim: displayFim };
             const existente = intervalosPorSetor[setor];
             if (!existente) {
-              intervalosPorSetor[setor] = {
-                inicio: displayInicio.toISOString(),
-                fim: displayFim.toISOString(),
-              };
+              intervalosPorSetor[setor] = { inicio: displayInicio.toISOString(), fim: displayFim.toISOString() };
             } else {
               const atualInicio = new Date(existente.inicio);
               const atualFim = new Date(existente.fim);
-              const novoInicio =
-                displayInicio < atualInicio ? displayInicio : atualInicio;
+              const novoInicio = displayInicio < atualInicio ? displayInicio : atualInicio;
               const novoFim = displayFim > atualFim ? displayFim : atualFim;
-              intervalosPorSetor[setor] = {
-                inicio: novoInicio.toISOString(),
-                fim: novoFim.toISOString(),
-              };
+              intervalosPorSetor[setor] = { inicio: novoInicio.toISOString(), fim: novoFim.toISOString() };
             }
           }
         }
 
-        const somaMedida = Object.values(medidosPorSetor).reduce(
-          (a, b) => a + b,
-          0
-        );
-        const somaContagem = Object.values(contagemPorSetor).reduce(
-          (a, b) => a + b,
-          0
-        );
+        const somaMedida = Object.values(medidosPorSetor).reduce((a, b) => a + b, 0);
+        const somaContagem = Object.values(contagemPorSetor).reduce((a, b) => a + b, 0);
         const eventosInsuficientes = somaMedida < cicloDur * 0.1; // menos de 10% do ciclo coberto por eventos
 
         for (const setor of setores) {
           const msFinal = eventosInsuficientes
-            ? somaContagem > 0
-              ? Math.round(cicloDur * (contagemPorSetor[setor] / somaContagem))
-              : 0
-            : medidosPorSetor[setor] || 0;
+            ? (somaContagem > 0 ? Math.round(cicloDur * (contagemPorSetor[setor] / somaContagem)) : 0)
+            : (medidosPorSetor[setor] || 0);
           if (msFinal > 0) {
             downtimePorSetor[setor] = (downtimePorSetor[setor] || 0) + msFinal;
             if (!ciclosSetorDurMs[setor]) ciclosSetorDurMs[setor] = [];
@@ -959,60 +624,37 @@ export async function GET(request: NextRequest) {
             const interval = displayIntervalBySetor[setor];
             if (interval) {
               if (!segmentosPorSetor[setor]) segmentosPorSetor[setor] = [];
-              segmentosPorSetor[setor].push({
-                inicio: interval.inicio.toISOString(),
-                fim: interval.fim.toISOString(),
-                ms: msFinal,
-                ciclo: ci + 1,
-              });
+              segmentosPorSetor[setor].push({ inicio: interval.inicio.toISOString(), fim: interval.fim.toISOString(), ms: msFinal, ciclo: ci + 1 });
             }
           }
         }
       }
 
       const logisticaMs = responsabilidadeTimeline
-        .filter((seg) => seg.responsavel === "LOGISTICA")
+        .filter((seg) => seg.responsavel === 'LOGISTICA')
         .reduce((acc, seg) => acc + (seg.ms || 0), 0);
       if (logisticaMs > 0) {
-        downtimePorSetor["LOGISTICA"] =
-          (downtimePorSetor["LOGISTICA"] || 0) + logisticaMs;
-        const ar = agregadosSetorDuracoes.get("LOGISTICA") || [];
+        downtimePorSetor['LOGISTICA'] = (downtimePorSetor['LOGISTICA'] || 0) + logisticaMs;
+        const ar = agregadosSetorDuracoes.get('LOGISTICA') || [];
         ar.push(logisticaMs);
-        agregadosSetorDuracoes.set("LOGISTICA", ar);
+        agregadosSetorDuracoes.set('LOGISTICA', ar);
 
-        const segsLog = responsabilidadeTimeline.filter(
-          (seg) => seg.responsavel === "LOGISTICA"
-        );
+        const segsLog = responsabilidadeTimeline.filter((seg) => seg.responsavel === 'LOGISTICA');
         if (segsLog.length > 0) {
-          const inicioLog = new Date(
-            Math.min(...segsLog.map((s) => new Date(s.inicio).getTime()))
-          );
-          const fimLog = new Date(
-            Math.max(...segsLog.map((s) => new Date(s.fim).getTime()))
-          );
-          intervalosPorSetor["LOGISTICA"] = {
-            inicio: inicioLog.toISOString(),
-            fim: fimLog.toISOString(),
-          };
-          if (!segmentosPorSetor["LOGISTICA"])
-            segmentosPorSetor["LOGISTICA"] = [];
+          const inicioLog = new Date(Math.min(...segsLog.map((s) => new Date(s.inicio).getTime())));
+          const fimLog = new Date(Math.max(...segsLog.map((s) => new Date(s.fim).getTime())));
+          intervalosPorSetor['LOGISTICA'] = { inicio: inicioLog.toISOString(), fim: fimLog.toISOString() };
+          if (!segmentosPorSetor['LOGISTICA']) segmentosPorSetor['LOGISTICA'] = [];
           for (const seg of segsLog) {
             const cicloValue = (seg as any).ciclo ?? undefined;
-            segmentosPorSetor["LOGISTICA"].push({
-              inicio: seg.inicio,
-              fim: seg.fim,
-              ms: seg.ms,
-              ciclo: cicloValue,
-            });
+            segmentosPorSetor['LOGISTICA'].push({ inicio: seg.inicio, fim: seg.fim, ms: seg.ms, ciclo: cicloValue });
           }
         }
       }
 
       // Montar tempos médios por setor (somente setores de atuação) e incluir logística
-      const temposMediosPorSetor = Object.entries(temposConclusaoPorSetor).map(
-        ([setor, arr]) => ({ setor, tempoMedioMs: media(arr as number[]) })
-      );
-      const requiredSetores = ["RH", "MEDICINA", "TREINAMENTO"];
+      const temposMediosPorSetor = Object.entries(temposConclusaoPorSetor).map(([setor, arr]) => ({ setor, tempoMedioMs: media(arr as number[]) }));
+      const requiredSetores = ['RH', 'MEDICINA', 'TREINAMENTO'];
       const MIN_VALID_MS = 1 * 1000; // mínimo 1 segundo para considerar atuação válida
       const hasAnyValid = requiredSetores.some((set) => {
         const e = temposMediosPorSetor.find((x) => x.setor === set);
@@ -1020,35 +662,22 @@ export async function GET(request: NextRequest) {
       });
       const autoAprovado = (rf.tarefas || []).some((t: any) => {
         const desc = normUp(t.descricao);
-        const hasDesc =
-          desc.includes("APROVADAS AUTOMATICAMENTE") ||
-          desc.includes("APROVADO AUTOMATICAMENTE");
+        const hasDesc = desc.includes('APROVADAS AUTOMATICAMENTE') || desc.includes('APROVADO AUTOMATICAMENTE');
         const hasHist = (t.historico || []).some((h: any) => {
           const d = normUp(h.descricaoAcao);
-          return (
-            d.includes("APROVADAS AUTOMATICAMENTE") ||
-            d.includes("APROVADO AUTOMATICAMENTE")
-          );
+          return d.includes('APROVADAS AUTOMATICAMENTE') || d.includes('APROVADO AUTOMATICAMENTE');
         });
         return hasDesc || hasHist;
       });
 
       const temposMediosPorSetorAug = [
         ...temposMediosPorSetor,
-        { setor: "LOGISTICA", tempoMedioMs: logisticaMs },
+        { setor: 'LOGISTICA', tempoMedioMs: logisticaMs },
       ];
 
-      let duracaoPorSetorMsArr = Object.entries(ciclosSetorDurMs).map(
-        ([setor, arr]) => ({ setor, ms: arr.reduce((a, b) => a + b, 0) })
-      );
-      const somaDuracaoCiclos = duracaoPorSetorMsArr.reduce(
-        (acc, it) => acc + (it.ms || 0),
-        0
-      );
-      const setorDurArr = Object.entries(setorDur).map(([setor, ms]) => ({
-        setor,
-        ms,
-      }));
+      let duracaoPorSetorMsArr = Object.entries(ciclosSetorDurMs).map(([setor, arr]) => ({ setor, ms: arr.reduce((a, b) => a + b, 0) }));
+      const somaDuracaoCiclos = duracaoPorSetorMsArr.reduce((acc, it) => acc + (it.ms || 0), 0);
+      const setorDurArr = Object.entries(setorDur).map(([setor, ms]) => ({ setor, ms }));
       if (somaDuracaoCiclos === 0) {
         // Fallback: sem ciclos válidos, usa soma direta dos segmentos por setor
         duracaoPorSetorMsArr = setorDurArr;
@@ -1062,18 +691,15 @@ export async function GET(request: NextRequest) {
         }
       }
       if (logisticaMs > 0) {
-        const hasLogDur = duracaoPorSetorMsArr.find(
-          (x) => x.setor === "LOGISTICA"
-        );
-        if (!hasLogDur)
-          duracaoPorSetorMsArr.push({ setor: "LOGISTICA", ms: logisticaMs });
+        const hasLogDur = duracaoPorSetorMsArr.find((x) => x.setor === 'LOGISTICA');
+        if (!hasLogDur) duracaoPorSetorMsArr.push({ setor: 'LOGISTICA', ms: logisticaMs });
       }
       const totalDuracaoMs = totalDurMs;
 
       if ((rf.tarefas || []).length > 0) {
         const reprovacoesPorSetor: Record<string, number> = {};
         for (const ev of reprovEvents) {
-          const k = (ev.setor || "").toString();
+          const k = (ev.setor || '').toString();
           reprovacoesPorSetor[k] = (reprovacoesPorSetor[k] || 0) + 1;
         }
         porRemanejamento.push({
@@ -1082,28 +708,15 @@ export async function GET(request: NextRequest) {
           funcionario: rf.funcionario,
           totalDurMs: totalDuracaoMs,
           temposMediosPorSetor: temposMediosPorSetorAug,
-          periodosPorSetor: Object.entries(intervalosPorSetor).map(
-            ([setor, itv]) => ({ setor, inicio: itv.inicio, fim: itv.fim })
-          ),
+          periodosPorSetor: Object.entries(intervalosPorSetor).map(([setor, itv]) => ({ setor, inicio: itv.inicio, fim: itv.fim })),
           duracaoPorSetorMs: duracaoPorSetorMsArr,
           responsabilidadeTimeline,
           segmentosPorSetor,
-          solicitacaoDataCriacao: rf.solicitacao?.dataSolicitacao
-            ? new Date(rf.solicitacao.dataSolicitacao).toISOString()
-            : null,
-          remanejamentoDataConclusao: totalEnd
-            ? new Date(totalEnd).toISOString()
-            : null,
+          solicitacaoDataCriacao: rf.solicitacao?.dataSolicitacao ? new Date(rf.solicitacao.dataSolicitacao).toISOString() : null,
+          remanejamentoDataConclusao: totalEnd ? new Date(totalEnd).toISOString() : null,
           teveReprovacao: reprovEvents.length > 0,
-          reprovacoesPorSetor: Object.entries(reprovacoesPorSetor).map(
-            ([setor, count]) => ({ setor, count })
-          ),
-          reprovEvents: reprovEvents.map((ev) => ({
-            setor: ev.setor,
-            data: ev.data ? (ev.data as Date).toISOString() : null,
-            source: ev.source,
-            tarefaId: ev.tarefaId,
-          })),
+          reprovacoesPorSetor: Object.entries(reprovacoesPorSetor).map(([setor, count]) => ({ setor, count })),
+          reprovEvents: reprovEvents.map((ev) => ({ setor: ev.setor, data: ev.data ? (ev.data as Date).toISOString() : null, source: ev.source, tarefaId: ev.tarefaId })),
         });
       }
 
@@ -1115,26 +728,15 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      const atuacaoPorcentPorSetor = Object.entries(downtimePorSetor).map(
-        ([setor, ms]) => ({
-          setor,
-          porcentagem: totalDurMs > 0 ? ms / totalDurMs : 0,
-        })
-      );
+      const atuacaoPorcentPorSetor = Object.entries(downtimePorSetor).map(([setor, ms]) => ({ setor, porcentagem: totalDurMs > 0 ? (ms / totalDurMs) : 0 }));
 
       // Removido acúmulo por solicitação (não utilizado na visão por setor)
 
       if (logisticaMs > 0) {
-        const setorAgg = porSetor.get("LOGISTICA") || {
-          setor: "LOGISTICA",
-          qtdTarefas: 0,
-          downtimeMs: 0,
-          conclusoesMs: [] as number[],
-          reprovações: 0,
-        };
+        const setorAgg = porSetor.get('LOGISTICA') || { setor: 'LOGISTICA', qtdTarefas: 0, downtimeMs: 0, conclusoesMs: [] as number[], reprovações: 0 };
         setorAgg.downtimeMs += logisticaMs;
         setorAgg.conclusoesMs.push(logisticaMs);
-        porSetor.set("LOGISTICA", setorAgg);
+        porSetor.set('LOGISTICA', setorAgg);
       }
     }
 
@@ -1158,11 +760,7 @@ export async function GET(request: NextRequest) {
       reprovacoesPorTipo: reprovPorTipo,
     });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Erro desconhecido";
-    return NextResponse.json(
-      { error: "Falha ao gerar relatório de SLA", details: message },
-      { status: 500 }
-    );
+    const message = error instanceof Error ? error.message : "Erro desconhecido";
+    return NextResponse.json({ error: "Falha ao gerar relatório de SLA", details: message }, { status: 500 });
   }
 }

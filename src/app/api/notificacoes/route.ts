@@ -174,53 +174,10 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // 4. Funções não cadastradas na matriz (apenas para Admin e Treinamento)
-    let missingFunctions: any[] = [];
-    if (
-      permissions.includes(PERMISSIONS.ADMIN) ||
-      permissions.includes(PERMISSIONS.ACCESS_TREINAMENTO) ||
-      isTreinamento
-    ) {
-      // Buscar todas as funções cadastradas no sistema
-      const existingFunctions = await prisma.funcao.findMany({
-        select: { funcao: true },
-      });
-      const existingSet = new Set(
-        existingFunctions.map((f) => f.funcao.trim().toUpperCase())
-      );
-
-      // Buscar funções em uso pelos funcionários
-      // Agrupando por função e centro de custo para identificar onde estão
-      const employeeFunctions = await prisma.funcionario.groupBy({
-        by: ["funcao", "centroCusto"],
-        where: {
-          funcao: { not: null },
-          status: { not: "DEMITIDO" },
-        },
-        _count: {
-          matricula: true,
-        },
-      });
-
-      // Filtrar as que não existem no sistema
-      missingFunctions = employeeFunctions
-        .filter((item) => {
-          const funcName = item.funcao?.trim().toUpperCase();
-          return funcName && !existingSet.has(funcName);
-        })
-        .map((item) => ({
-          funcao: item.funcao,
-          centroCusto: item.centroCusto,
-          quantidade: item._count.matricula,
-        }))
-        .slice(0, 10); // Limitar a 10 para não poluir
-    }
-
     return NextResponse.json({
       recent: recentCreates,
       priority: priorityItems,
       overdue: overdueTasks,
-      missingFunctions,
     });
   } catch (error) {
     console.error("Erro ao buscar notificações:", error);
