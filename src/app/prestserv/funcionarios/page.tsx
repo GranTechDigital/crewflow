@@ -27,7 +27,6 @@ import {
   ExclamationTriangleIcon,
   ExclamationCircleIcon,
   ArrowPathIcon,
-  ChatBubbleLeftRightIcon,
 } from "@heroicons/react/24/outline";
 import {
   Chart as ChartJS,
@@ -60,7 +59,6 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import { ROUTE_PROTECTION, PERMISSIONS } from "@/lib/permissions";
 import { usePermissions } from "@/app/hooks/useAuth";
 import ListaTarefasModal from "@/components/ListaTarefasModal";
-import ObservacoesRemanejamentoModal from "@/components/ObservacoesRemanejamentoModal";
 import CheckIcon from "@heroicons/react/24/solid/CheckIcon";
 import { useAuth } from "@/app/hooks/useAuth";
 
@@ -99,7 +97,6 @@ interface FuncionarioTableData {
   funcaoAlteradaRecentemente?: boolean;
   dataMudancaFuncao?: string;
   observacoesPrestserv?: string;
-  observacoesCount?: number;
 }
 
 export default function FuncionariosPage() {
@@ -125,28 +122,7 @@ function FuncionariosPageContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filtroStatus, setFiltroStatus] = useState<string>("TODOS");
-  // Filtro de nomes agora permite seleção múltipla
-  const [filtroNomesSelecionados, setFiltroNomesSelecionados] = useState<
-    string[]
-  >([]);
-  const [buscaNomeDropdown, setBuscaNomeDropdown] = useState("");
-  const [dropdownNomeOpen, setDropdownNomeOpen] = useState(false);
-
-  // Obter lista única de nomes/matrículas para o filtro
-  const getOpcoesNomes = useCallback(() => {
-    const map = new Map<string, string>();
-    funcionarios.forEach((f) => {
-      if (!map.has(f.matricula)) {
-        map.set(f.matricula, f.nome);
-      }
-    });
-
-    // Converter para array e ordenar
-    return Array.from(map.entries())
-      .map(([matricula, nome]) => ({ matricula, nome }))
-      .sort((a, b) => a.nome.localeCompare(b.nome));
-  }, [funcionarios]);
-
+  const [filtroNome, setFiltroNome] = useState("");
   const [filtroContratoOrigem, setFiltroContratoOrigem] = useState<string[]>(
     []
   );
@@ -220,11 +196,6 @@ function FuncionariosPageContent() {
   const [showObsModal, setShowObsModal] = useState(false);
   const [obsTexto, setObsTexto] = useState("");
   const [obsTitulo, setObsTitulo] = useState("");
-  const [showObservacoesModal, setShowObservacoesModal] = useState(false);
-  const [
-    funcionarioObservacaoSelecionado,
-    setFuncionarioObservacaoSelecionado,
-  ] = useState<FuncionarioTableData | null>(null);
 
   // Estados para aprovação em lote
   const [funcionariosSelecionados, setFuncionariosSelecionados] = useState<
@@ -251,33 +222,6 @@ function FuncionariosPageContent() {
   // Função para verificar se o usuário é administrador
   const isAdmin = () => {
     return usuario?.equipe === "Administração";
-  };
-
-  const handleObservationChange = (count: number) => {
-    if (!funcionarioObservacaoSelecionado) return;
-
-    // Atualizar na lista principal
-    setFuncionarios((prev) =>
-      prev.map((f) =>
-        f.id === funcionarioObservacaoSelecionado.id
-          ? { ...f, observacoesCount: count }
-          : f
-      )
-    );
-
-    // Atualizar na lista base nominal
-    setFuncionariosBaseNominal((prev) =>
-      prev.map((f) =>
-        f.id === funcionarioObservacaoSelecionado.id
-          ? { ...f, observacoesCount: count }
-          : f
-      )
-    );
-
-    // Atualizar o funcionário selecionado
-    setFuncionarioObservacaoSelecionado((prev) =>
-      prev ? { ...prev, observacoesCount: count } : null
-    );
   };
 
   const handleSincronizar = async () => {
@@ -336,12 +280,12 @@ function FuncionariosPageContent() {
         if (data.funcionariosAtencao) {
           data.funcionariosAtencao = data.funcionariosAtencao.filter(
             (funcionario: any) => {
-              // Aplicar filtros de nome (múltipla seleção)
+              // Aplicar filtros de nome
               if (
-                filtroNomesSelecionados.length > 0 &&
-                !filtroNomesSelecionados.includes(
-                  funcionario.funcionario.matricula
-                )
+                filtroNome &&
+                !funcionario.funcionario.nome
+                  .toLowerCase()
+                  .includes(filtroNome.toLowerCase())
               ) {
                 return false;
               }
@@ -424,15 +368,7 @@ function FuncionariosPageContent() {
     if (savedFilters) {
       try {
         const filters = JSON.parse(savedFilters);
-        // Carregar filtros salvos
-        if (filters.filtroNomesSelecionados) {
-          setFiltroNomesSelecionados(filters.filtroNomesSelecionados);
-        } else if (filters.filtroNome) {
-          // Migração de legado: se tinha filtroNome string, ignorar ou tentar adaptar
-          // Como filtroNome era string e agora é array de matrículas, melhor ignorar para evitar bugs
-          setFiltroNomesSelecionados([]);
-        }
-
+        setFiltroNome(filters.filtroNome || "");
         setFiltroContratoOrigem(filters.filtroContratoOrigem || []);
         setFiltroContratoDestino(filters.filtroContratoDestino || []);
         setFiltroStatusGeral(filters.filtroStatusGeral || []);
@@ -513,7 +449,7 @@ function FuncionariosPageContent() {
   useEffect(() => {
     if (isInitialized) {
       const filters = {
-        filtroNomesSelecionados,
+        filtroNome,
         filtroContratoOrigem,
         filtroContratoDestino,
         filtroStatusGeral,
@@ -531,7 +467,7 @@ function FuncionariosPageContent() {
       localStorage.setItem("funcionarios-filtros", JSON.stringify(filters));
     }
   }, [
-    filtroNomesSelecionados,
+    filtroNome,
     filtroContratoOrigem,
     filtroContratoDestino,
     filtroStatusGeral,
@@ -1028,10 +964,8 @@ function FuncionariosPageContent() {
         params.append("limit", itensPorPaginaSolicitacoes.toString());
 
         // Adicionar filtros para a API
-        if (filtroNomesSelecionados.length > 0) {
-          filtroNomesSelecionados.forEach((matricula) => {
-            params.append("matricula", matricula);
-          });
+        if (filtroNome) {
+          params.append("nome", filtroNome);
         }
 
         if (filtroContratoOrigem.length > 0) {
@@ -1145,7 +1079,6 @@ function FuncionariosPageContent() {
             createdAt: solicitacao.createdAt,
             updatedAt: solicitacao.updatedAt,
             observacoesPrestserv: rf.observacoesPrestserv || "",
-            observacoesCount: rf._count?.observacoes || 0,
             statusFuncionario: rf.statusFuncionario,
             funcaoAlteradaRecentemente: rf.funcaoAlteradaRecentemente || false,
             dataMudancaFuncao: rf.dataMudancaFuncao || undefined,
@@ -1259,7 +1192,6 @@ function FuncionariosPageContent() {
             createdAt: solicitacao.createdAt,
             updatedAt: solicitacao.updatedAt,
             observacoesPrestserv: rf.observacoesPrestserv || "",
-            observacoesCount: rf._count?.observacoes || 0,
             statusFuncionario: rf.statusFuncionario,
             funcaoAlteradaRecentemente: rf.funcaoAlteradaRecentemente || false,
             dataMudancaFuncao: rf.dataMudancaFuncao || undefined,
@@ -1599,7 +1531,7 @@ function FuncionariosPageContent() {
 
   const limparFiltros = () => {
     setFiltroStatus("TODOS");
-    setFiltroNomesSelecionados([]);
+    setFiltroNome("");
     setFiltroContratoOrigem([]);
     setFiltroContratoDestino([]);
     setFiltroStatusGeral([]);
@@ -1695,13 +1627,7 @@ function FuncionariosPageContent() {
         setFiltroStatus("TODOS");
         break;
       case "nome":
-        if (valor) {
-          setFiltroNomesSelecionados((prev) =>
-            prev.filter((matricula) => matricula !== valor)
-          );
-        } else {
-          setFiltroNomesSelecionados([]);
-        }
+        setFiltroNome("");
         break;
       case "contratoOrigem":
         if (valor) {
@@ -1786,17 +1712,13 @@ function FuncionariosPageContent() {
       });
     }
 
-    filtroNomesSelecionados.forEach((matricula) => {
-      const nomeEncontrado = getOpcoesNomes().find(
-        (opt) => opt.matricula === matricula
-      );
-      const label = nomeEncontrado ? nomeEncontrado.nome : matricula;
+    if (filtroNome) {
       tags.push({
         tipo: "nome",
-        valor: matricula,
-        label: `Nome: ${label}`,
+        valor: filtroNome,
+        label: `Nome: ${filtroNome}`,
       });
-    });
+    }
 
     filtroContratoOrigem.forEach((contrato) => {
       tags.push({
@@ -2337,7 +2259,7 @@ function FuncionariosPageContent() {
   const temFiltrosAtivos = () => {
     return (
       filtroStatus !== "TODOS" ||
-      filtroNomesSelecionados.length > 0 ||
+      filtroNome ||
       filtroContratoOrigem.length > 0 ||
       filtroContratoDestino.length > 0 ||
       filtroStatusGeral.length > 0 ||
@@ -2353,8 +2275,9 @@ function FuncionariosPageContent() {
   const aplicarFiltros = (lista: FuncionarioTableData[]) =>
     lista.filter((funcionario) => {
       const matchNome =
-        filtroNomesSelecionados.length === 0 ||
-        filtroNomesSelecionados.includes(funcionario.matricula);
+        !filtroNome ||
+        funcionario.nome.toLowerCase().includes(filtroNome.toLowerCase()) ||
+        funcionario.matricula.toLowerCase().includes(filtroNome.toLowerCase());
 
       const matchStatus =
         filtroStatus === "TODOS" ||
@@ -2423,8 +2346,9 @@ function FuncionariosPageContent() {
   const aplicarFiltrosNominal = (lista: FuncionarioTableData[]) =>
     lista.filter((funcionario) => {
       const matchNome =
-        filtroNomesSelecionados.length === 0 ||
-        filtroNomesSelecionados.includes(funcionario.matricula);
+        !filtroNome ||
+        funcionario.nome.toLowerCase().includes(filtroNome.toLowerCase()) ||
+        funcionario.matricula.toLowerCase().includes(filtroNome.toLowerCase());
 
       const matchStatus =
         filtroStatus === "TODOS" ||
@@ -4287,120 +4211,15 @@ function FuncionariosPageContent() {
                 <label className="block text-xs font-medium text-gray-700 mb-1">
                   Nome/Matrícula
                 </label>
-                <div className="relative dropdown-container">
-                  <button
-                    onClick={() => setDropdownNomeOpen(!dropdownNomeOpen)}
-                    className="w-full pl-8 pr-8 py-2 text-sm border-slate-800 bg-slate-100 text-slate-500 rounded-md shadow-sm focus:border-slate-300 focus:ring-slate-300 text-left flex items-center justify-between"
-                  >
-                    <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <span className="truncate">
-                      {filtroNomesSelecionados.length === 0
-                        ? "Todos"
-                        : filtroNomesSelecionados.length === 1
-                        ? "1 selecionado"
-                        : `${filtroNomesSelecionados.length} selecionados`}
-                    </span>
-                    <ChevronDownIcon
-                      className={`w-4 h-4 transition-transform ${
-                        dropdownNomeOpen ? "rotate-180" : ""
-                      }`}
-                    />
-                  </button>
-
-                  {dropdownNomeOpen && (
-                    <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-md shadow-lg p-2 min-w-[300px]">
-                      {/* Busca interna */}
-                      <div className="mb-2">
-                        <input
-                          type="text"
-                          value={buscaNomeDropdown}
-                          onChange={(e) => setBuscaNomeDropdown(e.target.value)}
-                          placeholder="Filtrar lista..."
-                          className="w-full px-2 py-1 text-sm border border-slate-300 rounded focus:outline-none focus:border-sky-500 text-slate-700"
-                          autoFocus
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                      </div>
-
-                      {/* Lista de opções */}
-                      <div className="max-h-60 overflow-y-auto space-y-1 custom-scrollbar">
-                        <div className="flex items-center justify-between px-1 pb-2 border-b border-slate-100 mb-1">
-                          <span className="text-xs text-slate-500 font-medium">
-                            Opções
-                          </span>
-                          <button
-                            onClick={() => setFiltroNomesSelecionados([])}
-                            className="text-xs text-red-500 hover:text-red-700"
-                          >
-                            Limpar
-                          </button>
-                        </div>
-
-                        {getOpcoesNomes()
-                          .filter(
-                            (opt) =>
-                              !buscaNomeDropdown ||
-                              opt.nome
-                                .toLowerCase()
-                                .includes(buscaNomeDropdown.toLowerCase()) ||
-                              opt.matricula
-                                .toLowerCase()
-                                .includes(buscaNomeDropdown.toLowerCase())
-                          )
-                          .map((opt) => (
-                            <label
-                              key={opt.matricula}
-                              className="flex items-center space-x-2 cursor-pointer hover:bg-slate-50 p-1 rounded"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={filtroNomesSelecionados.includes(
-                                  opt.matricula
-                                )}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setFiltroNomesSelecionados([
-                                      ...filtroNomesSelecionados,
-                                      opt.matricula,
-                                    ]);
-                                  } else {
-                                    setFiltroNomesSelecionados(
-                                      filtroNomesSelecionados.filter(
-                                        (m) => m !== opt.matricula
-                                      )
-                                    );
-                                  }
-                                }}
-                                className="rounded border-gray-300 text-sky-600 focus:ring-sky-500"
-                              />
-                              <div className="text-sm">
-                                <div className="font-medium text-slate-700">
-                                  {opt.nome}
-                                </div>
-                                <div className="text-xs text-slate-500">
-                                  {opt.matricula}
-                                </div>
-                              </div>
-                            </label>
-                          ))}
-                        {getOpcoesNomes().filter(
-                          (opt) =>
-                            !buscaNomeDropdown ||
-                            opt.nome
-                              .toLowerCase()
-                              .includes(buscaNomeDropdown.toLowerCase()) ||
-                            opt.matricula
-                              .toLowerCase()
-                              .includes(buscaNomeDropdown.toLowerCase())
-                        ).length === 0 && (
-                          <div className="text-center text-xs text-slate-400 py-2">
-                            Nenhum resultado
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
+                <div className="relative">
+                  <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <input
+                    type="text"
+                    value={filtroNome}
+                    onChange={(e) => setFiltroNome(e.target.value)}
+                    placeholder="Buscar..."
+                    className="w-full pl-10 pr-3 py-2 text-sm border-slate-800 bg-slate-100 text-slate-500 rounded-md shadow-sm focus:border-slate-300 focus:ring-slate-300"
+                  />
                 </div>
               </div>
               <div>
@@ -5412,27 +5231,6 @@ function FuncionariosPageContent() {
                                     Detalhes
                                   </button>
                                 )}
-                              {/* Botão de Observações */}
-                              <button
-                                onClick={() => {
-                                  setFuncionarioObservacaoSelecionado(
-                                    funcionario
-                                  );
-                                  setShowObservacoesModal(true);
-                                }}
-                                className="inline-flex items-center px-2 py-1 text-xs font-medium text-cyan-700 bg-cyan-50 border border-cyan-200 rounded hover:bg-cyan-100 transition-colors focus:outline-none focus:ring-1 focus:ring-cyan-500"
-                                title="Observações"
-                              >
-                                <ChatBubbleLeftRightIcon className="h-3 w-3" />
-                                {funcionario.observacoesCount !== undefined &&
-                                  funcionario.observacoesCount > 0 && (
-                                    <span className="ml-0.5 bg-white text-cyan-600 text-[9px] font-bold px-1 rounded-full min-w-[14px] h-[14px] flex items-center justify-center">
-                                      {funcionario.observacoesCount}
-                                    </span>
-                                  )}
-                                <span className="ml-1">Obs</span>
-                              </button>
-
                               {/* Botão para listar tarefas - ocultar para APROVAR SOLICITAÇÃO, REJEITADO, CANCELADO */}
                               {funcionario.statusTarefas !==
                                 "APROVAR SOLICITAÇÃO" &&
@@ -6087,24 +5885,6 @@ function FuncionariosPageContent() {
                         </td>
                         <td className="px-3 py-2 text-xs text-gray-700">
                           <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => {
-                                setFuncionarioObservacaoSelecionado(
-                                  funcionario
-                                );
-                                setShowObservacoesModal(true);
-                              }}
-                              className="px-2 py-1 text-[11px] bg-cyan-600 text-white rounded hover:bg-cyan-700 flex items-center gap-1"
-                              title="Observações"
-                            >
-                              <ChatBubbleLeftRightIcon className="h-3 w-3" />
-                              {funcionario.observacoesCount !== undefined &&
-                                funcionario.observacoesCount > 0 && (
-                                  <span className="ml-0.5 bg-white text-cyan-600 text-[9px] font-bold px-1 rounded-full min-w-[14px] h-[14px] flex items-center justify-center">
-                                    {funcionario.observacoesCount}
-                                  </span>
-                                )}
-                            </button>
                             <button
                               onClick={() =>
                                 router.push(
@@ -7186,18 +6966,6 @@ function FuncionariosPageContent() {
               </div>
             </div>
           </div>
-        )}
-
-        {/* Modal de Observações de Remanejamento */}
-        {showObservacoesModal && funcionarioObservacaoSelecionado && (
-          <ObservacoesRemanejamentoModal
-            isOpen={showObservacoesModal}
-            onClose={() => setShowObservacoesModal(false)}
-            remanejamentoId={funcionarioObservacaoSelecionado.id}
-            funcionarioNome={funcionarioObservacaoSelecionado.nome}
-            funcionarioMatricula={funcionarioObservacaoSelecionado.matricula}
-            onObservationsChange={handleObservationChange}
-          />
         )}
 
         {/* Modal de Aprovação em Lote */}
