@@ -237,11 +237,6 @@ export default function HomePage() {
     return setor.equipes.includes(usuario?.equipe || "");
   });
 
-  // Ocultar Planejamento por enquanto
-  const setoresAtualizados = setoresFiltrados.filter(
-    (setor) => setor.key !== "planejamento"
-  );
-
   // Filtrar links baseado nas permissões (ex: ocultar "Criar Solicitação" para visualizadores)
   const filterLinks = (
     links: { label: string; href: string }[],
@@ -272,7 +267,7 @@ export default function HomePage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {setoresAtualizados.map((setor) => {
+            {setoresFiltrados.map((setor) => {
               const IconComponent = setor.icon;
               const filteredLinks = filterLinks(
                 setor.links,

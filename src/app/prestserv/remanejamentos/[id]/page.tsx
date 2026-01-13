@@ -60,12 +60,20 @@ export default function FuncionarioModernoPage() {
         "RH",
         "Treinamento",
         "Medicina",
+        "Planejamento",
+        "Planejamento (Gestor)",
+        "Planejamento (Editor)",
+        "Planejamento (Visualizador)",
       ]}
       requiredPermissions={[
         ...ROUTE_PROTECTION.PRESTSERV.requiredPermissions,
         PERMISSIONS.ACCESS_RH,
         PERMISSIONS.ACCESS_TREINAMENTO,
         PERMISSIONS.ACCESS_MEDICINA,
+        // Permissões específicas para o time de Planejamento
+        PERMISSIONS.ACCESS_PLANEJAMENTO,
+        PERMISSIONS.ACCESS_PLANEJAMENTO_VISUALIZADOR,
+        PERMISSIONS.ACCESS_PLANEJAMENTO_GESTOR,
       ]}
     >
       <FuncionarioModernoContent />
@@ -267,7 +275,8 @@ function FuncionarioModernoContent() {
         VALIDADO: "Prestserv validado com sucesso!",
         CANCELADO: "Prestserv cancelado com sucesso!",
         "SISPAT BLOQUEADO": "SISPAT bloqueado — criar rascunho em seguida",
-        "PENDENTE DE DESLIGAMENTO": "Registro marcado como pendente de desligamento",
+        "PENDENTE DE DESLIGAMENTO":
+          "Registro marcado como pendente de desligamento",
         "DESLIGAMENTO SOLICITADO": "Solicitação de desligamento registrada",
       };
 
