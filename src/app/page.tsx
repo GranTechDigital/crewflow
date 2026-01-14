@@ -77,6 +77,8 @@ const setores: SetorCard[] = [
       "Planejamento (Gestor)",
       "Planejamento (Editor)",
       "Planejamento (Visualizador)",
+      "Administração (Visualizador)",
+      "Liderança (Visualizador)",
     ], // Administração e Planejamento
     links: [
       {
@@ -105,6 +107,8 @@ const setores: SetorCard[] = [
       "Logística (Gestor)",
       "Logística (Editor)",
       "Logística (Visualizador)",
+      "Administração (Visualizador)",
+      "Liderança (Visualizador)",
     ], // Administração e Planejamento (prestserv)
     links: [
       // { label: 'Dashboard', href: '/prestserv/dashboard' },
@@ -142,6 +146,8 @@ const setores: SetorCard[] = [
       "Medicina (Gestor)",
       "Medicina (Editor)",
       "Medicina (Visualizador)",
+      "Administração (Visualizador)",
+      "Liderança (Visualizador)",
     ], // Administração e Medicina
     links: [{ label: "Minhas Tarefas", href: "/tarefas?setor=medicina" }],
   },
@@ -159,6 +165,8 @@ const setores: SetorCard[] = [
       "RH (Gestor)",
       "RH (Editor)",
       "RH (Visualizador)",
+      "Administração (Visualizador)",
+      "Liderança (Visualizador)",
     ], // Administração e RH
     links: [{ label: "Minhas Tarefas", href: "/tarefas?setor=rh" }],
   },
@@ -176,6 +184,8 @@ const setores: SetorCard[] = [
       "Treinamento (Gestor)",
       "Treinamento (Editor)",
       "Treinamento (Visualizador)",
+      "Administração (Visualizador)",
+      "Liderança (Visualizador)",
     ], // Administração e Treinamento
     links: [
       { label: "Minhas Tarefas", href: "/tarefas?setor=treinamento" },
@@ -197,6 +207,8 @@ const setores: SetorCard[] = [
       "Logística (Gestor)",
       "Logística (Editor)",
       "Logística (Visualizador)",
+      "Administração (Visualizador)",
+      "Liderança (Visualizador)",
     ],
     links: [
       {
