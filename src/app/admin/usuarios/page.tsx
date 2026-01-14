@@ -76,6 +76,7 @@ function UsuariosAdminContent() {
     confirmarSenha: "",
   });
   const [forcePasswordReset, setForcePasswordReset] = useState(true);
+  const [clearAlternateEmail, setClearAlternateEmail] = useState(true);
 
   // Estrutura de equipes organizada por departamento e papel
   const getTeamStructure = () => {
@@ -323,6 +324,7 @@ function UsuariosAdminContent() {
           body: JSON.stringify({
             novaSenha: passwordData.novaSenha,
             obrigarTrocaSenha: forcePasswordReset,
+            limparEmailAlternativo: clearAlternateEmail,
           }),
         }
       );
@@ -333,6 +335,7 @@ function UsuariosAdminContent() {
         setPasswordData({ novaSenha: "", confirmarSenha: "" });
         setSelectedUser(null);
         setForcePasswordReset(true);
+        setClearAlternateEmail(true);
         alert("Senha resetada com sucesso!");
       } else {
         alert(data.error);
@@ -770,6 +773,21 @@ function UsuariosAdminContent() {
                   Obrigar usuário a trocar a senha no próximo acesso
                 </label>
               </div>
+              <div className="flex items-center gap-2">
+                <input
+                  id="clearAlternateEmail"
+                  type="checkbox"
+                  checked={clearAlternateEmail}
+                  onChange={(e) => setClearAlternateEmail(e.target.checked)}
+                  className="h-4 w-4 text-red-600 border-gray-300 rounded"
+                />
+                <label
+                  htmlFor="clearAlternateEmail"
+                  className="text-sm text-gray-700"
+                >
+                  Remover e-mail alternativo e exigir novo cadastro
+                </label>
+              </div>
               <div className="flex justify-end gap-3 pt-4">
                 <button
                   type="button"
@@ -778,6 +796,7 @@ function UsuariosAdminContent() {
                     setSelectedUser(null);
                     setPasswordData({ novaSenha: "", confirmarSenha: "" });
                     setForcePasswordReset(true);
+                    setClearAlternateEmail(true);
                   }}
                   className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
                 >
