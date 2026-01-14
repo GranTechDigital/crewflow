@@ -31,7 +31,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const checkAuth = async () => {
     try {
       setLoading(true);
-      // console.log('Checking auth...');
 
       const response = await fetch('/api/auth/verify', {
         method: 'GET',
@@ -39,25 +38,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         cache: 'no-store',
       });
 
-      // console.log('Auth response status:', response.status);
       if (response.ok) {
         const userData = await response.json();
-        // console.log('Auth verified, user:', userData);
         setUsuario(userData.user);
-        if (userData.user?.obrigarAdicionarEmail || !userData.user?.emailSecundario) {
-          const path = typeof window !== 'undefined' ? window.location.pathname : ''
-          const isOnAddEmail = path.startsWith('/conta/adicionar-email')
-          const isOnChangePassword = path.startsWith('/conta/trocar-senha')
-          if (!isOnAddEmail && !isOnChangePassword) {
-            try { await refresh() } catch {}
-            if (typeof window !== 'undefined') {
-              window.location.href = '/conta/adicionar-email'
-              return
-            }
-          }
-        }
       } else {
-        // console.log('Auth failed, clearing user');
         setUsuario(null);
         try {
           document.cookie = "auth-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";

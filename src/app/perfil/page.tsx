@@ -87,8 +87,18 @@ export default function PerfilPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
-      <div className="bg-white rounded-lg shadow-md">
+    <div className="max-w-4xl mx-auto p-6 relative">
+      {(savingEmail || loading) && (
+        <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] flex items-center justify-center z-20">
+          <div className="bg-white rounded-xl px-5 py-3 shadow-md flex items-center gap-3">
+            <div className="h-4 w-4 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
+            <span className="text-sm text-gray-800">
+              {savingEmail ? 'Salvando e-mails...' : 'Alterando senha...'}
+            </span>
+          </div>
+        </div>
+      )}
+      <div className="bg-white rounded-lg shadow-md relative">
         <div className="p-6 border-b border-gray-200 flex items-center justify-between">
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
             <User className="text-red-700" />
@@ -136,7 +146,7 @@ export default function PerfilPage() {
 
                 {/* E-mail principal oculto conforme diretriz – manter apenas alternativo */}
 
-                <div>
+                <div className={savingEmail ? 'opacity-70 pointer-events-none' : ''}>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     E-mail alternativo
                   </label>
@@ -216,7 +226,7 @@ export default function PerfilPage() {
               </h2>
 
               <form onSubmit={handleAlterarSenha} className="space-y-4">
-                <div>
+                <div className={loading ? 'opacity-70 pointer-events-none' : ''}>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Senha Atual
                   </label>
@@ -229,7 +239,7 @@ export default function PerfilPage() {
                 />
               </div>
 
-                <div>
+                <div className={loading ? 'opacity-70 pointer-events-none' : ''}>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Nova Senha
                   </label>
@@ -246,7 +256,7 @@ export default function PerfilPage() {
                   </p>
                 </div>
 
-                <div>
+                <div className={loading ? 'opacity-70 pointer-events-none' : ''}>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Confirmar Nova Senha
                   </label>
