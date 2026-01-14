@@ -8,7 +8,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   try {
     const { id: idParam } = await params;
     const id = parseInt(idParam);
-    const { novaSenha } = await request.json();
+    const { novaSenha, obrigarTrocaSenha } = await request.json();
 
     if (!novaSenha) {
       return NextResponse.json(
@@ -43,13 +43,19 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       );
     }
 
-    // Hash da nova senha
     const novaSenhaHash = await bcrypt.hash(novaSenha, 12);
 
-    // Atualizar senha
+    const dataToUpdate: any = {
+      senha: novaSenhaHash
+    };
+
+    if (typeof obrigarTrocaSenha === 'boolean') {
+      dataToUpdate.obrigarTrocaSenha = obrigarTrocaSenha;
+    }
+
     await prisma.usuario.update({
       where: { id },
-      data: { senha: novaSenhaHash }
+      data: dataToUpdate
     });
 
     return NextResponse.json({
