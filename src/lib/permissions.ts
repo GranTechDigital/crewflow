@@ -219,6 +219,7 @@ export const ROUTE_PROTECTION = {
       "Prestserv (Gestor)",
       "Prestserv (Editor)",
       "Prestserv (Visualizador)",
+      "Administração (Visualizador)",
       "Administração",
     ] as string[],
     requiredPermissions: [
@@ -237,6 +238,7 @@ export const ROUTE_PROTECTION = {
       "Logística (Editor)",
       "Logística (Visualizador)",
       "Liderança (Visualizador)",
+      "Administração (Visualizador)",
       "Administração",
     ] as string[],
     requiredPermissions: [
