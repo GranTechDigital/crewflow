@@ -1002,17 +1002,28 @@ export async function sincronizarTarefasPadrao({
 
       // Aplicar mudança de responsável se houver (caso especial Treinamento)
       if (novoResponsavel && rem.responsavelAtual !== novoResponsavel) {
-        const obsTexto = obsMudancaResponsavel
-          ? `${
-              rem.observacoesPrestserv ? rem.observacoesPrestserv + "\n" : ""
-            }${obsMudancaResponsavel} Data: ${new Date().toISOString()}`
-          : undefined;
+        if (obsMudancaResponsavel) {
+          try {
+            await prisma.observacaoRemanejamentoFuncionario.create({
+              data: {
+                remanejamentoFuncionarioId: rem.id,
+                texto: `${obsMudancaResponsavel} Data: ${new Date().toISOString()}`,
+                criadoPor: usuarioResponsavel || "Sistema",
+                modificadoPor: usuarioResponsavel || "Sistema",
+              },
+            });
+          } catch (e) {
+            console.error(
+              "Erro ao criar observação de mudança de responsável:",
+              e
+            );
+          }
+        }
 
         await prisma.remanejamentoFuncionario.update({
           where: { id: rem.id },
           data: {
             responsavelAtual: novoResponsavel,
-            ...(obsTexto ? { observacoesPrestserv: obsTexto } : {}),
           },
         });
 
@@ -1048,24 +1059,57 @@ export async function sincronizarTarefasPadrao({
       }
 
       const temPendentes = !semPendentes;
-      const estadosResetPrestserv = new Set<string>([
+      const houveNovasTarefas = criadasCount > 0 || reativadasCount > 0;
+
+      // Status que só devem ser resetados se houver novas tarefas (para não destravar bloqueios manuais indevidamente)
+      const estadosBloqueio = new Set<string>([
         "PENDENTE DE DESLIGAMENTO",
         "DESLIGAMENTO SOLICITADO",
         "SISPAT BLOQUEADO",
-        "SEM_CADASTRO",
       ]);
-      if (temPendentes && estadosResetPrestserv.has(rem.statusPrestserv)) {
-        const observacaoBase =
-          "Prestserv resetado para CRIADO devido a tarefas pendentes após sincronização de matriz/tarefas padrão.";
-        const observacao = `${observacaoBase} Data: ${new Date().toISOString()}`;
-        const novaObservacao = rem.observacoesPrestserv
-          ? `${rem.observacoesPrestserv}\n${observacao}`
-          : observacao;
+
+      let deveResetar = false;
+
+      if (temPendentes) {
+        if (rem.statusPrestserv === "CRIADO") {
+          deveResetar = false;
+        } else if (estadosBloqueio.has(rem.statusPrestserv)) {
+          if (houveNovasTarefas) {
+            deveResetar = true;
+          }
+        } else {
+          // Para outros status (APROVADO, SUBMETIDO, etc), se tem pendência, reseta
+          deveResetar = true;
+        }
+      }
+
+      if (deveResetar) {
+        const motivoReset =
+          rem.statusPrestserv === "SEM_CADASTRO"
+            ? "devido a tarefas pendentes (correção de inconsistência)"
+            : "devido a novas tarefas sincronizadas/reativadas";
+
+        const observacao = `Prestserv resetado para CRIADO ${motivoReset} após sincronização de matriz/tarefas padrão.`;
+
+        // Registrar observação na nova tabela
+        try {
+          await prisma.observacaoRemanejamentoFuncionario.create({
+            data: {
+              remanejamentoFuncionarioId: rem.id,
+              texto: observacao,
+              criadoPor: usuarioResponsavel || "Sistema",
+              modificadoPor: usuarioResponsavel || "Sistema",
+            },
+          });
+        } catch (e) {
+          console.error("Erro ao criar observação de reset:", e);
+        }
+
         await prisma.remanejamentoFuncionario.update({
           where: { id: rem.id },
           data: {
             statusPrestserv: "CRIADO",
-            observacoesPrestserv: novaObservacao,
+            // Mantemos observacoesPrestserv legado sem alteração para não poluir
           },
         });
         if (verbose) {
@@ -1075,11 +1119,6 @@ export async function sincronizarTarefasPadrao({
             para: "CRIADO",
             observacoes: observacao,
           });
-          alteracoesResumo.push({
-            campo: "observacoesPrestserv",
-            de: rem.observacoesPrestserv ?? null,
-            para: novaObservacao,
-          });
         }
         try {
           await prisma.historicoRemanejamento.create({
@@ -1088,8 +1127,7 @@ export async function sincronizarTarefasPadrao({
               remanejamentoFuncionarioId: rem.id,
               tipoAcao: "ATUALIZACAO_STATUS",
               entidade: "STATUS_PRESTSERV",
-              descricaoAcao:
-                "Prestserv resetado automaticamente para CRIADO por existência de tarefas pendentes após sincronização.",
+              descricaoAcao: `Prestserv resetado automaticamente para CRIADO: ${motivoReset}.`,
               campoAlterado: "statusPrestserv",
               valorAnterior: rem.statusPrestserv,
               valorNovo: "CRIADO",
@@ -1120,17 +1158,28 @@ export async function sincronizarTarefasPadrao({
           (t) => t.status === "REPROVADO"
         );
         if (!temReprovadas) {
-          const observacaoBaseCorr =
+          const observacaoCorr =
             "Status 'INVALIDADO' corrigido automaticamente após sincronização: tarefas reprovadas foram removidas/canceladas na matriz/padrão.";
-          const observacaoCorr = `${observacaoBaseCorr} Data: ${new Date().toISOString()}`;
-          const novaObsCorr = rem.observacoesPrestserv
-            ? `${rem.observacoesPrestserv}\n${observacaoCorr}`
-            : observacaoCorr;
+
+          // Registrar observação na nova tabela
+          try {
+            await prisma.observacaoRemanejamentoFuncionario.create({
+              data: {
+                remanejamentoFuncionarioId: rem.id,
+                texto: observacaoCorr,
+                criadoPor: usuarioResponsavel || "Sistema",
+                modificadoPor: usuarioResponsavel || "Sistema",
+              },
+            });
+          } catch (e) {
+            console.error("Erro ao criar observação de correção:", e);
+          }
+
           await prisma.remanejamentoFuncionario.update({
             where: { id: rem.id },
             data: {
               statusPrestserv: "CRIADO",
-              observacoesPrestserv: novaObsCorr,
+              // Mantemos observacoesPrestserv legado sem alteração
             },
           });
           if (verbose) {

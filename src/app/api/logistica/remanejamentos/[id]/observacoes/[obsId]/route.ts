@@ -35,6 +35,40 @@ export async function DELETE(
       );
     }
 
+    // Validação de permissão (Admin ou Autor em até 10 min)
+    const nomeEquipe = usuarioAutenticado.equipe?.nome || "";
+    const isAdmin =
+      nomeEquipe.toLowerCase().includes("admin") ||
+      nomeEquipe.toLowerCase() === "ti";
+
+    if (!isAdmin) {
+      // 1. Verifica se é o autor
+      if (observacao.criadoPor !== usuarioAutenticado.funcionario.nome) {
+        return NextResponse.json(
+          {
+            error:
+              "Apenas o autor ou administrador pode remover esta observação",
+          },
+          { status: 403 }
+        );
+      }
+
+      // 2. Verifica tempo limite (10 minutos)
+      const diffMs =
+        new Date().getTime() - new Date(observacao.dataCriacao).getTime();
+      const diffMinutes = diffMs / 60000;
+
+      if (diffMinutes > 10) {
+        return NextResponse.json(
+          {
+            error:
+              "Tempo limite de 10 minutos para remoção excedido. Contate um administrador.",
+          },
+          { status: 403 }
+        );
+      }
+    }
+
     await prisma.observacaoRemanejamentoFuncionario.delete({
       where: {
         id: parseInt(obsId),
@@ -92,6 +126,43 @@ export async function PUT(
         { error: "Observação não pertence a este remanejamento" },
         { status: 400 }
       );
+    }
+
+    // Validação de permissão (Admin ou Autor em até 10 min)
+    const nomeEquipe = usuarioAutenticado.equipe?.nome || "";
+    const isAdmin =
+      nomeEquipe.toLowerCase().includes("admin") ||
+      nomeEquipe.toLowerCase() === "ti";
+
+    if (!isAdmin) {
+      // 1. Verifica se é o autor
+      if (
+        observacaoExistente.criadoPor !== usuarioAutenticado.funcionario.nome
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              "Apenas o autor ou administrador pode editar esta observação",
+          },
+          { status: 403 }
+        );
+      }
+
+      // 2. Verifica tempo limite (10 minutos)
+      const diffMs =
+        new Date().getTime() -
+        new Date(observacaoExistente.dataCriacao).getTime();
+      const diffMinutes = diffMs / 60000;
+
+      if (diffMinutes > 10) {
+        return NextResponse.json(
+          {
+            error:
+              "Tempo limite de 10 minutos para edição excedido. Contate um administrador.",
+          },
+          { status: 403 }
+        );
+      }
     }
 
     const observacaoAtualizada =
