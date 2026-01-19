@@ -179,6 +179,7 @@ model RemanejamentoFuncionario {
   aprovadoPorId        Int?
   concluidoPorId       Int?
   canceladoPorId       Int?
+  observacoesRemanejamento ObservacaoRemanejamentoFuncionario[]
   historico            HistoricoRemanejamento[]
   solicitacao          SolicitacaoRemanejamento @relation(fields: [solicitacaoId], references: [id], onDelete: Cascade)
   funcionario          Funcionario              @relation(fields: [funcionarioId], references: [id])
@@ -256,6 +257,19 @@ model ObservacaoTarefaRemanejamento {
   criadoPor       String
   modificadoPor   String
   tarefa          TarefaRemanejamento @relation(fields: [tarefaId], references: [id], onDelete: Cascade)
+}
+
+model ObservacaoRemanejamentoFuncionario {
+  id                         Int                      @id @default(autoincrement())
+  remanejamentoFuncionarioId String
+  texto                      String
+  dataCriacao                DateTime                 @default(now())
+  dataModificacao            DateTime                 @updatedAt
+  criadoPor                  String
+  modificadoPor              String
+  remanejamentoFuncionario   RemanejamentoFuncionario @relation(fields: [remanejamentoFuncionarioId], references: [id], onDelete: Cascade)
+
+  @@index([remanejamentoFuncionarioId])
 }
 
 model HistoricoRemanejamento {

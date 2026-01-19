@@ -309,8 +309,8 @@ jobs:
             docker logs --tail=120 pgadmin-production || true
           EOF
 
-      - name: 🗄️ Setup Database (somente quando solicitado manualmente)
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.apply_db_changes == 'true' && steps.changes.outputs.prisma == 'true' }}
+      - name: 🗄️ Setup Database (auto em push; manual quando solicitado)
+        if: ${{ (github.event_name != 'workflow_dispatch' || inputs.apply_db_changes == 'true') && steps.changes.outputs.prisma == 'true' }}
         run: |
           ssh -o StrictHostKeyChecking=no root@${{ secrets.PROD_SERVER_HOST }} << 'EOF'
             cd /opt/projetogran
