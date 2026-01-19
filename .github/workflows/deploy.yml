@@ -310,7 +310,7 @@ jobs:
           EOF
 
       - name: 🗄️ Setup Database (auto em push; manual quando solicitado)
-        if: ${{ (github.event_name != 'workflow_dispatch' || inputs.apply_db_changes == 'true') && steps.changes.outputs.prisma == 'true' }}
+        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.apply_db_changes == 'true') || (github.event_name != 'workflow_dispatch' && steps.changes.outputs.prisma == 'true') }}
         run: |
           ssh -o StrictHostKeyChecking=no root@${{ secrets.PROD_SERVER_HOST }} << 'EOF'
             cd /opt/projetogran
@@ -336,7 +336,8 @@ jobs:
             fi
 
             echo "🚀 Applying Postgres migrations..."
-            docker exec crewflow-app-production npx prisma migrate deploy || true
+            # Importante: se der erro em migrate deploy, o deploy deve falhar para evidenciar problema de schema
+            docker exec crewflow-app-production npx prisma migrate deploy
             echo "ℹ️ db push desabilitado por padrão (evitar drift forçado)"
             echo "ℹ️ seed desabilitado por padrão (evitar alteração não intencional)"
             echo "ℹ️ ensureAdmin desabilitado por padrão"
