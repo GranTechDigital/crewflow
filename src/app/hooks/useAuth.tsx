@@ -1,89 +1,114 @@
-'use client'
+"use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
-import { useRouter } from 'next/navigation'
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+} from "react";
+import { useRouter } from "next/navigation";
 
 export interface Usuario {
-  id: number
-  nome: string
-  email: string
-  equipe: string
-  matricula: string
-  permissoes: string[]
+  id: number;
+  nome: string;
+  email: string;
+  equipe: string;
+  matricula: string;
+  permissoes: string[];
 }
 
 interface AuthContextType {
-  usuario: Usuario | null
-  loading: boolean
-  login: (matricula: string, senha: string) => Promise<boolean>
-  logout: () => Promise<void>
-  checkAuth: () => Promise<void>
-  refresh: () => Promise<void>
+  usuario: Usuario | null;
+  loading: boolean;
+  login: (matricula: string, senha: string) => Promise<boolean>;
+  logout: () => Promise<void>;
+  checkAuth: () => Promise<void>;
+  refresh: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined)
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [usuario, setUsuario] = useState<Usuario | null>(null)
-  const [loading, setLoading] = useState(true)
-  const router = useRouter()
+  const [usuario, setUsuario] = useState<Usuario | null>(null);
+  const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
   const checkAuth = async () => {
     try {
       setLoading(true);
-
-      const response = await fetch('/api/auth/verify', {
-        method: 'GET',
-        credentials: 'include',
-        cache: 'no-store',
+      const response = await fetch("/api/auth/verify", {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+        cache: "no-store",
       });
 
       if (response.ok) {
         const userData = await response.json();
         setUsuario(userData.user);
+        if (
+          userData.user?.obrigarAdicionarEmail ||
+          !userData.user?.emailSecundario
+        ) {
+          const path =
+            typeof window !== "undefined" ? window.location.pathname : "";
+          const isOnAddEmail = path.startsWith("/conta/adicionar-email");
+          const isOnChangePassword = path.startsWith("/conta/trocar-senha");
+          if (!isOnAddEmail && !isOnChangePassword) {
+            try {
+              await refresh();
+            } catch {}
+            if (typeof window !== "undefined") {
+              window.location.href = "/conta/adicionar-email";
+              return;
+            }
+          }
+        }
       } else {
         setUsuario(null);
         try {
-          document.cookie = "auth-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+          document.cookie =
+            "auth-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
         } catch {}
       }
     } catch (error) {
-      console.error('Erro ao verificar autenticação:', error);
+      console.error("Erro ao verificar autenticação:", error);
       setUsuario(null);
       try {
-        document.cookie = "auth-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+        document.cookie =
+          "auth-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
       } catch {}
     } finally {
       setLoading(false);
     }
-  }
+  };
 
   const refresh = async () => {
     try {
-      const res = await fetch('/api/auth/refresh', {
-        method: 'GET',
-        credentials: 'include',
-        cache: 'no-store',
-      })
+      const res = await fetch("/api/auth/refresh", {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store",
+      });
       if (res.ok) {
-        const data = await res.json()
-        setUsuario(data.user)
+        const data = await res.json();
+        setUsuario(data.user);
       } else {
-        setUsuario(null)
-        if (typeof window !== 'undefined') {
-          window.location.replace('/login')
+        setUsuario(null);
+        if (typeof window !== "undefined") {
+          window.location.replace("/login");
         }
       }
     } catch {}
-  }
+  };
 
   const login = async (matricula: string, senha: string): Promise<boolean> => {
     try {
       setLoading(true);
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({ matricula, senha }),
       });
@@ -92,32 +117,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const data = await response.json();
         // console.log('Login successful, setting user:', data.user);
         setUsuario(data.user);
-        
+
         // Forçar revalidação do estado
         await checkAuth();
-        
+
         // Usar window.location para forçar navegação completa
-        window.location.href = '/';
+        window.location.href = "/";
         return true;
       } else {
         return false;
       }
     } catch (error) {
-      console.error('Erro no login:', error);
+      console.error("Erro no login:", error);
       return false;
     } finally {
       setLoading(false);
     }
-  }
+  };
 
   const logout = async () => {
     try {
       setLoading(true);
       // Debug removido: cookies antes do logout
-      
+
       // Solução direta: limpar o cookie no cliente
-      document.cookie = "auth-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-      
+      document.cookie =
+        "auth-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+
       // Também tentar a API de logout, mas não depender dela
       try {
         await fetch("/api/auth/logout", {
@@ -127,42 +153,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch (e) {
         // Debug removido: erro na API de logout
       }
-      
+
       // Debug removido: cookies após o logout
-      
+
       // Limpar o estado local independente da resposta da API
       setUsuario(null);
-      
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('user');
-        localStorage.removeItem('auth-token');
+
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("user");
+        localStorage.removeItem("auth-token");
         sessionStorage.clear();
       }
-      
+
       // Redirecionar para a página de login (navegação completa)
       window.location.replace("/login");
     } catch (error) {
       console.error("Erro ao fazer logout:", error);
-      
+
       // Mesmo com erro, tentar limpar o estado e redirecionar
       setUsuario(null);
       window.location.replace("/login");
     } finally {
       setLoading(false);
     }
-  }
+  };
 
   useEffect(() => {
-    checkAuth()
-  }, [])
+    checkAuth();
+  }, []);
 
   useEffect(() => {
-    if (!usuario) return
+    if (!usuario) return;
     const intervalId = setInterval(() => {
-      refresh()
-    }, 2 * 60 * 60 * 1000)
-    return () => clearInterval(intervalId)
-  }, [usuario])
+      refresh();
+    }, 2 * 60 * 60 * 1000);
+    return () => clearInterval(intervalId);
+  }, [usuario]);
 
   const value = {
     usuario,
@@ -170,39 +196,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     login,
     logout,
     checkAuth,
-    refresh
-  }
+    refresh,
+  };
 
-  return (
-  <AuthContext.Provider value={value}>
-    {children}
-  </AuthContext.Provider>
-)
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
-  const context = useContext(AuthContext)
+  const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth deve ser usado dentro de um AuthProvider')
+    throw new Error("useAuth deve ser usado dentro de um AuthProvider");
   }
-  return context
+  return context;
 }
 
 export function usePermissions() {
-  const { usuario } = useAuth()
-  
+  const { usuario } = useAuth();
+
   const hasPermission = (permission: string): boolean => {
-    if (!usuario || !usuario.permissoes) return false
-    return usuario.permissoes.includes(permission) || usuario.permissoes.includes('admin')
-  }
+    if (!usuario || !usuario.permissoes) return false;
+    return (
+      usuario.permissoes.includes(permission) ||
+      usuario.permissoes.includes("admin")
+    );
+  };
 
   const hasAnyPermission = (permissions: string[]): boolean => {
-    return permissions.some(permission => hasPermission(permission))
-  }
+    return permissions.some((permission) => hasPermission(permission));
+  };
 
   return {
     hasPermission,
     hasAnyPermission,
-    permissions: usuario?.permissoes || []
-  }
+    permissions: usuario?.permissoes || [],
+  };
 }

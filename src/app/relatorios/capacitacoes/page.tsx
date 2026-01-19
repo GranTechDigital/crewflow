@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from "react";
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { ROUTE_PROTECTION } from '@/lib/permissions';
 
@@ -63,7 +63,7 @@ function RelatorioCapacitacoesContent() {
   const [capacitacoesDetalhe, setCapacitacoesDetalhe] = useState<CapacitacaoDetalhe[]>([]);
   const [modalLoading, setModalLoading] = useState(false);
 
-  const fetchLista = async () => {
+  const fetchLista = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -79,11 +79,11 @@ function RelatorioCapacitacoesContent() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [pagination.page, pagination.limit, search]);
 
   useEffect(() => {
     fetchLista();
-  }, [pagination.page, pagination.limit]);
+  }, [fetchLista]);
 
   const buscar = async () => {
     setPagination((p) => ({ ...p, page: 1 }));

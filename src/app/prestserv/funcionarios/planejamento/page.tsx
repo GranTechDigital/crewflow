@@ -23,6 +23,7 @@ import {
   ChevronRightIcon as ChevronRightIcon2,
   UsersIcon,
   DocumentTextIcon,
+  ArrowPathIcon,
 } from "@heroicons/react/24/outline";
 import {
   Chart as ChartJS,
@@ -140,6 +141,7 @@ function FuncionariosPageContent() {
     useState<string>("");
   const [filtroDataSolicitacaoFim, setFiltroDataSolicitacaoFim] =
     useState<string>("");
+  const [syncingFuncionarios, setSyncingFuncionarios] = useState(false);
   const [filtroDataConclusaoInicio, setFiltroDataConclusaoInicio] =
     useState<string>("");
   const [filtroDataConclusaoFim, setFiltroDataConclusaoFim] =
@@ -184,6 +186,47 @@ function FuncionariosPageContent() {
   const [dashboardPeriodoInicio, setDashboardPeriodoInicio] =
     useState<string>("");
   const [dashboardPeriodoFim, setDashboardPeriodoFim] = useState<string>("");
+
+  const criarSolicitacaoComSync = async () => {
+    try {
+      setSyncingFuncionarios(true);
+      showToast(
+        "Atualizando base de funcionários antes de criar a solicitação...",
+        "info"
+      );
+
+      const { syncWithRetry, formatSyncMessage } = await import(
+        "@/utils/syncUtils"
+      );
+
+      const result = await syncWithRetry({
+        maxRetries: 3,
+        retryDelay: 2000,
+        timeout: 60000,
+      });
+
+      if (result.success) {
+        const msg = formatSyncMessage(result.data);
+        showToast(msg, "success");
+      } else {
+        showToast(
+          result.error ||
+            "Não foi possível atualizar a base de funcionários. Você ainda pode prosseguir com a criação da solicitação.",
+          "error"
+        );
+      }
+    } catch (error) {
+      showToast(
+        "Erro ao sincronizar funcionários. Você ainda pode prosseguir com a criação da solicitação.",
+        "error"
+      );
+    } finally {
+      setSyncingFuncionarios(false);
+      router.push(
+        "/prestserv/remanejamentos/novo?returnTo=/prestserv/funcionarios/planejamento"
+      );
+    }
+  };
 
   // Função para carregar dados do dashboard com filtros aplicados
   const fetchDashboardData = async () => {
@@ -1934,15 +1977,21 @@ function FuncionariosPageContent() {
             PERMISSIONS.ACCESS_PLANEJAMENTO_GESTOR,
           ]) && (
             <button
-              onClick={() =>
-                router.push(
-                  "/prestserv/remanejamentos/novo?returnTo=/prestserv/funcionarios/planejamento"
-                )
-              }
-              className="inline-flex items-center px-4 py-2 text-sm font-bold text-white bg-sky-500 border border-transparent rounded-md hover:bg-sky-600 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 shadow-sm transition-colors"
+              onClick={criarSolicitacaoComSync}
+              disabled={syncingFuncionarios}
+              className="inline-flex items-center px-4 py-2 text-sm font-bold text-white bg-sky-500 border border-transparent rounded-md hover:bg-sky-600 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <PlusIcon className="w-4 h-4 mr-2" />
-              Criar Solicitação
+              {syncingFuncionarios ? (
+                <>
+                  <ArrowPathIcon className="w-4 h-4 mr-2 animate-spin" />
+                  Atualizando funcionários...
+                </>
+              ) : (
+                <>
+                  <PlusIcon className="w-4 h-4 mr-2" />
+                  Criar Solicitação
+                </>
+              )}
             </button>
           )}
         </div>

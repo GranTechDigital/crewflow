@@ -1,6 +1,6 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from "react";
 import { Truck, Plus, Search, Filter, CheckCircle, Clock, AlertCircle } from 'lucide-react'
 import { useToast } from '@/components/Toast'
 import LoadingSpinner from '@/components/LoadingSpinner'
@@ -25,7 +25,7 @@ export default function TarefasLogisticaPage() {
   const [busca, setBusca] = useState('')
   const { showToast } = useToast()
 
-  const carregarTarefas = async () => {
+  const carregarTarefas = useCallback(async () => {
     try {
       const params = new URLSearchParams()
       params.append('setor', 'logistica')
@@ -46,7 +46,7 @@ export default function TarefasLogisticaPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [filtroStatus, filtroPrioridade, busca, showToast])
 
   const atualizarStatusTarefa = async (id: string, novoStatus: string) => {
     try {
@@ -72,7 +72,7 @@ export default function TarefasLogisticaPage() {
 
   useEffect(() => {
     carregarTarefas()
-  }, [filtroStatus, filtroPrioridade, busca])
+  }, [carregarTarefas])
 
   const getStatusIcon = (status: string) => {
     switch (status) {

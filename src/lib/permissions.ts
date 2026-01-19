@@ -19,7 +19,6 @@ export const PERMISSIONS = {
   ACCESS_PREST_SERV: "canAccessPrestServ",
   ACCESS_PREST_SERV_VISUALIZADOR: "canAccessPrestServVisualizador",
   ACCESS_PREST_SERV_GESTOR: "canAccessPrestServGestor",
-
   ACCESS_ADMIN: "canAccessAdmin",
 
   ACCESS_RH: "canAccessRH",
@@ -50,15 +49,6 @@ export const TEAM_PERMISSIONS: { [key: string]: string[] } = {
     PERMISSIONS.MANAGE_USERS,
     PERMISSIONS.MANAGE_TEAMS,
   ],
-  "Administração (Visualizador)": [
-    PERMISSIONS.ACCESS_FUNCIONARIOS,
-    PERMISSIONS.ACCESS_PREST_SERV_VISUALIZADOR,
-    PERMISSIONS.ACCESS_PLANEJAMENTO_VISUALIZADOR,
-    PERMISSIONS.ACCESS_LOGISTICA_VISUALIZADOR,
-    PERMISSIONS.ACCESS_RH_VISUALIZADOR,
-    PERMISSIONS.ACCESS_TREINAMENTO_VISUALIZADOR,
-    PERMISSIONS.ACCESS_MEDICINA_VISUALIZADOR,
-  ],
 
   // RH
   RH: [PERMISSIONS.ACCESS_FUNCIONARIOS, PERMISSIONS.ACCESS_RH],
@@ -85,11 +75,6 @@ export const TEAM_PERMISSIONS: { [key: string]: string[] } = {
     PERMISSIONS.ACCESS_PREST_SERV,
   ],
   "Logística (Visualizador)": [
-    PERMISSIONS.ACCESS_FUNCIONARIOS,
-    PERMISSIONS.ACCESS_LOGISTICA_VISUALIZADOR,
-    PERMISSIONS.ACCESS_PREST_SERV_VISUALIZADOR,
-  ],
-  "Liderança (Visualizador)": [
     PERMISSIONS.ACCESS_FUNCIONARIOS,
     PERMISSIONS.ACCESS_LOGISTICA_VISUALIZADOR,
     PERMISSIONS.ACCESS_PREST_SERV_VISUALIZADOR,
@@ -214,12 +199,10 @@ export const ROUTE_PROTECTION = {
       "Logística (Gestor)",
       "Logística (Editor)",
       "Logística (Visualizador)",
-      "Liderança (Visualizador)",
       "Prestserv",
       "Prestserv (Gestor)",
       "Prestserv (Editor)",
       "Prestserv (Visualizador)",
-      "Administração (Visualizador)",
       "Administração",
     ] as string[],
     requiredPermissions: [
@@ -237,8 +220,6 @@ export const ROUTE_PROTECTION = {
       "Logística (Gestor)",
       "Logística (Editor)",
       "Logística (Visualizador)",
-      "Liderança (Visualizador)",
-      "Administração (Visualizador)",
       "Administração",
     ] as string[],
     requiredPermissions: [
@@ -256,8 +237,6 @@ export const ROUTE_PROTECTION = {
       "Planejamento (Gestor)",
       "Planejamento (Editor)",
       "Planejamento (Visualizador)",
-      "Administração (Visualizador)",
-      "Liderança (Visualizador)",
       "Administração",
     ] as string[],
     requiredPermissions: [
@@ -275,8 +254,6 @@ export const ROUTE_PROTECTION = {
       "RH (Gestor)",
       "RH (Editor)",
       "RH (Visualizador)",
-      "Administração (Visualizador)",
-      "Liderança (Visualizador)",
       "Administração",
     ] as string[],
     requiredPermissions: [
@@ -294,8 +271,6 @@ export const ROUTE_PROTECTION = {
       "Treinamento (Gestor)",
       "Treinamento (Editor)",
       "Treinamento (Visualizador)",
-      "Administração (Visualizador)",
-      "Liderança (Visualizador)",
       "Administração",
     ] as string[],
     requiredPermissions: [
@@ -335,12 +310,10 @@ export const ROUTE_PROTECTION = {
       "RH (Editor)",
       "RH (Visualizador)",
       "Administração",
-      "Administração (Visualizador)",
       "Logística",
       "Logística (Gestor)",
       "Logística (Editor)",
       "Logística (Visualizador)",
-      "Liderança (Visualizador)",
       "Planejamento",
       "Planejamento (Gestor)",
       "Planejamento (Editor)",
@@ -367,12 +340,10 @@ export const ROUTE_PROTECTION = {
   MATRIZ_TREINAMENTO: {
     requiredEquipe: [
       "Administração",
-      "Administração (Visualizador)",
       "Logística",
       "Logística (Gestor)",
       "Logística (Editor)",
       "Logística (Visualizador)",
-      "Liderança (Visualizador)",
       "Treinamento",
       "Treinamento (Gestor)",
       "Treinamento (Editor)",

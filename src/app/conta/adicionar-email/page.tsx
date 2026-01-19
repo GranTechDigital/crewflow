@@ -35,18 +35,8 @@ export default function AdicionarEmailPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6 relative">
-      {loading && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl px-6 py-4 shadow-lg flex items-center gap-3">
-            <div className="h-5 w-5 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
-            <span className="text-sm text-gray-800">
-              Salvando e-mail e preparando próxima etapa...
-            </span>
-          </div>
-        </div>
-      )}
-      <div className="max-w-md w-full pointer-events-auto">
+    <div className="min-h-screen flex items-center justify-center p-6">
+      <div className="max-w-md w-full">
         <div className="p-[2px] rounded-2xl bg-gradient-to-br from-gray-200 via-white to-gray-100">
           <div className="rounded-2xl bg-white/80 backdrop-blur-sm shadow-xl p-8">
             <div className="text-center mb-6">

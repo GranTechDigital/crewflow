@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   SolicitacaoRemanejamento,
   StatusTarefa,
@@ -28,9 +28,9 @@ export default function TabelaRemanejamentos() {
 
   useEffect(() => {
     fetchRemanejamentos();
-  }, [filtros]);
+  }, [fetchRemanejamentos]);
 
-  const fetchRemanejamentos = async () => {
+  const fetchRemanejamentos = useCallback(async () => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
@@ -59,7 +59,7 @@ export default function TabelaRemanejamentos() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filtros]);
 
   const toggleRow = (id: number) => {
     const newExpanded = new Set(expandedRows);

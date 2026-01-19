@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useToast } from "@/components/Toast";
 import {
@@ -97,25 +97,20 @@ function FuncionarioDetalheContent() {
 
   const funcionarioId = params.id as string;
 
-  useEffect(() => {
-    if (funcionarioId) {
-      fetchFuncionarioDetalhes();
-    }
-  }, [funcionarioId]);
-
-  const fetchFuncionarioDetalhes = async () => {
+  const fetchFuncionarioDetalhes = useCallback(async () => {
+    if (!funcionarioId) return;
     try {
-      // Buscar dados do funcionário
       const funcionarioResponse = await fetch(
         `/api/funcionarios/${funcionarioId}`
       );
       if (!funcionarioResponse.ok) {
-        throw new Error(`Erro ${funcionarioResponse.status}: ${funcionarioResponse.statusText}`);
+        throw new Error(
+          `Erro ${funcionarioResponse.status}: ${funcionarioResponse.statusText}`
+        );
       }
       const funcionarioData = await funcionarioResponse.json();
       setFuncionario(funcionarioData);
-      
-      // Buscar histórico de remanejamentos
+
       const remanejamentosResponse = await fetch(
         `/api/funcionarios/${funcionarioId}/remanejamentos`
       );
@@ -130,7 +125,11 @@ function FuncionarioDetalheContent() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [funcionarioId, showToast]);
+
+  useEffect(() => {
+    fetchFuncionarioDetalhes();
+  }, [fetchFuncionarioDetalhes]);
 
   
 

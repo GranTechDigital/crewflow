@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useToast } from "@/components/Toast";
 import { RemanejamentoFuncionario } from "@/types/remanejamento-funcionario";
@@ -178,7 +178,7 @@ function FuncionariosPageContent() {
 
     setIsInitialized(true);
     fetchFuncionarios();
-  }, []);
+  }, [searchParams, fetchFuncionarios]);
 
   // Fechar dropdowns quando clicar fora
   useEffect(() => {
@@ -270,7 +270,7 @@ function FuncionariosPageContent() {
     const interval = setInterval(checkForUpdates, 2000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchFuncionarios]);
 
   // Funções existentes
   const updatePrestservStatus = async (
@@ -517,7 +517,7 @@ function FuncionariosPageContent() {
     return [...new Set(options)]; // Remove duplicatas
   };
 
-  const fetchFuncionarios = async () => {
+  const fetchFuncionarios = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -614,7 +614,7 @@ function FuncionariosPageContent() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   const estatisticasPorSetor = () => {
     const estatisticas = funcionarios.reduce((acc, funcionario) => {

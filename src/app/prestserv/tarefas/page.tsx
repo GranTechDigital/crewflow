@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   TarefaRemanejamento,
@@ -108,7 +108,7 @@ export default function TarefasPage() {
 
     fetchTarefas();
     fetchFuncionarios();
-  }, []);
+  }, [searchParams, fetchTarefas, fetchFuncionarios]);
 
   useEffect(() => {
     if (tarefas.length > 0) {
@@ -135,7 +135,7 @@ export default function TarefasPage() {
     }
   }, [tarefas]);
 
-  const fetchTarefas = async () => {
+  const fetchTarefas = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch("/api/logistica/tarefas");
@@ -151,9 +151,9 @@ export default function TarefasPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const fetchFuncionarios = async () => {
+  const fetchFuncionarios = useCallback(async () => {
     try {
       const response = await fetch("/api/logistica/funcionarios");
       if (response.ok) {
@@ -163,7 +163,7 @@ export default function TarefasPage() {
     } catch (err) {
       console.error("Erro ao carregar funcionários:", err);
     }
-  };
+  }, []);
 
   const criarTarefa = async () => {
     if (

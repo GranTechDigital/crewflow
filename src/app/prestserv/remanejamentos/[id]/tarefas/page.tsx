@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useToast } from "@/components/Toast";
 import {
@@ -107,7 +107,7 @@ function TarefasFuncionarioContent() {
 
   useEffect(() => {
     fetchFuncionario();
-  }, [funcionarioId]);
+  }, [fetchFuncionario]);
 
   // Buscar contagem de observações para todas as tarefas visíveis
   useEffect(() => {
@@ -130,7 +130,7 @@ function TarefasFuncionarioContent() {
     fetchCounts();
   }, [funcionario]);
 
-  const fetchFuncionario = async () => {
+  const fetchFuncionario = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch(
@@ -146,7 +146,7 @@ function TarefasFuncionarioContent() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [funcionarioId]);
 
   const criarTarefa = async () => {
     if (!novaTarefa.tipo || !novaTarefa.descricao || !novaTarefa.responsavel) {

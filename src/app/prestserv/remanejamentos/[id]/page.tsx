@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useToast } from "@/components/Toast";
 import {
@@ -104,20 +104,80 @@ function FuncionarioModernoContent() {
   >(null);
   const [atualizandoStatus, setAtualizandoStatus] = useState(false);
   const [carregandoObservacoes, setCarregandoObservacoes] = useState(false);
+  const [observacoesRemanejamento, setObservacoesRemanejamento] = useState<
+    any[]
+  >([]);
+  const [novaObservacaoRemanejamento, setNovaObservacaoRemanejamento] =
+    useState("");
+  const [salvandoObservacao, setSalvandoObservacao] = useState(false);
 
-  useEffect(() => {
-    if (funcionarioId) {
-      fetchFuncionario();
+  const fetchObservacoesRemanejamento = useCallback(async () => {
+    try {
+      const response = await fetch(
+        `/api/logistica/remanejamentos/${funcionarioId}/observacoes`
+      );
+      if (response.ok) {
+        const data = await response.json();
+        setObservacoesRemanejamento(data);
+      }
+    } catch (error) {
+      console.error("Erro ao buscar observações do remanejamento:", error);
     }
   }, [funcionarioId]);
 
-  useEffect(() => {
-    if (funcionario?.tarefas && activeTab === "notes") {
-      carregarTodasObservacoes();
+  const criarObservacaoRemanejamento = async () => {
+    if (!novaObservacaoRemanejamento.trim()) return;
+    setSalvandoObservacao(true);
+    try {
+      const response = await fetch(
+        `/api/logistica/remanejamentos/${funcionarioId}/observacoes`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ texto: novaObservacaoRemanejamento }),
+        }
+      );
+      if (response.ok) {
+        setNovaObservacaoRemanejamento("");
+        fetchObservacoesRemanejamento();
+        showToast("Observação adicionada com sucesso!", "success");
+      } else {
+        showToast("Erro ao adicionar observação", "error");
+      }
+    } catch (error) {
+      showToast("Erro ao adicionar observação", "error");
+    } finally {
+      setSalvandoObservacao(false);
     }
-  }, [funcionario?.tarefas, activeTab]);
+  };
 
-  const fetchFuncionario = async () => {
+  const excluirObservacaoRemanejamento = async (obsId: number) => {
+    if (!confirm("Tem certeza que deseja excluir esta observação?")) return;
+    try {
+      const response = await fetch(
+        `/api/logistica/remanejamentos/${funcionarioId}/observacoes/${obsId}`,
+        {
+          method: "DELETE",
+        }
+      );
+      if (response.ok) {
+        fetchObservacoesRemanejamento();
+        showToast("Observação excluída com sucesso!", "success");
+      } else {
+        showToast("Erro ao excluir observação", "error");
+      }
+    } catch (error) {
+      showToast("Erro ao excluir observação", "error");
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "notes") {
+      fetchObservacoesRemanejamento();
+    }
+  }, [activeTab, fetchObservacoesRemanejamento]);
+
+  const fetchFuncionario = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch(
@@ -135,9 +195,13 @@ function FuncionarioModernoContent() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [funcionarioId]);
 
-  const buscarObservacoesTarefa = async (tarefaId: string) => {
+  useEffect(() => {
+    fetchFuncionario();
+  }, [fetchFuncionario]);
+
+  const buscarObservacoesTarefa = useCallback(async (tarefaId: string) => {
     try {
       const response = await fetch(
         `/api/logistica/tarefas/${tarefaId}/observacoes`
@@ -150,9 +214,9 @@ function FuncionarioModernoContent() {
     } catch (err) {
       console.error("Erro ao buscar observações:", err);
     }
-  };
+  }, []);
 
-  const carregarTodasObservacoes = async () => {
+  const carregarTodasObservacoes = useCallback(async () => {
     if (!funcionario?.tarefas) return;
 
     setCarregandoObservacoes(true);
@@ -166,7 +230,18 @@ function FuncionarioModernoContent() {
     } finally {
       setCarregandoObservacoes(false);
     }
-  };
+  }, [funcionario, buscarObservacoesTarefa]);
+
+  useEffect(() => {
+    if (funcionario?.tarefas && activeTab === "notes") {
+      carregarTodasObservacoes();
+    }
+  }, [funcionario?.tarefas, activeTab, carregarTodasObservacoes]);
+
+  const existeTarefaComObservacao =
+    funcionario?.tarefas?.some(
+      (t) => (observacoesTarefa[t.id] || []).length > 0
+    ) ?? false;
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -842,6 +917,72 @@ function FuncionarioModernoContent() {
 
             {activeTab === "notes" && (
               <div className="space-y-6">
+                {/* Seção de Observações Gerais do Remanejamento */}
+                <div className="bg-white border border-gray-200 rounded-lg p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                    <ChatBubbleLeftRightIcon className="w-5 h-5 mr-2 text-blue-600" />
+                    Observações Gerais do Remanejamento
+                  </h3>
+
+                  <div className="mb-4">
+                    <div className="flex space-x-2">
+                      <textarea
+                        value={novaObservacaoRemanejamento}
+                        onChange={(e) =>
+                          setNovaObservacaoRemanejamento(e.target.value)
+                        }
+                        placeholder="Digite uma nova observação..."
+                        className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                        rows={2}
+                      />
+                      <button
+                        onClick={criarObservacaoRemanejamento}
+                        disabled={
+                          salvandoObservacao ||
+                          !novaObservacaoRemanejamento.trim()
+                        }
+                        className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                      >
+                        {salvandoObservacao ? "Salvando..." : "Adicionar"}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    {observacoesRemanejamento.length > 0 ? (
+                      observacoesRemanejamento.map((obs) => (
+                        <div
+                          key={obs.id}
+                          className="bg-gray-50 rounded-lg p-3 border border-gray-200 relative group"
+                        >
+                          <button
+                            onClick={() =>
+                              excluirObservacaoRemanejamento(obs.id)
+                            }
+                            className="absolute top-2 right-2 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                            title="Excluir observação"
+                          >
+                            <XCircleIcon className="w-4 h-4" />
+                          </button>
+                          <p className="text-sm text-gray-800 mb-1">
+                            {obs.texto}
+                          </p>
+                          <div className="flex justify-between items-center text-xs text-gray-500">
+                            <span>{obs.criadoPor}</span>
+                            <span>
+                              {new Date(obs.dataCriacao).toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-gray-500 text-center py-2">
+                        Nenhuma observação geral registrada.
+                      </p>
+                    )}
+                  </div>
+                </div>
+
                 <div className="flex items-center justify-between">
                   <h3 className="text-lg font-semibold text-gray-900">
                     Observações das Tarefas
@@ -862,10 +1003,15 @@ function FuncionarioModernoContent() {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {funcionario?.tarefas && funcionario.tarefas.length > 0 ? (
+                    {funcionario?.tarefas &&
+                    funcionario.tarefas.length > 0 &&
+                    existeTarefaComObservacao ? (
                       funcionario.tarefas.map((tarefa) => {
                         const observacoesDaTarefa =
                           observacoesTarefa[tarefa.id] || [];
+                        if (observacoesDaTarefa.length === 0) {
+                          return null;
+                        }
                         return (
                           <div
                             key={tarefa.id}
@@ -896,33 +1042,24 @@ function FuncionarioModernoContent() {
                             </div>
 
                             <div className="p-6">
-                              {observacoesDaTarefa.length > 0 ? (
-                                <div className="space-y-4">
-                                  {observacoesDaTarefa.map((obs) => (
-                                    <div
-                                      key={obs.id}
-                                      className="border-l-4 border-blue-200 pl-4 py-2"
-                                    >
-                                      <div className="text-gray-900 text-sm leading-relaxed mb-2">
-                                        {obs.texto}
-                                      </div>
-                                      <div className="flex items-center justify-between text-xs text-gray-500">
-                                        <span>Por: {obs.criadoPor}</span>
-                                        <span>
-                                          {formatDateTime(obs.dataCriacao)}
-                                        </span>
-                                      </div>
+                              <div className="space-y-4">
+                                {observacoesDaTarefa.map((obs) => (
+                                  <div
+                                    key={obs.id}
+                                    className="border-l-4 border-blue-200 pl-4 py-2"
+                                  >
+                                    <div className="text-gray-900 text-sm leading-relaxed mb-2">
+                                      {obs.texto}
                                     </div>
-                                  ))}
-                                </div>
-                              ) : (
-                                <div className="text-center py-4">
-                                  <ChatBubbleLeftRightIcon className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                                  <p className="text-sm text-gray-500">
-                                    Nenhuma observação para esta tarefa
-                                  </p>
-                                </div>
-                              )}
+                                    <div className="flex items-center justify-between text-xs text-gray-500">
+                                      <span>Por: {obs.criadoPor}</span>
+                                      <span>
+                                        {formatDateTime(obs.dataCriacao)}
+                                      </span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
                             </div>
                           </div>
                         );
@@ -933,11 +1070,11 @@ function FuncionarioModernoContent() {
                           <ClipboardDocumentListIcon className="w-8 h-8 text-gray-400" />
                         </div>
                         <h4 className="text-lg font-medium text-gray-900 mb-2">
-                          Nenhuma tarefa encontrada
+                          Nenhuma observação encontrada
                         </h4>
                         <p className="text-gray-500 max-w-md mx-auto">
-                          Este funcionário ainda não possui tarefas atribuídas,
-                          portanto não há observações para exibir.
+                          Não há observações registradas para as tarefas deste
+                          remanejamento.
                         </p>
                       </div>
                     )}

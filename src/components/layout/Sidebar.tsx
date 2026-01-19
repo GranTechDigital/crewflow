@@ -194,6 +194,10 @@ export default function Sidebar() {
             label: "Matriz de Treinamento",
             href: "/matriz-treinamento/contratos",
           },
+          {
+            label: "Gerenciar Funções",
+            href: "/funcoes",
+          },
           { label: "Cadastrar Treinamentos", href: "/treinamentos" },
         ],
         permission: "canAccessTreinamento",

@@ -468,7 +468,6 @@ async function buscarRemanejamentos(
     },
   });
 
-  // Badge: função alterada recentemente (últimos 30 dias) para RFs em processo
   try {
     const rfIds: string[] = [];
     solicitacoes.forEach((s: any) => s.funcionarios?.forEach((rf: any) => rfIds.push(rf.id)));
@@ -491,6 +490,19 @@ async function buscarRemanejamentos(
           map.set(h.remanejamentoFuncionarioId!, h.dataAcao.toISOString());
         }
       });
+      const observacoesPorRf = await prisma.observacaoRemanejamentoFuncionario.groupBy({
+        where: {
+          remanejamentoFuncionarioId: { in: rfIds },
+        },
+        by: ["remanejamentoFuncionarioId"],
+        _count: {
+          id: true,
+        },
+      });
+      const mapObs = new Map<string, number>();
+      observacoesPorRf.forEach((o: any) => {
+        mapObs.set(o.remanejamentoFuncionarioId, o._count.id);
+      });
       solicitacoes.forEach((s: any) =>
         s.funcionarios?.forEach((rf: any) => {
           const dt = map.get(rf.id);
@@ -498,6 +510,8 @@ async function buscarRemanejamentos(
             (rf as any).funcaoAlteradaRecentemente = true;
             (rf as any).dataMudancaFuncao = dt;
           }
+          const totalObs = mapObs.get(rf.id) ?? 0;
+          (rf as any).observacoesRemanejamentoCount = totalObs;
         })
       );
     }

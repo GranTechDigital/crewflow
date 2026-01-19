@@ -27,6 +27,7 @@ import {
   ExclamationTriangleIcon,
   ExclamationCircleIcon,
   ArrowPathIcon,
+  ChatBubbleLeftRightIcon,
 } from "@heroicons/react/24/outline";
 import {
   Chart as ChartJS,
@@ -97,6 +98,16 @@ interface FuncionarioTableData {
   funcaoAlteradaRecentemente?: boolean;
   dataMudancaFuncao?: string;
   observacoesPrestserv?: string;
+  observacoesRemanejamentoCount?: number;
+}
+
+interface ObservacaoRemanejamento {
+  id: number;
+  texto: string;
+  dataCriacao: string;
+  dataModificacao: string;
+  criadoPor: string;
+  modificadoPor: string;
 }
 
 export default function FuncionariosPage() {
@@ -195,6 +206,7 @@ function FuncionariosPageContent() {
   const [isInitialized, setIsInitialized] = useState(false);
   const [showObsModal, setShowObsModal] = useState(false);
   const [obsTexto, setObsTexto] = useState("");
+  const [syncingFuncionarios, setSyncingFuncionarios] = useState(false);
   const [obsTitulo, setObsTitulo] = useState("");
 
   // Estados para aprovação em lote
@@ -219,9 +231,163 @@ function FuncionariosPageContent() {
     string | null
   >(null);
 
+  const [showRemObsModal, setShowRemObsModal] = useState(false);
+  const [remObsLoading, setRemObsLoading] = useState(false);
+  const [remObsList, setRemObsList] = useState<ObservacaoRemanejamento[]>([]);
+  const [remObsTexto, setRemObsTexto] = useState("");
+  const [remObsEditando, setRemObsEditando] =
+    useState<ObservacaoRemanejamento | null>(null);
+  const [remObsRemanejamentoId, setRemObsRemanejamentoId] = useState<
+    string | null
+  >(null);
+
   // Função para verificar se o usuário é administrador
   const isAdmin = () => {
     return usuario?.equipe === "Administração";
+  };
+
+  const carregarObservacoesRemanejamento = useCallback(
+    async (remanejamentoId: string) => {
+      try {
+        setRemObsLoading(true);
+        const response = await fetch(
+          `/api/logistica/remanejamentos/${remanejamentoId}/observacoes`
+        );
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          throw new Error(
+            data?.error || "Erro ao carregar observações do remanejamento"
+          );
+        }
+        const data: ObservacaoRemanejamento[] = await response.json();
+        setRemObsList(data);
+      } catch (error) {
+        showToast(
+          error instanceof Error
+            ? error.message
+            : "Erro ao carregar observações do remanejamento",
+          "error"
+        );
+      } finally {
+        setRemObsLoading(false);
+      }
+    },
+    [showToast]
+  );
+
+  const abrirModalObservacoesRemanejamento = (
+    funcionario: FuncionarioTableData
+  ) => {
+    if (!funcionario.remanejamentoId) {
+      showToast("Remanejamento não encontrado para este funcionário", "error");
+      return;
+    }
+    setRemObsRemanejamentoId(funcionario.remanejamentoId);
+    setSelectedFuncionario(funcionario);
+    setShowRemObsModal(true);
+    setRemObsTexto("");
+    setRemObsEditando(null);
+    carregarObservacoesRemanejamento(funcionario.remanejamentoId);
+  };
+
+  const salvarObservacaoRemanejamento = async () => {
+    if (!remObsRemanejamentoId) {
+      showToast("Remanejamento não identificado", "error");
+      return;
+    }
+    if (!remObsTexto.trim()) {
+      showToast("Texto da observação é obrigatório", "error");
+      return;
+    }
+    try {
+      setRemObsLoading(true);
+      const isEdit = !!remObsEditando;
+      const url = isEdit
+        ? `/api/logistica/remanejamentos/${remObsRemanejamentoId}/observacoes/${remObsEditando?.id}`
+        : `/api/logistica/remanejamentos/${remObsRemanejamentoId}/observacoes`;
+      const method = isEdit ? "PUT" : "POST";
+      const response = await fetch(url, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ texto: remObsTexto }),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(
+          data?.error ||
+            (isEdit
+              ? "Erro ao atualizar observação"
+              : "Erro ao criar observação")
+        );
+      }
+      setRemObsTexto("");
+      setRemObsEditando(null);
+      await carregarObservacoesRemanejamento(remObsRemanejamentoId);
+      showToast(
+        isEdit
+          ? "Observação atualizada com sucesso!"
+          : "Observação criada com sucesso!",
+        "success"
+      );
+    } catch (error) {
+      showToast(
+        error instanceof Error
+          ? error.message
+          : "Erro ao salvar observação do remanejamento",
+        "error"
+      );
+    } finally {
+      setRemObsLoading(false);
+    }
+  };
+
+  const editarObservacaoRemanejamento = (obs: ObservacaoRemanejamento) => {
+    setRemObsEditando(obs);
+    setRemObsTexto(obs.texto);
+  };
+
+  const excluirObservacaoRemanejamento = async (obsId: number) => {
+    if (!remObsRemanejamentoId) {
+      showToast("Remanejamento não identificado", "error");
+      return;
+    }
+    const confirmar =
+      typeof window !== "undefined"
+        ? window.confirm("Tem certeza que deseja excluir esta observação?")
+        : true;
+    if (!confirmar) return;
+    try {
+      setRemObsLoading(true);
+      const response = await fetch(
+        `/api/logistica/remanejamentos/${remObsRemanejamentoId}/observacoes/${obsId}`,
+        {
+          method: "DELETE",
+        }
+      );
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(
+          data?.error || "Erro ao excluir observação do remanejamento"
+        );
+      }
+      if (remObsEditando && remObsEditando.id === obsId) {
+        setRemObsEditando(null);
+        setRemObsTexto("");
+      }
+      await carregarObservacoesRemanejamento(remObsRemanejamentoId);
+      showToast("Observação excluída com sucesso!", "success");
+    } catch (error) {
+      showToast(
+        error instanceof Error
+          ? error.message
+          : "Erro ao excluir observação do remanejamento",
+        "error"
+      );
+    } finally {
+      setRemObsLoading(false);
+    }
   };
 
   const handleSincronizar = async () => {
@@ -257,6 +423,47 @@ function FuncionariosPageContent() {
       );
     } finally {
       setSincronizando(false);
+    }
+  };
+
+  const criarSolicitacaoComSync = async () => {
+    try {
+      setSyncingFuncionarios(true);
+      showToast(
+        "Atualizando base de funcionários antes de criar a solicitação...",
+        "info"
+      );
+
+      const { syncWithRetry, formatSyncMessage } = await import(
+        "@/utils/syncUtils"
+      );
+
+      const result = await syncWithRetry({
+        maxRetries: 3,
+        retryDelay: 2000,
+        timeout: 60000,
+      });
+
+      if (result.success) {
+        const msg = formatSyncMessage(result.data);
+        showToast(msg, "success");
+      } else {
+        showToast(
+          result.error ||
+            "Não foi possível atualizar a base de funcionários. Você ainda pode prosseguir com a criação da solicitação.",
+          "error"
+        );
+      }
+    } catch (error) {
+      showToast(
+        "Erro ao sincronizar funcionários. Você ainda pode prosseguir com a criação da solicitação.",
+        "error"
+      );
+    } finally {
+      setSyncingFuncionarios(false);
+      router.push(
+        "/prestserv/remanejamentos/novo?returnTo=/prestserv/funcionarios"
+      );
     }
   };
 
@@ -1082,6 +1289,10 @@ function FuncionariosPageContent() {
             statusFuncionario: rf.statusFuncionario,
             funcaoAlteradaRecentemente: rf.funcaoAlteradaRecentemente || false,
             dataMudancaFuncao: rf.dataMudancaFuncao || undefined,
+            observacoesRemanejamentoCount:
+              typeof rf.observacoesRemanejamentoCount === "number"
+                ? rf.observacoesRemanejamentoCount
+                : 0,
             progressoPorSetor: [
               {
                 setor: "RH",
@@ -1195,6 +1406,10 @@ function FuncionariosPageContent() {
             statusFuncionario: rf.statusFuncionario,
             funcaoAlteradaRecentemente: rf.funcaoAlteradaRecentemente || false,
             dataMudancaFuncao: rf.dataMudancaFuncao || undefined,
+            observacoesRemanejamentoCount:
+              typeof rf.observacoesRemanejamentoCount === "number"
+                ? rf.observacoesRemanejamentoCount
+                : 0,
             progressoPorSetor: [
               {
                 setor: "RH",
@@ -2749,15 +2964,21 @@ function FuncionariosPageContent() {
               PERMISSIONS.ACCESS_PREST_SERV,
             ]) && (
               <button
-                onClick={() =>
-                  router.push(
-                    "/prestserv/remanejamentos/novo?returnTo=/prestserv/funcionarios"
-                  )
-                }
-                className="inline-flex items-center px-4 py-2 text-sm font-bold text-white bg-sky-500 border border-transparent rounded-md hover:bg-sky-600 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 shadow-sm transition-colors"
+                onClick={criarSolicitacaoComSync}
+                disabled={syncingFuncionarios}
+                className="inline-flex items-center px-4 py-2 text-sm font-bold text-white bg-sky-500 border border-transparent rounded-md hover:bg-sky-600 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <PlusIcon className="w-4 h-4 mr-2" />
-                Criar Solicitação
+                {syncingFuncionarios ? (
+                  <>
+                    <ArrowPathIcon className="w-4 h-4 mr-2 animate-spin" />
+                    Atualizando funcionários...
+                  </>
+                ) : (
+                  <>
+                    <PlusIcon className="w-4 h-4 mr-2" />
+                    Criar Solicitação
+                  </>
+                )}
               </button>
             )}
           </div>
@@ -5231,6 +5452,29 @@ function FuncionariosPageContent() {
                                     Detalhes
                                   </button>
                                 )}
+                              <button
+                                onClick={() =>
+                                  abrirModalObservacoesRemanejamento(
+                                    funcionario
+                                  )
+                                }
+                                className="inline-flex items-center px-2 py-1 text-xs font-medium text-sky-700 bg-sky-50 border border-sky-200 rounded hover:bg-sky-100 transition-colors focus:outline-none focus:ring-1 focus:ring-sky-500"
+                                title="Observações do remanejamento"
+                              >
+                                <ChatBubbleLeftRightIcon className="w-3 h-3 mr-1" />
+                                <span>Obs.</span>
+                                <span
+                                  className={`ml-1 inline-flex items-center justify-center px-1.5 min-w-[1.25rem] h-4 rounded-full text-[10px] font-semibold ${
+                                    (funcionario.observacoesRemanejamentoCount ??
+                                      0) > 0
+                                      ? "bg-sky-600 text-white"
+                                      : "bg-sky-100 text-sky-700"
+                                  }`}
+                                >
+                                  {funcionario.observacoesRemanejamentoCount ??
+                                    0}
+                                </span>
+                              </button>
                               {/* Botão para listar tarefas - ocultar para APROVAR SOLICITAÇÃO, REJEITADO, CANCELADO */}
                               {funcionario.statusTarefas !==
                                 "APROVAR SOLICITAÇÃO" &&
@@ -6876,6 +7120,134 @@ function FuncionariosPageContent() {
             statusPrestserv={selectedFuncionario.statusPrestserv}
             onTarefaReprovada={fetchFuncionarios} // Atualizar tabela quando tarefa for reprovada
           />
+        )}
+
+        {showRemObsModal && selectedFuncionario && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-4 w-full max-w-2xl mx-4">
+              <div className="flex justify-between items-center mb-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900">
+                    Observações do Remanejamento
+                  </h3>
+                  <p className="text-xs text-gray-500">
+                    {selectedFuncionario.nome} ({selectedFuncionario.matricula})
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowRemObsModal(false);
+                    setRemObsTexto("");
+                    setRemObsEditando(null);
+                  }}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <XMarkIcon className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="mb-3">
+                <textarea
+                  value={remObsTexto}
+                  onChange={(e) => setRemObsTexto(e.target.value)}
+                  rows={3}
+                  className="w-full rounded border border-gray-300 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500"
+                  placeholder="Digite uma observação sobre este remanejamento..."
+                />
+                <div className="mt-2 flex justify-between items-center">
+                  <span className="text-[11px] text-gray-500">
+                    {remObsEditando
+                      ? "Editando observação existente"
+                      : "Nova observação"}
+                  </span>
+                  <div className="flex gap-2">
+                    {remObsEditando && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRemObsEditando(null);
+                          setRemObsTexto("");
+                        }}
+                        className="px-2 py-1 text-[11px] rounded border border-gray-300 text-gray-700 hover:bg-gray-50"
+                      >
+                        Cancelar edição
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={salvarObservacaoRemanejamento}
+                      disabled={remObsLoading || !remObsTexto.trim()}
+                      className="px-3 py-1 text-[11px] rounded bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {remObsLoading
+                        ? remObsEditando
+                          ? "Salvando..."
+                          : "Adicionando..."
+                        : remObsEditando
+                        ? "Salvar"
+                        : "Adicionar"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t border-gray-200 pt-2 max-h-[50vh] overflow-y-auto">
+                {remObsLoading && remObsList.length === 0 ? (
+                  <div className="flex items-center justify-center py-6">
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-sky-600 border-t-transparent mr-2"></div>
+                    <span className="text-xs text-gray-600">
+                      Carregando observações...
+                    </span>
+                  </div>
+                ) : remObsList.length === 0 ? (
+                  <div className="py-4 text-center text-xs text-gray-500">
+                    Nenhuma observação registrada para este remanejamento.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {remObsList.map((obs) => (
+                      <div
+                        key={obs.id}
+                        className="border border-gray-200 rounded px-3 py-2 bg-gray-50"
+                      >
+                        <div className="flex justify-between items-start gap-2">
+                          <div className="flex-1">
+                            <p className="text-xs text-gray-800 whitespace-pre-wrap">
+                              {obs.texto}
+                            </p>
+                          </div>
+                          <div className="flex flex-col items-end gap-1">
+                            <button
+                              type="button"
+                              onClick={() => editarObservacaoRemanejamento(obs)}
+                              className="text-[11px] text-sky-700 hover:text-sky-900"
+                            >
+                              Editar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                excluirObservacaoRemanejamento(obs.id)
+                              }
+                              className="text-[11px] text-red-600 hover:text-red-800"
+                            >
+                              Excluir
+                            </button>
+                          </div>
+                        </div>
+                        <div className="mt-1 flex justify-between text-[10px] text-gray-500">
+                          <span>{obs.criadoPor}</span>
+                          <span>
+                            {new Date(obs.dataCriacao).toLocaleString("pt-BR")}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Modal do SISPAT */}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../hooks/useAuth";
 
 interface StatusMapping {
@@ -36,13 +36,7 @@ export default function StatusPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  useEffect(() => {
-    if (!authLoading && usuario) {
-      fetchStatus();
-    }
-  }, [usuario, authLoading, filtroCategoria, filtroAtivo]);
-
-  const fetchStatus = async () => {
+  const fetchStatus = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -63,7 +57,13 @@ export default function StatusPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filtroCategoria, filtroAtivo]);
+
+  useEffect(() => {
+    if (!authLoading && usuario) {
+      fetchStatus();
+    }
+  }, [usuario, authLoading, fetchStatus]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

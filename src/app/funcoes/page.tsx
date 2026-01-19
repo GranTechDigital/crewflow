@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 
 interface Funcao {
   id: number;
-  criadoEm: string;
+  createdAt: string;
   funcao: string;
   regime: string;
 }
@@ -350,7 +350,7 @@ export default function FuncoesPage() {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {new Date(funcao.criadoEm).toLocaleDateString("pt-BR")}
+                        {new Date(funcao.createdAt).toLocaleDateString("pt-BR")}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <div className="flex justify-end gap-2">
