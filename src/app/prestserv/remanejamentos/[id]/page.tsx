@@ -125,6 +125,17 @@ function FuncionarioModernoContent() {
     }
   }, [funcionarioId]);
 
+  const formatarData = (data: string | Date) => {
+    try {
+      if (!data) return "Data não disponível";
+      const d = new Date(data);
+      if (isNaN(d.getTime())) return "Data inválida";
+      return d.toLocaleString("pt-BR");
+    } catch {
+      return "Data inválida";
+    }
+  };
+
   const criarObservacaoRemanejamento = async () => {
     if (!novaObservacaoRemanejamento.trim()) return;
     setSalvandoObservacao(true);
@@ -969,9 +980,7 @@ function FuncionarioModernoContent() {
                           </p>
                           <div className="flex justify-between items-center text-xs text-gray-500">
                             <span>{obs.criadoPor}</span>
-                            <span>
-                              {new Date(obs.dataCriacao).toLocaleString()}
-                            </span>
+                            <span>{formatarData(obs.dataCriacao)}</span>
                           </div>
                         </div>
                       ))
@@ -1054,7 +1063,7 @@ function FuncionarioModernoContent() {
                                     <div className="flex items-center justify-between text-xs text-gray-500">
                                       <span>Por: {obs.criadoPor}</span>
                                       <span>
-                                        {formatDateTime(obs.dataCriacao)}
+                                        {formatarData(obs.dataCriacao)}
                                       </span>
                                     </div>
                                   </div>

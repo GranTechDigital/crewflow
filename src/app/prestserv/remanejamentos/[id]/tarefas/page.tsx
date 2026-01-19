@@ -83,7 +83,9 @@ function TarefasFuncionarioContent() {
   const [observacoesTarefa, setObservacoesTarefa] = useState<{
     [key: string]: ObservacaoTarefa[];
   }>({});
-  const [observacoesCount, setObservacoesCount] = useState<Record<string, number>>({});
+  const [observacoesCount, setObservacoesCount] = useState<
+    Record<string, number>
+  >({});
   const [mostrarObservacoesTarefa, setMostrarObservacoesTarefa] = useState<
     string | null
   >(null);
@@ -109,18 +111,33 @@ function TarefasFuncionarioContent() {
     fetchFuncionario();
   }, [fetchFuncionario]);
 
+  const formatarData = (data: string | Date) => {
+    try {
+      if (!data) return "Data não disponível";
+      const d = new Date(data);
+      if (isNaN(d.getTime())) return "Data inválida";
+      return d.toLocaleString("pt-BR");
+    } catch {
+      return "Data inválida";
+    }
+  };
+
   // Buscar contagem de observações para todas as tarefas visíveis
   useEffect(() => {
     const fetchCounts = async () => {
       if (funcionario?.tarefas && funcionario.tarefas.length > 0) {
-        const ids = funcionario.tarefas.map((t) => t.id).join(',');
+        const ids = funcionario.tarefas.map((t) => t.id).join(",");
         try {
-          const resp = await fetch(`/api/logistica/tarefas/observacoes/count?ids=${encodeURIComponent(ids)}`);
-          if (!resp.ok) throw new Error('Erro ao contar observações');
+          const resp = await fetch(
+            `/api/logistica/tarefas/observacoes/count?ids=${encodeURIComponent(
+              ids
+            )}`
+          );
+          if (!resp.ok) throw new Error("Erro ao contar observações");
           const data = await resp.json();
           setObservacoesCount(data || {});
         } catch (err) {
-          console.error('Erro ao contar observações:', err);
+          console.error("Erro ao contar observações:", err);
           setObservacoesCount({});
         }
       } else {
@@ -268,7 +285,9 @@ function TarefasFuncionarioContent() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ dataLimite: dataLimiteUtcNoonIso || novaDataLimite }),
+        body: JSON.stringify({
+          dataLimite: dataLimiteUtcNoonIso || novaDataLimite,
+        }),
       });
 
       if (!response.ok) {
@@ -876,7 +895,11 @@ function TarefasFuncionarioContent() {
                         <ChatBubbleLeftRightIcon className="w-4 h-4 mr-1" />
                         Observações
                         <span
-                          className={`ml-1 px-1.5 py-0.5 text-xs rounded-full ${((observacoesCount[tarefa.id] ?? 0) > 0) ? 'bg-blue-800' : 'bg-gray-500'}`}
+                          className={`ml-1 px-1.5 py-0.5 text-xs rounded-full ${
+                            (observacoesCount[tarefa.id] ?? 0) > 0
+                              ? "bg-blue-800"
+                              : "bg-gray-500"
+                          }`}
                         >
                           {observacoesCount[tarefa.id] ?? 0}
                         </span>
@@ -961,7 +984,7 @@ function TarefasFuncionarioContent() {
                           <div className="flex justify-between items-center text-sm text-gray-500">
                             <span>
                               Por: {obs.criadoPor} em{" "}
-                              {formatDateTime(obs.dataCriacao)}
+                              {formatarData(obs.dataCriacao)}
                             </span>
                             <div className="flex space-x-2">
                               <button
