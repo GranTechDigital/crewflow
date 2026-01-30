@@ -309,53 +309,32 @@ export default function TarefasPage() {
       setLoading(true);
       setError(null);
 
-      const itensPorLote = 100;
-      let pagina = 1;
-      let totalPaginas = 1;
-      const solicitacoesAcumuladas: SolicitacaoRemanejamento[] = [];
+      const params = new URLSearchParams();
+      params.set("filtrarProcesso", "false");
+      if (filtroSetorServidor) {
+        params.set("responsavel", filtroSetorServidor);
+      }
 
-      do {
-        if (fetchEmAndamentoRef.current !== fetchId) {
-          return;
-        }
+      const response = await fetch(
+        `/api/logistica/remanejamentos?${params.toString()}`,
+        { signal: controladorAtual.signal },
+      );
 
-        const params = new URLSearchParams();
-        params.set("filtrarProcesso", "false");
-        params.set("page", String(pagina));
-        params.set("limit", String(itensPorLote));
-        if (filtroSetorServidor) {
-          params.set("responsavel", filtroSetorServidor);
-        }
+      if (!response.ok) {
+        throw new Error("Erro ao carregar dados de remanejamentos");
+      }
 
-        const response = await fetch(
-          `/api/logistica/remanejamentos?${params.toString()}`,
-          { signal: controladorAtual.signal },
-        );
+      const data = await response.json();
 
-        if (!response.ok) {
-          throw new Error("Erro ao carregar dados de remanejamentos");
-        }
-
-        const data = await response.json();
-
-        if (data && Array.isArray(data.solicitacoes)) {
-          solicitacoesAcumuladas.push(...data.solicitacoes);
-          totalPaginas =
-            typeof data.totalPaginas === "number" && data.totalPaginas > 0
-              ? data.totalPaginas
-              : pagina;
-        } else if (Array.isArray(data)) {
-          solicitacoesAcumuladas.push(...data);
-          totalPaginas = pagina;
-        } else {
-          totalPaginas = pagina;
-        }
-
-        pagina += 1;
-      } while (pagina <= totalPaginas);
+      const solicitacoes =
+        data && Array.isArray(data.solicitacoes)
+          ? data.solicitacoes
+          : Array.isArray(data)
+            ? data
+            : [];
 
       if (fetchEmAndamentoRef.current === fetchId) {
-        setSolicitacoes(solicitacoesAcumuladas);
+        setSolicitacoes(solicitacoes);
       }
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {

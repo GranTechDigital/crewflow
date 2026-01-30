@@ -240,7 +240,7 @@ interface ResultadoPaginado {
 
 // Função auxiliar para filtrar solicitações para processo de criação de tarefas
 function filtrarSolicitacoesParaProcesso(
-  solicitacoes: SolicitacaoRemanejamentoComplete[]
+  solicitacoes: SolicitacaoRemanejamentoComplete[],
 ): SolicitacaoRemanejamentoComplete[] {
   const statusEmProcesso: StatusTarefasEmProcesso[] = [
     "REPROVAR TAREFAS",
@@ -252,8 +252,8 @@ function filtrarSolicitacoesParaProcesso(
       (f: RemanejamentoFuncionarioWithFuncionario) =>
         f.funcionario &&
         f.funcionario.emMigracao === true &&
-        statusEmProcesso.includes(f.statusTarefas as StatusTarefasEmProcesso)
-    )
+        statusEmProcesso.includes(f.statusTarefas as StatusTarefasEmProcesso),
+    ),
   );
 }
 
@@ -276,8 +276,9 @@ interface ParametrosBuscaRemanejamento {
 
 // Função auxiliar para buscar remanejamentos com filtros
 async function buscarRemanejamentos(
-  params: ParametrosBuscaRemanejamento
+  params: ParametrosBuscaRemanejamento,
 ): Promise<PrismaSolicitacaoRemanejamento[] | ResultadoPaginado> {
+  const inicioBusca = Date.now();
   const {
     status,
     statusTarefas,
@@ -470,10 +471,13 @@ async function buscarRemanejamentos(
       id: "desc",
     },
   });
+  const duracaoBusca = Date.now() - inicioBusca;
 
   try {
     const rfIds: string[] = [];
-    solicitacoes.forEach((s: any) => s.funcionarios?.forEach((rf: any) => rfIds.push(rf.id)));
+    solicitacoes.forEach((s: any) =>
+      s.funcionarios?.forEach((rf: any) => rfIds.push(rf.id)),
+    );
     if (rfIds.length > 0) {
       const limite = new Date();
       limite.setDate(limite.getDate() - 30);
@@ -493,15 +497,16 @@ async function buscarRemanejamentos(
           map.set(h.remanejamentoFuncionarioId!, h.dataAcao.toISOString());
         }
       });
-      const observacoesPorRf = await prisma.observacaoRemanejamentoFuncionario.groupBy({
-        where: {
-          remanejamentoFuncionarioId: { in: rfIds },
-        },
-        by: ["remanejamentoFuncionarioId"],
-        _count: {
-          id: true,
-        },
-      });
+      const observacoesPorRf =
+        await prisma.observacaoRemanejamentoFuncionario.groupBy({
+          where: {
+            remanejamentoFuncionarioId: { in: rfIds },
+          },
+          by: ["remanejamentoFuncionarioId"],
+          _count: {
+            id: true,
+          },
+        });
       const mapObs = new Map<string, number>();
       observacoesPorRf.forEach((o: any) => {
         mapObs.set(o.remanejamentoFuncionarioId, o._count.id);
@@ -515,7 +520,7 @@ async function buscarRemanejamentos(
           }
           const totalObs = mapObs.get(rf.id) ?? 0;
           (rf as any).observacoesRemanejamentoCount = totalObs;
-        })
+        }),
       );
     }
   } catch (e) {
@@ -523,14 +528,15 @@ async function buscarRemanejamentos(
   }
 
   // Filtrar solicitações que não têm funcionários (após a filtragem)
-  let solicitacoesFiltradas: SolicitacaoRemanejamentoComplete[] = (
-    solicitacoes.filter((s) => s.funcionarios.length > 0) as unknown as SolicitacaoRemanejamentoComplete[]
-  );
+  let solicitacoesFiltradas: SolicitacaoRemanejamentoComplete[] =
+    solicitacoes.filter(
+      (s) => s.funcionarios.length > 0,
+    ) as unknown as SolicitacaoRemanejamentoComplete[];
 
   // Aplicar filtro adicional ANTES da paginação se estiver filtrando para processo
   if (params.filtrarProcesso) {
     solicitacoesFiltradas = filtrarSolicitacoesParaProcesso(
-      solicitacoesFiltradas
+      solicitacoesFiltradas,
     );
   }
 
@@ -542,7 +548,7 @@ async function buscarRemanejamentos(
     const skip = (page - 1) * limit;
     const solicitacoesPaginadas = solicitacoesFiltradas.slice(
       skip,
-      skip + limit
+      skip + limit,
     );
 
     return {
@@ -554,6 +560,9 @@ async function buscarRemanejamentos(
     } as ResultadoPaginado;
   }
 
+  console.info(
+    `[remanejamentos] duracao=${duracaoBusca}ms totalSolicitacoes=${solicitacoesFiltradas.length} responsavel=${Array.isArray(responsavel) ? responsavel.join(",") : responsavel || "todos"}`,
+  );
   return solicitacoesFiltradas as SolicitacaoRemanejamentoComplete[];
 }
 
@@ -635,7 +644,7 @@ export async function GET(request: NextRequest) {
     console.error("Erro ao buscar funcionários de remanejamento:", error);
     return NextResponse.json(
       { error: "Erro interno do servidor" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -644,11 +653,13 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body: NovasolicitacaoRemanejamento = await request.json();
-    const { getUserFromRequest } = await import('@/utils/authUtils');
+    const { getUserFromRequest } = await import("@/utils/authUtils");
     const usuarioAutenticado = await getUserFromRequest(request);
     const usuarioId = usuarioAutenticado?.id ?? null;
     const usuarioNome =
-      usuarioAutenticado?.funcionario?.nome || usuarioAutenticado?.funcionario?.matricula || 'Sistema';
+      usuarioAutenticado?.funcionario?.nome ||
+      usuarioAutenticado?.funcionario?.matricula ||
+      "Sistema";
 
     const {
       tipo = "REMANEJAMENTO",
@@ -663,7 +674,7 @@ export async function POST(request: NextRequest) {
     if (!funcionarioIds || funcionarioIds.length === 0) {
       return NextResponse.json(
         { error: "Pelo menos um funcionário deve ser selecionado" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -675,7 +686,7 @@ export async function POST(request: NextRequest) {
       if (contratoDestinoId) {
         return NextResponse.json(
           { error: "Desligamento não deve ter contrato de destino" },
-          { status: 400 }
+          { status: 400 },
         );
       }
     } else {
@@ -686,7 +697,7 @@ export async function POST(request: NextRequest) {
             error:
               "Contrato de destino é obrigatório para alocação e remanejamento",
           },
-          { status: 400 }
+          { status: 400 },
         );
       }
     }
@@ -703,7 +714,7 @@ export async function POST(request: NextRequest) {
     if (funcionarios.length !== funcionarioIds.length) {
       return NextResponse.json(
         { error: "Um ou mais funcionários não foram encontrados" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -760,26 +771,28 @@ export async function POST(request: NextRequest) {
     try {
       const solicitacaoRel = solicitacao as any;
       await Promise.all(
-        (solicitacaoRel.funcionarios as any[]).map(async (funcionarioRem: any) => {
-          await prisma.historicoRemanejamento.create({
-            data: {
-              solicitacaoId: solicitacaoRel.id,
-              remanejamentoFuncionarioId: funcionarioRem.id,
-              tipoAcao: "CRIACAO",
-              entidade: "SOLICITACAO",
-              descricaoAcao: `Solicitação de ${tipo.toLowerCase()} criada para ${
-                funcionarioRem.funcionario.nome
-              } (${funcionarioRem.funcionario.matricula})`,
-              usuarioResponsavel: usuarioNome,
-              usuarioResponsavelId: usuarioId ?? undefined,
-              observacoes: `Contrato origem: ${
-                solicitacaoRel.contratoOrigem?.nome || "N/A"
-              } → Contrato destino: ${
-                solicitacaoRel.contratoDestino?.nome || "N/A"
-              }. Justificativa: ${justificativa}`,
-            },
-          });
-        })
+        (solicitacaoRel.funcionarios as any[]).map(
+          async (funcionarioRem: any) => {
+            await prisma.historicoRemanejamento.create({
+              data: {
+                solicitacaoId: solicitacaoRel.id,
+                remanejamentoFuncionarioId: funcionarioRem.id,
+                tipoAcao: "CRIACAO",
+                entidade: "SOLICITACAO",
+                descricaoAcao: `Solicitação de ${tipo.toLowerCase()} criada para ${
+                  funcionarioRem.funcionario.nome
+                } (${funcionarioRem.funcionario.matricula})`,
+                usuarioResponsavel: usuarioNome,
+                usuarioResponsavelId: usuarioId ?? undefined,
+                observacoes: `Contrato origem: ${
+                  solicitacaoRel.contratoOrigem?.nome || "N/A"
+                } → Contrato destino: ${
+                  solicitacaoRel.contratoDestino?.nome || "N/A"
+                }. Justificativa: ${justificativa}`,
+              },
+            });
+          },
+        ),
       );
     } catch (historicoError) {
       console.error("Erro ao registrar histórico:", historicoError);
@@ -791,7 +804,7 @@ export async function POST(request: NextRequest) {
     console.error("Erro ao criar remanejamento:", error);
     return NextResponse.json(
       { error: "Erro interno do servidor" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -804,7 +817,7 @@ export async function DELETE(request: NextRequest) {
     if (!id) {
       return NextResponse.json(
         { error: "Parâmetro id é obrigatório" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -842,7 +855,7 @@ export async function DELETE(request: NextRequest) {
     if (!remanejamentoFuncionario) {
       return NextResponse.json(
         { error: "Remanejamento do funcionário não encontrado" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -892,19 +905,19 @@ export async function DELETE(request: NextRequest) {
     } catch (logErr) {
       console.error(
         "Falha ao registrar histórico de exclusão de remanejamento:",
-        logErr
+        logErr,
       );
     }
 
     return NextResponse.json(
       { message: "Remanejamento excluído com sucesso" },
-      { status: 200 }
+      { status: 200 },
     );
   } catch (error) {
     console.error("Erro ao excluir remanejamento (rota base):", error);
     return NextResponse.json(
       { error: "Erro interno do servidor" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
