@@ -26,7 +26,7 @@ ChartJS.register(
   Tooltip,
   Legend,
   ArcElement,
-  ChartDataLabels
+  ChartDataLabels,
 );
 import {
   MagnifyingGlassIcon,
@@ -90,8 +90,10 @@ interface Funcionario {
 }
 
 // Usando a interface correta da estrutura hierárquica
-interface FuncionarioRemanejamento
-  extends Omit<SolicitacaoRemanejamento, "tipo"> {
+interface FuncionarioRemanejamento extends Omit<
+  SolicitacaoRemanejamento,
+  "tipo"
+> {
   // Campos adicionais para compatibilidade se necessário
   tipo?: TipoSolicitacao;
 }
@@ -138,6 +140,8 @@ export default function TarefasPage() {
 
   // Refs para evitar re-renderizações
   const filtroNomeRef = useRef<HTMLInputElement>(null);
+  const controladorFetchRef = useRef<AbortController | null>(null);
+  const fetchEmAndamentoRef = useRef(0);
 
   // Paginação
   const [paginaAtual, setPaginaAtual] = useState(1);
@@ -214,7 +218,7 @@ export default function TarefasPage() {
   const [loadingDashboard, setLoadingDashboard] = useState(false);
   const [dashboardError, setDashboardError] = useState<string | null>(null);
   const [observacaoEditando, setObservacaoEditando] = useState<string | null>(
-    null
+    null,
   );
   const [textoEditado, setTextoEditado] = useState("");
   const [editandoObservacao, setEditandoObservacao] = useState(false);
@@ -226,7 +230,7 @@ export default function TarefasPage() {
     useState<string>("");
   const [atualizandoDataLimite, setAtualizandoDataLimite] = useState(false);
   const [abaAtiva, setAbaAtiva] = useState<"observacoes" | "dataLimite">(
-    "observacoes"
+    "observacoes",
   );
 
   const [menuFuncionarioAtivo, setMenuFuncionarioAtivo] = useState<
@@ -263,10 +267,21 @@ export default function TarefasPage() {
     }
   }, [searchParams]);
 
+  const filtroSetorServidor = setorAtual || filtroSetor;
+  const filtrosServidorRef = useRef<{ setor: string } | null>(null);
+
   // Efeito separado para buscar tarefas quando o setor muda
   useEffect(() => {
-    fetchTodasTarefas();
-  }, [setorAtual]); // Removed fetchTodasTarefas from dependency array
+    const setorAtualizado = filtroSetorServidor || "";
+    const filtrosAnteriores = filtrosServidorRef.current;
+
+    if (!filtrosAnteriores || filtrosAnteriores.setor !== setorAtualizado) {
+      filtrosServidorRef.current = {
+        setor: setorAtualizado,
+      };
+      fetchTodasTarefas();
+    }
+  }, [filtroSetorServidor]); // Removed fetchTodasTarefas from dependency array
 
   useEffect(() => {
     setPaginaAtual(1);
@@ -274,31 +289,84 @@ export default function TarefasPage() {
 
   // Trabalhar diretamente com dados hierárquicos da API
   const [solicitacoes, setSolicitacoes] = useState<SolicitacaoRemanejamento[]>(
-    []
+    [],
   );
 
   const fetchTodasTarefas = async () => {
+    let fetchId = 0;
+    let controladorAtual!: AbortController;
     try {
-      setLoading(true);
+      fetchEmAndamentoRef.current += 1;
+      fetchId = fetchEmAndamentoRef.current;
 
-      const response = await fetch(
-        "/api/logistica/remanejamentos?filtrarProcesso=false"
-      );
-
-      if (!response.ok) {
-        throw new Error("Erro ao carregar dados de remanejamentos");
+      if (controladorFetchRef.current) {
+        controladorFetchRef.current.abort();
       }
 
-      const data = await response.json();
-      // console.log("Dados da API:", data);
+      controladorAtual = new AbortController();
+      controladorFetchRef.current = controladorAtual;
 
-      // Armazenar dados hierárquicos diretamente sem transformação
-      setSolicitacoes(data);
+      setLoading(true);
+      setError(null);
+
+      const itensPorLote = 100;
+      let pagina = 1;
+      let totalPaginas = 1;
+      const solicitacoesAcumuladas: SolicitacaoRemanejamento[] = [];
+
+      do {
+        if (fetchEmAndamentoRef.current !== fetchId) {
+          return;
+        }
+
+        const params = new URLSearchParams();
+        params.set("filtrarProcesso", "false");
+        params.set("page", String(pagina));
+        params.set("limit", String(itensPorLote));
+        if (filtroSetorServidor) {
+          params.set("responsavel", filtroSetorServidor);
+        }
+
+        const response = await fetch(
+          `/api/logistica/remanejamentos?${params.toString()}`,
+          { signal: controladorAtual.signal },
+        );
+
+        if (!response.ok) {
+          throw new Error("Erro ao carregar dados de remanejamentos");
+        }
+
+        const data = await response.json();
+
+        if (data && Array.isArray(data.solicitacoes)) {
+          solicitacoesAcumuladas.push(...data.solicitacoes);
+          totalPaginas =
+            typeof data.totalPaginas === "number" && data.totalPaginas > 0
+              ? data.totalPaginas
+              : pagina;
+        } else if (Array.isArray(data)) {
+          solicitacoesAcumuladas.push(...data);
+          totalPaginas = pagina;
+        } else {
+          totalPaginas = pagina;
+        }
+
+        pagina += 1;
+      } while (pagina <= totalPaginas);
+
+      if (fetchEmAndamentoRef.current === fetchId) {
+        setSolicitacoes(solicitacoesAcumuladas);
+      }
     } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        return;
+      }
       console.error("Erro ao buscar dados:", err);
       setError(err instanceof Error ? err.message : "Erro desconhecido");
     } finally {
-      setLoading(false);
+      if (fetchEmAndamentoRef.current === fetchId) {
+        setLoading(false);
+      }
     }
   };
 
@@ -307,7 +375,7 @@ export default function TarefasPage() {
       setLoadingFuncionarios(true);
       // Adicionar parâmetro filtrarProcesso=true para filtrar apenas funcionários em processo
       const response = await fetch(
-        "/api/logistica/remanejamentos?filtrarProcesso=true"
+        "/api/logistica/remanejamentos?filtrarProcesso=true",
       );
       if (!response.ok) {
         throw new Error("Erro ao carregar funcionários");
@@ -474,7 +542,7 @@ export default function TarefasPage() {
                     matchDataCategoria = false;
                   } else {
                     const diffDias = Math.floor(
-                      (dataLimiteDate.getTime() - hoje.getTime()) / 86400000
+                      (dataLimiteDate.getTime() - hoje.getTime()) / 86400000,
                     );
                     const limiteA_Vencer = 7; // próximos 7 dias
                     if (filtroDataCategoria === "VENCIDOS") {
@@ -528,9 +596,11 @@ export default function TarefasPage() {
               tarefas: tarefasFiltradas,
               // Manter referência à solicitação
               solicitacao: solicitacao,
-            } as RemanejamentoFuncionario & { solicitacao: SolicitacaoRemanejamento });
+            } as RemanejamentoFuncionario & {
+              solicitacao: SolicitacaoRemanejamento;
+            });
           }
-        }
+        },
       );
     });
 
@@ -546,7 +616,7 @@ export default function TarefasPage() {
         const nomeA = a.funcionario?.nome || "";
         const nomeB = b.funcionario?.nome || "";
         return nomeA.localeCompare(nomeB);
-      }
+      },
     );
 
     const inicio = (paginaAtual - 1) * itensPorPagina;
@@ -567,17 +637,17 @@ export default function TarefasPage() {
 
     const total = todasTarefas.length;
     const pendentes = todasTarefas.filter(
-      (t) => t.status === "PENDENTE"
+      (t) => t.status === "PENDENTE",
     ).length;
     const emAndamento = todasTarefas.filter(
-      (t) => t.status === "EM_ANDAMENTO"
+      (t) => t.status === "EM_ANDAMENTO",
     ).length;
     // Removido status EM_ANDAMENTO conforme solicitação
     const concluidas = todasTarefas.filter(
-      (t) => t.status === "CONCLUIDO" || t.status === "CONCLUIDA"
+      (t) => t.status === "CONCLUIDO" || t.status === "CONCLUIDA",
     ).length;
     const reprovadas = todasTarefas.filter(
-      (t) => t.status === "REPROVADO"
+      (t) => t.status === "REPROVADO",
     ).length;
 
     // Calcular tarefas atrasadas (pendentes ou em andamento com data limite no passado)
@@ -645,7 +715,7 @@ export default function TarefasPage() {
         } else {
           console.warn(
             "Falha ao obter última observação (status):",
-            resp.status
+            resp.status,
           );
         }
       }
@@ -661,6 +731,9 @@ export default function TarefasPage() {
       Prioridade: tarefa.prioridade,
       "Data Limite": tarefa.dataLimite
         ? new Date(tarefa.dataLimite).toLocaleDateString("pt-BR")
+        : "N/A",
+      "Data Conclusão": tarefa.dataConclusao
+        ? new Date(tarefa.dataConclusao).toLocaleDateString("pt-BR")
         : "N/A",
       "Data Criação": new Date(tarefa.dataCriacao).toLocaleDateString("pt-BR"),
       Funcionário: tarefa.funcionario?.nome || "N/A",
@@ -681,6 +754,7 @@ export default function TarefasPage() {
       "Status",
       "Prioridade",
       "Data Limite",
+      "Data Conclusão",
       "Data Criação",
       "Funcionário",
       "Matrícula",
@@ -736,19 +810,19 @@ export default function TarefasPage() {
 
   // Função para carregar contagem de observações sob demanda para as tarefas do grupo
   const carregarObservacoesCountParaGrupo = async (
-    tarefas: TarefaRemanejamento[]
+    tarefas: TarefaRemanejamento[],
   ) => {
     const ids = Array.from(new Set((tarefas || []).map((t) => t.id)));
     if (ids.length === 0) return;
     try {
       const qs = encodeURIComponent(ids.join(","));
       const resp = await fetch(
-        `/api/logistica/tarefas/observacoes/count?ids=${qs}`
+        `/api/logistica/tarefas/observacoes/count?ids=${qs}`,
       );
       if (!resp.ok) throw new Error("Erro ao contar observações");
       const data = await resp.json();
       const normalized = Object.fromEntries(
-        Object.entries(data || {}).map(([k, v]) => [String(k), v as number])
+        Object.entries(data || {}).map(([k, v]) => [String(k), v as number]),
       );
       setObservacoesCount((prev) => ({ ...prev, ...normalized }));
     } catch (err) {
@@ -759,7 +833,7 @@ export default function TarefasPage() {
   // Função para expandir/contrair funcionários
   const toggleExpandirFuncionario = async (
     chaveGrupo: string,
-    tarefas: TarefaRemanejamento[]
+    tarefas: TarefaRemanejamento[],
   ) => {
     const novoExpandido = new Set(funcionariosExpandidos);
     const isExpanded = novoExpandido.has(chaveGrupo);
@@ -783,7 +857,7 @@ export default function TarefasPage() {
         const tarefasFiltradas =
           remanejamento.tarefas?.filter(
             (tarefa: TarefaRemanejamento) =>
-              !setorAtual || tarefa.responsavel === setorAtual
+              !setorAtual || tarefa.responsavel === setorAtual,
           ) || [];
 
         // Ordenar tarefas: por Data Limite quando selecionado; caso contrário, por status
@@ -811,7 +885,7 @@ export default function TarefasPage() {
             const priorityB = getStatusPriority(b.status);
 
             return priorityA - priorityB;
-          }
+          },
         );
 
         return {
@@ -826,10 +900,10 @@ export default function TarefasPage() {
     // Ordenar funcionários baseado no status das suas tarefas
     funcionariosComTarefas.sort((a, b) => {
       const tarefasConcluidas_A = a.tarefas.filter(
-        (t) => t.status === "CONCLUIDA" || t.status === "CONCLUIDO"
+        (t) => t.status === "CONCLUIDA" || t.status === "CONCLUIDO",
       ).length;
       const tarefasConcluidas_B = b.tarefas.filter(
-        (t) => t.status === "CONCLUIDA" || t.status === "CONCLUIDO"
+        (t) => t.status === "CONCLUIDA" || t.status === "CONCLUIDO",
       ).length;
 
       const totalTarefas_A = a.tarefas.length;
@@ -881,7 +955,7 @@ export default function TarefasPage() {
       }
       return false;
     },
-    []
+    [],
   );
 
   // Função para obter o tipo de alerta para funcionário demitido
@@ -922,13 +996,13 @@ export default function TarefasPage() {
         const hoje = new Date();
         const dt = new Date(`${dataVencimento}T00:00:00`);
         const hojeDateOnly = new Date(
-          `${hoje.toISOString().split("T")[0]}T00:00:00`
+          `${hoje.toISOString().split("T")[0]}T00:00:00`,
         );
         const diffMs = dt.getTime() - hojeDateOnly.getTime();
         const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
         if (diffDays < 30) {
           setErroDataVencimento(
-            "A data deve ser pelo menos 30 dias após hoje."
+            "A data deve ser pelo menos 30 dias após hoje.",
           );
           return;
         }
@@ -946,7 +1020,7 @@ export default function TarefasPage() {
                 ? dataVencimento || null
                 : null,
           }),
-        }
+        },
       );
 
       if (!response.ok) {
@@ -993,7 +1067,7 @@ export default function TarefasPage() {
         `/api/logistica/tarefas/${tarefaSelecionada.id}`,
         {
           method: "DELETE",
-        }
+        },
       );
       if (!resp.ok) {
         const errorData = await resp.json().catch(() => null);
@@ -1051,7 +1125,7 @@ export default function TarefasPage() {
     try {
       setCarregandoObservacoes(true);
       const response = await fetch(
-        `/api/logistica/tarefas/${tarefaId}/observacoes`
+        `/api/logistica/tarefas/${tarefaId}/observacoes`,
       );
 
       if (!response.ok) {
@@ -1084,7 +1158,7 @@ export default function TarefasPage() {
           body: JSON.stringify({
             texto: novaObservacao,
           }),
-        }
+        },
       );
 
       if (!response.ok) {
@@ -1132,7 +1206,7 @@ export default function TarefasPage() {
           body: JSON.stringify({
             texto: textoEditado,
           }),
-        }
+        },
       );
 
       if (!response.ok) {
@@ -1167,7 +1241,7 @@ export default function TarefasPage() {
         `/api/logistica/tarefas/${tarefaSelecionada.id}/observacoes/${observacaoId}`,
         {
           method: "DELETE",
-        }
+        },
       );
 
       if (!response.ok) {
@@ -1195,7 +1269,7 @@ export default function TarefasPage() {
     try {
       setSalvandoInconsistencia(true);
       const respGet = await fetch(
-        `/api/logistica/funcionario/${remanejamentoSelecionado.id}`
+        `/api/logistica/funcionario/${remanejamentoSelecionado.id}`,
       );
       if (!respGet.ok) {
         toast.error("Falha ao carregar dados do funcionário");
@@ -1217,7 +1291,7 @@ export default function TarefasPage() {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ observacoesPrestserv: novoTexto }),
-        }
+        },
       );
       if (!respPatch.ok) {
         const err = await respPatch.json().catch(() => ({}));
@@ -1246,7 +1320,7 @@ export default function TarefasPage() {
     const hoje = new Date();
     const pad = (n: number) => n.toString().padStart(2, "0");
     const hojeStr = `${hoje.getFullYear()}-${pad(hoje.getMonth() + 1)}-${pad(
-      hoje.getDate()
+      hoje.getDate(),
     )}`;
 
     if (!novaDataLimite) {
@@ -1255,7 +1329,7 @@ export default function TarefasPage() {
     }
     if (novaDataLimite < hojeStr) {
       setErroNovaDataLimite(
-        "A data limite não pode ser anterior à data atual."
+        "A data limite não pode ser anterior à data atual.",
       );
       return;
     }
@@ -1287,7 +1361,7 @@ export default function TarefasPage() {
       // Atualizar a data limite da tarefa
       const [y, m, d] = novaDataLimite.split("-").map(Number);
       const dataLimiteUtcNoonIso = new Date(
-        Date.UTC(y, m - 1, d, 12, 0, 0)
+        Date.UTC(y, m - 1, d, 12, 0, 0),
       ).toISOString();
 
       const responseDataLimite = await fetch(
@@ -1298,7 +1372,7 @@ export default function TarefasPage() {
           body: JSON.stringify({
             dataLimite: dataLimiteUtcNoonIso,
           }),
-        }
+        },
       );
 
       if (!responseDataLimite.ok) {
@@ -1315,7 +1389,7 @@ export default function TarefasPage() {
             texto: textoObservacao,
             criadoPor: usuario?.nome || "Sistema",
           }),
-        }
+        },
       );
 
       if (!responseObservacao.ok) {
@@ -1354,7 +1428,7 @@ export default function TarefasPage() {
     if (funcionarioSelecionado) {
       // Encontrar a solicitação que contém este funcionário
       const solicitacao = funcionariosRemanejamento.find((s) =>
-        s.funcionarios?.some((f) => f?.id === remanejamentoFuncionarioId)
+        s.funcionarios?.some((f) => f?.id === remanejamentoFuncionarioId),
       );
 
       if (solicitacao) {
@@ -1482,7 +1556,7 @@ export default function TarefasPage() {
         }
       });
       return Array.from(map.values()).sort((a, b) =>
-        a.numero.localeCompare(b.numero)
+        a.numero.localeCompare(b.numero),
       );
     }, [solicitacoes]);
 
@@ -1720,7 +1794,7 @@ export default function TarefasPage() {
 
     // Calcular progresso
     const tarefasConcluidas = tarefas.filter(
-      (t) => t.status === "CONCLUIDA" || t.status === "CONCLUIDO"
+      (t) => t.status === "CONCLUIDA" || t.status === "CONCLUIDO",
     ).length;
     const totalTarefas = tarefas.length;
 
@@ -1752,19 +1826,19 @@ export default function TarefasPage() {
     }) => {
       const todas = (item.remanejamento.tarefas || []) as TarefaRemanejamento[];
       const reprovadaLogistica = todas.some(
-        (t) => t.responsavel === "LOGISTICA" && t.status === "REPROVADO"
+        (t) => t.responsavel === "LOGISTICA" && t.status === "REPROVADO",
       );
       if (reprovadaLogistica) return false;
       if (setorAtual) {
         const setorTs = todas.filter((t) => t.responsavel === setorAtual);
         if (setorTs.length === 0) return false;
         return setorTs.every(
-          (t) => t.status === "CONCLUIDO" || t.status === "CONCLUIDA"
+          (t) => t.status === "CONCLUIDO" || t.status === "CONCLUIDA",
         );
       }
       if (todas.length === 0) return false;
       return todas.every(
-        (t) => t.status === "CONCLUIDO" || t.status === "CONCLUIDA"
+        (t) => t.status === "CONCLUIDO" || t.status === "CONCLUIDA",
       );
     };
     const listaFiltrada =
@@ -1775,7 +1849,7 @@ export default function TarefasPage() {
     // Paginação dos remanejamentos
     const totalRemanejamentos = listaFiltrada.length;
     const totalPaginas = Math.ceil(
-      totalRemanejamentos / itensPorPaginaFuncionarios
+      totalRemanejamentos / itensPorPaginaFuncionarios,
     );
     const inicio = (paginaAtualFuncionarios - 1) * itensPorPaginaFuncionarios;
     const fim = inicio + itensPorPaginaFuncionarios;
@@ -1882,12 +1956,12 @@ export default function TarefasPage() {
                     // );
                     const tarefasConcluidas = tarefas.filter(
                       (t: TarefaRemanejamento) =>
-                        t.status === "CONCLUIDA" || t.status === "CONCLUIDO"
+                        t.status === "CONCLUIDA" || t.status === "CONCLUIDO",
                     );
                     const progresso =
                       tarefas.length > 0
                         ? Math.round(
-                            (tarefasConcluidas.length / tarefas.length) * 100
+                            (tarefasConcluidas.length / tarefas.length) * 100,
                           )
                         : 0;
                     const expandido = funcionariosExpandidos.has(chaveGrupo);
@@ -1900,7 +1974,7 @@ export default function TarefasPage() {
                       const sorted = [...sheets].sort(
                         (a: any, b: any) =>
                           new Date(b.createdAt).getTime() -
-                          new Date(a.createdAt).getTime()
+                          new Date(a.createdAt).getTime(),
                       );
                       const found = sorted.find((s: any) => !!s?.dataAdmissao);
                       return found?.dataAdmissao
@@ -1948,7 +2022,7 @@ export default function TarefasPage() {
                                   e.stopPropagation();
                                   toggleExpandirFuncionario(
                                     chaveGrupo,
-                                    tarefas
+                                    tarefas,
                                   );
                                 }}
                                 className="text-gray-500 hover:text-gray-700"
@@ -1999,11 +2073,11 @@ export default function TarefasPage() {
                                             funcionario.matricula
                                               ? ` (${funcionario.matricula})`
                                               : ""
-                                          }`
+                                          }`,
                                         );
                                         setTextoVerObs(
                                           remanejamento.observacoesPrestserv ||
-                                            ""
+                                            "",
                                         );
                                         setMostrarModalVerObs(true);
                                       }}
@@ -2059,11 +2133,11 @@ export default function TarefasPage() {
                                         (chartArea.top + chartArea.bottom) / 2;
                                       const size = Math.min(
                                         chart.width,
-                                        chart.height
+                                        chart.height,
                                       );
                                       const fontSize = Math.max(
                                         9,
-                                        Math.floor(size / 3.8)
+                                        Math.floor(size / 3.8),
                                       );
                                       ctx.save();
                                       ctx.font = `600 ${fontSize}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto`;
@@ -2084,7 +2158,7 @@ export default function TarefasPage() {
                                               Math.max(
                                                 tarefas.length -
                                                   tarefasConcluidas.length,
-                                                0
+                                                0,
                                               ),
                                               tarefasConcluidas.length,
                                             ],
@@ -2123,12 +2197,12 @@ export default function TarefasPage() {
                                 ] as const;
                                 const bySetor = setores.map((s) => {
                                   const ts = tarefas.filter(
-                                    (t) => t.responsavel === s
+                                    (t) => t.responsavel === s,
                                   );
                                   const concl = ts.filter(
                                     (t) =>
                                       t.status === "CONCLUIDO" ||
-                                      t.status === "CONCLUIDA"
+                                      t.status === "CONCLUIDA",
                                   ).length;
                                   return ts.length > 0 && concl === ts.length;
                                 });
@@ -2175,8 +2249,8 @@ export default function TarefasPage() {
                                           {s === "RH"
                                             ? "RH"
                                             : s === "MEDICINA"
-                                            ? "MED"
-                                            : "TREI"}
+                                              ? "MED"
+                                              : "TREI"}
                                         </span>
                                       ))}
                                     </div>
@@ -2209,7 +2283,7 @@ export default function TarefasPage() {
                                 e.preventDefault();
                                 e.stopPropagation();
                                 setMenuFuncionarioAtivo((prev) =>
-                                  prev === chaveGrupo ? null : chaveGrupo
+                                  prev === chaveGrupo ? null : chaveGrupo,
                                 );
                               }}
                               onMouseDown={(e) => {
@@ -2303,12 +2377,13 @@ export default function TarefasPage() {
                                               type="button"
                                               className="inline-flex items-center gap-2 text-gray-700 hover:text-gray-900"
                                               onClick={() =>
-                                                setOrdenacaoDataLimite((prev) =>
-                                                  prev === "asc"
-                                                    ? "desc"
-                                                    : prev === "desc"
-                                                    ? ""
-                                                    : "asc"
+                                                setOrdenacaoDataLimite(
+                                                  (prev) =>
+                                                    prev === "asc"
+                                                      ? "desc"
+                                                      : prev === "desc"
+                                                        ? ""
+                                                        : "asc",
                                                 )
                                               }
                                             >
@@ -2317,11 +2392,17 @@ export default function TarefasPage() {
                                                 {ordenacaoDataLimite === "asc"
                                                   ? "▲"
                                                   : ordenacaoDataLimite ===
-                                                    "desc"
-                                                  ? "▼"
-                                                  : ""}
+                                                      "desc"
+                                                    ? "▼"
+                                                    : ""}
                                               </span>
                                             </button>
+                                          </th>
+                                          <th
+                                            scope="col"
+                                            className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider"
+                                          >
+                                            Data Conclusão
                                           </th>
                                           {!setorAtual && (
                                             <th
@@ -2344,7 +2425,7 @@ export default function TarefasPage() {
                                           .sort((a, b) => {
                                             // Função para obter prioridade do status
                                             const getStatusPriority = (
-                                              status: string
+                                              status: string,
                                             ) => {
                                               if (status === "REPROVADO")
                                                 return 0;
@@ -2362,10 +2443,10 @@ export default function TarefasPage() {
                                             };
 
                                             const priorityA = getStatusPriority(
-                                              a.status
+                                              a.status,
                                             );
                                             const priorityB = getStatusPriority(
-                                              b.status
+                                              b.status,
                                             );
 
                                             return priorityA - priorityB;
@@ -2470,14 +2551,14 @@ export default function TarefasPage() {
                                                       "EM_ANDAMENTO"
                                                       ? "Pendente"
                                                       : tarefa.status ===
-                                                          "CONCLUIDA" ||
-                                                        tarefa.status ===
-                                                          "CONCLUIDO"
-                                                      ? "Concluída"
-                                                      : tarefa.status ===
-                                                        "REPROVADO"
-                                                      ? "Reprovado"
-                                                      : tarefa.status}
+                                                            "CONCLUIDA" ||
+                                                          tarefa.status ===
+                                                            "CONCLUIDO"
+                                                        ? "Concluída"
+                                                        : tarefa.status ===
+                                                            "REPROVADO"
+                                                          ? "Reprovado"
+                                                          : tarefa.status}
                                                   </span>
                                                 </td>
                                                 <td className="px-4 py-3 text-xs whitespace-nowrap">
@@ -2490,15 +2571,15 @@ export default function TarefasPage() {
                                                     "BAIXA"
                                                       ? "Baixa"
                                                       : tarefa.prioridade ===
-                                                        "MEDIA"
-                                                      ? "Média"
-                                                      : tarefa.prioridade ===
-                                                        "ALTA"
-                                                      ? "Alta"
-                                                      : tarefa.prioridade ===
-                                                        "URGENTE"
-                                                      ? "Urgente"
-                                                      : tarefa.prioridade}
+                                                          "MEDIA"
+                                                        ? "Média"
+                                                        : tarefa.prioridade ===
+                                                            "ALTA"
+                                                          ? "Alta"
+                                                          : tarefa.prioridade ===
+                                                              "URGENTE"
+                                                            ? "Urgente"
+                                                            : tarefa.prioridade}
                                                   </span>
                                                 </td>
                                                 <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-500">
@@ -2511,9 +2592,9 @@ export default function TarefasPage() {
                                                       }
                                                     >
                                                       {new Date(
-                                                        tarefa.dataLimite
+                                                        tarefa.dataLimite,
                                                       ).toLocaleDateString(
-                                                        "pt-BR"
+                                                        "pt-BR",
                                                       )}
                                                       {atrasada &&
                                                         " (Atrasada)"}
@@ -2521,6 +2602,15 @@ export default function TarefasPage() {
                                                   ) : (
                                                     "N/A"
                                                   )}
+                                                </td>
+                                                <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-500">
+                                                  {tarefa.dataConclusao
+                                                    ? new Date(
+                                                        tarefa.dataConclusao,
+                                                      ).toLocaleDateString(
+                                                        "pt-BR",
+                                                      )
+                                                    : "-"}
                                                 </td>
                                                 {!setorAtual && (
                                                   <td className="px-4 py-3 text-xs whitespace-nowrap">
@@ -2531,12 +2621,12 @@ export default function TarefasPage() {
                                                       "RH"
                                                         ? "RH"
                                                         : tarefa.responsavel ===
-                                                          "TREINAMENTO"
-                                                        ? "Treinamento"
-                                                        : tarefa.responsavel ===
-                                                          "MEDICINA"
-                                                        ? "Medicina"
-                                                        : tarefa.responsavel}
+                                                            "TREINAMENTO"
+                                                          ? "Treinamento"
+                                                          : tarefa.responsavel ===
+                                                              "MEDICINA"
+                                                            ? "Medicina"
+                                                            : tarefa.responsavel}
                                                     </span>
                                                   </td>
                                                 )}
@@ -2547,7 +2637,7 @@ export default function TarefasPage() {
                                                       title="Ver detalhes"
                                                       onClick={() =>
                                                         router.push(
-                                                          `/prestserv/remanejamentos/${tarefa.remanejamentoFuncionarioId}`
+                                                          `/prestserv/remanejamentos/${tarefa.remanejamentoFuncionarioId}`,
                                                         )
                                                       }
                                                     >
@@ -2562,7 +2652,7 @@ export default function TarefasPage() {
                                                           title="Concluir tarefa"
                                                           onClick={() =>
                                                             abrirModalConcluir(
-                                                              tarefa
+                                                              tarefa,
                                                             )
                                                           }
                                                         >
@@ -2574,7 +2664,7 @@ export default function TarefasPage() {
                                                       title="Observações"
                                                       onClick={() =>
                                                         abrirModalObservacoes(
-                                                          tarefa
+                                                          tarefa,
                                                         )
                                                       }
                                                     >
@@ -2605,7 +2695,7 @@ export default function TarefasPage() {
                                                         title="Excluir tarefa"
                                                         onClick={() =>
                                                           abrirModalExcluir(
-                                                            tarefa
+                                                            tarefa,
                                                           )
                                                         }
                                                       >
@@ -2627,7 +2717,7 @@ export default function TarefasPage() {
                         )}
                       </React.Fragment>
                     );
-                  }
+                  },
                 )}
               </tbody>
             </table>
@@ -2660,7 +2750,7 @@ export default function TarefasPage() {
               <button
                 onClick={() =>
                   setPaginaAtualFuncionarios(
-                    Math.max(1, paginaAtualFuncionarios - 1)
+                    Math.max(1, paginaAtualFuncionarios - 1),
                   )
                 }
                 disabled={paginaAtualFuncionarios === 1}
@@ -2701,7 +2791,7 @@ export default function TarefasPage() {
               <button
                 onClick={() =>
                   setPaginaAtualFuncionarios(
-                    Math.min(totalPaginas, paginaAtualFuncionarios + 1)
+                    Math.min(totalPaginas, paginaAtualFuncionarios + 1),
                   )
                 }
                 disabled={paginaAtualFuncionarios === totalPaginas}
@@ -2721,17 +2811,20 @@ export default function TarefasPage() {
 
     // Estatísticas por status
     const estatisticasStatus = () => {
-      const stats = tarefasFiltradas.reduce((acc, tarefa) => {
-        const st = tarefa.status || "";
-        let status: string;
-        if (st === "CONCLUIDO" || st === "CONCLUIDA") status = "CONCLUIDA";
-        else if (st === "REPROVADO") status = "REPROVADO";
-        else if (st === "PENDENTE" || st === "EM_ANDAMENTO")
-          status = "PENDENTE";
-        else status = "OUTROS";
-        acc[status] = (acc[status] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>);
+      const stats = tarefasFiltradas.reduce(
+        (acc, tarefa) => {
+          const st = tarefa.status || "";
+          let status: string;
+          if (st === "CONCLUIDO" || st === "CONCLUIDA") status = "CONCLUIDA";
+          else if (st === "REPROVADO") status = "REPROVADO";
+          else if (st === "PENDENTE" || st === "EM_ANDAMENTO")
+            status = "PENDENTE";
+          else status = "OUTROS";
+          acc[status] = (acc[status] || 0) + 1;
+          return acc;
+        },
+        {} as Record<string, number>,
+      );
 
       return {
         pendentes: stats.PENDENTE || 0,
@@ -2743,18 +2836,24 @@ export default function TarefasPage() {
 
     // Estatísticas por prioridade
     const estatisticasPrioridade = () => {
-      return tarefasFiltradas.reduce((acc, tarefa) => {
-        acc[tarefa.prioridade] = (acc[tarefa.prioridade] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>);
+      return tarefasFiltradas.reduce(
+        (acc, tarefa) => {
+          acc[tarefa.prioridade] = (acc[tarefa.prioridade] || 0) + 1;
+          return acc;
+        },
+        {} as Record<string, number>,
+      );
     };
 
     // Estatísticas por setor responsável
     const estatisticasSetor = () => {
-      return tarefasFiltradas.reduce((acc, tarefa) => {
-        acc[tarefa.responsavel] = (acc[tarefa.responsavel] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>);
+      return tarefasFiltradas.reduce(
+        (acc, tarefa) => {
+          acc[tarefa.responsavel] = (acc[tarefa.responsavel] || 0) + 1;
+          return acc;
+        },
+        {} as Record<string, number>,
+      );
     };
 
     // Tarefas atrasadas
@@ -2764,7 +2863,7 @@ export default function TarefasPage() {
       const hojeNorm = new Date(
         hoje.getFullYear(),
         hoje.getMonth(),
-        hoje.getDate()
+        hoje.getDate(),
       );
 
       return tarefasFiltradas.filter((tarefa) => {
@@ -2780,7 +2879,7 @@ export default function TarefasPage() {
         const dataLimiteNorm = new Date(
           dataLimite.getFullYear(),
           dataLimite.getMonth(),
-          dataLimite.getDate()
+          dataLimite.getDate(),
         );
 
         return dataLimiteNorm < hojeNorm;
@@ -2969,16 +3068,16 @@ export default function TarefasPage() {
                   (s) =>
                     rems.filter((r) => {
                       const ts = r.tarefas.filter(
-                        (t) => (t.responsavel || "") === s
+                        (t) => (t.responsavel || "") === s,
                       );
                       if (ts.length === 0) return false;
                       const concl = ts.filter(
                         (t) =>
                           (t.status || "").toUpperCase() === "CONCLUIDO" ||
-                          (t.status || "").toUpperCase() === "CONCLUIDA"
+                          (t.status || "").toUpperCase() === "CONCLUIDA",
                       ).length;
                       return concl === ts.length;
-                    }).length
+                    }).length,
                 );
                 const total = counts.reduce((a, b) => a + b, 0);
                 return (
@@ -2996,16 +3095,16 @@ export default function TarefasPage() {
                   (s) =>
                     rems.filter((r) => {
                       const ts = r.tarefas.filter(
-                        (t) => (t.responsavel || "") === s
+                        (t) => (t.responsavel || "") === s,
                       );
                       if (ts.length === 0) return false;
                       const concl = ts.filter(
                         (t) =>
                           (t.status || "").toUpperCase() === "CONCLUIDO" ||
-                          (t.status || "").toUpperCase() === "CONCLUIDA"
+                          (t.status || "").toUpperCase() === "CONCLUIDA",
                       ).length;
                       return concl === ts.length;
-                    }).length
+                    }).length,
                 );
 
                 return (
@@ -3170,14 +3269,14 @@ export default function TarefasPage() {
           .filter(
             (f) =>
               f.statusTarefa === "REPROVADO" ||
-              f.statusTarefa === "EM_ANDAMENTO"
+              f.statusTarefa === "EM_ANDAMENTO",
           )
           .map((f) => ({
             id: f.id,
             nome: f.funcionario?.nome || "",
             matricula: f.funcionario?.matricula || "",
             funcao: f.funcionario?.funcao || "",
-          }))
+          })),
       )
       .reduce((acc: any[], curr) => {
         // Verificar se já existe um funcionário com o mesmo ID
@@ -3268,7 +3367,7 @@ export default function TarefasPage() {
                       const selectedTipo = e.target.value;
                       const selectedSetor = novaTarefa.responsavel;
                       const tipoInfo = tiposTarefaPadrao[selectedSetor]?.find(
-                        (t) => t.tipo === selectedTipo
+                        (t) => t.tipo === selectedTipo,
                       );
 
                       const novaDescricao =
@@ -3292,7 +3391,7 @@ export default function TarefasPage() {
                         <option key={index} value={tipo.tipo}>
                           {tipo.tipo}
                         </option>
-                      )
+                      ),
                     )}
                   </select>
                   {loadingTiposTarefa && (
@@ -3394,7 +3493,7 @@ export default function TarefasPage() {
                       <p className="text-xs text-gray-600">
                         <span className="font-medium">Data:</span>{" "}
                         {new Date(
-                          solicitacaoSelecionada.dataSolicitacao
+                          solicitacaoSelecionada.dataSolicitacao,
                         ).toLocaleDateString("pt-BR")}
                       </p>
                       {solicitacaoSelecionada.contratoOrigem && (
@@ -3417,7 +3516,7 @@ export default function TarefasPage() {
                       </h3>
                       {solicitacaoSelecionada &&
                         (solicitacaoSelecionada.funcionarios || []).find(
-                          (f) => f.id === novaTarefa.remanejamentoFuncionarioId
+                          (f) => f.id === novaTarefa.remanejamentoFuncionarioId,
                         )?.funcionario && (
                           <>
                             <p className="text-xs text-gray-600">
@@ -3428,7 +3527,7 @@ export default function TarefasPage() {
                                 ).find(
                                   (f) =>
                                     f.id ===
-                                    novaTarefa.remanejamentoFuncionarioId
+                                    novaTarefa.remanejamentoFuncionarioId,
                                 )?.funcionario?.nome
                               }
                             </p>
@@ -3440,7 +3539,7 @@ export default function TarefasPage() {
                                 ).find(
                                   (f) =>
                                     f.id ===
-                                    novaTarefa.remanejamentoFuncionarioId
+                                    novaTarefa.remanejamentoFuncionarioId,
                                 )?.funcionario?.matricula
                               }
                             </p>
@@ -3452,7 +3551,7 @@ export default function TarefasPage() {
                                 ).find(
                                   (f) =>
                                     f.id ===
-                                    novaTarefa.remanejamentoFuncionarioId
+                                    novaTarefa.remanejamentoFuncionarioId,
                                 )?.funcionario?.funcao
                               }
                             </p>
@@ -3466,7 +3565,7 @@ export default function TarefasPage() {
                                 ).find(
                                   (f) =>
                                     f.id ===
-                                    novaTarefa.remanejamentoFuncionarioId
+                                    novaTarefa.remanejamentoFuncionarioId,
                                 )?.funcionario?.centroCusto
                               }
                             </p>
@@ -3478,7 +3577,7 @@ export default function TarefasPage() {
                                 ).find(
                                   (f) =>
                                     f.id ===
-                                    novaTarefa.remanejamentoFuncionarioId
+                                    novaTarefa.remanejamentoFuncionarioId,
                                 )?.funcionario?.nome
                               }
                             </p>
@@ -3529,19 +3628,19 @@ export default function TarefasPage() {
     return itens.filter((item) => {
       const todas = (item.remanejamento.tarefas || []) as TarefaRemanejamento[];
       const reprovadaLogistica = todas.some(
-        (t) => t.responsavel === "LOGISTICA" && t.status === "REPROVADO"
+        (t) => t.responsavel === "LOGISTICA" && t.status === "REPROVADO",
       );
       if (reprovadaLogistica) return false;
       if (setorAtual) {
         const setorTs = todas.filter((t) => t.responsavel === setorAtual);
         if (setorTs.length === 0) return false;
         return setorTs.every(
-          (t) => t.status === "CONCLUIDO" || t.status === "CONCLUIDA"
+          (t) => t.status === "CONCLUIDO" || t.status === "CONCLUIDA",
         );
       }
       if (todas.length === 0) return false;
       return todas.every(
-        (t) => t.status === "CONCLUIDO" || t.status === "CONCLUIDA"
+        (t) => t.status === "CONCLUIDO" || t.status === "CONCLUIDA",
       );
     }).length;
   })();
@@ -3810,7 +3909,7 @@ export default function TarefasPage() {
                 <span className="font-medium">Data Limite Atual:</span>{" "}
                 {tarefaSelecionada.dataLimite
                   ? new Date(tarefaSelecionada.dataLimite).toLocaleDateString(
-                      "pt-BR"
+                      "pt-BR",
                     )
                   : "Não definida"}
               </p>
@@ -3950,7 +4049,7 @@ export default function TarefasPage() {
                                           year: "numeric",
                                           hour: "2-digit",
                                           minute: "2-digit",
-                                        }
+                                        },
                                       )
                                     : "Data não disponível"}
                                 </span>
@@ -3964,10 +4063,12 @@ export default function TarefasPage() {
                                   <span>
                                     {obs.modificadoEm &&
                                     !isNaN(
-                                      new Date(obs.modificadoEm ?? "").getTime()
+                                      new Date(
+                                        obs.modificadoEm ?? "",
+                                      ).getTime(),
                                     )
                                       ? new Date(
-                                          obs.modificadoEm ?? ""
+                                          obs.modificadoEm ?? "",
                                         ).toLocaleDateString("pt-BR", {
                                           day: "2-digit",
                                           month: "2-digit",

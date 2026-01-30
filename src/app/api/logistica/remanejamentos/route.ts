@@ -431,6 +431,9 @@ async function buscarRemanejamentos(
   // Obter todos os IDs dos remanejamentos, sem filtrar por funcionário único
   const remanejamentoIds = funcionariosComRemanejamentos.map((rem) => rem.id);
 
+  const tarefasInclude =
+    Object.keys(tarefasWhere).length > 0 ? { where: tarefasWhere } : true;
+
   // Buscar as solicitações com todos os remanejamentos encontrados
   const solicitacoes = await prisma.solicitacaoRemanejamento.findMany({
     where,
@@ -459,7 +462,7 @@ async function buscarRemanejamentos(
               uptimeSheets: true,
             },
           },
-          tarefas: true,
+          tarefas: tarefasInclude,
         },
       },
     },
