@@ -2514,12 +2514,14 @@ export default function TarefasPage() {
                                           >
                                             Tipo
                                           </th>
-                                          <th
-                                            scope="col"
-                                            className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider"
-                                          >
-                                            Descrição
-                                          </th>
+                                          {setorAtual !== "TREINAMENTO" && (
+                                            <th
+                                              scope="col"
+                                              className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider"
+                                            >
+                                              Descrição
+                                            </th>
+                                          )}
                                           <th
                                             scope="col"
                                             className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider"
@@ -2701,9 +2703,12 @@ export default function TarefasPage() {
                                                 <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-500">
                                                   {tarefa.tipo}
                                                 </td>
-                                                <td className="px-4 py-3 text-xs text-gray-500 max-w-xs truncate">
-                                                  {tarefa.descricao}
-                                                </td>
+                                                {setorAtual !==
+                                                  "TREINAMENTO" && (
+                                                  <td className="px-4 py-3 text-xs text-gray-500 max-w-xs truncate">
+                                                    {tarefa.descricao}
+                                                  </td>
+                                                )}
                                                 <td className="px-4 py-3 text-xs whitespace-nowrap">
                                                   <span
                                                     className={statusClasses}
