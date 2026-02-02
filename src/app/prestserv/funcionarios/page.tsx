@@ -246,6 +246,15 @@ function FuncionariosPageContent() {
     return usuario?.equipe === "Administração";
   };
 
+  const canApproveSelecionados = () => {
+    const equipe = usuario?.equipe || "";
+    return (
+      equipe === "Administração" ||
+      equipe === "Logística" ||
+      equipe === "Logística (Gestor)" ||
+      equipe === "Logística (Editor)"
+    );
+  };
   const carregarObservacoesRemanejamento = useCallback(
     async (remanejamentoId: string) => {
       try {
@@ -6359,7 +6368,7 @@ function FuncionariosPageContent() {
                       >
                         Limpar Seleção
                       </button>
-                      {isAdmin() && (
+                      {canApproveSelecionados() && (
                         <button
                           onClick={abrirModalAprovacaoLote}
                           className="px-4 py-1.5 text-xs font-medium text-white bg-green-600 border border-green-600 rounded hover:bg-green-700 transition-colors"
