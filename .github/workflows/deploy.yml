@@ -267,7 +267,11 @@ jobs:
             docker network inspect projetogran_crewflow-network >/dev/null 2>&1 || docker network create projetogran_crewflow-network
 
             # Subir serviços via compose com env-file (atualiza apenas o que mudou)
-          docker compose --env-file /opt/projetogran/.env.production -f /opt/projetogran/docker-compose.yml up -d
+            # Remover contêiner(es) potencialmente conflitantes e limpar órfãos
+            docker rm -f pgadmin-production || true
+            docker rm -f pgadmin-staging || true
+            docker rm -f postgres-staging || true
+            docker compose --env-file /opt/projetogran/.env.production -f /opt/projetogran/docker-compose.yml up -d --remove-orphans
 
           echo "📊 Disk usage after compose up:"
           df -h
