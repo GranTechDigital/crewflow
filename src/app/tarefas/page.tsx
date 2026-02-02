@@ -87,6 +87,8 @@ interface Funcionario {
   status: string;
   statusPrestserv: string;
   emMigracao: boolean;
+  dataAdmissao?: string | null;
+  regimeTratado?: string | null;
 }
 
 // Usando a interface correta da estrutura hierárquica
@@ -142,6 +144,13 @@ export default function TarefasPage() {
   const filtroNomeRef = useRef<HTMLInputElement>(null);
   const controladorFetchRef = useRef<AbortController | null>(null);
   const fetchEmAndamentoRef = useRef(0);
+  const tarefasCacheRef = useRef<
+    Map<string, { ts: number; data: SolicitacaoRemanejamento[] }>
+  >(new Map());
+  const ultimaAtualizacaoRef = useRef<{
+    tarefaId: string;
+    previous?: TarefaRemanejamento;
+  } | null>(null);
 
   // Paginação
   const [paginaAtual, setPaginaAtual] = useState(1);
@@ -293,54 +302,58 @@ export default function TarefasPage() {
   );
 
   const fetchTodasTarefas = async () => {
+    const cacheKey = filtroSetorServidor || "ALL";
+    const now = Date.now();
+    const TTL_MS = 120000;
+    const cached = tarefasCacheRef.current.get(cacheKey);
+    if (cached && now - cached.ts < TTL_MS) {
+      setSolicitacoes(cached.data);
+      setLoading(false);
+      setError(null);
+      return;
+    }
     let fetchId = 0;
     let controladorAtual!: AbortController;
     try {
       fetchEmAndamentoRef.current += 1;
       fetchId = fetchEmAndamentoRef.current;
-
       if (controladorFetchRef.current) {
         controladorFetchRef.current.abort();
       }
-
       controladorAtual = new AbortController();
       controladorFetchRef.current = controladorAtual;
-
       setLoading(true);
       setError(null);
-
       const params = new URLSearchParams();
       params.set("filtrarProcesso", "false");
       if (filtroSetorServidor) {
         params.set("responsavel", filtroSetorServidor);
       }
-
       const response = await fetch(
         `/api/logistica/remanejamentos?${params.toString()}`,
         { signal: controladorAtual.signal },
       );
-
       if (!response.ok) {
         throw new Error("Erro ao carregar dados de remanejamentos");
       }
-
       const data = await response.json();
-
       const solicitacoes =
         data && Array.isArray(data.solicitacoes)
           ? data.solicitacoes
           : Array.isArray(data)
             ? data
             : [];
-
       if (fetchEmAndamentoRef.current === fetchId) {
+        tarefasCacheRef.current.set(cacheKey, {
+          ts: Date.now(),
+          data: solicitacoes,
+        });
         setSolicitacoes(solicitacoes);
       }
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
         return;
       }
-      console.error("Erro ao buscar dados:", err);
       setError(err instanceof Error ? err.message : "Erro desconhecido");
     } finally {
       if (fetchEmAndamentoRef.current === fetchId) {
@@ -964,9 +977,7 @@ export default function TarefasPage() {
 
   const concluirTarefa = async () => {
     if (!tarefaSelecionada) return;
-
     try {
-      // Validação local da data de vencimento (apenas se não for responsabilidade do RH)
       if (tarefaSelecionada.responsavel !== "RH") {
         if (!dataVencimento) {
           setErroDataVencimento("Informe a data de vencimento.");
@@ -986,7 +997,64 @@ export default function TarefasPage() {
           return;
         }
       }
-
+      const tarefaId = tarefaSelecionada.id;
+      const cacheKey = filtroSetorServidor || "ALL";
+      const concluidaEmIso = new Date().toISOString();
+      const novoStatus = "CONCLUIDO";
+      let snapshot: TarefaRemanejamento | null = null;
+      setSolicitacoes((prev) =>
+        prev.map((sol) => ({
+          ...sol,
+          funcionarios: (sol.funcionarios || []).map((rem) => ({
+            ...rem,
+            tarefas: (rem.tarefas || []).map((t) => {
+              if (t.id === tarefaId) {
+                snapshot = { ...t };
+                return {
+                  ...t,
+                  status: novoStatus,
+                  dataConclusao: concluidaEmIso,
+                  dataVencimento:
+                    tarefaSelecionada.responsavel !== "RH"
+                      ? dataVencimento || null
+                      : t.dataVencimento,
+                };
+              }
+              return t;
+            }),
+          })),
+        })),
+      );
+      if (snapshot) {
+        ultimaAtualizacaoRef.current = { tarefaId, previous: snapshot };
+      }
+      const cached = tarefasCacheRef.current.get(cacheKey);
+      if (cached) {
+        const updated = cached.data.map((sol) => ({
+          ...sol,
+          funcionarios: (sol.funcionarios || []).map((rem) => ({
+            ...rem,
+            tarefas: (rem.tarefas || []).map((t) =>
+              t.id === tarefaId
+                ? {
+                    ...t,
+                    status: novoStatus,
+                    dataConclusao: concluidaEmIso,
+                    dataVencimento:
+                      tarefaSelecionada.responsavel !== "RH"
+                        ? dataVencimento || null
+                        : t.dataVencimento,
+                  }
+                : t,
+            ),
+          })),
+        }));
+        tarefasCacheRef.current.set(cacheKey, {
+          ts: Date.now(),
+          data: updated,
+        });
+      }
+      fecharModalConcluir();
       setConcluindoTarefa(true);
       const response = await fetch(
         `/api/logistica/tarefas/${tarefaSelecionada.id}/concluir`,
@@ -1001,25 +1069,53 @@ export default function TarefasPage() {
           }),
         },
       );
-
       if (!response.ok) {
         const errorData = await response.json().catch(() => null);
         const msg = errorData?.error || "Erro ao concluir tarefa";
+        const last = ultimaAtualizacaoRef.current;
+        if (last && last.tarefaId === tarefaId && last.previous) {
+          setSolicitacoes((prev) =>
+            prev.map((sol) => ({
+              ...sol,
+              funcionarios: (sol.funcionarios || []).map((rem) => ({
+                ...rem,
+                tarefas: (rem.tarefas || []).map((t) =>
+                  t.id === last.tarefaId
+                    ? (last.previous as TarefaRemanejamento)
+                    : t,
+                ),
+              })),
+            })),
+          );
+          const cached2 = tarefasCacheRef.current.get(cacheKey);
+          if (cached2) {
+            const reverted = cached2.data.map((sol) => ({
+              ...sol,
+              funcionarios: (sol.funcionarios || []).map((rem) => ({
+                ...rem,
+                tarefas: (rem.tarefas || []).map((t) =>
+                  t.id === last.tarefaId
+                    ? (last.previous as TarefaRemanejamento)
+                    : t,
+                ),
+              })),
+            }));
+            tarefasCacheRef.current.set(cacheKey, {
+              ts: Date.now(),
+              data: reverted,
+            });
+          }
+        }
         toast.error(msg);
         throw new Error(msg);
       }
-
       toast.success("Tarefa concluída com sucesso!");
-      fecharModalConcluir();
-      fetchTodasTarefas(); // Atualizar a lista de tarefas
     } catch (error) {
       console.error("Erro ao concluir tarefa:", error);
-      // Evitar mensagem duplicada se já mostramos a do backend
       if (
         error instanceof Error &&
         error.message.startsWith("Data de vencimento")
       ) {
-        // já mostrado
       } else {
         toast.error("Erro ao concluir tarefa");
       }
@@ -1041,6 +1137,38 @@ export default function TarefasPage() {
   const excluirTarefa = async () => {
     if (!tarefaSelecionada) return;
     try {
+      const tarefaId = tarefaSelecionada.id;
+      const cacheKey = filtroSetorServidor || "ALL";
+      let snapshot: TarefaRemanejamento | null = null;
+      setSolicitacoes((prev) =>
+        prev.map((sol) => ({
+          ...sol,
+          funcionarios: (sol.funcionarios || []).map((rem) => ({
+            ...rem,
+            tarefas: (rem.tarefas || []).filter((t) => {
+              if (t.id === tarefaId) snapshot = { ...t };
+              return t.id !== tarefaId;
+            }),
+          })),
+        })),
+      );
+      if (snapshot) {
+        ultimaAtualizacaoRef.current = { tarefaId, previous: snapshot };
+      }
+      const cached = tarefasCacheRef.current.get(cacheKey);
+      if (cached) {
+        const updated = cached.data.map((sol) => ({
+          ...sol,
+          funcionarios: (sol.funcionarios || []).map((rem) => ({
+            ...rem,
+            tarefas: (rem.tarefas || []).filter((t) => t.id !== tarefaId),
+          })),
+        }));
+        tarefasCacheRef.current.set(cacheKey, {
+          ts: Date.now(),
+          data: updated,
+        });
+      }
       setExcluindoTarefa(true);
       const resp = await fetch(
         `/api/logistica/tarefas/${tarefaSelecionada.id}`,
@@ -1051,12 +1179,43 @@ export default function TarefasPage() {
       if (!resp.ok) {
         const errorData = await resp.json().catch(() => null);
         const msg = errorData?.error || "Erro ao excluir tarefa";
+        const last = ultimaAtualizacaoRef.current;
+        if (last && last.tarefaId === tarefaId && last.previous) {
+          setSolicitacoes((prev) =>
+            prev.map((sol) => ({
+              ...sol,
+              funcionarios: (sol.funcionarios || []).map((rem) => ({
+                ...rem,
+                tarefas: [
+                  last.previous,
+                  ...(rem.tarefas || []).filter((t) => t.id !== last.tarefaId),
+                ],
+              })),
+            })),
+          );
+          const cached2 = tarefasCacheRef.current.get(cacheKey);
+          if (cached2) {
+            const reverted = cached2.data.map((sol) => ({
+              ...sol,
+              funcionarios: (sol.funcionarios || []).map((rem) => ({
+                ...rem,
+                tarefas: [
+                  last.previous,
+                  ...(rem.tarefas || []).filter((t) => t.id !== last.tarefaId),
+                ],
+              })),
+            }));
+            tarefasCacheRef.current.set(cacheKey, {
+              ts: Date.now(),
+              data: reverted,
+            });
+          }
+        }
         toast.error(msg);
         throw new Error(msg);
       }
       toast.success("Tarefa excluída com sucesso!");
       fecharModalExcluir();
-      fetchTodasTarefas();
     } catch (error) {
       console.error("Erro ao excluir tarefa:", error);
       toast.error("Erro ao excluir tarefa");
@@ -1097,7 +1256,7 @@ export default function TarefasPage() {
     setErroNovaDataLimite("");
     setErroJustificativaDataLimite("");
     // Atualizar a lista de tarefas para refletir as mudanças nas observações
-    fetchTodasTarefas();
+    // atualização de observações não necessita recarregar toda a lista
   };
 
   const buscarObservacoes = async (tarefaId: string) => {
@@ -1798,7 +1957,24 @@ export default function TarefasPage() {
 
   // Componente para a lista de tarefas
   const ListaTarefas = () => {
-    const remanejamentosComTarefas = getRemanejamentosParaVisaoFuncionarios();
+    const remanejamentosComTarefas = React.useMemo(
+      () => getRemanejamentosParaVisaoFuncionarios(),
+      [
+        solicitacoes,
+        filtroNome,
+        filtroStatus,
+        filtroPrioridade,
+        filtroSetor,
+        filtroContrato,
+        setorAtual,
+        filtroDataCategoria,
+        ordenacaoDataLimite,
+        filtroTipo,
+        filtroDataExata,
+        paginaAtualFuncionarios,
+        itensPorPaginaFuncionarios,
+      ],
+    );
     const isConcluido = (item: {
       tarefas: TarefaRemanejamento[];
       remanejamento: RemanejamentoFuncionario;
@@ -1945,21 +2121,20 @@ export default function TarefasPage() {
                         : 0;
                     const expandido = funcionariosExpandidos.has(chaveGrupo);
 
-                    // Determinar data de admissão (uptimeSheets mais recente com data)
-                    const sheets = (funcionario as any)?.uptimeSheets || [];
-                    const dataAdmissao: Date | null = (() => {
-                      if (!Array.isArray(sheets) || sheets.length === 0)
-                        return null;
-                      const sorted = [...sheets].sort(
-                        (a: any, b: any) =>
-                          new Date(b.createdAt).getTime() -
-                          new Date(a.createdAt).getTime(),
-                      );
-                      const found = sorted.find((s: any) => !!s?.dataAdmissao);
-                      return found?.dataAdmissao
-                        ? new Date(found.dataAdmissao)
+                    const dataAdmissaoRaw =
+                      (funcionario as any)?.dataAdmissao || null;
+                    const dataAdmissao: Date | null = dataAdmissaoRaw
+                      ? new Date(dataAdmissaoRaw)
+                      : null;
+                    const dataAdmissaoFormatada =
+                      dataAdmissao && !Number.isNaN(dataAdmissao.getTime())
+                        ? dataAdmissao.toLocaleDateString("pt-BR")
                         : null;
-                    })();
+                    const regimeTratado =
+                      (funcionario as any)?.regimeTratado || null;
+                    const textoAdmissao =
+                      dataAdmissaoFormatada || "Não informada";
+                    const textoRegime = regimeTratado || "Não informado";
 
                     const nowMs = Date.now();
                     const isAdmissaoFutura =
@@ -2071,7 +2246,16 @@ export default function TarefasPage() {
                                   )}
                                 </div>
                                 <div className="text-[11px] text-gray-500">
-                                  {funcionario.funcao || "Função não informada"}
+                                  <span>
+                                    {funcionario.funcao ||
+                                      "Função não informada"}
+                                  </span>
+                                  <span className="ml-2">
+                                    • Admissão: {textoAdmissao}
+                                  </span>
+                                  <span className="ml-2">
+                                    • Regime: {textoRegime}
+                                  </span>
                                 </div>
                               </div>
                             </div>
