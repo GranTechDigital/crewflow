@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient, Prisma } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { getUserFromRequest } from '@/utils/authUtils';
 
 const prisma = new PrismaClient();
 
@@ -40,12 +41,28 @@ export async function GET(request: NextRequest) {
       delete (where as any).funcionario;
     }
 
+    // Aplicar restrição por equipe conforme usuário autenticado (não-admin)
+    const usuario = await getUserFromRequest(request);
+    const isAdminUser = !!usuario && usuario.equipe?.nome === 'Administração';
+    const creatorDept =
+      usuario?.equipe?.nome ? usuario.equipe.nome.split(' (')[0] : null;
+
     if (equipeId) {
+      // Admin pode filtrar livremente; não-admin será ajustado abaixo para o próprio departamento
       where.equipeId = parseInt(equipeId);
     }
 
     if (ativo !== null && ativo !== undefined) {
       where.ativo = ativo === 'true';
+    }
+
+    // Se não for admin, restringir consulta ao departamento do usuário
+    if (!isAdminUser && creatorDept) {
+      (where as any).equipe = {
+        nome: { startsWith: creatorDept },
+      };
+      // Evitar conflito de filtros simultâneos
+      delete (where as any).equipeId;
     }
 
     const [usuarios, total] = await Promise.all([
@@ -116,6 +133,17 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const { funcionarioId, senha, equipeId } = await request.json();
+    const usuario = await getUserFromRequest(request);
+    if (!usuario) {
+      return NextResponse.json(
+        { error: 'Não autenticado' },
+        { status: 401 }
+      );
+    }
+
+    const isAdminUser = usuario.equipe?.nome === 'Administração';
+    const isGestor =
+      usuario.equipe?.nome && usuario.equipe.nome.includes('(Gestor)');
 
     if (!funcionarioId || !senha || !equipeId) {
       return NextResponse.json(
@@ -154,6 +182,30 @@ export async function POST(request: NextRequest) {
         { error: 'Equipe não encontrada' },
         { status: 404 }
       );
+    }
+
+    // Restrições: não-admin só pode criar dentro do próprio departamento; e não pode criar usuário com perfil Gestor
+    if (!isAdminUser) {
+      if (!isGestor) {
+        return NextResponse.json(
+          { error: 'Apenas gestores de setor podem criar usuários' },
+          { status: 403 }
+        );
+      }
+      const creatorDept = usuario.equipe!.nome.split(' (')[0];
+      const targetDept = equipe.nome.split(' (')[0];
+      if (creatorDept !== targetDept) {
+        return NextResponse.json(
+          { error: 'Você só pode criar usuários para sua própria equipe/setor' },
+          { status: 403 }
+        );
+      }
+      if (equipe.nome.includes('(Gestor)')) {
+        return NextResponse.json(
+          { error: 'Não é permitido criar usuários com perfil Gestor' },
+          { status: 403 }
+        );
+      }
     }
 
     // Hash da senha

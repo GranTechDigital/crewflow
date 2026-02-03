@@ -89,17 +89,22 @@ export default function ProtectedRoute({
     );
   }
 
-  // Verificar equipe (comparação normalizada)
+  // Verificar equipe (comparação normalizada com suporte a prefixo)
   if (requiredEquipe.length > 0) {
     const equipesNormalizadas = requiredEquipe.map(normalize);
     const usuarioEquipeNormalizada = normalize(usuario.equipe);
-    if (!equipesNormalizadas.includes(usuarioEquipeNormalizada)) {
+    const matchEquipe =
+      equipesNormalizadas.includes(usuarioEquipeNormalizada) ||
+      equipesNormalizadas.some((eq) =>
+        usuarioEquipeNormalizada.startsWith(eq),
+      );
+    if (!matchEquipe) {
       return fallback || (
         <div className="min-h-screen bg-gray-50 flex items-center justify-center">
           <div className="text-center">
             <div className="text-red-600 text-xl mb-4">❌ Acesso Negado</div>
             <p className="text-gray-600">Esta página é restrita para sua equipe.</p>
-            <button 
+            <button
               onClick={() => router.push('/')}
               className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
             >
