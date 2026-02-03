@@ -27,6 +27,19 @@ export default function Sidebar() {
   const { usuario, loading } = useAuth();
   const permissions = usePermissions();
 
+  type NavItem = {
+    label: string;
+    href: string;
+    permission?: string | string[];
+  };
+  type NavSection = {
+    key: string;
+    label: string;
+    icon: any;
+    items: NavItem[];
+    permission?: string;
+  };
+
   // Detectar quando o usuário é carregado
   useEffect(() => {
     if (usuario && !loading) {
@@ -82,7 +95,7 @@ export default function Sidebar() {
     });
   };
 
-  const allSections = useMemo(
+  const allSections = useMemo<NavSection[]>(
     () => [
       {
         key: "planejamento",
@@ -100,6 +113,15 @@ export default function Sidebar() {
           {
             label: "Lista de Funcionários",
             href: "/prestserv/funcionarios-por-contrato",
+          },
+          {
+            label: "Usuários da Equipe",
+            href: "/planejamento/usuarios",
+            permission: [
+              PERMISSIONS.ACCESS_PLANEJAMENTO,
+              PERMISSIONS.ACCESS_PLANEJAMENTO_VISUALIZADOR,
+              PERMISSIONS.ACCESS_PLANEJAMENTO_GESTOR,
+            ],
           },
           // BI removido do Planejamento
           // { label: "Visualizar Funcionários por Centro de Custo (Folha)", href: "/planejamento/funcionarios" },
@@ -154,6 +176,15 @@ export default function Sidebar() {
             label: "Sincronizar Lista de Funcionários",
             href: "/funcionarios",
           },
+          {
+            label: "Usuários da Equipe",
+            href: "/logistica/usuarios",
+            permission: [
+              PERMISSIONS.ACCESS_LOGISTICA,
+              PERMISSIONS.ACCESS_LOGISTICA_VISUALIZADOR,
+              PERMISSIONS.ACCESS_LOGISTICA_GESTOR,
+            ],
+          },
           // {
           //   label: "Upload do Downtime",
           //   href: "/downtime",
@@ -181,7 +212,18 @@ export default function Sidebar() {
         key: "rh",
         label: "Recursos Humanos",
         icon: Users,
-        items: [{ label: "Minhas Tarefas", href: "/tarefas?setor=rh" }],
+        items: [
+          { label: "Minhas Tarefas", href: "/tarefas?setor=rh" },
+          {
+            label: "Usuários da Equipe",
+            href: "/rh/usuarios",
+            permission: [
+              PERMISSIONS.ACCESS_RH,
+              PERMISSIONS.ACCESS_RH_VISUALIZADOR,
+              PERMISSIONS.ACCESS_RH_GESTOR,
+            ],
+          },
+        ],
         permission: "canAccessRH",
       },
       {
@@ -199,6 +241,15 @@ export default function Sidebar() {
             href: "/funcoes",
           },
           { label: "Cadastrar Treinamentos", href: "/treinamentos" },
+          {
+            label: "Usuários da Equipe",
+            href: "/treinamento/usuarios",
+            permission: [
+              PERMISSIONS.ACCESS_TREINAMENTO,
+              PERMISSIONS.ACCESS_TREINAMENTO_VISUALIZADOR,
+              PERMISSIONS.ACCESS_TREINAMENTO_GESTOR,
+            ],
+          },
         ],
         permission: "canAccessTreinamento",
       },
@@ -210,6 +261,15 @@ export default function Sidebar() {
           // { label: "Geral", href: "/medicina/geral" },
           // { label: "Segurança", href: "/medicina/seguranca" },
           { label: "Minhas Tarefas", href: "/tarefas?setor=medicina" },
+          {
+            label: "Usuários da Equipe",
+            href: "/medicina/usuarios",
+            permission: [
+              PERMISSIONS.ACCESS_MEDICINA,
+              PERMISSIONS.ACCESS_MEDICINA_VISUALIZADOR,
+              PERMISSIONS.ACCESS_MEDICINA_GESTOR,
+            ],
+          },
         ],
         permission: "canAccessMedicina",
       },
@@ -238,7 +298,7 @@ export default function Sidebar() {
         permission: PERMISSIONS.ACCESS_ADMIN,
       },
     ],
-    []
+    [],
   );
 
   // Verificar se o usuário tem acesso total (admin)
@@ -255,10 +315,10 @@ export default function Sidebar() {
             return (
               permissions.hasPermission(PERMISSIONS.ACCESS_PLANEJAMENTO) ||
               permissions.hasPermission(
-                PERMISSIONS.ACCESS_PLANEJAMENTO_GESTOR
+                PERMISSIONS.ACCESS_PLANEJAMENTO_GESTOR,
               ) ||
               permissions.hasPermission(
-                PERMISSIONS.ACCESS_PLANEJAMENTO_VISUALIZADOR
+                PERMISSIONS.ACCESS_PLANEJAMENTO_VISUALIZADOR,
               )
             );
           case "prestserv": // Logística e PrestServ
@@ -266,12 +326,12 @@ export default function Sidebar() {
               permissions.hasPermission(PERMISSIONS.ACCESS_PREST_SERV) ||
               permissions.hasPermission(PERMISSIONS.ACCESS_PREST_SERV_GESTOR) ||
               permissions.hasPermission(
-                PERMISSIONS.ACCESS_PREST_SERV_VISUALIZADOR
+                PERMISSIONS.ACCESS_PREST_SERV_VISUALIZADOR,
               ) ||
               permissions.hasPermission(PERMISSIONS.ACCESS_LOGISTICA) ||
               permissions.hasPermission(PERMISSIONS.ACCESS_LOGISTICA_GESTOR) ||
               permissions.hasPermission(
-                PERMISSIONS.ACCESS_LOGISTICA_VISUALIZADOR
+                PERMISSIONS.ACCESS_LOGISTICA_VISUALIZADOR,
               )
             );
           case "rh":
@@ -284,10 +344,10 @@ export default function Sidebar() {
             return (
               permissions.hasPermission(PERMISSIONS.ACCESS_TREINAMENTO) ||
               permissions.hasPermission(
-                PERMISSIONS.ACCESS_TREINAMENTO_GESTOR
+                PERMISSIONS.ACCESS_TREINAMENTO_GESTOR,
               ) ||
               permissions.hasPermission(
-                PERMISSIONS.ACCESS_TREINAMENTO_VISUALIZADOR
+                PERMISSIONS.ACCESS_TREINAMENTO_VISUALIZADOR,
               )
             );
           case "medicina":
@@ -295,7 +355,7 @@ export default function Sidebar() {
               permissions.hasPermission(PERMISSIONS.ACCESS_MEDICINA) ||
               permissions.hasPermission(PERMISSIONS.ACCESS_MEDICINA_GESTOR) ||
               permissions.hasPermission(
-                PERMISSIONS.ACCESS_MEDICINA_VISUALIZADOR
+                PERMISSIONS.ACCESS_MEDICINA_VISUALIZADOR,
               )
             );
           case "relatorios":
@@ -303,7 +363,7 @@ export default function Sidebar() {
               permissions.hasPermission(PERMISSIONS.ACCESS_LOGISTICA) ||
               permissions.hasPermission(PERMISSIONS.ACCESS_LOGISTICA_GESTOR) ||
               permissions.hasPermission(
-                PERMISSIONS.ACCESS_LOGISTICA_VISUALIZADOR
+                PERMISSIONS.ACCESS_LOGISTICA_VISUALIZADOR,
               )
             );
           default:
@@ -484,15 +544,22 @@ export default function Sidebar() {
               <div className="ml-5 mt-0.5 flex flex-col space-y-0.5 border-l-2 border-gray-600/50 pl-3 relative">
                 {/* Linha decorativa */}
                 <div className="absolute left-0 top-0 w-0.5 h-full bg-gradient-to-b from-blue-400/50 to-transparent"></div>
-                {section.items.map((item) => (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className="hover:bg-gray-600/30 px-2.5 py-1.5 rounded-md transition-all duration-200 text-xs text-gray-300 hover:text-white hover:shadow-md border border-transparent hover:border-gray-500/20 backdrop-blur-sm"
-                  >
-                    {item.label}
-                  </Link>
-                ))}
+                {section.items
+                  .filter((item) => {
+                    if (isAdmin || !item.permission) return true;
+                    return Array.isArray(item.permission)
+                      ? permissions.hasAnyPermission(item.permission)
+                      : permissions.hasPermission(item.permission);
+                  })
+                  .map((item) => (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className="hover:bg-gray-600/30 px-2.5 py-1.5 rounded-md transition-all duration-200 text-xs text-gray-300 hover:text-white hover:shadow-md border border-transparent hover:border-gray-500/20 backdrop-blur-sm"
+                    >
+                      {item.label}
+                    </Link>
+                  ))}
               </div>
             </div>
           </div>
