@@ -5,7 +5,7 @@ import { logHistorico } from "@/lib/historico";
 // PUT - Concluir tarefa
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
@@ -16,7 +16,7 @@ export async function PUT(
     // Obter dados do corpo da requisição
     const body = await request.json().catch(() => ({}));
     const { dataVencimento } = body;
-    
+
     // Buscar a tarefa atual
     const tarefaAtual = await prisma.tarefaRemanejamento.findUnique({
       where: { id },
@@ -34,7 +34,9 @@ export async function PUT(
         dataConclusao: true,
         remanejamentoFuncionario: {
           select: {
-            funcionario: { select: { id: true, nome: true, matricula: true, funcao: true } },
+            funcionario: {
+              select: { id: true, nome: true, matricula: true, funcao: true },
+            },
             solicitacaoId: true,
           },
         },
@@ -44,41 +46,66 @@ export async function PUT(
     if (!tarefaAtual) {
       return NextResponse.json(
         { error: "Tarefa não encontrada" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
-    // Regra de negócio: data de vencimento obrigatória exceto para RH
-    if (tarefaAtual.responsavel !== "RH" && !dataVencimento) {
+    let exigeValidade = tarefaAtual.responsavel !== "RH";
+    if (exigeValidade && tarefaAtual.treinamentoId) {
+      try {
+        const treino = await prisma.treinamento.findUnique({
+          where: { id: tarefaAtual.treinamentoId },
+          select: { validadeValor: true, validadeUnidade: true },
+        });
+        if (treino) {
+          const unidade = (treino.validadeUnidade || "").trim().toLowerCase();
+          const valor =
+            typeof treino.validadeValor === "number"
+              ? treino.validadeValor
+              : NaN;
+          const isUnico =
+            unidade.includes("unico") || unidade.includes("único");
+          const isMesZero =
+            (unidade.includes("mes") ||
+              unidade.includes("mês") ||
+              unidade.includes("meses")) &&
+          if (isUnico || isMesZero) {
+            exigeValidade = false;
+          }
+      } catch (e) {
+        // Em caso de falha ao consultar treinamento, manter regra padrão (exige quando não-RH)
+      }
+    }
+
+    // Validação: exigir data de vencimento quando aplicável
+    if (exigeValidade && !dataVencimento) {
       return NextResponse.json(
-        { error: "Data de vencimento é obrigatória para concluir a tarefa (exceto RH)." },
-        { status: 400 }
+        {
+          error: "Data de vencimento é obrigatória para concluir a tarefa.",
       );
     }
 
     // Regra D+30: data de vencimento deve ser >= hoje + 30 dias (exceto RH)
-    if (tarefaAtual.responsavel !== "RH" && dataVencimento) {
-      const parseYYYYMMDDToUTC = (s: string) => {
-        const [y, m, d] = s.split("-").map(Number);
-        return Date.UTC(y, m - 1, d);
-      };
+    // Aplicar somente quando a tarefa exige validade
       const today = new Date();
       const minLocal = new Date(
         today.getFullYear(),
         today.getMonth(),
-        today.getDate()
+        today.getDate(),
       );
       minLocal.setDate(minLocal.getDate() + 30);
       const minUTC = Date.UTC(
         minLocal.getFullYear(),
         minLocal.getMonth(),
-        minLocal.getDate()
+        minLocal.getDate(),
       );
       const selectedUTC = parseYYYYMMDDToUTC(dataVencimento);
       if (selectedUTC < minUTC) {
         return NextResponse.json(
-          { error: "Data de vencimento deve ser pelo menos 30 dias após hoje." },
-          { status: 400 }
+          {
+            error: "Data de vencimento deve ser pelo menos 30 dias após hoje.",
+          },
+          { status: 400 },
         );
       }
     }
@@ -92,12 +119,12 @@ export async function PUT(
       status: "CONCLUIDO",
       dataConclusao: new Date(),
     };
-    
+
     // Adicionar data de vencimento se fornecida
     if (dataVencimento) {
       updateData.dataVencimento = new Date(dataVencimento);
     }
-    
+
     // Atualizar a tarefa para concluída
     let tarefaAtualizada = await prisma.tarefaRemanejamento.update({
       where: { id },
@@ -117,7 +144,9 @@ export async function PUT(
         observacoes: true,
         remanejamentoFuncionario: {
           select: {
-            funcionario: { select: { id: true, nome: true, matricula: true, funcao: true } },
+            funcionario: {
+              select: { id: true, nome: true, matricula: true, funcao: true },
+            },
             solicitacaoId: true,
           },
         },
@@ -136,52 +165,90 @@ export async function PUT(
         campoAlterado: "status",
         valorAnterior: tarefaAtual.status,
         valorNovo: "CONCLUIDO",
-      })
+      });
     } catch (historicoError) {
       console.error("Erro ao registrar histórico:", historicoError);
     }
 
     try {
-      const norm = (s: string | null | undefined) => (s || '').normalize('NFD').replace(/[^A-Za-z0-9\s]/g, '').trim().toUpperCase();
+      const norm = (s: string | null | undefined) =>
+        (s || "")
+          .normalize("NFD")
+          .replace(/[^A-Za-z0-9\s]/g, "")
+          .trim()
+          .toUpperCase();
       const detectSetor = (s: string | null | undefined) => {
         const v = norm(s);
-        if (!v) return '';
-        if (v.includes('TREIN')) return 'TREINAMENTO';
-        if (v.includes('MEDIC')) return 'MEDICINA';
-        if (v.includes('RECURSOS') || v.includes('HUMANOS') || v.includes(' RH') || v === 'RH' || v.includes('RH')) return 'RH';
+        if (!v) return "";
+        if (v.includes("TREIN")) return "TREINAMENTO";
+        if (v.includes("MEDIC")) return "MEDICINA";
+        if (
+          v.includes("RECURSOS") ||
+          v.includes("HUMANOS") ||
+          v.includes(" RH") ||
+          v === "RH" ||
+          v.includes("RH")
+        )
+          return "RH";
         return v;
       };
       async function findEquipeIdBySetor(setor: string) {
         const s = norm(setor);
         if (!s) return null;
-        if (s === 'RH') {
-          const e = await prisma.equipe.findFirst({ where: { OR: [{ nome: { contains: 'RH', mode: 'insensitive' } }, { nome: { contains: 'RECURSOS', mode: 'insensitive' } }, { nome: { contains: 'HUMANOS', mode: 'insensitive' } }] }, select: { id: true } });
+        if (s === "RH") {
+          const e = await prisma.equipe.findFirst({
+            where: {
+              OR: [
+                { nome: { contains: "RH", mode: "insensitive" } },
+                { nome: { contains: "RECURSOS", mode: "insensitive" } },
+                { nome: { contains: "HUMANOS", mode: "insensitive" } },
+              ],
+            },
+            select: { id: true },
+          });
           return e?.id ?? null;
         }
-        if (s === 'MEDICINA') {
-          const e = await prisma.equipe.findFirst({ where: { nome: { contains: 'MEDIC', mode: 'insensitive' } }, select: { id: true } });
+        if (s === "MEDICINA") {
+          const e = await prisma.equipe.findFirst({
+            where: { nome: { contains: "MEDIC", mode: "insensitive" } },
+            select: { id: true },
+          });
           return e?.id ?? null;
         }
-        if (s === 'TREINAMENTO') {
-          const e = await prisma.equipe.findFirst({ where: { nome: { contains: 'TREIN', mode: 'insensitive' } }, select: { id: true } });
+        if (s === "TREINAMENTO") {
+          const e = await prisma.equipe.findFirst({
+            where: { nome: { contains: "TREIN", mode: "insensitive" } },
+            select: { id: true },
+          });
           return e?.id ?? null;
         }
-        const e = await prisma.equipe.findFirst({ where: { nome: { equals: s, mode: 'insensitive' } }, select: { id: true } });
+        const e = await prisma.equipe.findFirst({
+          where: { nome: { equals: s, mode: "insensitive" } },
+          select: { id: true },
+        });
         return e?.id ?? null;
       }
-      let setorBase = '';
-      if (tarefaAtualizada.treinamentoId) setorBase = 'TREINAMENTO';
+      let setorBase = "";
+      if (tarefaAtualizada.treinamentoId) setorBase = "TREINAMENTO";
       if (!setorBase && tarefaAtualizada.tarefaPadraoId) {
-        const tp = await prisma.tarefaPadrao.findUnique({ where: { id: tarefaAtualizada.tarefaPadraoId }, select: { setor: true } });
-        setorBase = tp?.setor || '';
+        const tp = await prisma.tarefaPadrao.findUnique({
+          where: { id: tarefaAtualizada.tarefaPadraoId },
+          select: { setor: true },
+        });
+        setorBase = tp?.setor || "";
       }
-      if (!setorBase) setorBase = tarefaAtualizada.responsavel || tarefaAtualizada.tipo || tarefaAtualizada.descricao || '';
+      if (!setorBase)
+        setorBase =
+          tarefaAtualizada.responsavel ||
+          tarefaAtualizada.tipo ||
+          tarefaAtualizada.descricao ||
+          "";
       const eqId = await findEquipeIdBySetor(detectSetor(setorBase));
       if (eqId) {
         try {
           tarefaAtualizada = await prisma.tarefaRemanejamento.update({
             where: { id: tarefaAtualizada.id },
-            data: ({ setor: { connect: { id: eqId } } } as any),
+            data: { setor: { connect: { id: eqId } } } as any,
             select: {
               id: true,
               remanejamentoFuncionarioId: true,
@@ -198,7 +265,12 @@ export async function PUT(
               remanejamentoFuncionario: {
                 select: {
                   funcionario: {
-                    select: { id: true, nome: true, matricula: true, funcao: true },
+                    select: {
+                      id: true,
+                      nome: true,
+                      matricula: true,
+                      funcao: true,
+                    },
                   },
                   solicitacaoId: true,
                 },
@@ -210,21 +282,25 @@ export async function PUT(
       await prisma.tarefaStatusEvento.create({
         data: {
           tarefaId: tarefaAtualizada.id,
-          remanejamentoFuncionarioId: tarefaAtualizada.remanejamentoFuncionarioId,
+          remanejamentoFuncionarioId:
+            tarefaAtualizada.remanejamentoFuncionarioId,
           statusAnterior: tarefaAtual.status,
-          statusNovo: 'CONCLUIDO',
+          statusNovo: "CONCLUIDO",
           observacoes: undefined,
           usuarioResponsavelId: usuarioAutenticado?.id ?? undefined,
         },
       });
     } catch (eventoError) {
-      console.error("Erro ao registrar evento de status da tarefa:", eventoError)
+      console.error(
+        "Erro ao registrar evento de status da tarefa:",
+        eventoError,
+      );
     }
 
     // Atualizar o status das tarefas do funcionário
     await atualizarStatusTarefasFuncionario(
       tarefaAtual.remanejamentoFuncionarioId,
-      usuarioAutenticado?.id
+      usuarioAutenticado?.id,
     );
 
     return NextResponse.json(tarefaAtualizada);
@@ -232,7 +308,7 @@ export async function PUT(
     console.error("Erro ao concluir tarefa:", error);
     return NextResponse.json(
       { error: "Erro interno do servidor" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -240,7 +316,7 @@ export async function PUT(
 // Função auxiliar para atualizar o status das tarefas do funcionário
 async function atualizarStatusTarefasFuncionario(
   remanejamentoFuncionarioId: string,
-  usuarioResponsavelId?: number
+  usuarioResponsavelId?: number,
 ) {
   try {
     // Buscar todas as tarefas do funcionário
@@ -258,7 +334,7 @@ async function atualizarStatusTarefasFuncionario(
         (tarefa) =>
           tarefa.status === "CONCLUIDO" ||
           tarefa.status === "CONCLUIDA" ||
-          tarefa.status === "CANCELADO"
+          tarefa.status === "CANCELADO",
       );
 
     // Buscar o funcionário do remanejamento com a solicitação
@@ -275,7 +351,7 @@ async function atualizarStatusTarefasFuncionario(
     if (!remanejamentoFuncionario) {
       console.error(
         "RemanejamentoFuncionario não encontrado:",
-        remanejamentoFuncionarioId
+        remanejamentoFuncionarioId,
       );
       return;
     }
@@ -305,11 +381,11 @@ async function atualizarStatusTarefasFuncionario(
         } (via conclusão de tarefa)`,
         campoAlterado: "statusTarefas",
         valorNovo: todasConcluidas ? "SUBMETER RASCUNHO" : "ATENDER TAREFAS",
-      })
+      });
     } catch (historicoError) {
       console.error(
         "Erro ao registrar histórico de status das tarefas:",
-        historicoError
+        historicoError,
       );
     }
 
@@ -321,7 +397,7 @@ async function atualizarStatusTarefasFuncionario(
     ) {
       await verificarConclusaoSolicitacao(
         remanejamentoFuncionario.solicitacaoId,
-        usuarioResponsavelId
+        usuarioResponsavelId,
       );
     }
   } catch (error) {
@@ -332,7 +408,7 @@ async function atualizarStatusTarefasFuncionario(
 // Função para verificar se toda a solicitação pode ser marcada como concluída
 async function verificarConclusaoSolicitacao(
   solicitacaoId: number,
-  usuarioResponsavelId?: number
+  usuarioResponsavelId?: number,
 ) {
   try {
     // Buscar todos os funcionários da solicitação
@@ -344,7 +420,9 @@ async function verificarConclusaoSolicitacao(
 
     // Verificar se todos os funcionários têm SUBMETER RASCUNHO E Prestserv aprovado
     const todosProntos = funcionarios.every(
-      (f) => f.statusTarefas === "SUBMETER RASCUNHO" && f.statusPrestserv === "APROVADO"
+      (f) =>
+        f.statusTarefas === "SUBMETER RASCUNHO" &&
+        f.statusPrestserv === "APROVADO",
     );
 
     if (todosProntos) {
@@ -357,7 +435,9 @@ async function verificarConclusaoSolicitacao(
           status: "CONCLUIDO",
           dataConclusao: new Date(),
           ...(usuarioResponsavelId
-            ? { atualizadoPorUsuario: { connect: { id: usuarioResponsavelId } } }
+            ? {
+                atualizadoPorUsuario: { connect: { id: usuarioResponsavelId } },
+              }
             : {}),
           ...(usuarioResponsavelId
             ? { concluidoPorUsuario: { connect: { id: usuarioResponsavelId } } }
@@ -366,7 +446,7 @@ async function verificarConclusaoSolicitacao(
       });
 
       console.log(
-        `Solicitação de remanejamento ${solicitacaoId} marcada como concluída`
+        `Solicitação de remanejamento ${solicitacaoId} marcada como concluída`,
       );
     }
   } catch (error) {

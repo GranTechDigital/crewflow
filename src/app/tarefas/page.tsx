@@ -978,11 +978,7 @@ export default function TarefasPage() {
   const concluirTarefa = async () => {
     if (!tarefaSelecionada) return;
     try {
-      if (tarefaSelecionada.responsavel !== "RH") {
-        if (!dataVencimento) {
-          setErroDataVencimento("Informe a data de vencimento.");
-          return;
-        }
+      if (dataVencimento) {
         const hoje = new Date();
         const dt = new Date(`${dataVencimento}T00:00:00`);
         const hojeDateOnly = new Date(
@@ -1014,10 +1010,9 @@ export default function TarefasPage() {
                   ...t,
                   status: novoStatus,
                   dataConclusao: concluidaEmIso,
-                  dataVencimento:
-                    tarefaSelecionada.responsavel !== "RH"
-                      ? dataVencimento || null
-                      : t.dataVencimento,
+                  dataVencimento: dataVencimento
+                    ? dataVencimento
+                    : t.dataVencimento,
                 };
               }
               return t;
@@ -1040,10 +1035,9 @@ export default function TarefasPage() {
                     ...t,
                     status: novoStatus,
                     dataConclusao: concluidaEmIso,
-                    dataVencimento:
-                      tarefaSelecionada.responsavel !== "RH"
-                        ? dataVencimento || null
-                        : t.dataVencimento,
+                    dataVencimento: dataVencimento
+                      ? dataVencimento
+                      : t.dataVencimento,
                   }
                 : t,
             ),
@@ -1062,10 +1056,7 @@ export default function TarefasPage() {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            dataVencimento:
-              tarefaSelecionada.responsavel !== "RH"
-                ? dataVencimento || null
-                : null,
+            dataVencimento: dataVencimento || null,
           }),
         },
       );
