@@ -53,7 +53,7 @@ export async function PUT(
     let exigeValidade = tarefaAtual.responsavel !== "RH";
     if (exigeValidade && tarefaAtual.treinamentoId) {
       try {
-        const treino = await prisma.treinamento.findUnique({
+        const treino = await prisma.treinamentos.findUnique({
           where: { id: tarefaAtual.treinamentoId },
           select: { validadeValor: true, validadeUnidade: true },
         });
@@ -69,9 +69,12 @@ export async function PUT(
             (unidade.includes("mes") ||
               unidade.includes("mês") ||
               unidade.includes("meses")) &&
+            Number.isFinite(valor) &&
+            valor <= 0;
           if (isUnico || isMesZero) {
             exigeValidade = false;
           }
+        }
       } catch (e) {
         // Em caso de falha ao consultar treinamento, manter regra padrão (exige quando não-RH)
       }
@@ -80,27 +83,20 @@ export async function PUT(
     // Validação: exigir data de vencimento quando aplicável
     if (exigeValidade && !dataVencimento) {
       return NextResponse.json(
-        {
-          error: "Data de vencimento é obrigatória para concluir a tarefa.",
+        { error: "Data de vencimento é obrigatória para concluir a tarefa." },
+        { status: 400 },
       );
     }
 
     // Regra D+30: data de vencimento deve ser >= hoje + 30 dias (exceto RH)
     // Aplicar somente quando a tarefa exige validade
-      const today = new Date();
-      const minLocal = new Date(
-        today.getFullYear(),
-        today.getMonth(),
-        today.getDate(),
-      );
+    if (exigeValidade && dataVencimento) {
+      const minLocal = new Date();
+      minLocal.setHours(0, 0, 0, 0);
       minLocal.setDate(minLocal.getDate() + 30);
-      const minUTC = Date.UTC(
-        minLocal.getFullYear(),
-        minLocal.getMonth(),
-        minLocal.getDate(),
-      );
-      const selectedUTC = parseYYYYMMDDToUTC(dataVencimento);
-      if (selectedUTC < minUTC) {
+      const selected = new Date(dataVencimento);
+      selected.setHours(0, 0, 0, 0);
+      if (selected.getTime() < minLocal.getTime()) {
         return NextResponse.json(
           {
             error: "Data de vencimento deve ser pelo menos 30 dias após hoje.",
