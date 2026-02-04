@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
       };
     }
     
-    // Buscar funcionários com seus contratos
+    // Buscar funcionários com seus contratos e, se existir, o usuário vinculado (apenas dados essenciais)
     const funcionarios = await prisma.funcionario.findMany({
       where: whereClause,
       include: {
@@ -62,6 +62,17 @@ export async function GET(request: NextRequest) {
             numero: true,
             nome: true,
             cliente: true
+          }
+        },
+        usuario: {
+          select: {
+            id: true,
+            equipe: {
+              select: {
+                id: true,
+                nome: true
+              }
+            }
           }
         }
       }

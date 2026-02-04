@@ -40,11 +40,12 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       );
     }
 
-    // Atualizar a equipe do usuário
+    // Atualizar a equipe do usuário e reativar caso esteja inativo
     const usuarioAtualizado = await prisma.usuario.update({
       where: { id: userId },
       data: {
-        equipeId: equipeId
+        equipeId: equipeId,
+        ativo: true
       },
       include: {
         funcionario: true,

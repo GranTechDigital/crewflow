@@ -1,7 +1,11 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { PlusIcon } from "@heroicons/react/24/outline";
+import {
+  PlusIcon,
+  PencilIcon,
+  ArrowPathIcon,
+} from "@heroicons/react/24/outline";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { ROUTE_PROTECTION } from "@/lib/permissions";
 import { useAuth } from "@/app/hooks/useAuth";
@@ -13,6 +17,10 @@ interface Funcionario {
   email: string;
   funcao: string;
   departamento: string;
+  usuario?: {
+    id: number;
+    equipe: Equipe;
+  } | null;
 }
 
 interface Equipe {
@@ -59,14 +67,20 @@ function UsuariosEquipeContent({ sectorLabel }: { sectorLabel: string }) {
     usuario?.equipe?.includes("(Gestor)");
   // Cadastro de novos membros: exclusivamente Gestor do setor
   const canCreateUser = isGestorMedicina;
+  const canManageTeam = isGestorMedicina || isAdmin;
 
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [equipes, setEquipes] = useState<Equipe[]>([]);
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [showEditEquipeModal, setShowEditEquipeModal] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<Usuario | null>(null);
   const [selectedEquipe, setSelectedEquipe] = useState<string>("");
   const [search, setSearch] = useState("");
+  const [selectedStatus, setSelectedStatus] = useState<
+    "ativos" | "inativos" | "todos"
+  >("ativos");
 
   const [formData, setFormData] = useState({
     funcionarioId: "",
@@ -78,6 +92,11 @@ function UsuariosEquipeContent({ sectorLabel }: { sectorLabel: string }) {
 
   const [modalDept, setModalDept] = useState("");
   const [modalRole, setModalRole] = useState("");
+  const [editEquipeData, setEditEquipeData] = useState({ equipeId: "" });
+  const [transferMode, setTransferMode] = useState(false);
+  const [statusUpdating, setStatusUpdating] = useState<Record<number, boolean>>(
+    {},
+  );
 
   const getTeamStructure = () => {
     const structure: Record<
@@ -115,7 +134,6 @@ function UsuariosEquipeContent({ sectorLabel }: { sectorLabel: string }) {
       ? teamStructure[modalDept]
           .map((t) => t.role)
           .filter((r) => ["Editor", "Visualizador", "Gestor"].includes(r))
-          .filter((r) => (isAdmin ? true : r !== "Gestor"))
       : [];
 
   const fetchUsuarios = useCallback(async () => {
@@ -130,6 +148,45 @@ function UsuariosEquipeContent({ sectorLabel }: { sectorLabel: string }) {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    if (!modalDept || !modalRole) return;
+    const deptTeams = teamStructure[modalDept];
+    const team = deptTeams?.find((t) => t.role === modalRole);
+    if (!team) return;
+    const targetId = team.id.toString();
+    if (showModal) {
+      setFormData((prev) =>
+        prev.equipeId === targetId ? prev : { ...prev, equipeId: targetId },
+      );
+    }
+    if (showEditEquipeModal) {
+      setEditEquipeData((prev) =>
+        prev.equipeId === targetId ? prev : { ...prev, equipeId: targetId },
+      );
+    }
+  }, [modalDept, modalRole, showModal, showEditEquipeModal, teamStructure]);
+
+  useEffect(() => {
+    if (showEditEquipeModal && selectedUser) {
+      let dept = selectedUser.equipe.nome;
+      let role = "Padrão";
+      const match = selectedUser.equipe.nome.match(/^(.+?)\s*\((.+?)\)$/);
+      if (match) {
+        dept = match[1];
+        role = match[2];
+      } else {
+        if (selectedUser.equipe.nome === "Administração") {
+          role = "Total";
+        } else {
+          role = "Geral";
+        }
+      }
+      setModalDept(isAdmin ? dept : deptName);
+      setModalRole(role);
+      setEditEquipeData({ equipeId: selectedUser.equipe.id.toString() });
+    }
+  }, [showEditEquipeModal, selectedUser, isAdmin, deptName]);
 
   useEffect(() => {
     if (!isAdmin && deptName) {
@@ -179,11 +236,7 @@ function UsuariosEquipeContent({ sectorLabel }: { sectorLabel: string }) {
       const response = await fetch("/api/funcionarios");
       const data = await response.json();
       if (Array.isArray(data)) {
-        const funcionariosSemUsuario = data.filter(
-          (func: Funcionario) =>
-            !usuarios.some((user) => user.funcionarioId === func.id),
-        );
-        setFuncionarios(funcionariosSemUsuario);
+        setFuncionarios(data as Funcionario[]);
       }
     } catch {}
   }, [usuarios]);
@@ -194,30 +247,107 @@ function UsuariosEquipeContent({ sectorLabel }: { sectorLabel: string }) {
     fetchFuncionarios();
   }, [fetchUsuarios, fetchEquipes, fetchFuncionarios]);
 
-  const handleCreateUser = async (e: React.FormEvent) => {
+  const selectedFuncionario = formData.funcionarioId
+    ? funcionarios.find((f) => f.id === parseInt(formData.funcionarioId))
+    : undefined;
+  const targetTeamName =
+    modalDept && modalRole
+      ? teamStructure[modalDept]?.find((t) => t.role === modalRole)
+          ?.originalName || ""
+      : "";
+
+  const handleEditEquipe = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!selectedUser) return;
     try {
-      const response = await fetch("/api/usuarios", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          funcionarioId: parseInt(formData.funcionarioId),
-          senha: formData.senha,
-          equipeId: parseInt(formData.equipeId),
-        }),
+      const response = await fetch(`/api/usuarios/${selectedUser.id}/equipe`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ equipeId: parseInt(editEquipeData.equipeId) }),
       });
       const data = await response.json();
       if (data.success) {
-        setShowModal(false);
-        setFormData({ funcionarioId: "", senha: "", equipeId: "" });
-        setFuncionarioSearch("");
-        setShowFuncionarioDropdown(false);
+        setShowEditEquipeModal(false);
+        setSelectedUser(null);
+        setEditEquipeData({ equipeId: "" });
         fetchUsuarios();
-        fetchFuncionarios();
       } else {
-        alert(data.error || "Falha ao criar usuário");
+        alert(data.error || "Falha ao atualizar equipe");
+      }
+    } catch {
+      alert("Erro ao atualizar equipe do usuário");
+    }
+  };
+
+  const handleToggleActive = async (user: Usuario) => {
+    setStatusUpdating((prev) => ({ ...prev, [user.id]: true }));
+    try {
+      const resp = await fetch(`/api/usuarios/${user.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ativo: !user.ativo }),
+      });
+      const data = await resp.json();
+      if (data.success) {
+        fetchUsuarios();
+      } else {
+        alert(data.error || "Falha ao atualizar status");
+      }
+    } catch {
+      alert("Erro ao atualizar status do usuário");
+    } finally {
+      setStatusUpdating((prev) => ({ ...prev, [user.id]: false }));
+    }
+  };
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const funcId = parseInt(formData.funcionarioId);
+      const equipeIdNum = parseInt(formData.equipeId);
+      const selectedFuncionario = funcionarios.find((f) => f.id === funcId);
+      const existingUserId = selectedFuncionario?.usuario?.id;
+
+      if (existingUserId) {
+        // Transferir usuário existente para a equipe selecionada
+        const response = await fetch(`/api/usuarios/${existingUserId}/equipe`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ equipeId: equipeIdNum }),
+        });
+        const data = await response.json();
+        if (data.success) {
+          setShowModal(false);
+          setFormData({ funcionarioId: "", senha: "", equipeId: "" });
+          setFuncionarioSearch("");
+          setShowFuncionarioDropdown(false);
+          setTransferMode(false);
+          fetchUsuarios();
+          fetchFuncionarios();
+        } else {
+          alert(data.error || "Falha ao mover usuário de equipe");
+        }
+      } else {
+        // Criar novo usuário
+        const response = await fetch("/api/usuarios", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            funcionarioId: funcId,
+            senha: formData.senha,
+            equipeId: equipeIdNum,
+          }),
+        });
+        const data = await response.json();
+        if (data.success) {
+          setShowModal(false);
+          setFormData({ funcionarioId: "", senha: "", equipeId: "" });
+          setFuncionarioSearch("");
+          setShowFuncionarioDropdown(false);
+          fetchUsuarios();
+          fetchFuncionarios();
+        } else {
+          alert(data.error || "Falha ao criar usuário");
+        }
       }
     } catch {
       alert("Erro ao criar usuário");
@@ -234,7 +364,13 @@ function UsuariosEquipeContent({ sectorLabel }: { sectorLabel: string }) {
       selectedEquipe === "" || u.equipe.id.toString() === selectedEquipe;
     const matchDept =
       isAdmin || (deptName ? u.equipe.nome.startsWith(deptName) : true);
-    return matchSearch && matchEquipe && matchDept;
+    const matchStatus =
+      selectedStatus === "todos"
+        ? true
+        : selectedStatus === "ativos"
+          ? u.ativo
+          : !u.ativo;
+    return matchSearch && matchEquipe && matchDept && matchStatus;
   });
 
   return (
@@ -270,6 +406,20 @@ function UsuariosEquipeContent({ sectorLabel }: { sectorLabel: string }) {
                 </option>
               ))}
             </select>
+            <select
+              value={selectedStatus}
+              onChange={(e) =>
+                setSelectedStatus(
+                  e.target.value as "ativos" | "inativos" | "todos",
+                )
+              }
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              title="Filtrar por status"
+            >
+              <option value="ativos">Ativos</option>
+              <option value="inativos">Inativos</option>
+              <option value="todos">Todos</option>
+            </select>
           </div>
           {canCreateUser && (
             <button
@@ -303,6 +453,11 @@ function UsuariosEquipeContent({ sectorLabel }: { sectorLabel: string }) {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Último Login
                 </th>
+                {canManageTeam && (
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Ações
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -352,6 +507,44 @@ function UsuariosEquipeContent({ sectorLabel }: { sectorLabel: string }) {
                       ? new Date(u.ultimoLogin).toLocaleString("pt-BR")
                       : "Nunca"}
                   </td>
+                  {canManageTeam && (
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => {
+                            setSelectedUser(u);
+                            setEditEquipeData({
+                              equipeId: u.equipe.id.toString(),
+                            });
+                            setShowEditEquipeModal(true);
+                          }}
+                          className="text-green-600 hover:text-green-900"
+                          title="Editar equipe"
+                        >
+                          <PencilIcon className="h-5 w-5" />
+                        </button>
+                        <div className="flex items-center gap-2">
+                          {statusUpdating[u.id] && (
+                            <ArrowPathIcon className="h-3 w-3 animate-spin text-gray-500" />
+                          )}
+                          <button
+                            onClick={() => handleToggleActive(u)}
+                            className={`relative inline-flex h-5 w-9 items-center rounded-full ${
+                              u.ativo ? "bg-green-500" : "bg-gray-300"
+                            }`}
+                            title={u.ativo ? "Desativar" : "Ativar"}
+                            disabled={!!statusUpdating[u.id]}
+                          >
+                            <span
+                              className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
+                                u.ativo ? "translate-x-4" : "translate-x-1"
+                              }`}
+                            />
+                          </button>
+                        </div>
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -363,7 +556,7 @@ function UsuariosEquipeContent({ sectorLabel }: { sectorLabel: string }) {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
             <h3 className="text-lg font-medium text-gray-900 mb-4">
-              Criar Novo Usuário
+              {transferMode ? "Mover Usuário Existente" : "Criar Novo Usuário"}
             </h3>
             <form onSubmit={handleCreateUser} className="space-y-4">
               <div className="relative funcionario-dropdown">
@@ -379,6 +572,7 @@ function UsuariosEquipeContent({ sectorLabel }: { sectorLabel: string }) {
                       setShowFuncionarioDropdown(true);
                       if (!e.target.value) {
                         setFormData({ ...formData, funcionarioId: "" });
+                        setTransferMode(false);
                       }
                     }}
                     onFocus={() => setShowFuncionarioDropdown(true)}
@@ -412,6 +606,7 @@ function UsuariosEquipeContent({ sectorLabel }: { sectorLabel: string }) {
                                 `${funcionario.nome} (${funcionario.matricula})`,
                               );
                               setShowFuncionarioDropdown(false);
+                              setTransferMode(!!funcionario.usuario);
                             }}
                             className="w-full text-left px-3 py-2 hover:bg-gray-100"
                           >
@@ -420,6 +615,9 @@ function UsuariosEquipeContent({ sectorLabel }: { sectorLabel: string }) {
                             </div>
                             <div className="text-xs text-gray-500">
                               {funcionario.matricula} • {funcionario.funcao}
+                              {funcionario.usuario
+                                ? ` • já possui usuário (${funcionario.usuario.equipe.nome})`
+                                : ""}
                             </div>
                           </button>
                         ))}
@@ -428,21 +626,40 @@ function UsuariosEquipeContent({ sectorLabel }: { sectorLabel: string }) {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Senha inicial
-                </label>
-                <input
-                  type="password"
-                  value={formData.senha}
-                  onChange={(e) =>
-                    setFormData({ ...formData, senha: e.target.value })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Informe a senha inicial"
-                  required
-                />
-              </div>
+              {transferMode && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3 text-sm text-yellow-800">
+                  <div>
+                    Origem:{" "}
+                    <span className="font-semibold">
+                      {selectedFuncionario?.usuario?.equipe?.nome || "—"}
+                    </span>
+                  </div>
+                  <div>
+                    Destino:{" "}
+                    <span className="font-semibold">
+                      {targetTeamName || "—"}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {!transferMode && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Senha inicial
+                  </label>
+                  <input
+                    type="password"
+                    value={formData.senha}
+                    onChange={(e) =>
+                      setFormData({ ...formData, senha: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Informe a senha inicial"
+                    required={!transferMode}
+                  />
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -503,6 +720,7 @@ function UsuariosEquipeContent({ sectorLabel }: { sectorLabel: string }) {
                     setFuncionarioSearch("");
                     setShowFuncionarioDropdown(false);
                     setModalRole("");
+                    setTransferMode(false);
                   }}
                   className="px-4 py-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50"
                 >
@@ -513,11 +731,93 @@ function UsuariosEquipeContent({ sectorLabel }: { sectorLabel: string }) {
                   className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
                   disabled={
                     !formData.funcionarioId ||
-                    !formData.senha ||
-                    !formData.equipeId
+                    !formData.equipeId ||
+                    (!transferMode && !formData.senha)
                   }
                 >
-                  Criar Usuário
+                  {transferMode ? "Mover Usuário" : "Criar Usuário"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showEditEquipeModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">
+              Editar equipe do usuário
+            </h3>
+            <form onSubmit={handleEditEquipe} className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Setor
+                  </label>
+                  <select
+                    value={modalDept}
+                    onChange={(e) => setModalDept(e.target.value)}
+                    disabled={!isAdmin}
+                    required
+                    className={`w-full px-3 py-2 border border-gray-300 rounded-lg ${
+                      isAdmin
+                        ? "focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        : "bg-gray-100 cursor-not-allowed"
+                    }`}
+                  >
+                    {!isAdmin ? (
+                      <option value={modalDept}>{modalDept || "—"}</option>
+                    ) : (
+                      <>
+                        <option value="">Selecione</option>
+                        {departments.map((dept) => (
+                          <option key={dept} value={dept}>
+                            {dept}
+                          </option>
+                        ))}
+                      </>
+                    )}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Perfil
+                  </label>
+                  <select
+                    value={modalRole}
+                    onChange={(e) => setModalRole(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                  >
+                    <option value="">Selecione</option>
+                    {rolesForSelectedDept.map((role) => (
+                      <option key={role} value={role}>
+                        {role}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEditEquipeModal(false);
+                    setSelectedUser(null);
+                    setEditEquipeData({ equipeId: "" });
+                    setModalRole("");
+                  }}
+                  className="px-4 py-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700"
+                  disabled={!editEquipeData.equipeId}
+                >
+                  Salvar
                 </button>
               </div>
             </form>

@@ -1,10 +1,15 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { PlusIcon, PencilIcon, KeyIcon } from "@heroicons/react/24/outline";
+import {
+  PlusIcon,
+  PencilIcon,
+  KeyIcon,
+  ArrowPathIcon,
+} from "@heroicons/react/24/outline";
 import ProtectedRoute from "@/components/ProtectedRoute";
-import { ROUTE_PROTECTION } from "@/lib/permissions";
-import { useAuth } from "@/app/hooks/useAuth";
+import { ROUTE_PROTECTION, PERMISSIONS } from "@/lib/permissions";
+import { useAuth, usePermissions } from "@/app/hooks/useAuth";
 
 interface Funcionario {
   id: number;
@@ -13,6 +18,10 @@ interface Funcionario {
   email: string;
   funcao: string;
   departamento: string;
+  usuario?: {
+    id: number;
+    equipe: Equipe;
+  } | null;
 }
 
 interface Equipe {
@@ -50,17 +59,20 @@ export default function UsuariosLogisticaPage() {
 
 function UsuariosEquipeContent() {
   const { usuario } = useAuth();
+  const { hasPermission } = usePermissions();
+  const normalize = (str: string) =>
+    (str || "")
+      .trim()
+      .toUpperCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
   const deptName = usuario?.equipe?.includes(" (")
     ? usuario.equipe.split(" (")[0]
     : usuario?.equipe || "";
-  const isAdmin = usuario?.equipe === "Administração";
-  const isGestorLogistica =
-    usuario?.equipe?.includes("Logística") &&
-    usuario?.equipe?.includes("(Gestor)");
-  // Ações (editar/resetar) disponíveis para Gestor do setor e Administrador
-  const canManageTeam = isGestorLogistica || isAdmin;
-  // Cadastro de novos membros: exclusivamente Gestor do setor
-  const canCreateUser = isGestorLogistica;
+  const isAdmin = hasPermission(PERMISSIONS.ADMIN);
+  const canManageTeam =
+    isAdmin || hasPermission(PERMISSIONS.ACCESS_LOGISTICA_GESTOR);
+  const canCreateUser = hasPermission(PERMISSIONS.ACCESS_LOGISTICA_GESTOR);
 
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [equipes, setEquipes] = useState<Equipe[]>([]);
@@ -72,6 +84,9 @@ function UsuariosEquipeContent() {
   const [selectedUser, setSelectedUser] = useState<Usuario | null>(null);
   const [selectedEquipe, setSelectedEquipe] = useState<string>("");
   const [search, setSearch] = useState("");
+  const [selectedStatus, setSelectedStatus] = useState<
+    "ativos" | "inativos" | "todos"
+  >("ativos");
 
   const [formData, setFormData] = useState({
     funcionarioId: "",
@@ -88,6 +103,10 @@ function UsuariosEquipeContent() {
     novaSenha: "",
     confirmarSenha: "",
   });
+  const [transferMode, setTransferMode] = useState(false);
+  const [statusUpdating, setStatusUpdating] = useState<Record<number, boolean>>(
+    {},
+  );
 
   const getTeamStructure = () => {
     const structure: Record<
@@ -125,7 +144,6 @@ function UsuariosEquipeContent() {
       ? teamStructure[modalDept]
           .map((t) => t.role)
           .filter((r) => ["Editor", "Visualizador", "Gestor"].includes(r))
-          .filter((r) => (isAdmin ? true : r !== "Gestor"))
       : [];
 
   const fetchUsuarios = useCallback(async () => {
@@ -200,9 +218,11 @@ function UsuariosEquipeContent() {
       if (data.success) {
         const onlyDept =
           !isAdmin && deptName && deptName.length > 0
-            ? data.equipes.filter((e: Equipe) =>
-                (e.nome || "").startsWith(deptName),
-              )
+            ? data.equipes.filter((e: Equipe) => {
+                const en = normalize(e.nome || "");
+                const dn = normalize(deptName);
+                return en.startsWith(dn);
+              })
             : data.equipes;
         setEquipes(
           (onlyDept as Equipe[])
@@ -218,11 +238,7 @@ function UsuariosEquipeContent() {
       const response = await fetch("/api/funcionarios");
       const data = await response.json();
       if (Array.isArray(data)) {
-        const funcionariosSemUsuario = data.filter(
-          (func: Funcionario) =>
-            !usuarios.some((user) => user.funcionarioId === func.id),
-        );
-        setFuncionarios(funcionariosSemUsuario);
+        setFuncionarios(data as Funcionario[]);
       }
     } catch {}
   }, [usuarios]);
@@ -233,30 +249,64 @@ function UsuariosEquipeContent() {
     fetchFuncionarios();
   }, [fetchUsuarios, fetchEquipes, fetchFuncionarios]);
 
+  const selectedFuncionario = formData.funcionarioId
+    ? funcionarios.find((f) => f.id === parseInt(formData.funcionarioId))
+    : undefined;
+  const targetTeamName =
+    modalDept && modalRole
+      ? teamStructure[modalDept]?.find((t) => t.role === modalRole)
+          ?.originalName || ""
+      : "";
+
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const response = await fetch("/api/usuarios", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          funcionarioId: parseInt(formData.funcionarioId),
-          senha: formData.senha,
-          equipeId: parseInt(formData.equipeId),
-        }),
-      });
-      const data = await response.json();
-      if (data.success) {
-        setShowModal(false);
-        setFormData({ funcionarioId: "", senha: "", equipeId: "" });
-        setFuncionarioSearch("");
-        setShowFuncionarioDropdown(false);
-        fetchUsuarios();
-        fetchFuncionarios();
+      const funcId = parseInt(formData.funcionarioId);
+      const equipeIdNum = parseInt(formData.equipeId);
+      const selectedFuncionario = funcionarios.find((f) => f.id === funcId);
+      const existingUserId = selectedFuncionario?.usuario?.id;
+
+      if (existingUserId) {
+        // Transferir usuário existente para a equipe selecionada
+        const response = await fetch(`/api/usuarios/${existingUserId}/equipe`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ equipeId: equipeIdNum }),
+        });
+        const data = await response.json();
+        if (data.success) {
+          setShowModal(false);
+          setFormData({ funcionarioId: "", senha: "", equipeId: "" });
+          setFuncionarioSearch("");
+          setShowFuncionarioDropdown(false);
+          setTransferMode(false);
+          fetchUsuarios();
+          fetchFuncionarios();
+        } else {
+          alert(data.error || "Falha ao mover usuário de equipe");
+        }
       } else {
-        alert(data.error || "Falha ao criar usuário");
+        // Criar novo usuário
+        const response = await fetch("/api/usuarios", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            funcionarioId: funcId,
+            senha: formData.senha,
+            equipeId: equipeIdNum,
+          }),
+        });
+        const data = await response.json();
+        if (data.success) {
+          setShowModal(false);
+          setFormData({ funcionarioId: "", senha: "", equipeId: "" });
+          setFuncionarioSearch("");
+          setShowFuncionarioDropdown(false);
+          fetchUsuarios();
+          fetchFuncionarios();
+        } else {
+          alert(data.error || "Falha ao criar usuário");
+        }
       }
     } catch {
       alert("Erro ao criar usuário");
@@ -315,6 +365,27 @@ function UsuariosEquipeContent() {
     }
   };
 
+  const handleToggleActive = async (user: Usuario) => {
+    setStatusUpdating((prev) => ({ ...prev, [user.id]: true }));
+    try {
+      const resp = await fetch(`/api/usuarios/${user.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ativo: !user.ativo }),
+      });
+      const data = await resp.json();
+      if (data.success) {
+        fetchUsuarios();
+      } else {
+        alert(data.error || "Falha ao atualizar status");
+      }
+    } catch {
+      alert("Erro ao atualizar status do usuário");
+    } finally {
+      setStatusUpdating((prev) => ({ ...prev, [user.id]: false }));
+    }
+  };
+
   const filteredUsuarios = usuarios.filter((u) => {
     const matchSearch =
       u.nome.toLowerCase().includes(search.toLowerCase()) ||
@@ -325,8 +396,17 @@ function UsuariosEquipeContent() {
       selectedEquipe === "" || u.equipe.id.toString() === selectedEquipe;
     // Visualização por setor: não-admin vê membros do próprio setor
     const matchDept =
-      isAdmin || (deptName ? u.equipe.nome.startsWith(deptName) : true);
-    return matchSearch && matchEquipe && matchDept;
+      isAdmin ||
+      (deptName
+        ? normalize(u.equipe.nome).startsWith(normalize(deptName))
+        : true);
+    const matchStatus =
+      selectedStatus === "todos"
+        ? true
+        : selectedStatus === "ativos"
+          ? u.ativo
+          : !u.ativo;
+    return matchSearch && matchEquipe && matchDept && matchStatus;
   });
 
   return (
@@ -361,6 +441,20 @@ function UsuariosEquipeContent() {
                   {equipe.nome}
                 </option>
               ))}
+            </select>
+            <select
+              value={selectedStatus}
+              onChange={(e) =>
+                setSelectedStatus(
+                  e.target.value as "ativos" | "inativos" | "todos",
+                )
+              }
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              title="Filtrar por status"
+            >
+              <option value="ativos">Ativos</option>
+              <option value="inativos">Inativos</option>
+              <option value="todos">Todos</option>
             </select>
           </div>
           {canCreateUser && (
@@ -475,6 +569,25 @@ function UsuariosEquipeContent() {
                         >
                           <KeyIcon className="h-5 w-5" />
                         </button>
+                        <div className="flex items-center gap-2">
+                          {statusUpdating[u.id] && (
+                            <ArrowPathIcon className="h-3 w-3 animate-spin text-gray-500" />
+                          )}
+                          <button
+                            onClick={() => handleToggleActive(u)}
+                            className={`relative inline-flex h-5 w-9 items-center rounded-full ${
+                              u.ativo ? "bg-green-500" : "bg-gray-300"
+                            }`}
+                            title={u.ativo ? "Desativar" : "Ativar"}
+                            disabled={!!statusUpdating[u.id]}
+                          >
+                            <span
+                              className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
+                                u.ativo ? "translate-x-4" : "translate-x-1"
+                              }`}
+                            />
+                          </button>
+                        </div>
                       </div>
                     </td>
                   )}
@@ -489,7 +602,7 @@ function UsuariosEquipeContent() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
             <h3 className="text-lg font-medium text-gray-900 mb-4">
-              Criar Novo Usuário
+              {transferMode ? "Mover Usuário Existente" : "Criar Novo Usuário"}
             </h3>
             <form onSubmit={handleCreateUser} className="space-y-4">
               <div className="relative funcionario-dropdown">
@@ -505,6 +618,7 @@ function UsuariosEquipeContent() {
                       setShowFuncionarioDropdown(true);
                       if (!e.target.value) {
                         setFormData({ ...formData, funcionarioId: "" });
+                        setTransferMode(false);
                       }
                     }}
                     onFocus={() => setShowFuncionarioDropdown(true)}
@@ -538,6 +652,7 @@ function UsuariosEquipeContent() {
                                 `${funcionario.nome} (${funcionario.matricula})`,
                               );
                               setShowFuncionarioDropdown(false);
+                              setTransferMode(!!funcionario.usuario);
                             }}
                             className="w-full text-left px-3 py-2 hover:bg-gray-100"
                           >
@@ -546,6 +661,9 @@ function UsuariosEquipeContent() {
                             </div>
                             <div className="text-xs text-gray-500">
                               {funcionario.matricula} • {funcionario.funcao}
+                              {funcionario.usuario
+                                ? ` • já possui usuário (${funcionario.usuario.equipe.nome})`
+                                : ""}
                             </div>
                           </button>
                         ))}
@@ -554,21 +672,40 @@ function UsuariosEquipeContent() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Senha inicial
-                </label>
-                <input
-                  type="password"
-                  value={formData.senha}
-                  onChange={(e) =>
-                    setFormData({ ...formData, senha: e.target.value })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Informe a senha inicial"
-                  required
-                />
-              </div>
+              {transferMode && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3 text-sm text-yellow-800">
+                  <div>
+                    Origem:{" "}
+                    <span className="font-semibold">
+                      {selectedFuncionario?.usuario?.equipe?.nome || "—"}
+                    </span>
+                  </div>
+                  <div>
+                    Destino:{" "}
+                    <span className="font-semibold">
+                      {targetTeamName || "—"}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {!transferMode && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Senha inicial
+                  </label>
+                  <input
+                    type="password"
+                    value={formData.senha}
+                    onChange={(e) =>
+                      setFormData({ ...formData, senha: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Informe a senha inicial"
+                    required={!transferMode}
+                  />
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -629,6 +766,7 @@ function UsuariosEquipeContent() {
                     setFuncionarioSearch("");
                     setShowFuncionarioDropdown(false);
                     setModalRole("");
+                    setTransferMode(false);
                   }}
                   className="px-4 py-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50"
                 >
@@ -639,11 +777,11 @@ function UsuariosEquipeContent() {
                   className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
                   disabled={
                     !formData.funcionarioId ||
-                    !formData.senha ||
-                    !formData.equipeId
+                    !formData.equipeId ||
+                    (!transferMode && !formData.senha)
                   }
                 >
-                  Criar Usuário
+                  {transferMode ? "Mover Usuário" : "Criar Usuário"}
                 </button>
               </div>
             </form>
