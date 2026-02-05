@@ -77,11 +77,20 @@ const setores: SetorCard[] = [
       "Planejamento (Gestor)",
       "Planejamento (Editor)",
       "Planejamento (Visualizador)",
+      "Liderança (Visualizador)",
     ], // Administração e Planejamento
     links: [
       {
         label: "Criar Solicitação",
         href: "/prestserv/funcionarios/planejamento",
+      },
+      {
+        label: "Remanejamentos",
+        href: "/prestserv/remanejamentos",
+      },
+      {
+        label: "Usuários da Equipe",
+        href: "/planejamento/usuarios",
       },
       {
         label: "Lista de Funcionários",
@@ -105,6 +114,7 @@ const setores: SetorCard[] = [
       "Logística (Gestor)",
       "Logística (Editor)",
       "Logística (Visualizador)",
+      "Liderança (Visualizador)",
     ], // Administração e Planejamento (prestserv)
     links: [
       // { label: 'Dashboard', href: '/prestserv/dashboard' },
@@ -122,6 +132,10 @@ const setores: SetorCard[] = [
       {
         label: "Lista de Funcionários",
         href: "/prestserv/funcionarios-por-contrato",
+      },
+      {
+        label: "Usuários da Equipe",
+        href: "/logistica/usuarios",
       },
       { label: "Demitidos", href: "/funcionarios/demitidos" },
       { label: "Upload da Planilha (Uptime)", href: "/uptime" },
@@ -142,8 +156,13 @@ const setores: SetorCard[] = [
       "Medicina (Gestor)",
       "Medicina (Editor)",
       "Medicina (Visualizador)",
+      "Liderança (Visualizador)",
     ], // Administração e Medicina
     links: [{ label: "Minhas Tarefas", href: "/tarefas?setor=medicina" }],
+    links: [
+      { label: "Minhas Tarefas", href: "/tarefas?setor=medicina" },
+      { label: "Usuários da Equipe", href: "/medicina/usuarios" },
+    ],
   },
   {
     key: "rh",
@@ -159,8 +178,13 @@ const setores: SetorCard[] = [
       "RH (Gestor)",
       "RH (Editor)",
       "RH (Visualizador)",
+      "Liderança (Visualizador)",
     ], // Administração e RH
     links: [{ label: "Minhas Tarefas", href: "/tarefas?setor=rh" }],
+    links: [
+      { label: "Minhas Tarefas", href: "/tarefas?setor=rh" },
+      { label: "Usuários da Equipe", href: "/rh/usuarios" },
+    ],
   },
   {
     key: "treinamento",
@@ -176,12 +200,14 @@ const setores: SetorCard[] = [
       "Treinamento (Gestor)",
       "Treinamento (Editor)",
       "Treinamento (Visualizador)",
+      "Liderança (Visualizador)",
     ], // Administração e Treinamento
     links: [
       { label: "Minhas Tarefas", href: "/tarefas?setor=treinamento" },
       { label: "Matriz de Treinamento", href: "/matriz-treinamento/contratos" },
       { label: "Gerenciar Funções", href: "/funcoes" },
       { label: "Cadastrar Treinamentos", href: "/treinamentos" },
+      { label: "Usuários da Equipe", href: "/treinamento/usuarios" },
     ],
   },
   {
@@ -198,6 +224,7 @@ const setores: SetorCard[] = [
       "Logística (Gestor)",
       "Logística (Editor)",
       "Logística (Visualizador)",
+      "Liderança (Visualizador)",
     ],
     links: [
       {
@@ -241,7 +268,7 @@ export default function HomePage() {
   // Filtrar links baseado nas permissões (ex: ocultar "Criar Solicitação" para visualizadores)
   const filterLinks = (
     links: { label: string; href: string }[],
-    equipe: string
+    equipe: string,
   ) => {
     // Se for visualizador, filtrar links de criação
     if (equipe.includes("Visualizador")) {
@@ -272,7 +299,7 @@ export default function HomePage() {
               const IconComponent = setor.icon;
               const filteredLinks = filterLinks(
                 setor.links,
-                usuario?.equipe || ""
+                usuario?.equipe || "",
               );
 
               return (

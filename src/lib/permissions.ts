@@ -16,7 +16,6 @@ export const PERMISSIONS = {
   ACCESS_LOGISTICA_VISUALIZADOR: "canAccessLogisticaVisualizador",
   ACCESS_LOGISTICA_GESTOR: "canAccessLogisticaGestor",
 
-  ACCESS_PREST_SERV: "canAccessPrestServ",
   ACCESS_PREST_SERV_VISUALIZADOR: "canAccessPrestServVisualizador",
   ACCESS_PREST_SERV_GESTOR: "canAccessPrestServGestor",
   ACCESS_ADMIN: "canAccessAdmin",
@@ -48,6 +47,17 @@ export const TEAM_PERMISSIONS: { [key: string]: string[] } = {
     PERMISSIONS.ACCESS_MEDICINA,
     PERMISSIONS.MANAGE_USERS,
     PERMISSIONS.MANAGE_TEAMS,
+  ],
+
+  // Liderança - visualização global (sem edição)
+  "Liderança (Visualizador)": [
+    PERMISSIONS.ACCESS_FUNCIONARIOS,
+    PERMISSIONS.ACCESS_PLANEJAMENTO_VISUALIZADOR,
+    PERMISSIONS.ACCESS_LOGISTICA_VISUALIZADOR,
+    PERMISSIONS.ACCESS_PREST_SERV_VISUALIZADOR,
+    PERMISSIONS.ACCESS_RH_VISUALIZADOR,
+    PERMISSIONS.ACCESS_TREINAMENTO_VISUALIZADOR,
+    PERMISSIONS.ACCESS_MEDICINA_VISUALIZADOR,
   ],
 
   // RH
@@ -106,22 +116,6 @@ export const TEAM_PERMISSIONS: { [key: string]: string[] } = {
     PERMISSIONS.ACCESS_PLANEJAMENTO_GESTOR,
   ],
 
-  // Prestserv
-  Prestserv: [PERMISSIONS.ACCESS_FUNCIONARIOS, PERMISSIONS.ACCESS_PREST_SERV],
-  "Prestserv (Editor)": [
-    PERMISSIONS.ACCESS_FUNCIONARIOS,
-    PERMISSIONS.ACCESS_PREST_SERV,
-  ],
-  "Prestserv (Visualizador)": [
-    PERMISSIONS.ACCESS_FUNCIONARIOS,
-    PERMISSIONS.ACCESS_PREST_SERV_VISUALIZADOR,
-  ],
-  "Prestserv (Gestor)": [
-    PERMISSIONS.ACCESS_FUNCIONARIOS,
-    PERMISSIONS.ACCESS_PREST_SERV,
-    PERMISSIONS.ACCESS_PREST_SERV_GESTOR,
-  ],
-
   // Treinamento
   Treinamento: [
     PERMISSIONS.ACCESS_FUNCIONARIOS,
@@ -160,7 +154,60 @@ export const TEAM_PERMISSIONS: { [key: string]: string[] } = {
 
 // Função para obter permissões baseadas na equipe
 export function getPermissionsByTeam(teamName: string): string[] {
-  return TEAM_PERMISSIONS[teamName] || [PERMISSIONS.ACCESS_FUNCIONARIOS];
+  const direct = TEAM_PERMISSIONS[teamName];
+  if (direct) return direct;
+
+  const normalize = (str: string) =>
+    str
+      .trim()
+      .toUpperCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/\s+/g, " ");
+
+  const name = normalize(teamName);
+
+  if (name.includes("ADMINISTRACAO")) {
+    return TEAM_PERMISSIONS["Administração"];
+  }
+
+  if (name.includes("LIDERANCA") && name.includes("VISUALIZADOR")) {
+    return TEAM_PERMISSIONS["Liderança (Visualizador)"];
+  }
+
+  const dept = name.includes("LOGISTICA")
+    ? "Logística"
+    : name.includes("PLANEJAMENTO")
+      ? "Planejamento"
+      : name.includes("TREINAMENTO")
+        ? "Treinamento"
+        : name.includes("MEDICINA")
+          ? "Medicina"
+          : name === "RH" || name.includes(" RH")
+            ? "RH"
+            : null;
+
+  if (!dept) {
+    return [PERMISSIONS.ACCESS_FUNCIONARIOS];
+  }
+
+  const isGestor = name.includes("GESTOR");
+  const isEditor = name.includes("EDITOR");
+  const isVisualizador = name.includes("VISUALIZADOR");
+
+  if (isGestor && TEAM_PERMISSIONS[`${dept} (Gestor)`]) {
+    return TEAM_PERMISSIONS[`${dept} (Gestor)`];
+  }
+  if (isEditor && TEAM_PERMISSIONS[`${dept} (Editor)`]) {
+    return TEAM_PERMISSIONS[`${dept} (Editor)`];
+  }
+  if (isVisualizador && TEAM_PERMISSIONS[`${dept} (Visualizador)`]) {
+    return TEAM_PERMISSIONS[`${dept} (Visualizador)`];
+  }
+  if (TEAM_PERMISSIONS[dept]) {
+    return TEAM_PERMISSIONS[dept];
+  }
+  return [PERMISSIONS.ACCESS_FUNCIONARIOS];
 }
 
 // Função para verificar se uma permissão é de administração
@@ -176,7 +223,7 @@ export function hasFullAccess(permissions: string[]): boolean {
 // Função para verificar se um usuário tem acesso a um módulo específico
 export function hasModuleAccess(
   permissions: string[],
-  modulePermission: string
+  modulePermission: string,
 ): boolean {
   return hasFullAccess(permissions) || permissions.includes(modulePermission);
 }
@@ -199,11 +246,8 @@ export const ROUTE_PROTECTION = {
       "Logística (Gestor)",
       "Logística (Editor)",
       "Logística (Visualizador)",
-      "Prestserv",
-      "Prestserv (Gestor)",
-      "Prestserv (Editor)",
-      "Prestserv (Visualizador)",
       "Administração",
+      "Liderança (Visualizador)",
     ] as string[],
     requiredPermissions: [
       PERMISSIONS.ADMIN,
@@ -221,6 +265,7 @@ export const ROUTE_PROTECTION = {
       "Logística (Editor)",
       "Logística (Visualizador)",
       "Administração",
+      "Liderança (Visualizador)",
     ] as string[],
     requiredPermissions: [
       PERMISSIONS.ADMIN,
@@ -238,6 +283,7 @@ export const ROUTE_PROTECTION = {
       "Planejamento (Editor)",
       "Planejamento (Visualizador)",
       "Administração",
+      "Liderança (Visualizador)",
     ] as string[],
     requiredPermissions: [
       PERMISSIONS.ADMIN,
@@ -255,6 +301,7 @@ export const ROUTE_PROTECTION = {
       "RH (Editor)",
       "RH (Visualizador)",
       "Administração",
+      "Liderança (Visualizador)",
     ] as string[],
     requiredPermissions: [
       PERMISSIONS.ADMIN,
@@ -272,6 +319,7 @@ export const ROUTE_PROTECTION = {
       "Treinamento (Editor)",
       "Treinamento (Visualizador)",
       "Administração",
+      "Liderança (Visualizador)",
     ] as string[],
     requiredPermissions: [
       PERMISSIONS.ADMIN,
@@ -290,9 +338,6 @@ export const ROUTE_PROTECTION = {
       "Logística",
       "Logística (Gestor)",
       "Logística (Editor)",
-      "Prestserv",
-      "Prestserv (Gestor)",
-      "Prestserv (Editor)",
       "Administração",
     ] as string[],
     requiredPermissions: [
@@ -310,6 +355,7 @@ export const ROUTE_PROTECTION = {
       "RH (Editor)",
       "RH (Visualizador)",
       "Administração",
+      "Liderança (Visualizador)",
       "Logística",
       "Logística (Gestor)",
       "Logística (Editor)",
@@ -318,10 +364,6 @@ export const ROUTE_PROTECTION = {
       "Planejamento (Gestor)",
       "Planejamento (Editor)",
       "Planejamento (Visualizador)",
-      "Prestserv",
-      "Prestserv (Gestor)",
-      "Prestserv (Editor)",
-      "Prestserv (Visualizador)",
       "Treinamento",
       "Treinamento (Gestor)",
       "Treinamento (Editor)",
@@ -340,6 +382,7 @@ export const ROUTE_PROTECTION = {
   MATRIZ_TREINAMENTO: {
     requiredEquipe: [
       "Administração",
+      "Liderança (Visualizador)",
       "Logística",
       "Logística (Gestor)",
       "Logística (Editor)",
