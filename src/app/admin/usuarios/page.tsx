@@ -191,7 +191,12 @@ function UsuariosAdminContent() {
       const response = await fetch("/api/equipes");
       const data = await response.json();
       if (data.success) {
-        setEquipes(data.equipes);
+        // Ocultar setor Prestserv nas opções
+        setEquipes(
+          (data.equipes as Equipe[]).filter(
+            (e) => !String(e.nome || "").startsWith("Prestserv"),
+          ),
+        );
       }
     } catch (error) {
       console.error("Erro ao buscar equipes:", error);
