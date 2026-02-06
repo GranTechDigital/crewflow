@@ -3,41 +3,28 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 const teams = [
-  // Planejamento
+  "Administração",
+  "Liderança (Visualizador)",
   "Planejamento",
   "Planejamento (Gestor)",
   "Planejamento (Editor)",
   "Planejamento (Visualizador)",
-
-  // Logística
   "Logística",
   "Logística (Gestor)",
   "Logística (Editor)",
   "Logística (Visualizador)",
-
-  // RH
   "RH",
   "RH (Gestor)",
   "RH (Editor)",
   "RH (Visualizador)",
-
-  // Medicina
   "Medicina",
   "Medicina (Gestor)",
   "Medicina (Editor)",
   "Medicina (Visualizador)",
-
-  // Treinamento
   "Treinamento",
   "Treinamento (Gestor)",
   "Treinamento (Editor)",
   "Treinamento (Visualizador)",
-
-  // Prestserv (caso seja diferente de Logística no banco, mas geralmente é mapeado)
-  "Prestserv",
-  "Prestserv (Gestor)",
-  "Prestserv (Editor)",
-  "Prestserv (Visualizador)",
 ];
 
 async function main() {
