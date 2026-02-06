@@ -1,32 +1,45 @@
 // src/app/api/funcionarios/import/route.ts
-import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma'
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 
 function parseDate(dateStr: string): Date | null {
-  const date = new Date(dateStr)
-  return isNaN(date.getTime()) ? null : date
+  const date = new Date(dateStr);
+  return isNaN(date.getTime()) ? null : date;
 }
 
 export async function POST() {
   try {
-    console.log('Iniciando importação de funcionários externos...')
+    console.log("Iniciando importação de funcionários externos...");
 
-    const url = "https://granihcservices145382.rm.cloudtotvs.com.br:8051/api/framework/v1/consultaSQLServer/RealizaConsulta/GS.INT.0005/1/P";
+    const url =
+      "https://granihcservices145382.rm.cloudtotvs.com.br:8051/api/framework/v1/consultaSQLServer/RealizaConsulta/GS.INT.0005/1/P";
     const headers = {
-      Authorization: 'Basic SW50ZWdyYS5BZG1pc3NhbzpHckBuIWhjMjAyMg==',
+      Authorization: "Basic SW50ZWdyYS5BZG1pc3NhbzpHckBuIWhjMjAyMg==",
     };
 
     const response = await fetch(url, { headers });
     if (!response.ok) {
-      console.error('Erro na API externa:', response.status, response.statusText);
-      return NextResponse.json({ error: 'Erro ao buscar dados da API externa.' }, { status: response.status });
+      console.error(
+        "Erro na API externa:",
+        response.status,
+        response.statusText,
+      );
+      return NextResponse.json(
+        { error: "Erro ao buscar dados da API externa." },
+        { status: response.status },
+      );
     }
 
     const dadosExternos = await response.json();
-    console.log(`Dados externos recebidos: ${Array.isArray(dadosExternos) ? dadosExternos.length : 'não é array'}`);
+    console.log(
+      `Dados externos recebidos: ${Array.isArray(dadosExternos) ? dadosExternos.length : "não é array"}`,
+    );
 
     if (!Array.isArray(dadosExternos)) {
-      return NextResponse.json({ error: 'Formato de dados inválido recebido da API externa.' }, { status: 500 });
+      return NextResponse.json(
+        { error: "Formato de dados inválido recebido da API externa." },
+        { status: 500 },
+      );
     }
 
     const now = new Date();
@@ -34,45 +47,87 @@ export async function POST() {
     // Em vez de apagar (o que pode apagar usuários por cascata),
     // marcamos como DEMITIDO quem não está na fonte e fazemos upsert dos demais
     const existentes = await prisma.funcionario.findMany({
-      select: { id: true, matricula: true, status: true }
+      select: { id: true, matricula: true, status: true },
     });
-    const setApi = new Set<string>(dadosExternos.map((i: any) => String(i.MATRICULA)));
+    const setApi = new Set<string>(
+      dadosExternos.map((i: any) => String(i.MATRICULA)),
+    );
     const paraDemitir = existentes
-      .filter(f => !setApi.has(f.matricula) && f.matricula !== 'ADMIN001' && f.status !== 'DEMITIDO')
-      .map(f => f.matricula);
+      .filter(
+        (f) =>
+          !setApi.has(f.matricula) &&
+          f.matricula !== "ADMIN001" &&
+          f.status !== "DEMITIDO",
+      )
+      .map((f) => f.matricula);
     if (paraDemitir.length > 0) {
       await prisma.funcionario.updateMany({
         where: { matricula: { in: paraDemitir } },
-        data: { status: 'DEMITIDO', atualizadoEm: now, excluidoEm: now }
+        data: { status: "DEMITIDO", atualizadoEm: now, excluidoEm: now },
       });
     }
     console.log(`Marcados como DEMITIDO: ${paraDemitir.length}`);
 
-    const dadosParaInserir = dadosExternos.map((item: Record<string, unknown>) => ({
-      matricula: String(item.MATRICULA),
-      cpf: item.CPF ? String(item.CPF) : null,
-      nome: String(item.NOME),
-      funcao: item.FUNCAO ? String(item.FUNCAO) : null,
-      rg: item.RG ? String(item.RG) : null,
-      orgaoEmissor: item['ORGÃO_EMISSOR'] ? String(item['ORGÃO_EMISSOR']) : null,
-      uf: item.UF ? String(item.UF) : null,
-      dataNascimento: item.DATA_NASCIMENTO ? parseDate(String(item.DATA_NASCIMENTO)) : null,
-      email: item.EMAIL ? String(item.EMAIL) : null,
-      telefone: item.TELEFONE ? String(item.TELEFONE) : null,
-      centroCusto: item.CENTRO_CUSTO ? String(item.CENTRO_CUSTO) : null,
-      departamento: item.DEPARTAMENTO ? String(item.DEPARTAMENTO) : null,
-      status: item.STATUS ? String(item.STATUS) : null,
-      criadoEm: now,
-      excluidoEm: null,
-    }));
+    const dadosParaInserir = dadosExternos.map(
+      (item: Record<string, unknown>) => {
+        const dataAdmissaoRaw =
+          (item as any).DATA_ADMISSAO ??
+          (item as any)["DATA_ADMISSÃO"] ??
+          (item as any).DATAADMISSAO ??
+          (item as any).DT_ADMISSAO ??
+          (item as any).DTADMISSAO ??
+          (item as any).ADMISSAO ??
+          (item as any).dataAdmissao ??
+          null;
+        const dataDemissaoRaw =
+          (item as any).DATA_DEMISSAO ??
+          (item as any)["DATA_DEMISSÃO"] ??
+          (item as any).DATADEMISSAO ??
+          (item as any).DT_DEMISSAO ??
+          (item as any).DTDEMISSAO ??
+          (item as any).DEMISSAO ??
+          (item as any).dataDemissao ??
+          null;
 
-    console.log(`Preparando para inserir ${dadosParaInserir.length} registros no banco.`);
+        return {
+          matricula: String(item.MATRICULA),
+          cpf: item.CPF ? String(item.CPF) : null,
+          nome: String(item.NOME),
+          funcao: item.FUNCAO ? String(item.FUNCAO) : null,
+          rg: item.RG ? String(item.RG) : null,
+          orgaoEmissor: item["ORGÃO_EMISSOR"]
+            ? String(item["ORGÃO_EMISSOR"])
+            : null,
+          uf: item.UF ? String(item.UF) : null,
+          dataNascimento: item.DATA_NASCIMENTO
+            ? parseDate(String(item.DATA_NASCIMENTO))
+            : null,
+          dataAdmissao: dataAdmissaoRaw
+            ? parseDate(String(dataAdmissaoRaw))
+            : null,
+          dataDemissao: dataDemissaoRaw
+            ? parseDate(String(dataDemissaoRaw))
+            : null,
+          email: item.EMAIL ? String(item.EMAIL) : null,
+          telefone: item.TELEFONE ? String(item.TELEFONE) : null,
+          centroCusto: item.CENTRO_CUSTO ? String(item.CENTRO_CUSTO) : null,
+          departamento: item.DEPARTAMENTO ? String(item.DEPARTAMENTO) : null,
+          status: item.STATUS ? String(item.STATUS) : null,
+          criadoEm: now,
+          excluidoEm: null,
+        };
+      },
+    );
+
+    console.log(
+      `Preparando para inserir ${dadosParaInserir.length} registros no banco.`,
+    );
 
     // Upsert: atualizar existentes e criar novos
     let atualizados = 0;
     let criados = 0;
     for (const d of dadosParaInserir) {
-      const found = existentes.find(e => e.matricula === d.matricula);
+      const found = existentes.find((e) => e.matricula === d.matricula);
       if (found) {
         await prisma.funcionario.update({
           where: { matricula: d.matricula },
@@ -84,6 +139,8 @@ export async function POST() {
             orgaoEmissor: d.orgaoEmissor as any,
             uf: d.uf as any,
             dataNascimento: d.dataNascimento as any,
+            dataAdmissao: (d as any).dataAdmissao ?? null,
+            dataDemissao: (d as any).dataDemissao ?? null,
             email: d.email as any,
             telefone: d.telefone as any,
             centroCusto: d.centroCusto as any,
@@ -91,7 +148,7 @@ export async function POST() {
             status: d.status as any,
             atualizadoEm: now,
             excluidoEm: null,
-          }
+          },
         });
         atualizados++;
       } else {
@@ -100,14 +157,22 @@ export async function POST() {
       }
     }
 
-    console.log('Importação concluída com sucesso.');
+    console.log("Importação concluída com sucesso.");
 
-    return NextResponse.json({ message: 'Importação concluída com sucesso!', criados, atualizados, demitidos: paraDemitir.length });
+    return NextResponse.json({
+      message: "Importação concluída com sucesso!",
+      criados,
+      atualizados,
+      demitidos: paraDemitir.length,
+    });
   } catch (error) {
-    console.error('Erro na importação:', error);
+    console.error("Erro na importação:", error);
     return NextResponse.json(
-      { error: 'Erro interno ao importar dados.', details: error instanceof Error ? error.message : String(error) },
-      { status: 500 }
+      {
+        error: "Erro interno ao importar dados.",
+        details: error instanceof Error ? error.message : String(error),
+      },
+      { status: 500 },
     );
   }
 }
