@@ -62,6 +62,7 @@ function UsuariosEquipeContent({ sectorLabel }: { sectorLabel: string }) {
     ? usuario.equipe.split(" (")[0]
     : usuario?.equipe || "";
   const isAdmin = usuario?.equipe === "Administração";
+  const isLeadershipViewer = usuario?.equipe === "Liderança (Visualizador)";
   const isGestorRH =
     usuario?.equipe?.includes("RH") && usuario?.equipe?.includes("(Gestor)");
   // Cadastro de novos membros: exclusivamente Gestor do setor
@@ -154,7 +155,7 @@ function UsuariosEquipeContent({ sectorLabel }: { sectorLabel: string }) {
       const data = await response.json();
       if (data.success) {
         const onlyDept =
-          !isAdmin && deptName && deptName.length > 0
+          !(isAdmin || isLeadershipViewer) && deptName && deptName.length > 0
             ? data.equipes.filter((e: Equipe) =>
                 (e.nome || "").startsWith(deptName),
               )
@@ -166,7 +167,7 @@ function UsuariosEquipeContent({ sectorLabel }: { sectorLabel: string }) {
         );
       }
     } catch {}
-  }, [deptName, isAdmin]);
+  }, [deptName, isAdmin, isLeadershipViewer]);
 
   const fetchFuncionarios = useCallback(async () => {
     try {
@@ -194,17 +195,17 @@ function UsuariosEquipeContent({ sectorLabel }: { sectorLabel: string }) {
       : "";
 
   useEffect(() => {
-    if (!isAdmin && deptName) {
+    if (!(isAdmin || isLeadershipViewer) && deptName) {
       setModalDept(deptName);
     }
-  }, [isAdmin, deptName, showModal]);
+  }, [isAdmin, isLeadershipViewer, deptName, showModal]);
 
   useEffect(() => {
     if (showModal) {
       setModalRole("");
-      setModalDept(isAdmin ? "" : deptName);
+      setModalDept(isAdmin || isLeadershipViewer ? "" : deptName);
     }
-  }, [showModal, isAdmin, deptName]);
+  }, [showModal, isAdmin, isLeadershipViewer, deptName]);
 
   useEffect(() => {
     if (modalDept && modalRole) {
@@ -335,7 +336,9 @@ function UsuariosEquipeContent({ sectorLabel }: { sectorLabel: string }) {
     const matchEquipe =
       selectedEquipe === "" || u.equipe.id.toString() === selectedEquipe;
     const matchDept =
-      isAdmin || (deptName ? u.equipe.nome.startsWith(deptName) : true);
+      isAdmin ||
+      isLeadershipViewer ||
+      (deptName ? u.equipe.nome.startsWith(deptName) : true);
     const matchStatus =
       selectedStatus === "todos"
         ? true

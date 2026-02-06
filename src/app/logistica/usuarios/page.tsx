@@ -70,6 +70,7 @@ function UsuariosEquipeContent() {
     ? usuario.equipe.split(" (")[0]
     : usuario?.equipe || "";
   const isAdmin = hasPermission(PERMISSIONS.ADMIN);
+  const isLeadershipViewer = usuario?.equipe === "Liderança (Visualizador)";
   const canManageTeam =
     isAdmin || hasPermission(PERMISSIONS.ACCESS_LOGISTICA_GESTOR);
   const canCreateUser = hasPermission(PERMISSIONS.ACCESS_LOGISTICA_GESTOR);
@@ -160,17 +161,17 @@ function UsuariosEquipeContent() {
   }, []);
 
   useEffect(() => {
-    if (!isAdmin && deptName) {
+    if (!(isAdmin || isLeadershipViewer) && deptName) {
       setModalDept(deptName);
     }
-  }, [isAdmin, deptName, showModal]);
+  }, [isAdmin, isLeadershipViewer, deptName, showModal]);
 
   useEffect(() => {
     if (showModal) {
       setModalRole("");
-      setModalDept(isAdmin ? "" : deptName);
+      setModalDept(isAdmin || isLeadershipViewer ? "" : deptName);
     }
-  }, [showModal, isAdmin, deptName]);
+  }, [showModal, isAdmin, isLeadershipViewer, deptName]);
 
   useEffect(() => {
     if (!modalDept || !modalRole) return;
@@ -217,7 +218,7 @@ function UsuariosEquipeContent() {
       const data = await response.json();
       if (data.success) {
         const onlyDept =
-          !isAdmin && deptName && deptName.length > 0
+          !(isAdmin || isLeadershipViewer) && deptName && deptName.length > 0
             ? data.equipes.filter((e: Equipe) => {
                 const en = normalize(e.nome || "");
                 const dn = normalize(deptName);
@@ -231,7 +232,7 @@ function UsuariosEquipeContent() {
         );
       }
     } catch {}
-  }, [deptName, isAdmin]);
+  }, [deptName, isAdmin, isLeadershipViewer]);
 
   const fetchFuncionarios = useCallback(async () => {
     try {
@@ -397,6 +398,7 @@ function UsuariosEquipeContent() {
     // Visualização por setor: não-admin vê membros do próprio setor
     const matchDept =
       isAdmin ||
+      isLeadershipViewer ||
       (deptName
         ? normalize(u.equipe.nome).startsWith(normalize(deptName))
         : true);

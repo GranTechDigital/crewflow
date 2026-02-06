@@ -1,18 +1,18 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient, Prisma } from '@prisma/client';
-import bcrypt from 'bcryptjs';
-import { getUserFromRequest } from '@/utils/authUtils';
+import { NextRequest, NextResponse } from "next/server";
+import { PrismaClient, Prisma } from "@prisma/client";
+import bcrypt from "bcryptjs";
+import { getUserFromRequest } from "@/utils/authUtils";
 
 const prisma = new PrismaClient();
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '10');
-    const search = searchParams.get('search') || '';
-    const equipeId = searchParams.get('equipeId');
-    const ativo = searchParams.get('ativo');
+    const page = parseInt(searchParams.get("page") || "1");
+    const limit = parseInt(searchParams.get("limit") || "10");
+    const search = searchParams.get("search") || "";
+    const equipeId = searchParams.get("equipeId");
+    const ativo = searchParams.get("ativo");
 
     const skip = (page - 1) * limit;
 
@@ -21,8 +21,8 @@ export async function GET(request: NextRequest) {
     // Excluir o administrador do sistema das listagens
     where.funcionario = {
       matricula: {
-        not: 'ADMIN001'
-      }
+        not: "ADMIN001",
+      },
     };
 
     if (search) {
@@ -33,9 +33,9 @@ export async function GET(request: NextRequest) {
             { funcionario: { nome: { contains: search } } },
             { funcionario: { matricula: { contains: search } } },
             { funcionario: { email: { contains: search } } },
-            { emailSecundario: { contains: search } }
-          ]
-        }
+            { emailSecundario: { contains: search } },
+          ],
+        },
       ];
       // Limpar where.funcionario para não conflitar com AND
       delete (where as any).funcionario;
@@ -43,9 +43,12 @@ export async function GET(request: NextRequest) {
 
     // Aplicar restrição por equipe conforme usuário autenticado (não-admin)
     const usuario = await getUserFromRequest(request);
-    const isAdminUser = !!usuario && usuario.equipe?.nome === 'Administração';
-    const creatorDept =
-      usuario?.equipe?.nome ? usuario.equipe.nome.split(' (')[0] : null;
+    const isAdminUser = !!usuario && usuario.equipe?.nome === "Administração";
+    const isLeadershipViewer =
+      !!usuario && usuario.equipe?.nome === "Liderança (Visualizador)";
+    const creatorDept = usuario?.equipe?.nome
+      ? usuario.equipe.nome.split(" (")[0]
+      : null;
 
     if (equipeId) {
       // Admin pode filtrar livremente; não-admin será ajustado abaixo para o próprio departamento
@@ -53,11 +56,11 @@ export async function GET(request: NextRequest) {
     }
 
     if (ativo !== null && ativo !== undefined) {
-      where.ativo = ativo === 'true';
+      where.ativo = ativo === "true";
     }
 
     // Se não for admin, restringir consulta ao departamento do usuário
-    if (!isAdminUser && creatorDept) {
+    if (!isAdminUser && !isLeadershipViewer && creatorDept) {
       (where as any).equipe = {
         nome: { startsWith: creatorDept },
       };
@@ -76,30 +79,30 @@ export async function GET(request: NextRequest) {
               nome: true,
               email: true,
               funcao: true,
-              departamento: true
-            }
+              departamento: true,
+            },
           },
           equipe: {
             select: {
               id: true,
-              nome: true
-            }
-          }
+              nome: true,
+            },
+          },
         },
         skip,
         take: limit,
         orderBy: {
           funcionario: {
-            nome: 'asc'
-          }
-        }
+            nome: "asc",
+          },
+        },
       }),
-      prisma.usuario.count({ where })
+      prisma.usuario.count({ where }),
     ]);
 
     return NextResponse.json({
       success: true,
-      usuarios: usuarios.map(usuario => ({
+      usuarios: usuarios.map((usuario) => ({
         id: usuario.id,
         funcionarioId: usuario.funcionarioId,
         matricula: usuario.funcionario.matricula,
@@ -112,20 +115,20 @@ export async function GET(request: NextRequest) {
         ativo: usuario.ativo,
         ultimoLogin: usuario.ultimoLogin,
         createdAt: usuario.createdAt,
-        updatedAt: usuario.updatedAt
+        updatedAt: usuario.updatedAt,
       })),
       pagination: {
         page,
         limit,
         total,
-        totalPages: Math.ceil(total / limit)
-      }
+        totalPages: Math.ceil(total / limit),
+      },
     });
   } catch (error) {
-    console.error('Erro ao buscar usuários:', error);
+    console.error("Erro ao buscar usuários:", error);
     return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
+      { error: "Erro interno do servidor" },
+      { status: 500 },
     );
   }
 }
@@ -135,52 +138,49 @@ export async function POST(request: NextRequest) {
     const { funcionarioId, senha, equipeId } = await request.json();
     const usuario = await getUserFromRequest(request);
     if (!usuario) {
-      return NextResponse.json(
-        { error: 'Não autenticado' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
     }
 
-    const isAdminUser = usuario.equipe?.nome === 'Administração';
+    const isAdminUser = usuario.equipe?.nome === "Administração";
     const isGestor =
-      usuario.equipe?.nome && usuario.equipe.nome.includes('(Gestor)');
+      usuario.equipe?.nome && usuario.equipe.nome.includes("(Gestor)");
 
     if (!funcionarioId || !senha || !equipeId) {
       return NextResponse.json(
-        { error: 'Funcionário, senha e equipe são obrigatórios' },
-        { status: 400 }
+        { error: "Funcionário, senha e equipe são obrigatórios" },
+        { status: 400 },
       );
     }
 
     // Verificar se o funcionário existe
     const funcionario = await prisma.funcionario.findUnique({
       where: { id: funcionarioId },
-      include: { usuario: true }
+      include: { usuario: true },
     });
 
     if (!funcionario) {
       return NextResponse.json(
-        { error: 'Funcionário não encontrado' },
-        { status: 404 }
+        { error: "Funcionário não encontrado" },
+        { status: 404 },
       );
     }
 
     if (funcionario.usuario) {
       return NextResponse.json(
-        { error: 'Funcionário já possui usuário cadastrado' },
-        { status: 400 }
+        { error: "Funcionário já possui usuário cadastrado" },
+        { status: 400 },
       );
     }
 
     // Verificar se a equipe existe
     const equipe = await prisma.equipe.findUnique({
-      where: { id: equipeId }
+      where: { id: equipeId },
     });
 
     if (!equipe) {
       return NextResponse.json(
-        { error: 'Equipe não encontrada' },
-        { status: 404 }
+        { error: "Equipe não encontrada" },
+        { status: 404 },
       );
     }
 
@@ -188,22 +188,24 @@ export async function POST(request: NextRequest) {
     if (!isAdminUser) {
       if (!isGestor) {
         return NextResponse.json(
-          { error: 'Apenas gestores de setor podem criar usuários' },
-          { status: 403 }
+          { error: "Apenas gestores de setor podem criar usuários" },
+          { status: 403 },
         );
       }
-      const creatorDept = usuario.equipe!.nome.split(' (')[0];
-      const targetDept = equipe.nome.split(' (')[0];
+      const creatorDept = usuario.equipe!.nome.split(" (")[0];
+      const targetDept = equipe.nome.split(" (")[0];
       if (creatorDept !== targetDept) {
         return NextResponse.json(
-          { error: 'Você só pode criar usuários para sua própria equipe/setor' },
-          { status: 403 }
+          {
+            error: "Você só pode criar usuários para sua própria equipe/setor",
+          },
+          { status: 403 },
         );
       }
-      if (equipe.nome.includes('(Gestor)')) {
+      if (equipe.nome.includes("(Gestor)")) {
         return NextResponse.json(
-          { error: 'Não é permitido criar usuários com perfil Gestor' },
-          { status: 403 }
+          { error: "Não é permitido criar usuários com perfil Gestor" },
+          { status: 403 },
         );
       }
     }
@@ -216,7 +218,7 @@ export async function POST(request: NextRequest) {
       data: {
         funcionarioId,
         senha: senhaHash,
-        equipeId
+        equipeId,
       },
       include: {
         funcionario: {
@@ -226,39 +228,42 @@ export async function POST(request: NextRequest) {
             nome: true,
             email: true,
             funcao: true,
-            departamento: true
-          }
+            departamento: true,
+          },
         },
         equipe: {
           select: {
             id: true,
-            nome: true
-          }
-        }
-      }
+            nome: true,
+          },
+        },
+      },
     });
 
-    return NextResponse.json({
-      success: true,
-      usuario: {
-        id: novoUsuario.id,
-        funcionarioId: novoUsuario.funcionarioId,
-        matricula: novoUsuario.funcionario.matricula,
-        nome: novoUsuario.funcionario.nome,
-        email: novoUsuario.funcionario.email,
-        funcao: novoUsuario.funcionario.funcao,
-        departamento: novoUsuario.funcionario.departamento,
-        equipe: novoUsuario.equipe,
-        ativo: novoUsuario.ativo,
-        createdAt: novoUsuario.createdAt,
-        updatedAt: novoUsuario.updatedAt
-      }
-    }, { status: 201 });
-  } catch (error) {
-    console.error('Erro ao criar usuário:', error);
     return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
+      {
+        success: true,
+        usuario: {
+          id: novoUsuario.id,
+          funcionarioId: novoUsuario.funcionarioId,
+          matricula: novoUsuario.funcionario.matricula,
+          nome: novoUsuario.funcionario.nome,
+          email: novoUsuario.funcionario.email,
+          funcao: novoUsuario.funcionario.funcao,
+          departamento: novoUsuario.funcionario.departamento,
+          equipe: novoUsuario.equipe,
+          ativo: novoUsuario.ativo,
+          createdAt: novoUsuario.createdAt,
+          updatedAt: novoUsuario.updatedAt,
+        },
+      },
+      { status: 201 },
+    );
+  } catch (error) {
+    console.error("Erro ao criar usuário:", error);
+    return NextResponse.json(
+      { error: "Erro interno do servidor" },
+      { status: 500 },
     );
   }
 }

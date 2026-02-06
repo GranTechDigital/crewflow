@@ -8,7 +8,7 @@ import {
   ArrowPathIcon,
 } from "@heroicons/react/24/outline";
 import ProtectedRoute from "@/components/ProtectedRoute";
-import { PERMISSIONS } from "@/lib/permissions";
+import { PERMISSIONS, ROUTE_PROTECTION } from "@/lib/permissions";
 import { useAuth } from "@/app/hooks/useAuth";
 
 interface Funcionario {
@@ -49,11 +49,8 @@ interface Usuario {
 export default function UsuariosTreinamentoPage() {
   return (
     <ProtectedRoute
-      requiredPermissions={[
-        PERMISSIONS.ACCESS_TREINAMENTO_GESTOR,
-        PERMISSIONS.ADMIN,
-      ]}
-      requiredEquipe={["Treinamento (Gestor)", "Administração"]}
+      requiredPermissions={ROUTE_PROTECTION.TREINAMENTO.requiredPermissions}
+      requiredEquipe={ROUTE_PROTECTION.TREINAMENTO.requiredEquipe}
     >
       <UsuariosEquipeContent sectorLabel="Treinamento" />
     </ProtectedRoute>
@@ -66,6 +63,7 @@ function UsuariosEquipeContent({ sectorLabel }: { sectorLabel: string }) {
     ? usuario.equipe.split(" (")[0]
     : usuario?.equipe || "";
   const isAdmin = usuario?.equipe === "Administração";
+  const isLeadershipViewer = usuario?.equipe === "Liderança (Visualizador)";
   const isGestorTreinamento =
     usuario?.equipe?.includes("Treinamento") &&
     usuario?.equipe?.includes("(Gestor)");
@@ -163,7 +161,7 @@ function UsuariosEquipeContent({ sectorLabel }: { sectorLabel: string }) {
       const data = await response.json();
       if (data.success) {
         const onlyDept =
-          !isAdmin && deptName && deptName.length > 0
+          !(isAdmin || isLeadershipViewer) && deptName && deptName.length > 0
             ? data.equipes.filter((e: Equipe) =>
                 (e.nome || "").startsWith(deptName),
               )
@@ -175,7 +173,7 @@ function UsuariosEquipeContent({ sectorLabel }: { sectorLabel: string }) {
         );
       }
     } catch {}
-  }, [deptName, isAdmin]);
+  }, [deptName, isAdmin, isLeadershipViewer]);
 
   const fetchFuncionarios = useCallback(async () => {
     try {
