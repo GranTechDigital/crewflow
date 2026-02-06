@@ -311,11 +311,17 @@ export async function PUT(
             });
           } catch {}
         }
+      } catch (setorError) {
+        console.error("Erro ao atualizar setor da tarefa:", setorError);
+      }
+
+      // Registrar evento de status (TarefaStatusEvento) - Isolado para garantir execução
+      try {
         await prisma.tarefaStatusEvento.create({
           data: {
             tarefaId: tarefaAtualizada.id,
             remanejamentoFuncionarioId: tarefaAtualizada.remanejamentoFuncionarioId,
-            statusAnterior: tarefaAtual.status,
+            statusAnterior: tarefaAtual.status || 'INDEFINIDO', // Fallback de segurança
             statusNovo: status,
             observacoes: observacoes || undefined,
             usuarioResponsavelId: usuarioAutenticado?.id ?? undefined,

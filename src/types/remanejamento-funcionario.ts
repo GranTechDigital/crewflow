@@ -181,7 +181,7 @@ export interface DashboardRemanejamento {
     status: StatusPrestserv;
     count: number;
   }[];
-  
+
   // Novos campos para os gráficos adicionais
   solicitacoesPorTipo?: Record<string, number>;
   solicitacoesPorOrigemDestino?: Array<{

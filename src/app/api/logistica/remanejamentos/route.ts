@@ -35,10 +35,12 @@ type PrismaFuncionario = {
   matricula: string;
   funcao: string | null;
   centroCusto: string | null;
+  dataAdmissao: Date | null;
   status: string | null;
   emMigracao: boolean;
   statusPrestserv: string | null;
   sispat: string | null;
+  regimeTratado?: string | null;
   uptimeSheets: PrismaUptimeSheet[];
 };
 
@@ -125,10 +127,12 @@ interface FuncionarioSelect {
   matricula: string;
   funcao: string | null;
   centroCusto: string | null;
+  dataAdmissao: Date | null;
   status: string | null;
   emMigracao: boolean;
   statusPrestserv: string | null;
   sispat: string | null;
+  regimeTratado?: string | null;
   uptimeSheets: UptimeSheetData[];
 }
 
@@ -435,43 +439,142 @@ async function buscarRemanejamentos(
   const tarefasInclude =
     Object.keys(tarefasWhere).length > 0 ? { where: tarefasWhere } : true;
 
-  // Buscar as solicitações com todos os remanejamentos encontrados
-  const solicitacoes = await prisma.solicitacaoRemanejamento.findMany({
-    where,
-    include: {
-      contratoOrigem: true,
-      contratoDestino: true,
-      funcionarios: {
-        where: {
-          id: {
-            in: remanejamentoIds,
-          },
-          ...funcionariosWhere,
-        },
-        include: {
-          funcionario: {
-            select: {
-              id: true,
-              nome: true,
-              matricula: true,
-              funcao: true,
-              centroCusto: true,
-              status: true,
-              emMigracao: true,
-              statusPrestserv: true,
-              sispat: true,
-              uptimeSheets: true,
+  const funcionarioSelect = {
+    id: true,
+    nome: true,
+    matricula: true,
+    funcao: true,
+    centroCusto: true,
+    status: true,
+    emMigracao: true,
+    statusPrestserv: true,
+    sispat: true,
+    dataAdmissao: true,
+    uptimeSheets: true,
+  };
+
+  let solicitacoes;
+  try {
+    solicitacoes = await prisma.solicitacaoRemanejamento.findMany({
+      where,
+      include: {
+        contratoOrigem: true,
+        contratoDestino: true,
+        funcionarios: {
+          where: {
+            id: {
+              in: remanejamentoIds,
             },
+            ...funcionariosWhere,
           },
-          tarefas: tarefasInclude,
+          include: {
+            funcionario: {
+              select: funcionarioSelect,
+            },
+            tarefas: tarefasInclude,
+          },
         },
       },
-    },
-    orderBy: {
-      id: "desc",
-    },
-  });
+      orderBy: {
+        id: "desc",
+      },
+    });
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    if (msg.toLowerCase().includes("dataadmissao")) {
+      const { dataAdmissao, ...selectSemData } = funcionarioSelect;
+      solicitacoes = await prisma.solicitacaoRemanejamento.findMany({
+        where,
+        include: {
+          contratoOrigem: true,
+          contratoDestino: true,
+          funcionarios: {
+            where: {
+              id: {
+                in: remanejamentoIds,
+              },
+              ...funcionariosWhere,
+            },
+            include: {
+              funcionario: {
+                select: selectSemData,
+              },
+              tarefas: tarefasInclude,
+            },
+          },
+        },
+        orderBy: {
+          id: "desc",
+        },
+      });
+    } else {
+      throw error;
+    }
+  }
   const duracaoBusca = Date.now() - inicioBusca;
+
+  const matriculas = Array.from(
+    new Set(
+      solicitacoes.flatMap(
+        (s) =>
+          s.funcionarios
+            ?.map((rf) => rf.funcionario?.matricula)
+            .filter((m): m is string => !!m) || [],
+      ),
+    ),
+  );
+
+  if (matriculas.length > 0) {
+    const dadosPeriodo = await prisma.periodoSheet.findMany({
+      where: { matricula: { in: matriculas } },
+      select: {
+        matricula: true,
+        regimeTratado: true,
+        regimeTrabalho: true,
+        dataAdmissao: true,
+        anoReferencia: true,
+        mesReferencia: true,
+        createdAt: true,
+      },
+      orderBy: [
+        { anoReferencia: "desc" },
+        { mesReferencia: "desc" },
+        { createdAt: "desc" },
+      ],
+    });
+
+    const infoPorMatricula = new Map<
+      string,
+      { regime: string | null; dataAdmissao: Date | null }
+    >();
+    dadosPeriodo.forEach((reg) => {
+      if (!infoPorMatricula.has(reg.matricula)) {
+        const regimeNormalizado = reg.regimeTratado
+          ? reg.regimeTratado
+          : reg.regimeTrabalho
+            ? reg.regimeTrabalho.toUpperCase().includes("OFF")
+              ? "OFFSHORE"
+              : "ONSHORE"
+            : null;
+        infoPorMatricula.set(reg.matricula, {
+          regime: regimeNormalizado,
+          dataAdmissao: reg.dataAdmissao ?? null,
+        });
+      }
+    });
+
+    solicitacoes.forEach((s) =>
+      s.funcionarios?.forEach((rf) => {
+        const info = infoPorMatricula.get(rf.funcionario?.matricula);
+        if (info) {
+          if (!rf.funcionario.dataAdmissao && info.dataAdmissao) {
+            (rf.funcionario as any).dataAdmissao = info.dataAdmissao;
+          }
+          (rf.funcionario as any).regimeTratado = info.regime;
+        }
+      }),
+    );
+  }
 
   try {
     const rfIds: string[] = [];

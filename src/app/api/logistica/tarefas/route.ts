@@ -136,7 +136,17 @@ export async function POST(request: NextRequest) {
         include: {
           solicitacao: true,
           funcionario: {
-            include: {
+            select: {
+              id: true,
+              nome: true,
+              matricula: true,
+              funcao: true,
+              centroCusto: true,
+              status: true,
+              emMigracao: true,
+              statusPrestserv: true,
+              sispat: true,
+              dataAdmissao: true,
               uptimeSheets: true,
             },
           },
@@ -168,15 +178,8 @@ export async function POST(request: NextRequest) {
     let defaultDataLimite: Date | undefined = undefined;
     try {
       const now = new Date();
-      const sheets = (remanejamentoFuncionario as any)?.funcionario?.uptimeSheets || [];
-      let dataAdmissao: Date | null = null;
-      if (Array.isArray(sheets) && sheets.length > 0) {
-        const sorted = [...sheets].sort(
-          (a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        );
-        const found = sorted.find((s: any) => !!s?.dataAdmissao);
-        dataAdmissao = found?.dataAdmissao ? new Date(found.dataAdmissao) : null;
-      }
+      const dataAdmissaoRaw = (remanejamentoFuncionario as any)?.funcionario?.dataAdmissao || null;
+      const dataAdmissao = dataAdmissaoRaw ? new Date(dataAdmissaoRaw) : null;
       if (dataAdmissao && dataAdmissao.getTime() > now.getTime()) {
         defaultDataLimite = new Date(dataAdmissao.getTime() + 48 * 60 * 60 * 1000);
       } else {

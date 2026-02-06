@@ -35,6 +35,7 @@ interface Tarefa {
   status: "PENDENTE" | "EM_ANDAMENTO" | "CONCLUIDA";
   dataLimite?: string;
   dataCriacao: string;
+  dataConclusao?: string;
   descricao: string;
 }
 
@@ -95,7 +96,7 @@ function TarefasPageContent() {
   const fetchRemanejamento = async () => {
     try {
       const response = await fetch(
-        `/api/logistica/funcionario/${funcionarioId}`
+        `/api/logistica/funcionario/${funcionarioId}`,
       );
       if (!response.ok) {
         throw new Error("Erro ao carregar dados");
@@ -122,7 +123,7 @@ function TarefasPageContent() {
         remanejamento.statusPrestserv === "APROVADO")
     ) {
       alert(
-        "Não é possível criar novas tarefas quando o prestserv está submetido ou aprovado"
+        "Não é possível criar novas tarefas quando o prestserv está submetido ou aprovado",
       );
       return;
     }
@@ -281,7 +282,7 @@ function TarefasPageContent() {
                 <div className="text-sm text-gray-500">Status das Tarefas</div>
                 <div
                   className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(
-                    remanejamento.statusTarefas
+                    remanejamento.statusTarefas,
                   )}`}
                 >
                   {getStatusIcon(remanejamento.statusTarefas)}
@@ -456,7 +457,7 @@ function TarefasPageContent() {
                           </h4>
                           <span
                             className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(
-                              tarefa.status
+                              tarefa.status,
                             )}`}
                           >
                             {getStatusIcon(tarefa.status)}
@@ -464,7 +465,7 @@ function TarefasPageContent() {
                           </span>
                           <span
                             className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPrioridadeColor(
-                              tarefa.prioridade
+                              tarefa.prioridade,
                             )}`}
                           >
                             {tarefa.prioridade}
