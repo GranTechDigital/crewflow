@@ -124,13 +124,45 @@ jobs:
         run: |
           ssh -o StrictHostKeyChecking=no root@${{ secrets.PROD_SERVER_HOST }} << 'EOF'
             set -e
-            echo "🔎 Inserindo equipe Liderança (Visualizador) se ainda não existir (heredoc seguro)..."
-            docker exec postgres-prod bash -lc '
-              export PGPASSWORD="$POSTGRES_PASSWORD";
-              psql -h localhost -U "$POSTGRES_USER" -d "${POSTGRES_DB:-projetogran}" -v ON_ERROR_STOP=1 -c "INSERT INTO \\"Equipe\\" (nome, descricao, ativo) VALUES ($$Liderança (Visualizador)$$, $$Equipe Liderança (Visualizador)$$, true) ON CONFLICT (nome) DO NOTHING;"
+            echo "🔎 Inserindo equipe Liderança (Visualizador) se ainda não existir (via Prisma no container da aplicação)..."
+            docker exec crewflow-app-production bash -lc '
+              node <<'\''JS'\''
+              const { PrismaClient } = require("@prisma/client");
+              const prisma = new PrismaClient();
+              (async () => {
+                try {
+                  const nome = "Liderança (Visualizador)";
+                  const found = await prisma.equipe.findUnique({ where: { nome } });
+                  if (!found) {
+                    const created = await prisma.equipe.create({
+                      data: { nome, descricao: "Equipe Liderança (Visualizador)", ativo: true },
+                      select: { id: true, nome: true, ativo: true }
+                    });
+                    console.log("✅ Equipe criada:", created);
+                  } else {
+                    console.log("✅ Equipe já existe:", { id: found.id, nome: found.nome, ativo: found.ativo });
+                  }
+                } catch (e) {
+                  console.error("❌ Erro ao garantir equipe Liderança:", e);
+                  process.exit(1);
+                } finally {
+                  await prisma.$disconnect();
+                }
+              })();
+              JS
             '
-            echo "✅ Verificação/Inserção concluída. Conferindo registro:"
-            docker exec postgres-prod bash -lc 'export PGPASSWORD="$POSTGRES_PASSWORD"; psql -h localhost -U "$POSTGRES_USER" -d "${POSTGRES_DB:-projetogran}" -tAc "SELECT id, nome, ativo FROM \\"Equipe\\" WHERE nome LIKE $$Liderança%$$;"'
+            echo "✅ Conferindo registro via Prisma/DB:"
+            docker exec crewflow-app-production bash -lc '
+              node <<'\''JS'\''
+              const { PrismaClient } = require("@prisma/client");
+              const prisma = new PrismaClient();
+              (async () => {
+                const all = await prisma.equipe.findMany({ where: { nome: { startsWith: "Liderança" } }, select: { id: true, nome: true, ativo: true } });
+                console.log(all);
+                await prisma.$disconnect();
+              })();
+              JS
+            '
           EOF
 
       - name: 🧹 Prepare server before image load (safe prune)
