@@ -120,6 +120,16 @@ jobs:
             ls -1t /var/backups/projetogran/producao/crewflow_production_*.dump | tail -n +31 | xargs -r rm -f
           EOF
 
+      - name: 👤 Ensure Leadership team (idempotente)
+        run: |
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.PROD_SERVER_HOST }} << 'EOF'
+            set -e
+            echo "🔎 Inserindo equipe Liderança (Visualizador) se ainda não existir..."
+            docker exec postgres-prod bash -lc 'export PGPASSWORD="$POSTGRES_PASSWORD"; psql -h localhost -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "INSERT INTO \"Equipe\" (nome, descricao, ativo) VALUES (\'Liderança (Visualizador)\', \'Equipe Liderança (Visualizador)\', true) ON CONFLICT (nome) DO NOTHING;"'
+            echo "✅ Verificação/Inserção concluída"
+            docker exec postgres-prod bash -lc 'export PGPASSWORD="$POSTGRES_PASSWORD"; psql -h localhost -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "SELECT id, nome, ativo FROM \"Equipe\" WHERE nome LIKE \'Liderança%\';"'
+          EOF
+
       - name: 🧹 Prepare server before image load (safe prune)
         if: ${{ false }}
         run: |
