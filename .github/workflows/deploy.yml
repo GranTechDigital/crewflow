@@ -127,14 +127,10 @@ jobs:
             echo "🔎 Inserindo equipe Liderança (Visualizador) se ainda não existir (heredoc seguro)..."
             docker exec postgres-prod bash -lc '
               export PGPASSWORD="$POSTGRES_PASSWORD";
-              psql -h localhost -U "$POSTGRES_USER" -d "${POSTGRES_DB:-projetogran}" -v ON_ERROR_STOP=1 <<'\''SQL'\''
-INSERT INTO "Equipe" (nome, descricao, ativo)
-VALUES ('Liderança (Visualizador)', 'Equipe Liderança (Visualizador)', true)
-ON CONFLICT (nome) DO NOTHING;
-SQL
+              psql -h localhost -U "$POSTGRES_USER" -d "${POSTGRES_DB:-projetogran}" -v ON_ERROR_STOP=1 -c "INSERT INTO \\"Equipe\\" (nome, descricao, ativo) VALUES ($$Liderança (Visualizador)$$, $$Equipe Liderança (Visualizador)$$, true) ON CONFLICT (nome) DO NOTHING;"
             '
             echo "✅ Verificação/Inserção concluída. Conferindo registro:"
-            docker exec postgres-prod bash -lc 'export PGPASSWORD="$POSTGRES_PASSWORD"; psql -h localhost -U "$POSTGRES_USER" -d "${POSTGRES_DB:-projetogran}" -tAc "SELECT id, nome, ativo FROM \"Equipe\" WHERE nome LIKE \'Liderança%\';"'
+            docker exec postgres-prod bash -lc 'export PGPASSWORD="$POSTGRES_PASSWORD"; psql -h localhost -U "$POSTGRES_USER" -d "${POSTGRES_DB:-projetogran}" -tAc "SELECT id, nome, ativo FROM \\"Equipe\\" WHERE nome LIKE $$Liderança%$$;"'
           EOF
 
       - name: 🧹 Prepare server before image load (safe prune)
