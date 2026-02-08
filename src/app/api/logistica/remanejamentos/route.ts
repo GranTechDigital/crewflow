@@ -548,18 +548,28 @@ async function buscarRemanejamentos(
       { regime: string | null; dataAdmissao: Date | null }
     >();
     dadosPeriodo.forEach((reg) => {
-      if (!infoPorMatricula.has(reg.matricula)) {
-        const regimeNormalizado = reg.regimeTratado
-          ? reg.regimeTratado
-          : reg.regimeTrabalho
+      const atual = infoPorMatricula.get(reg.matricula);
+      const regimeBase =
+        reg.regimeTratado && reg.regimeTratado.trim()
+          ? reg.regimeTratado.trim()
+          : reg.regimeTrabalho && reg.regimeTrabalho.trim()
             ? reg.regimeTrabalho.toUpperCase().includes("OFF")
               ? "OFFSHORE"
               : "ONSHORE"
             : null;
+      const admissao = reg.dataAdmissao ?? null;
+      if (!atual) {
         infoPorMatricula.set(reg.matricula, {
-          regime: regimeNormalizado,
-          dataAdmissao: reg.dataAdmissao ?? null,
+          regime: regimeBase,
+          dataAdmissao: admissao,
         });
+      } else {
+        if (!atual.regime && regimeBase) {
+          atual.regime = regimeBase;
+        }
+        if (!atual.dataAdmissao && admissao) {
+          atual.dataAdmissao = admissao;
+        }
       }
     });
 
