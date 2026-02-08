@@ -2121,11 +2121,8 @@ export default function TarefasPage() {
                       dataAdmissao && !Number.isNaN(dataAdmissao.getTime())
                         ? dataAdmissao.toLocaleDateString("pt-BR")
                         : null;
-                    const regimeTratado =
-                      (funcionario as any)?.regimeTratado || null;
                     const textoAdmissao =
                       dataAdmissaoFormatada || "Não informada";
-                    const textoRegime = regimeTratado || "Não informado";
 
                     const nowMs = Date.now();
                     const isAdmissaoFutura =
@@ -2243,9 +2240,6 @@ export default function TarefasPage() {
                                   </span>
                                   <span className="ml-2">
                                     • Admissão: {textoAdmissao}
-                                  </span>
-                                  <span className="ml-2">
-                                    • Regime: {textoRegime}
                                   </span>
                                 </div>
                               </div>
