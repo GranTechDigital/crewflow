@@ -30,6 +30,8 @@ ChartJS.register(
 );
 import {
   MagnifyingGlassIcon,
+  FunnelIcon,
+  ChevronDownIcon,
   UserGroupIcon,
   ClockIcon,
   CheckCircleIcon,
@@ -123,15 +125,17 @@ export default function TarefasPage() {
 
   // Filtros
   const [filtroNome, setFiltroNome] = useState("");
-  const [filtroStatus, setFiltroStatus] = useState("");
-  const [filtroPrioridade, setFiltroPrioridade] = useState("");
-  const [filtroSetor, setFiltroSetor] = useState("");
-  const [filtroContrato, setFiltroContrato] = useState("");
+  const [filtroStatusList, setFiltroStatusList] = useState<string[]>([]);
+  const [filtroPrioridadeList, setFiltroPrioridadeList] = useState<string[]>(
+    [],
+  );
+  const [filtroSetorList, setFiltroSetorList] = useState<string[]>([]);
+  const [filtroContratoList, setFiltroContratoList] = useState<string[]>([]);
   // Novo: filtros por data de vencimento (intervalo)
   const [filtroDataInicio, setFiltroDataInicio] = useState("");
   const [filtroDataFim, setFiltroDataFim] = useState("");
   // Novos filtros: tipo e categoria de data limite, e ordenação por data limite
-  const [filtroTipo, setFiltroTipo] = useState("");
+  const [filtroTipoList, setFiltroTipoList] = useState<string[]>([]);
   const [filtroDataCategoria, setFiltroDataCategoria] = useState<
     "" | "VENCIDOS" | "A_VENCER" | "NO_PRAZO" | "SEM_DATA" | "NOVO"
   >("");
@@ -139,6 +143,11 @@ export default function TarefasPage() {
     "" | "asc" | "desc"
   >("");
   const [filtroDataExata, setFiltroDataExata] = useState("");
+  const [dropdownStatusOpen, setDropdownStatusOpen] = useState(false);
+  const [dropdownPrioridadeOpen, setDropdownPrioridadeOpen] = useState(false);
+  const [dropdownContratoOpen, setDropdownContratoOpen] = useState(false);
+  const [dropdownSetorOpen, setDropdownSetorOpen] = useState(false);
+  const [dropdownTipoOpen, setDropdownTipoOpen] = useState(false);
 
   // Refs para evitar re-renderizações
   const filtroNomeRef = useRef<HTMLInputElement>(null);
@@ -264,19 +273,16 @@ export default function TarefasPage() {
 
     if (setorParam === "rh") {
       setSetorAtual("RH");
-      setFiltroSetor("RH");
     } else if (setorParam === "medicina") {
       setSetorAtual("MEDICINA");
-      setFiltroSetor("MEDICINA");
     } else if (setorParam === "treinamento") {
       setSetorAtual("TREINAMENTO");
-      setFiltroSetor("TREINAMENTO");
     } else {
       setSetorAtual(null);
     }
   }, [searchParams]);
 
-  const filtroSetorServidor = setorAtual || filtroSetor;
+  const filtroSetorServidor = setorAtual || "";
   const filtrosServidorRef = useRef<{ setor: string } | null>(null);
 
   // Efeito separado para buscar tarefas quando o setor muda
@@ -294,7 +300,16 @@ export default function TarefasPage() {
 
   useEffect(() => {
     setPaginaAtual(1);
-  }, [filtroNome, filtroStatus, filtroPrioridade, filtroSetor, filtroContrato]);
+  }, [
+    filtroNome,
+    filtroStatusList,
+    filtroPrioridadeList,
+    filtroSetorList,
+    filtroContratoList,
+    filtroTipoList,
+    filtroDataCategoria,
+    filtroDataExata,
+  ]);
 
   // Trabalhar diretamente com dados hierárquicos da API
   const [solicitacoes, setSolicitacoes] = useState<SolicitacaoRemanejamento[]>(
@@ -451,6 +466,14 @@ export default function TarefasPage() {
     });
   };
 
+  const stripAccents = (s: string) =>
+    (s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const normalizeStatus = (s: string) =>
+    stripAccents(s || "")
+      .toUpperCase()
+      .replace(/\s+/g, "_")
+      .trim();
+
   const getRemanejamentosFiltrados = () => {
     if (!solicitacoes.length) return [];
 
@@ -467,11 +490,14 @@ export default function TarefasPage() {
 
           if (!matchNome) return;
 
-          // Filtro por contrato (origem ou destino)
           const matchContrato =
-            !filtroContrato ||
-            solicitacao.contratoOrigemId?.toString() === filtroContrato ||
-            solicitacao.contratoDestinoId?.toString() === filtroContrato;
+            filtroContratoList.length === 0 ||
+            filtroContratoList.includes(
+              solicitacao.contratoOrigemId?.toString() || "",
+            ) ||
+            filtroContratoList.includes(
+              solicitacao.contratoDestinoId?.toString() || "",
+            );
 
           if (!matchContrato) return;
 
@@ -487,24 +513,31 @@ export default function TarefasPage() {
               if (tarefa.status === "CANCELADO") {
                 return false;
               }
-              // Lógica especial para status concluído
-              let matchStatus = !filtroStatus;
-              if (filtroStatus === "CONCLUIDO") {
-                matchStatus =
-                  tarefa.status === "CONCLUIDO" ||
-                  tarefa.status === "CONCLUIDA";
-              } else if (filtroStatus === "PENDENTE") {
-                matchStatus =
-                  tarefa.status === "PENDENTE" ||
-                  tarefa.status === "EM_ANDAMENTO";
-              } else if (filtroStatus) {
-                matchStatus = tarefa.status === filtroStatus;
+              let matchStatus = true;
+              if (filtroStatusList.length > 0) {
+                const allowed = new Set<string>();
+                if (filtroStatusList.includes("CONCLUIDO")) {
+                  allowed.add("CONCLUIDO");
+                  allowed.add("CONCLUIDA");
+                }
+                if (filtroStatusList.includes("PENDENTE")) {
+                  allowed.add("PENDENTE");
+                  allowed.add("EM_ANDAMENTO");
+                }
+                if (filtroStatusList.includes("REPROVADO")) {
+                  allowed.add("REPROVADO");
+                }
+                const statusNorm = normalizeStatus(tarefa.status || "");
+                matchStatus = allowed.has(statusNorm);
               }
 
               const matchPrioridade =
-                !filtroPrioridade || tarefa.prioridade === filtroPrioridade;
-              const matchSetor =
-                !filtroSetor || tarefa.responsavel === filtroSetor;
+                filtroPrioridadeList.length === 0 ||
+                filtroPrioridadeList.includes(tarefa.prioridade);
+              const matchSetor = setorAtual
+                ? tarefa.responsavel === setorAtual
+                : filtroSetorList.length === 0 ||
+                  filtroSetorList.includes(tarefa.responsavel);
 
               // Filtro por categoria de data limite e "Novo" ("Novo" baseado em data de criação, independente do status)
               let matchDataCategoria = true;
@@ -553,8 +586,9 @@ export default function TarefasPage() {
                 }
               }
 
-              // Novo: filtro por tipo
-              const matchTipo = !filtroTipo || tarefa.tipo === filtroTipo;
+              const matchTipo =
+                filtroTipoList.length === 0 ||
+                filtroTipoList.includes(tarefa.tipo || "");
 
               // Novo: filtro por data limite exata (compara dia civil em UTC)
               let matchDataExata = true;
@@ -678,6 +712,139 @@ export default function TarefasPage() {
     });
 
     return todasTarefas;
+  };
+
+  const limparFiltros = () => {
+    if (filtroNomeRef.current) {
+      filtroNomeRef.current.value = "";
+    }
+    setFiltroNome("");
+    setFiltroStatusList([]);
+    setFiltroPrioridadeList([]);
+    setFiltroSetorList([]);
+    setFiltroContratoList([]);
+    setFiltroDataInicio("");
+    setFiltroDataFim("");
+    setFiltroTipoList([]);
+    setFiltroDataCategoria("");
+    setOrdenacaoDataLimite("");
+    setFiltroDataExata("");
+    setPaginaAtual(1);
+  };
+
+  const removerFiltroIndividual = (tipoFiltro: string, valor?: string) => {
+    switch (tipoFiltro) {
+      case "status":
+        if (valor) {
+          setFiltroStatusList((prev) => prev.filter((s) => s !== valor));
+        } else {
+          setFiltroStatusList([]);
+        }
+        break;
+      case "prioridade":
+        if (valor) {
+          setFiltroPrioridadeList((prev) => prev.filter((p) => p !== valor));
+        } else {
+          setFiltroPrioridadeList([]);
+        }
+        break;
+      case "contrato":
+        if (valor) {
+          setFiltroContratoList((prev) => prev.filter((c) => c !== valor));
+        } else {
+          setFiltroContratoList([]);
+        }
+        break;
+      case "setor":
+        if (valor) {
+          setFiltroSetorList((prev) => prev.filter((s) => s !== valor));
+        } else {
+          setFiltroSetorList([]);
+        }
+        break;
+      case "tipo":
+        if (valor) {
+          setFiltroTipoList((prev) => prev.filter((t) => t !== valor));
+        } else {
+          setFiltroTipoList([]);
+        }
+        break;
+      case "nome":
+        setFiltroNome("");
+        if (filtroNomeRef.current) filtroNomeRef.current.value = "";
+        break;
+      case "dataCategoria":
+        setFiltroDataCategoria("");
+        break;
+      case "dataExata":
+        setFiltroDataExata("");
+        break;
+    }
+  };
+
+  const obterTagsFiltrosAtivos = () => {
+    const tags: Array<{ tipo: string; valor: string; label: string }> = [];
+    if (filtroNome) {
+      tags.push({
+        tipo: "nome",
+        valor: filtroNome,
+        label: `Nome: ${filtroNome}`,
+      });
+    }
+    filtroStatusList.forEach((status) => {
+      tags.push({
+        tipo: "status",
+        valor: status,
+        label:
+          status === "CONCLUIDO"
+            ? "Status: Concluída"
+            : status === "PENDENTE"
+              ? "Status: Pendente"
+              : "Status: Reprovado",
+      });
+    });
+    filtroPrioridadeList.forEach((p) => {
+      tags.push({ tipo: "prioridade", valor: p, label: `Prioridade: ${p}` });
+    });
+    filtroContratoList.forEach((id) => {
+      const c = solicitacoes
+        .flatMap(
+          (s) => [s.contratoOrigem, s.contratoDestino].filter(Boolean) as any[],
+        )
+        .find((cc: any) => cc?.id?.toString() === id);
+      const label = c && c.numero && c.nome ? `${c.numero} — ${c.nome}` : id;
+      tags.push({ tipo: "contrato", valor: id, label: `Contrato: ${label}` });
+    });
+    if (!setorAtual) {
+      filtroSetorList.forEach((s) => {
+        tags.push({ tipo: "setor", valor: s, label: `Setor: ${s}` });
+      });
+    }
+    filtroTipoList.forEach((t) => {
+      tags.push({ tipo: "tipo", valor: t, label: `Tipo: ${t}` });
+    });
+    if (filtroDataCategoria) {
+      const map: Record<string, string> = {
+        VENCIDOS: "Vencidos",
+        A_VENCER: "Próximo de vencer",
+        NO_PRAZO: "No prazo",
+        SEM_DATA: "Sem data",
+        NOVO: "Novo",
+      };
+      tags.push({
+        tipo: "dataCategoria",
+        valor: filtroDataCategoria,
+        label: `Categoria: ${map[filtroDataCategoria] || filtroDataCategoria}`,
+      });
+    }
+    if (filtroDataExata) {
+      tags.push({
+        tipo: "dataExata",
+        valor: filtroDataExata,
+        label: `Data limite: ${filtroDataExata}`,
+      });
+    }
+    return tags;
   };
 
   const exportarParaExcel = async () => {
@@ -1716,15 +1883,15 @@ export default function TarefasPage() {
                 filtroNomeRef.current.value = "";
               }
               setFiltroNome("");
-              setFiltroStatus("");
-              setFiltroPrioridade("");
-              setFiltroSetor("");
-              setFiltroContrato("");
+              setFiltroStatusList([]);
+              setFiltroPrioridadeList([]);
+              setFiltroSetorList([]);
+              setFiltroContratoList([]);
               // Limpar filtros antigos de intervalo
               setFiltroDataInicio("");
               setFiltroDataFim("");
               // Limpar novos filtros
-              setFiltroTipo("");
+              setFiltroTipoList([]);
               setFiltroDataCategoria("");
               setOrdenacaoDataLimite("");
               setFiltroDataExata("");
@@ -1741,90 +1908,270 @@ export default function TarefasPage() {
             <label className="block text-xs font-medium text-slate-800 mb-1">
               Status
             </label>
-            <select
-              className="w-full h-9 rounded-md border-slate-800 bg-slate-100 text-slate-600 shadow-sm focus:border-slate-300 focus:ring-slate-300"
-              value={filtroStatus}
-              onChange={(e) => setFiltroStatus(e.target.value)}
-            >
-              <option value="">Todos</option>
-              <option value="PENDENTE">Pendente</option>
-              <option value="CONCLUIDO">Concluída</option>
-              <option value="REPROVADO">Reprovado</option>
-            </select>
+            <div className="relative dropdown-container">
+              <FunnelIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 z-10" />
+              <button
+                onClick={() => setDropdownStatusOpen(!dropdownStatusOpen)}
+                className="w-full pl-8 pr-8 py-2 text-sm border-slate-800 bg-slate-100 text-slate-600 rounded-md shadow-sm focus:border-slate-300 focus:ring-slate-300 text-left flex items-center justify-between"
+              >
+                <span className="truncate">
+                  {filtroStatusList.length === 0
+                    ? "Todos"
+                    : filtroStatusList.length === 1
+                      ? filtroStatusList[0] === "CONCLUIDO"
+                        ? "Concluída"
+                        : filtroStatusList[0] === "PENDENTE"
+                          ? "Pendente"
+                          : "Reprovado"
+                      : `${filtroStatusList.length} selecionados`}
+                </span>
+                <ChevronDownIcon className="h-4 w-4 text-gray-400" />
+              </button>
+              {dropdownStatusOpen && (
+                <div className="absolute z-50 mt-1 w-full bg-slate-100 border border-slate-800 rounded-md shadow-lg max-h-60 overflow-auto">
+                  {["PENDENTE", "CONCLUIDO", "REPROVADO"].map((status) => (
+                    <label
+                      key={status}
+                      className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={filtroStatusList.includes(status)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setFiltroStatusList((prev) => [...prev, status]);
+                          } else {
+                            setFiltroStatusList((prev) =>
+                              prev.filter((s) => s !== status),
+                            );
+                          }
+                        }}
+                        className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                      <span className="text-sm text-gray-700">
+                        {status === "CONCLUIDO"
+                          ? "Concluída"
+                          : status === "PENDENTE"
+                            ? "Pendente"
+                            : "Reprovado"}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           <div>
             <label className="block text-xs font-medium text-slate-800 mb-1">
               Prioridade
             </label>
-            <select
-              className="w-full h-9 rounded-md border-slate-800 bg-slate-100 text-slate-600 shadow-sm focus:border-slate-300 focus:ring-slate-300"
-              value={filtroPrioridade}
-              onChange={(e) => setFiltroPrioridade(e.target.value)}
-            >
-              <option value="">Todas</option>
-              <option value="BAIXA">Baixa</option>
-              <option value="MEDIA">Média</option>
-              <option value="ALTA">Alta</option>
-              <option value="URGENTE">Urgente</option>
-            </select>
+            <div className="relative dropdown-container">
+              <FunnelIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 z-10" />
+              <button
+                onClick={() =>
+                  setDropdownPrioridadeOpen(!dropdownPrioridadeOpen)
+                }
+                className="w-full pl-8 pr-8 py-2 text-sm border-slate-800 bg-slate-100 text-slate-600 rounded-md shadow-sm focus:border-slate-300 focus:ring-slate-300 text-left flex items-center justify-between"
+              >
+                <span className="truncate">
+                  {filtroPrioridadeList.length === 0
+                    ? "Todas"
+                    : filtroPrioridadeList.length === 1
+                      ? filtroPrioridadeList[0]
+                      : `${filtroPrioridadeList.length} selecionadas`}
+                </span>
+                <ChevronDownIcon className="h-4 w-4 text-gray-400" />
+              </button>
+              {dropdownPrioridadeOpen && (
+                <div className="absolute z-50 mt-1 w-full bg-slate-100 border border-slate-800 rounded-md shadow-lg max-h-60 overflow-auto">
+                  {["BAIXA", "MEDIA", "ALTA", "URGENTE"].map((prioridade) => (
+                    <label
+                      key={prioridade}
+                      className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={filtroPrioridadeList.includes(prioridade)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setFiltroPrioridadeList((prev) => [
+                              ...prev,
+                              prioridade,
+                            ]);
+                          } else {
+                            setFiltroPrioridadeList((prev) =>
+                              prev.filter((p) => p !== prioridade),
+                            );
+                          }
+                        }}
+                        className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                      <span className="text-sm text-gray-700">
+                        {prioridade}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           <div>
             <label className="block text-xs font-medium text-slate-800 mb-1">
               Contrato
             </label>
-            <select
-              className="w-full h-9 rounded-md border-slate-800 bg-slate-100 text-slate-600 shadow-sm focus:border-slate-300 focus:ring-slate-300"
-              value={filtroContrato}
-              onChange={(e) => setFiltroContrato(e.target.value)}
-            >
-              <option value="">Todos</option>
-              {contratosOptions.map((c) => (
-                <option
-                  key={c.id}
-                  value={c.id.toString()}
-                >{`${c.numero} — ${c.nome}`}</option>
-              ))}
-            </select>
+            <div className="relative dropdown-container">
+              <FunnelIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 z-10" />
+              <button
+                onClick={() => setDropdownContratoOpen(!dropdownContratoOpen)}
+                className="w-full pl-8 pr-8 py-2 text-sm border-slate-800 bg-slate-100 text-slate-600 rounded-md shadow-sm focus:border-slate-300 focus:ring-slate-300 text-left flex items-center justify-between"
+              >
+                <span className="truncate">
+                  {filtroContratoList.length === 0
+                    ? "Todos"
+                    : filtroContratoList.length === 1
+                      ? (() => {
+                          const id = filtroContratoList[0];
+                          const c = contratosOptions.find(
+                            (x) => x.id.toString() === id,
+                          );
+                          return c ? `${c.numero} — ${c.nome}` : id;
+                        })()
+                      : `${filtroContratoList.length} selecionados`}
+                </span>
+                <ChevronDownIcon className="h-4 w-4 text-gray-400" />
+              </button>
+              {dropdownContratoOpen && (
+                <div className="absolute z-50 mt-1 w-full bg-slate-100 border border-slate-800 rounded-md shadow-lg max-h-60 overflow-auto">
+                  {contratosOptions.map((c) => (
+                    <label
+                      key={c.id}
+                      className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={filtroContratoList.includes(c.id.toString())}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setFiltroContratoList((prev) => [
+                              ...prev,
+                              c.id.toString(),
+                            ]);
+                          } else {
+                            setFiltroContratoList((prev) =>
+                              prev.filter((id) => id !== c.id.toString()),
+                            );
+                          }
+                        }}
+                        className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                      <span className="text-sm text-gray-700">
+                        {c.numero} — {c.nome}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Mostrar o filtro de setor apenas quando não estiver em uma rota específica de setor */}
           {!setorAtual && (
             <div>
               <label className="block text-xs font-medium text-slate-800 mb-1">
                 Setor Responsável
               </label>
-              <select
-                className="w-full h-9 rounded-md border-slate-800 bg-slate-100 text-slate-600 shadow-sm focus:border-slate-300 focus:ring-slate-300"
-                value={filtroSetor}
-                onChange={(e) => setFiltroSetor(e.target.value)}
-              >
-                <option value="">Todos</option>
-                <option value="RH">RH</option>
-                <option value="TREINAMENTO">Treinamento</option>
-                <option value="MEDICINA">Medicina</option>
-              </select>
+              <div className="relative dropdown-container">
+                <FunnelIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 z-10" />
+                <button
+                  onClick={() => setDropdownSetorOpen(!dropdownSetorOpen)}
+                  className="w-full pl-8 pr-8 py-2 text-sm border-slate-800 bg-slate-100 text-slate-600 rounded-md shadow-sm focus:border-slate-300 focus:ring-slate-300 text-left flex items-center justify-between"
+                >
+                  <span className="truncate">
+                    {filtroSetorList.length === 0
+                      ? "Todos"
+                      : filtroSetorList.length === 1
+                        ? filtroSetorList[0]
+                        : `${filtroSetorList.length} selecionados`}
+                  </span>
+                  <ChevronDownIcon className="h-4 w-4 text-gray-400" />
+                </button>
+                {dropdownSetorOpen && (
+                  <div className="absolute z-50 mt-1 w-full bg-slate-100 border border-slate-800 rounded-md shadow-lg max-h-60 overflow-auto">
+                    {["RH", "TREINAMENTO", "MEDICINA"].map((setor) => (
+                      <label
+                        key={setor}
+                        className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={filtroSetorList.includes(setor)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setFiltroSetorList((prev) => [...prev, setor]);
+                            } else {
+                              setFiltroSetorList((prev) =>
+                                prev.filter((s) => s !== setor),
+                              );
+                            }
+                          }}
+                          className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        />
+                        <span className="text-sm text-gray-700">{setor}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
-          {/* Novo: filtro por Tipo */}
           <div>
             <label className="block text-xs font-medium text-slate-800 mb-1">
               Tipo
             </label>
-            <select
-              className="w-full h-9 rounded-md border-slate-800 bg-slate-100 text-slate-600 shadow-sm focus:border-slate-300 focus:ring-slate-300"
-              value={filtroTipo}
-              onChange={(e) => setFiltroTipo(e.target.value)}
-            >
-              <option value="">Todos</option>
-              {tiposOptions.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
+            <div className="relative dropdown-container">
+              <FunnelIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 z-10" />
+              <button
+                onClick={() => setDropdownTipoOpen(!dropdownTipoOpen)}
+                className="w-full pl-8 pr-8 py-2 text-sm border-slate-800 bg-slate-100 text-slate-600 rounded-md shadow-sm focus:border-slate-300 focus:ring-slate-300 text-left flex items-center justify-between"
+              >
+                <span className="truncate">
+                  {filtroTipoList.length === 0
+                    ? "Todos"
+                    : filtroTipoList.length === 1
+                      ? filtroTipoList[0]
+                      : `${filtroTipoList.length} selecionados`}
+                </span>
+                <ChevronDownIcon className="h-4 w-4 text-gray-400" />
+              </button>
+              {dropdownTipoOpen && (
+                <div className="absolute z-50 mt-1 w-full bg-slate-100 border border-slate-800 rounded-md shadow-lg max-h-60 overflow-auto">
+                  {tiposOptions.map((t) => (
+                    <label
+                      key={t}
+                      className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={filtroTipoList.includes(t)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setFiltroTipoList((prev) => [...prev, t]);
+                          } else {
+                            setFiltroTipoList((prev) =>
+                              prev.filter((x) => x !== t),
+                            );
+                          }
+                        }}
+                        className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                      <span className="text-sm text-gray-700">{t}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           <div>
@@ -1909,6 +2256,38 @@ export default function TarefasPage() {
             </div>
           </div>
         </div>
+        {obterTagsFiltrosAtivos().length > 0 && (
+          <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-medium text-gray-700">
+                Filtros Aplicados:
+              </h3>
+              <button
+                onClick={limparFiltros}
+                className="text-xs text-gray-500 hover:text-gray-700 underline"
+              >
+                Limpar todos
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {obterTagsFiltrosAtivos().map((tag, index) => (
+                <span
+                  key={index}
+                  className="inline-flex items-center px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full border border-blue-200"
+                >
+                  <span className="mr-1">{tag.label}</span>
+                  <button
+                    onClick={() => removerFiltroIndividual(tag.tipo, tag.valor)}
+                    className="ml-1 inline-flex items-center justify-center w-3 h-3 text-blue-600 hover:text-blue-800 hover:bg-blue-200 rounded-full transition-colors"
+                    title="Remover filtro"
+                  >
+                    <XMarkIcon className="w-2 h-2" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -1953,14 +2332,14 @@ export default function TarefasPage() {
       [
         solicitacoes,
         filtroNome,
-        filtroStatus,
-        filtroPrioridade,
-        filtroSetor,
-        filtroContrato,
+        filtroStatusList,
+        filtroPrioridadeList,
+        filtroSetorList,
+        filtroContratoList,
         setorAtual,
         filtroDataCategoria,
         ordenacaoDataLimite,
-        filtroTipo,
+        filtroTipoList,
         filtroDataExata,
         paginaAtualFuncionarios,
         itensPorPaginaFuncionarios,
