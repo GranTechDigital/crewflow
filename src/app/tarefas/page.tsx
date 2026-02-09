@@ -150,8 +150,20 @@ export default function TarefasPage() {
   const [dropdownSetorOpen, setDropdownSetorOpen] = useState(false);
   const [dropdownTipoOpen, setDropdownTipoOpen] = useState(false);
   const [dropdownNomeOpen, setDropdownNomeOpen] = useState(false);
+  const [dropdownOrdenacaoOpen, setDropdownOrdenacaoOpen] = useState(false);
   const [nomeSearchDraft, setNomeSearchDraft] = useState("");
   const FILTERS_CACHE_KEY = "tarefas_filters_v1";
+  const [ordenacaoFuncionarios, setOrdenacaoFuncionarios] = useState<
+    | ""
+    | "PENDENCIAS_DESC"
+    | "PENDENCIAS_ASC"
+    | "PROGRESSO_DESC"
+    | "PROGRESSO_ASC"
+    | "NOME_AZ"
+    | "NOME_ZA"
+    | "ATUALIZACAO_DESC"
+    | "ATUALIZACAO_ASC"
+  >("");
 
   useEffect(() => {
     try {
@@ -176,6 +188,8 @@ export default function TarefasPage() {
         setFiltroNomeList(data.filtroNomeList);
       if (typeof data.ordenacaoDataLimite === "string")
         setOrdenacaoDataLimite(data.ordenacaoDataLimite as any);
+      if (typeof data.ordenacaoFuncionarios === "string")
+        setOrdenacaoFuncionarios(data.ordenacaoFuncionarios as any);
     } catch {}
   }, []);
 
@@ -191,6 +205,7 @@ export default function TarefasPage() {
         filtroDataExata,
         filtroNomeList,
         ordenacaoDataLimite,
+        ordenacaoFuncionarios,
       };
       localStorage.setItem(FILTERS_CACHE_KEY, JSON.stringify(data));
     } catch {}
@@ -204,6 +219,7 @@ export default function TarefasPage() {
     filtroDataExata,
     filtroNomeList,
     ordenacaoDataLimite,
+    ordenacaoFuncionarios,
   ]);
 
   // Refs para evitar re-renderizações
@@ -1169,49 +1185,80 @@ export default function TarefasPage() {
       })
       .filter((item) => item.tarefas.length > 0);
 
-    // Ordenar funcionários baseado no status das suas tarefas
     funcionariosComTarefas.sort((a, b) => {
-      const tarefasConcluidas_A = a.tarefas.filter(
+      const concluidasA = a.tarefas.filter(
         (t) => t.status === "CONCLUIDA" || t.status === "CONCLUIDO",
       ).length;
-      const tarefasConcluidas_B = b.tarefas.filter(
+      const concluidasB = b.tarefas.filter(
         (t) => t.status === "CONCLUIDA" || t.status === "CONCLUIDO",
       ).length;
-
-      const totalTarefas_A = a.tarefas.length;
-      const totalTarefas_B = b.tarefas.length;
-
-      // Verificar se tem tarefas reprovadas
-      const hasReprovado_A = a.tarefas.some((t) => t.status === "REPROVADO");
-      const hasReprovado_B = b.tarefas.some((t) => t.status === "REPROVADO");
-
-      // Calcular se está concluído (todas as tarefas concluídas)
-      const isConcluido_A =
-        tarefasConcluidas_A === totalTarefas_A && totalTarefas_A > 0;
-      const isConcluido_B =
-        tarefasConcluidas_B === totalTarefas_B && totalTarefas_B > 0;
-
-      // Calcular se está pendente (nenhuma tarefa concluída e não tem reprovadas)
-      const isPendente_A = tarefasConcluidas_A === 0 && !hasReprovado_A;
-      const isPendente_B = tarefasConcluidas_B === 0 && !hasReprovado_B;
-
-      // Prioridade de ordenação:
-      // 1. Reprovado (tem pelo menos uma tarefa reprovada)
-      // 2. Pendente (nenhuma tarefa concluída e não tem reprovadas)
-      // 3. Concluído (todas as tarefas concluídas)
-
+      const totalA = a.tarefas.length;
+      const totalB = b.tarefas.length;
+      const reprovadasA = a.tarefas.filter(
+        (t) => t.status === "REPROVADO",
+      ).length;
+      const reprovadasB = b.tarefas.filter(
+        (t) => t.status === "REPROVADO",
+      ).length;
+      const pendentesA = a.tarefas.filter(
+        (t) => t.status === "PENDENTE" || t.status === "EM_ANDAMENTO",
+      ).length;
+      const pendentesB = b.tarefas.filter(
+        (t) => t.status === "PENDENTE" || t.status === "EM_ANDAMENTO",
+      ).length;
+      const pendenciasA = pendentesA + reprovadasA;
+      const pendenciasB = pendentesB + reprovadasB;
+      const progressoA = totalA > 0 ? concluidasA / totalA : 0;
+      const progressoB = totalB > 0 ? concluidasB / totalB : 0;
+      const nomeCmp = a.funcionario.nome.localeCompare(b.funcionario.nome);
+      const maxTs = (it: typeof a) => {
+        let max = 0;
+        for (const t of it.tarefas) {
+          const candidates: (string | null | undefined)[] = [
+            (t as any).dataAtualizacao,
+            t.dataConclusao,
+            t.dataCriacao,
+            t.dataLimite,
+          ];
+          for (const c of candidates) {
+            if (!c) continue;
+            const ts = new Date(c).getTime();
+            if (Number.isFinite(ts)) {
+              if (ts > max) max = ts;
+            }
+          }
+        }
+        return max;
+      };
+      if (ordenacaoFuncionarios === "PENDENCIAS_DESC")
+        return pendenciasB - pendenciasA || nomeCmp;
+      if (ordenacaoFuncionarios === "PENDENCIAS_ASC")
+        return pendenciasA - pendenciasB || nomeCmp;
+      if (ordenacaoFuncionarios === "PROGRESSO_DESC")
+        return progressoB - progressoA || nomeCmp;
+      if (ordenacaoFuncionarios === "PROGRESSO_ASC")
+        return progressoA - progressoB || nomeCmp;
+      if (ordenacaoFuncionarios === "NOME_AZ") return nomeCmp;
+      if (ordenacaoFuncionarios === "NOME_ZA") return -nomeCmp;
+      if (ordenacaoFuncionarios === "ATUALIZACAO_DESC")
+        return maxTs(b) - maxTs(a) || nomeCmp;
+      if (ordenacaoFuncionarios === "ATUALIZACAO_ASC")
+        return maxTs(a) - maxTs(b) || nomeCmp;
+      const hasReprovado_A = reprovadasA > 0;
+      const hasReprovado_B = reprovadasB > 0;
+      const isPendente_A = concluidasA === 0 && !hasReprovado_A;
+      const isPendente_B = concluidasB === 0 && !hasReprovado_B;
+      const isConcluido_A = concluidasA === totalA && totalA > 0;
+      const isConcluido_B = concluidasB === totalB && totalB > 0;
       if (hasReprovado_A && !hasReprovado_B) return -1;
       if (!hasReprovado_A && hasReprovado_B) return 1;
-
       if (!hasReprovado_A && !hasReprovado_B) {
         if (isPendente_A && !isPendente_B) return -1;
         if (!isPendente_A && isPendente_B) return 1;
         if (isConcluido_A && !isConcluido_B) return 1;
         if (!isConcluido_A && isConcluido_B) return -1;
       }
-
-      // Se mesmo status, ordenar por nome
-      return a.funcionario.nome.localeCompare(b.funcionario.nome);
+      return nomeCmp;
     });
 
     return funcionariosComTarefas;
@@ -2286,6 +2333,79 @@ export default function TarefasPage() {
 
           <div>
             <label className="block text-xs font-medium text-slate-800 mb-1">
+              Ordenar
+            </label>
+            <div className="relative dropdown-container">
+              <FunnelIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 z-10" />
+              <button
+                onClick={() => setDropdownOrdenacaoOpen(!dropdownOrdenacaoOpen)}
+                className="w-full pl-8 pr-8 py-2 text-sm border-slate-800 bg-slate-100 text-slate-600 rounded-md shadow-sm focus:border-slate-300 focus:ring-slate-300 text-left flex items-center justify-between"
+              >
+                <span className="truncate">
+                  {ordenacaoFuncionarios === ""
+                    ? "Padrão (Status)"
+                    : ordenacaoFuncionarios === "PENDENCIAS_DESC"
+                      ? "Mais pendências"
+                      : ordenacaoFuncionarios === "PENDENCIAS_ASC"
+                        ? "Menos pendências"
+                        : ordenacaoFuncionarios === "PROGRESSO_DESC"
+                          ? "Mais progresso"
+                          : ordenacaoFuncionarios === "PROGRESSO_ASC"
+                            ? "Menos progresso"
+                            : ordenacaoFuncionarios === "NOME_AZ"
+                              ? "Nome A–Z"
+                              : ordenacaoFuncionarios === "NOME_ZA"
+                                ? "Nome Z–A"
+                                : ordenacaoFuncionarios === "ATUALIZACAO_DESC"
+                                  ? "Atualização mais recente"
+                                  : "Atualização mais antiga"}
+                </span>
+                <ChevronDownIcon className="h-4 w-4 text-gray-400" />
+              </button>
+              {dropdownOrdenacaoOpen && (
+                <div className="absolute z-50 mt-1 w-full bg-slate-100 border border-slate-800 rounded-md shadow-lg max-h-60 overflow-auto">
+                  {[
+                    { v: "", label: "Padrão (Status)" },
+                    {
+                      v: "PENDENCIAS_DESC",
+                      label: "Mais pendências (Pendente + Reprovadas)",
+                    },
+                    { v: "PENDENCIAS_ASC", label: "Menos pendências" },
+                    { v: "PROGRESSO_DESC", label: "Mais progresso" },
+                    { v: "PROGRESSO_ASC", label: "Menos progresso" },
+                    { v: "NOME_AZ", label: "Nome A–Z" },
+                    { v: "NOME_ZA", label: "Nome Z–A" },
+                    {
+                      v: "ATUALIZACAO_DESC",
+                      label: "Atualização mais recente",
+                    },
+                    { v: "ATUALIZACAO_ASC", label: "Atualização mais antiga" },
+                  ].map((opt) => (
+                    <label
+                      key={opt.v}
+                      className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer"
+                    >
+                      <input
+                        type="radio"
+                        name="ordenacaoFuncionarios"
+                        checked={ordenacaoFuncionarios === opt.v}
+                        onChange={() => {
+                          setOrdenacaoFuncionarios(opt.v as any);
+                          setDropdownOrdenacaoOpen(false);
+                          setPaginaAtualFuncionarios(1);
+                        }}
+                        className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                      <span className="text-sm text-gray-700">{opt.label}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-800 mb-1">
               Nome do Funcionário
             </label>
             <div className="relative dropdown-container">
@@ -2509,6 +2629,7 @@ export default function TarefasPage() {
         setorAtual,
         filtroDataCategoria,
         ordenacaoDataLimite,
+        ordenacaoFuncionarios,
         filtroTipoList,
         filtroDataExata,
         paginaAtualFuncionarios,
@@ -3450,6 +3571,14 @@ export default function TarefasPage() {
 
             <div className="flex items-center space-x-3">
               <button
+                onClick={() => setPaginaAtualFuncionarios(1)}
+                disabled={paginaAtualFuncionarios === 1}
+                className="px-4 py-2 text-xs font-medium border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                title="Ir para a primeira página"
+              >
+                Primeira
+              </button>
+              <button
                 onClick={() =>
                   setPaginaAtualFuncionarios(
                     Math.max(1, paginaAtualFuncionarios - 1),
@@ -3500,6 +3629,14 @@ export default function TarefasPage() {
                 className="px-4 py-2 text-xs font-medium border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
               >
                 Próxima
+              </button>
+              <button
+                onClick={() => setPaginaAtualFuncionarios(totalPaginas)}
+                disabled={paginaAtualFuncionarios === totalPaginas}
+                className="px-4 py-2 text-xs font-medium border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                title="Ir para a última página"
+              >
+                Última
               </button>
             </div>
           </div>
