@@ -294,6 +294,104 @@ export default function TarefasPage() {
   const [paginaAtualFuncionarios, setPaginaAtualFuncionarios] = useState(1);
   const [itensPorPaginaFuncionarios, setItensPorPaginaFuncionarios] =
     useState(5);
+  const [focoRemKey, setFocoRemKey] = useState<string | null>(null);
+  const ordemBaseRef = useRef<string[]>([]);
+  const scrollYRef = useRef<number>(0);
+  const docScrollYRef = useRef<number>(0);
+  const getDefaultScrollContainer = () => {
+    const custom =
+      (document.querySelector('[data-scroll="main"]') as HTMLElement | null) ||
+      null;
+    return (
+      custom ||
+      (document.scrollingElement as HTMLElement) ||
+      (document.documentElement as HTMLElement)
+    );
+  };
+  const getScrollContainerFor = (key?: string | null) => {
+    try {
+      if (key) {
+        const el = document.querySelector(
+          `[data-grupo="${key}"]`,
+        ) as HTMLElement | null;
+        if (el) {
+          let p: HTMLElement | null = el.parentElement as HTMLElement | null;
+          while (p) {
+            const style = getComputedStyle(p);
+            const canScroll =
+              (style.overflowY === "auto" || style.overflowY === "scroll") &&
+              p.scrollHeight > p.clientHeight;
+            if (canScroll) return p;
+            p = p.parentElement as HTMLElement | null;
+          }
+        }
+      }
+    } catch {}
+    return getDefaultScrollContainer();
+  };
+  const frozenScrollYRef = useRef<number>(0);
+  const freezeScroll = () => {
+    try {
+      const cont = getScrollContainerFor(focoRemKey);
+      const y = cont.scrollTop || 0;
+      frozenScrollYRef.current = y;
+      const scrollbarWidth =
+        window.innerWidth - document.documentElement.clientWidth;
+      cont.style.overflow = "hidden";
+      if (scrollbarWidth > 0) {
+        cont.style.paddingRight = `${scrollbarWidth}px`;
+      }
+      cont.scrollTop = y;
+    } catch {}
+  };
+  const unfreezeScroll = () => {
+    try {
+      const cont = getScrollContainerFor(focoRemKey);
+      const y = frozenScrollYRef.current || cont.scrollTop || 0;
+      cont.style.overflow = "";
+      cont.style.paddingRight = "";
+      cont.scrollTop = y;
+    } catch {}
+  };
+  const saveAnchorPos = (key?: string | null) => {
+    try {
+      const cont = getScrollContainerFor(key);
+      docScrollYRef.current =
+        window.scrollY ||
+        (document.scrollingElement as HTMLElement)?.scrollTop ||
+        0;
+      if (key) {
+        const el = document.querySelector(
+          `[data-grupo="${key}"]`,
+        ) as HTMLElement | null;
+        if (el) {
+          const y =
+            el.getBoundingClientRect().top -
+            cont.getBoundingClientRect().top +
+            cont.scrollTop;
+          scrollYRef.current = y;
+          return;
+        }
+      }
+      scrollYRef.current = cont.scrollTop || 0;
+    } catch {}
+  };
+  const restoreAnchorPos = () => {
+    try {
+      const cont = getScrollContainerFor(focoRemKey);
+      const target = scrollYRef.current || cont.scrollTop || 0;
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          cont.scrollTo({ top: target });
+          window.scrollTo(0, docScrollYRef.current || 0);
+        });
+      });
+    } catch {}
+  };
+
+  const setFocusRem = (key: string) => {
+    setFocoRemKey(key);
+  };
 
   // Estados para tabs
   const [activeTab, setActiveTab] = useState<
@@ -304,6 +402,23 @@ export default function TarefasPage() {
   useEffect(() => {
     setPaginaAtualFuncionarios(1);
   }, [activeTab]);
+
+  useEffect(() => {
+    setFocoRemKey(null);
+    ordemBaseRef.current = [];
+  }, [
+    filtroNomeList,
+    filtroStatusList,
+    filtroPrioridadeList,
+    filtroSetorList,
+    filtroContratoList,
+    filtroTipoList,
+    filtroDataCategoria,
+    filtroDataExata,
+    ordenacaoDataLimite,
+    ordenacaoFuncionarios,
+    activeTab,
+  ]);
 
   // Estados para dashboard
   const [dashboardData, setDashboardData] = useState<any>(null);
@@ -1013,10 +1128,12 @@ export default function TarefasPage() {
     const isExpanded = novoExpandido.has(chaveGrupo);
     if (isExpanded) {
       novoExpandido.delete(chaveGrupo);
+      if (focoRemKey === chaveGrupo) setFocoRemKey(null);
     } else {
       novoExpandido.add(chaveGrupo);
       // Carregar contagem de observações apenas ao expandir
       carregarObservacoesCountParaGrupo(tarefas);
+      setFocusRem(chaveGrupo);
     }
     setFuncionariosExpandidos(novoExpandido);
   };
@@ -1148,33 +1265,40 @@ export default function TarefasPage() {
             },
           ) || [];
 
-        // Ordenar tarefas: por Data Limite quando selecionado; caso contrário, por status
-        tarefasFiltradas.sort(
-          (a: TarefaRemanejamento, b: TarefaRemanejamento) => {
-            if (ordenacaoDataLimite) {
-              const aTime = a.dataLimite
-                ? new Date(a.dataLimite).getTime()
-                : Number.POSITIVE_INFINITY;
-              const bTime = b.dataLimite
-                ? new Date(b.dataLimite).getTime()
-                : Number.POSITIVE_INFINITY;
-              const diff = aTime - bTime;
-              return ordenacaoDataLimite === "asc" ? diff : -diff;
-            }
-            // Função para obter prioridade do status
-            const getStatusPriority = (status: string) => {
-              if (status === "REPROVADO") return 0;
-              if (status === "PENDENTE" || status === "EM_ANDAMENTO") return 1;
-              if (status === "CONCLUIDA" || status === "CONCLUIDO") return 2;
-              return 3;
-            };
+        // Ordenação das tarefas do grupo (pular se estiver com foco neste funcionário)
+        {
+          const chaveGrupo = `${remanejamento.funcionario?.id}_${remanejamento.id}`;
+          if (!focoRemKey || focoRemKey !== chaveGrupo) {
+            tarefasFiltradas.sort(
+              (a: TarefaRemanejamento, b: TarefaRemanejamento) => {
+                if (ordenacaoDataLimite) {
+                  const aTime = a.dataLimite
+                    ? new Date(a.dataLimite).getTime()
+                    : Number.POSITIVE_INFINITY;
+                  const bTime = b.dataLimite
+                    ? new Date(b.dataLimite).getTime()
+                    : Number.POSITIVE_INFINITY;
+                  const diff = aTime - bTime;
+                  return ordenacaoDataLimite === "asc" ? diff : -diff;
+                }
+                // Função para obter prioridade do status
+                const getStatusPriority = (status: string) => {
+                  if (status === "REPROVADO") return 0;
+                  if (status === "PENDENTE" || status === "EM_ANDAMENTO")
+                    return 1;
+                  if (status === "CONCLUIDA" || status === "CONCLUIDO")
+                    return 2;
+                  return 3;
+                };
 
-            const priorityA = getStatusPriority(a.status);
-            const priorityB = getStatusPriority(b.status);
+                const priorityA = getStatusPriority(a.status);
+                const priorityB = getStatusPriority(b.status);
 
-            return priorityA - priorityB;
-          },
-        );
+                return priorityA - priorityB;
+              },
+            );
+          }
+        }
 
         return {
           funcionario: remanejamento.funcionario!,
@@ -1261,6 +1385,27 @@ export default function TarefasPage() {
       return nomeCmp;
     });
 
+    const currentKeys = funcionariosComTarefas.map(
+      (it) => `${it.funcionario.id}_${it.remanejamento.id}`,
+    );
+    if (!focoRemKey) {
+      ordemBaseRef.current = currentKeys;
+    } else {
+      const baseIndex = new Map<string, number>();
+      ordemBaseRef.current.forEach((k, i) => baseIndex.set(k, i));
+      funcionariosComTarefas.sort((a, b) => {
+        const ka = `${a.funcionario.id}_${a.remanejamento.id}`;
+        const kb = `${b.funcionario.id}_${b.remanejamento.id}`;
+        const ia = baseIndex.has(ka)
+          ? baseIndex.get(ka)!
+          : Number.MAX_SAFE_INTEGER;
+        const ib = baseIndex.has(kb)
+          ? baseIndex.get(kb)!
+          : Number.MAX_SAFE_INTEGER;
+        return ia - ib;
+      });
+    }
+
     return funcionariosComTarefas;
   };
 
@@ -1289,10 +1434,12 @@ export default function TarefasPage() {
 
   // Funções para o modal de conclusão de tarefa
   const abrirModalConcluir = (tarefa: TarefaRemanejamento) => {
+    saveAnchorPos(focoRemKey);
     setTarefaSelecionada(tarefa);
     setDataVencimento(""); // Resetar a data de vencimento
     setErroDataVencimento("");
     setMostrarModalConcluir(true);
+    requestAnimationFrame(() => restoreAnchorPos());
   };
 
   const fecharModalConcluir = () => {
@@ -1300,11 +1447,14 @@ export default function TarefasPage() {
     setDataVencimento("");
     setErroDataVencimento("");
     setMostrarModalConcluir(false);
+    restoreAnchorPos();
   };
 
   const concluirTarefa = async () => {
     if (!tarefaSelecionada) return;
     try {
+      // Preservar âncora visual do grupo em foco para evitar salto de rolagem
+      saveAnchorPos(focoRemKey);
       if (dataVencimento) {
         const hoje = new Date();
         const dt = new Date(`${dataVencimento}T00:00:00`);
@@ -1377,6 +1527,8 @@ export default function TarefasPage() {
       }
       fecharModalConcluir();
       setConcluindoTarefa(true);
+      // Restaurar rolagem após a atualização otimista mantendo a âncora
+      restoreAnchorPos();
       const response = await fetch(
         `/api/logistica/tarefas/${tarefaSelecionada.id}/concluir`,
         {
@@ -1444,12 +1596,15 @@ export default function TarefasPage() {
 
   // Funções para exclusão de tarefa (admin)
   const abrirModalExcluir = (tarefa: TarefaRemanejamento) => {
+    saveAnchorPos(focoRemKey);
     setTarefaSelecionada(tarefa);
     setMostrarModalExcluir(true);
+    requestAnimationFrame(() => restoreAnchorPos());
   };
 
   const fecharModalExcluir = () => {
     setMostrarModalExcluir(false);
+    restoreAnchorPos();
   };
 
   const excluirTarefa = async () => {
@@ -1544,8 +1699,10 @@ export default function TarefasPage() {
 
   // Funções para o modal de observações
   const abrirModalObservacoes = async (tarefa: TarefaRemanejamento) => {
+    saveAnchorPos(focoRemKey);
     setTarefaSelecionada(tarefa);
     setMostrarModalObservacoes(true);
+    requestAnimationFrame(() => restoreAnchorPos());
     // Definir a aba ativa como "dataLimite" por padrão (ocultando Adicionar Observação por enquanto)
     setAbaAtiva("dataLimite");
     // Inicializar a data limite atual (se existir)
@@ -1575,6 +1732,7 @@ export default function TarefasPage() {
     setErroJustificativaDataLimite("");
     // Atualizar a lista de tarefas para refletir as mudanças nas observações
     // atualização de observações não necessita recarregar toda a lista
+    restoreAnchorPos();
   };
 
   const buscarObservacoes = async (tarefaId: string) => {
@@ -2813,6 +2971,7 @@ export default function TarefasPage() {
                           className={`group ${bordaClasses} cursor-pointer ${
                             expandido ? "bg-slate-50" : "hover:bg-gray-50"
                           }`}
+                          data-grupo={chaveGrupo}
                           onClick={(e) => {
                             const target = e.target as HTMLElement;
                             if (
@@ -3241,295 +3400,291 @@ export default function TarefasPage() {
                                         </tr>
                                       </thead>
                                       <tbody className="bg-white divide-y divide-gray-200">
-                                        {tarefas
-                                          .sort((a, b) => {
-                                            // Função para obter prioridade do status
-                                            const getStatusPriority = (
-                                              status: string,
-                                            ) => {
-                                              if (status === "REPROVADO")
-                                                return 0;
-                                              if (
-                                                status === "PENDENTE" ||
-                                                status === "EM_ANDAMENTO"
-                                              )
-                                                return 1;
-                                              if (
-                                                status === "CONCLUIDA" ||
-                                                status === "CONCLUIDO"
-                                              )
-                                                return 2;
-                                              return 3;
-                                            };
+                                        {(focoRemKey === chaveGrupo
+                                          ? tarefas
+                                          : [...tarefas].sort((a, b) => {
+                                              // Função para obter prioridade do status
+                                              const getStatusPriority = (
+                                                status: string,
+                                              ) => {
+                                                if (status === "REPROVADO")
+                                                  return 0;
+                                                if (
+                                                  status === "PENDENTE" ||
+                                                  status === "EM_ANDAMENTO"
+                                                )
+                                                  return 1;
+                                                if (
+                                                  status === "CONCLUIDA" ||
+                                                  status === "CONCLUIDO"
+                                                )
+                                                  return 2;
+                                                return 3;
+                                              };
 
-                                            const priorityA = getStatusPriority(
-                                              a.status,
-                                            );
-                                            const priorityB = getStatusPriority(
-                                              b.status,
-                                            );
+                                              const priorityA =
+                                                getStatusPriority(a.status);
+                                              const priorityB =
+                                                getStatusPriority(b.status);
 
-                                            return priorityA - priorityB;
-                                          })
-                                          .map((tarefa) => {
-                                            // Classes de status
-                                            let statusClasses =
-                                              "px-2 py-1 text-xs rounded-full";
-                                            if (
-                                              tarefa.status === "PENDENTE" ||
-                                              tarefa.status === "EM_ANDAMENTO"
-                                            )
-                                              statusClasses +=
-                                                " bg-yellow-100 text-yellow-800";
-                                            else if (
-                                              tarefa.status === "CONCLUIDA" ||
-                                              tarefa.status === "CONCLUIDO"
-                                            )
-                                              statusClasses +=
-                                                " bg-green-100 text-green-800";
-                                            else if (
-                                              tarefa.status === "REPROVADO"
-                                            )
-                                              statusClasses +=
-                                                " bg-red-100 text-red-800";
-                                            else
-                                              statusClasses +=
-                                                " bg-slate-100 text-slate-800";
+                                              return priorityA - priorityB;
+                                            })
+                                        ).map((tarefa) => {
+                                          // Classes de status
+                                          let statusClasses =
+                                            "px-2 py-1 text-xs rounded-full";
+                                          if (
+                                            tarefa.status === "PENDENTE" ||
+                                            tarefa.status === "EM_ANDAMENTO"
+                                          )
+                                            statusClasses +=
+                                              " bg-yellow-100 text-yellow-800";
+                                          else if (
+                                            tarefa.status === "CONCLUIDA" ||
+                                            tarefa.status === "CONCLUIDO"
+                                          )
+                                            statusClasses +=
+                                              " bg-green-100 text-green-800";
+                                          else if (
+                                            tarefa.status === "REPROVADO"
+                                          )
+                                            statusClasses +=
+                                              " bg-red-100 text-red-800";
+                                          else
+                                            statusClasses +=
+                                              " bg-slate-100 text-slate-800";
 
-                                            // Classes de prioridade
-                                            let prioridadeClasses =
-                                              "px-2 py-1 text-xs rounded-full";
-                                            if (tarefa.prioridade === "BAIXA")
-                                              prioridadeClasses +=
-                                                " bg-gray-100 text-gray-800";
-                                            else if (
-                                              tarefa.prioridade === "MEDIA"
-                                            )
-                                              prioridadeClasses +=
-                                                " bg-blue-100 text-blue-800";
-                                            else if (
-                                              tarefa.prioridade === "ALTA"
-                                            )
-                                              prioridadeClasses +=
-                                                " bg-orange-100 text-orange-800";
-                                            else if (
-                                              tarefa.prioridade === "URGENTE"
-                                            )
-                                              prioridadeClasses +=
-                                                " bg-red-100 text-red-800";
+                                          // Classes de prioridade
+                                          let prioridadeClasses =
+                                            "px-2 py-1 text-xs rounded-full";
+                                          if (tarefa.prioridade === "BAIXA")
+                                            prioridadeClasses +=
+                                              " bg-gray-100 text-gray-800";
+                                          else if (
+                                            tarefa.prioridade === "MEDIA"
+                                          )
+                                            prioridadeClasses +=
+                                              " bg-blue-100 text-blue-800";
+                                          else if (tarefa.prioridade === "ALTA")
+                                            prioridadeClasses +=
+                                              " bg-orange-100 text-orange-800";
+                                          else if (
+                                            tarefa.prioridade === "URGENTE"
+                                          )
+                                            prioridadeClasses +=
+                                              " bg-red-100 text-red-800";
 
-                                            // Classes de setor
-                                            let setorClasses =
-                                              "px-2 py-1 text-xs rounded-full";
-                                            if (tarefa.responsavel === "RH")
-                                              setorClasses +=
-                                                " bg-purple-100 text-purple-800";
-                                            else if (
-                                              tarefa.responsavel ===
-                                              "TREINAMENTO"
-                                            )
-                                              setorClasses +=
-                                                " bg-indigo-100 text-indigo-800";
-                                            else if (
-                                              tarefa.responsavel === "MEDICINA"
-                                            )
-                                              setorClasses +=
-                                                " bg-teal-100 text-teal-800";
+                                          // Classes de setor
+                                          let setorClasses =
+                                            "px-2 py-1 text-xs rounded-full";
+                                          if (tarefa.responsavel === "RH")
+                                            setorClasses +=
+                                              " bg-purple-100 text-purple-800";
+                                          else if (
+                                            tarefa.responsavel === "TREINAMENTO"
+                                          )
+                                            setorClasses +=
+                                              " bg-indigo-100 text-indigo-800";
+                                          else if (
+                                            tarefa.responsavel === "MEDICINA"
+                                          )
+                                            setorClasses +=
+                                              " bg-teal-100 text-teal-800";
 
-                                            // Verificar se está atrasada
-                                            const hoje = new Date();
-                                            hoje.setHours(0, 0, 0, 0);
-                                            const dataLimite = tarefa.dataLimite
-                                              ? new Date(tarefa.dataLimite)
-                                              : null;
-                                            if (dataLimite)
-                                              dataLimite.setHours(0, 0, 0, 0);
-                                            const atrasada =
-                                              dataLimite &&
-                                              dataLimite < hoje &&
-                                              tarefa.status !== "CONCLUIDA" &&
-                                              tarefa.status !== "CONCLUIDO";
+                                          // Verificar se está atrasada
+                                          const hoje = new Date();
+                                          hoje.setHours(0, 0, 0, 0);
+                                          const dataLimite = tarefa.dataLimite
+                                            ? new Date(tarefa.dataLimite)
+                                            : null;
+                                          if (dataLimite)
+                                            dataLimite.setHours(0, 0, 0, 0);
+                                          const atrasada =
+                                            dataLimite &&
+                                            dataLimite < hoje &&
+                                            tarefa.status !== "CONCLUIDA" &&
+                                            tarefa.status !== "CONCLUIDO";
 
-                                            return (
-                                              <tr
-                                                key={tarefa.id}
-                                                className="hover:bg-gray-50"
-                                              >
-                                                <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-500">
-                                                  {tarefa.tipo}
+                                          return (
+                                            <tr
+                                              key={tarefa.id}
+                                              className="hover:bg-gray-50"
+                                            >
+                                              <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-500">
+                                                {tarefa.tipo}
+                                              </td>
+                                              {setorAtual !== "TREINAMENTO" && (
+                                                <td className="px-4 py-3 text-xs text-gray-500 max-w-xs truncate">
+                                                  {tarefa.descricao}
                                                 </td>
-                                                {setorAtual !==
-                                                  "TREINAMENTO" && (
-                                                  <td className="px-4 py-3 text-xs text-gray-500 max-w-xs truncate">
-                                                    {tarefa.descricao}
-                                                  </td>
-                                                )}
-                                                <td className="px-4 py-3 text-xs whitespace-nowrap">
-                                                  <span
-                                                    className={statusClasses}
-                                                  >
-                                                    {tarefa.status ===
-                                                      "PENDENTE" ||
-                                                    tarefa.status ===
-                                                      "EM_ANDAMENTO"
-                                                      ? "Pendente"
+                                              )}
+                                              <td className="px-4 py-3 text-xs whitespace-nowrap">
+                                                <span className={statusClasses}>
+                                                  {tarefa.status ===
+                                                    "PENDENTE" ||
+                                                  tarefa.status ===
+                                                    "EM_ANDAMENTO"
+                                                    ? "Pendente"
+                                                    : tarefa.status ===
+                                                          "CONCLUIDA" ||
+                                                        tarefa.status ===
+                                                          "CONCLUIDO"
+                                                      ? "Concluída"
                                                       : tarefa.status ===
-                                                            "CONCLUIDA" ||
-                                                          tarefa.status ===
-                                                            "CONCLUIDO"
-                                                        ? "Concluída"
-                                                        : tarefa.status ===
-                                                            "REPROVADO"
-                                                          ? "Reprovado"
-                                                          : tarefa.status}
-                                                  </span>
-                                                </td>
-                                                <td className="px-4 py-3 text-xs whitespace-nowrap">
+                                                          "REPROVADO"
+                                                        ? "Reprovado"
+                                                        : tarefa.status}
+                                                </span>
+                                              </td>
+                                              <td className="px-4 py-3 text-xs whitespace-nowrap">
+                                                <span
+                                                  className={prioridadeClasses}
+                                                >
+                                                  {tarefa.prioridade === "BAIXA"
+                                                    ? "Baixa"
+                                                    : tarefa.prioridade ===
+                                                        "MEDIA"
+                                                      ? "Média"
+                                                      : tarefa.prioridade ===
+                                                          "ALTA"
+                                                        ? "Alta"
+                                                        : tarefa.prioridade ===
+                                                            "URGENTE"
+                                                          ? "Urgente"
+                                                          : tarefa.prioridade}
+                                                </span>
+                                              </td>
+                                              <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-500">
+                                                {tarefa.dataLimite ? (
                                                   <span
                                                     className={
-                                                      prioridadeClasses
+                                                      atrasada
+                                                        ? "text-red-600 font-medium"
+                                                        : ""
                                                     }
                                                   >
-                                                    {tarefa.prioridade ===
-                                                    "BAIXA"
-                                                      ? "Baixa"
-                                                      : tarefa.prioridade ===
-                                                          "MEDIA"
-                                                        ? "Média"
-                                                        : tarefa.prioridade ===
-                                                            "ALTA"
-                                                          ? "Alta"
-                                                          : tarefa.prioridade ===
-                                                              "URGENTE"
-                                                            ? "Urgente"
-                                                            : tarefa.prioridade}
+                                                    {new Date(
+                                                      tarefa.dataLimite,
+                                                    ).toLocaleDateString(
+                                                      "pt-BR",
+                                                    )}
+                                                    {atrasada && " (Atrasada)"}
+                                                  </span>
+                                                ) : (
+                                                  "N/A"
+                                                )}
+                                              </td>
+                                              <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-500">
+                                                {tarefa.dataConclusao
+                                                  ? new Date(
+                                                      tarefa.dataConclusao,
+                                                    ).toLocaleDateString(
+                                                      "pt-BR",
+                                                    )
+                                                  : "-"}
+                                              </td>
+                                              {!setorAtual && (
+                                                <td className="px-4 py-3 text-xs whitespace-nowrap">
+                                                  <span
+                                                    className={setorClasses}
+                                                  >
+                                                    {tarefa.responsavel === "RH"
+                                                      ? "RH"
+                                                      : tarefa.responsavel ===
+                                                          "TREINAMENTO"
+                                                        ? "Treinamento"
+                                                        : tarefa.responsavel ===
+                                                            "MEDICINA"
+                                                          ? "Medicina"
+                                                          : tarefa.responsavel}
                                                   </span>
                                                 </td>
-                                                <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-500">
-                                                  {tarefa.dataLimite ? (
-                                                    <span
-                                                      className={
-                                                        atrasada
-                                                          ? "text-red-600 font-medium"
-                                                          : ""
-                                                      }
-                                                    >
-                                                      {new Date(
-                                                        tarefa.dataLimite,
-                                                      ).toLocaleDateString(
-                                                        "pt-BR",
-                                                      )}
-                                                      {atrasada &&
-                                                        " (Atrasada)"}
-                                                    </span>
-                                                  ) : (
-                                                    "N/A"
-                                                  )}
-                                                </td>
-                                                <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-500">
-                                                  {tarefa.dataConclusao
-                                                    ? new Date(
-                                                        tarefa.dataConclusao,
-                                                      ).toLocaleDateString(
-                                                        "pt-BR",
+                                              )}
+                                              <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-500">
+                                                <div className="flex space-x-2">
+                                                  <button
+                                                    className="text-slate-500 hover:text-sky-600"
+                                                    title="Ver detalhes"
+                                                    onClick={() =>
+                                                      router.push(
+                                                        `/prestserv/remanejamentos/${tarefa.remanejamentoFuncionarioId}`,
                                                       )
-                                                    : "-"}
-                                                </td>
-                                                {!setorAtual && (
-                                                  <td className="px-4 py-3 text-xs whitespace-nowrap">
-                                                    <span
-                                                      className={setorClasses}
-                                                    >
-                                                      {tarefa.responsavel ===
-                                                      "RH"
-                                                        ? "RH"
-                                                        : tarefa.responsavel ===
-                                                            "TREINAMENTO"
-                                                          ? "Treinamento"
-                                                          : tarefa.responsavel ===
-                                                              "MEDICINA"
-                                                            ? "Medicina"
-                                                            : tarefa.responsavel}
-                                                    </span>
-                                                  </td>
-                                                )}
-                                                <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-500">
-                                                  <div className="flex space-x-2">
-                                                    <button
-                                                      className="text-slate-500 hover:text-sky-600"
-                                                      title="Ver detalhes"
-                                                      onClick={() =>
-                                                        router.push(
-                                                          `/prestserv/remanejamentos/${tarefa.remanejamentoFuncionarioId}`,
-                                                        )
-                                                      }
-                                                    >
-                                                      <EyeIcon className="h-4 w-4" />
-                                                    </button>
-                                                    {tarefa.status !==
-                                                      "CONCLUIDO" &&
-                                                      tarefa.status !==
-                                                        "CONCLUIDA" && (
-                                                        <button
-                                                          className="text-slate-500 hover:text-green-600"
-                                                          title="Concluir tarefa"
-                                                          onClick={() =>
-                                                            abrirModalConcluir(
-                                                              tarefa,
-                                                            )
-                                                          }
-                                                        >
-                                                          <CheckCircleIcon className="h-4 w-4" />
-                                                        </button>
-                                                      )}
-                                                    <button
-                                                      className="text-slate-500 hover:text-blue-600 relative"
-                                                      title="Observações"
-                                                      onClick={() =>
-                                                        abrirModalObservacoes(
-                                                          tarefa,
-                                                        )
-                                                      }
-                                                    >
-                                                      <ChatBubbleLeftRightIcon className="h-4 w-4" />
-                                                      <span
-                                                        className={`absolute -top-2 -right-2 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center ${
-                                                          (
-                                                            observacoesCount as Record<
-                                                              string,
-                                                              number
-                                                            >
-                                                          )[tarefa.id] > 0
-                                                            ? "bg-blue-500"
-                                                            : "bg-gray-400"
-                                                        }`}
+                                                    }
+                                                  >
+                                                    <EyeIcon className="h-4 w-4" />
+                                                  </button>
+                                                  {tarefa.status !==
+                                                    "CONCLUIDO" &&
+                                                    tarefa.status !==
+                                                      "CONCLUIDA" && (
+                                                      <button
+                                                        className="text-slate-500 hover:text-green-600"
+                                                        title="Concluir tarefa"
+                                                        onClick={() => {
+                                                          saveAnchorPos(
+                                                            chaveGrupo,
+                                                          );
+                                                          setFocusRem(
+                                                            chaveGrupo,
+                                                          );
+                                                          abrirModalConcluir(
+                                                            tarefa,
+                                                          );
+                                                        }}
                                                       >
-                                                        {(
+                                                        <CheckCircleIcon className="h-4 w-4" />
+                                                      </button>
+                                                    )}
+                                                  <button
+                                                    className="text-slate-500 hover:text-blue-600 relative"
+                                                    title="Observações"
+                                                    onClick={() => {
+                                                      saveAnchorPos(chaveGrupo);
+                                                      setFocusRem(chaveGrupo);
+                                                      abrirModalObservacoes(
+                                                        tarefa,
+                                                      );
+                                                    }}
+                                                  >
+                                                    <ChatBubbleLeftRightIcon className="h-4 w-4" />
+                                                    <span
+                                                      className={`absolute -top-2 -right-2 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center ${
+                                                        (
                                                           observacoesCount as Record<
                                                             string,
                                                             number
                                                           >
-                                                        )[tarefa.id] ?? 0}
-                                                      </span>
+                                                        )[tarefa.id] > 0
+                                                          ? "bg-blue-500"
+                                                          : "bg-gray-400"
+                                                      }`}
+                                                    >
+                                                      {(
+                                                        observacoesCount as Record<
+                                                          string,
+                                                          number
+                                                        >
+                                                      )[tarefa.id] ?? 0}
+                                                    </span>
+                                                  </button>
+                                                  {isAdmin && (
+                                                    <button
+                                                      className="text-slate-500 hover:text-red-600"
+                                                      title="Excluir tarefa"
+                                                      onClick={() =>
+                                                        abrirModalExcluir(
+                                                          tarefa,
+                                                        )
+                                                      }
+                                                    >
+                                                      <TrashIcon className="h-4 w-4" />
                                                     </button>
-                                                    {isAdmin && (
-                                                      <button
-                                                        className="text-slate-500 hover:text-red-600"
-                                                        title="Excluir tarefa"
-                                                        onClick={() =>
-                                                          abrirModalExcluir(
-                                                            tarefa,
-                                                          )
-                                                        }
-                                                      >
-                                                        <TrashIcon className="h-4 w-4" />
-                                                      </button>
-                                                    )}
-                                                  </div>
-                                                </td>
-                                              </tr>
-                                            );
-                                          })}
+                                                  )}
+                                                </div>
+                                              </td>
+                                            </tr>
+                                          );
+                                        })}
                                       </tbody>
                                     </table>
                                   </div>
@@ -4489,6 +4644,7 @@ export default function TarefasPage() {
     <div
       className="container mx-auto px-4 py-8"
       style={{ overflowAnchor: "none" as any }}
+      data-scroll="main"
     >
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-slate-600">
