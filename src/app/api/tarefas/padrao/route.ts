@@ -5,6 +5,36 @@ import { prisma } from "@/lib/prisma";
 const SETORES_VALIDOS = ["RH", "MEDICINA", "TREINAMENTO"] as const;
 type SetorValido = (typeof SETORES_VALIDOS)[number];
 
+function normalizarTexto(valor: unknown) {
+  return String(valor ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizarNumeroContrato(valor: unknown) {
+  return String(valor ?? "")
+    .replace(/\D/g, "")
+    .replace(/^0+/, "");
+}
+
+function deveCriarTarefaPadraoParaContrato({
+  setor,
+  tipo,
+  contratoDestinoNumero,
+}: {
+  setor: SetorValido;
+  tipo: string;
+  contratoDestinoNumero: string | null;
+}) {
+  if (setor === "RH" && normalizarTexto(tipo) === "PLANO DE SAUDE") {
+    return normalizarNumeroContrato(contratoDestinoNumero) === "12345";
+  }
+  return true;
+}
+
 // Chave canônica para identificar uma tarefa única por setor+tipo
 function chaveTarefa(tipo: string, responsavel: string) {
   const r = String(responsavel || "")
@@ -35,7 +65,7 @@ async function gerarTarefasTreinamento(
   existentesTreinoId: Set<number>,
   existentesChaves: Set<string>,
   novosTreinoIds: Set<number>,
-  novosChaves: Set<string>
+  novosChaves: Set<string>,
 ) {
   console.log("=== INICIANDO GERAÇÃO DE TAREFAS DE TREINAMENTO ===");
   console.log("RemanejamentoFuncionario ID:", remanejamentoFuncionario?.id);
@@ -128,7 +158,7 @@ async function gerarTarefasTreinamento(
           console.log(
             "⏭️ Treinamento já existente, pulando:",
             treinamento.id,
-            nomeTreino
+            nomeTreino,
           );
           continue;
         }
@@ -136,7 +166,7 @@ async function gerarTarefasTreinamento(
         if (existentesChaves.has(chaveNome) || novosChaves.has(chaveNome)) {
           console.log(
             "⏭️ Treinamento sem ID já existente por chave, pulando:",
-            nomeTreino
+            nomeTreino,
           );
           continue;
         }
@@ -181,12 +211,12 @@ Contrato: ${matriz.contrato?.nome || "N/A"}`;
       tarefasGeradas++;
       console.log(
         `✅ Tarefa ${tarefasGeradas} criada:`,
-        treinamento.treinamento
+        treinamento.treinamento,
       );
     }
 
     console.log(
-      `✅ Total de tarefas de treinamento geradas: ${tarefasGeradas}`
+      `✅ Total de tarefas de treinamento geradas: ${tarefasGeradas}`,
     );
   } catch (error) {
     console.error("❌ Erro ao gerar tarefas de treinamento:", error);
@@ -217,7 +247,7 @@ export async function POST(request: NextRequest) {
     ) {
       return NextResponse.json(
         { error: "funcionarioId, setores (array) são obrigatórios" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -247,7 +277,7 @@ export async function POST(request: NextRequest) {
         funcionario = remanejamentoFuncionario.funcionario;
         console.log(
           "Encontrado por UUID do RemanejamentoFuncionario:",
-          remanejamentoFuncionario.id
+          remanejamentoFuncionario.id,
         );
       }
     }
@@ -284,14 +314,14 @@ export async function POST(request: NextRequest) {
     if (!funcionario) {
       return NextResponse.json(
         { error: "Funcionário não encontrado" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
     if (!remanejamentoFuncionario) {
       return NextResponse.json(
         { error: "Funcionário não possui remanejamento cadastrado" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -306,12 +336,12 @@ export async function POST(request: NextRequest) {
           error:
             "Não é possível criar novas tarefas quando o prestserv está em avaliação ou concluído",
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     // Validar e normalizar setores
-    const setoresValidos = [];
+    const setoresValidos: SetorValido[] = [];
     for (const setor of setores) {
       const setorNormalizado = normalizarSetor(setor);
       if (setorNormalizado) {
@@ -320,10 +350,10 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           {
             error: `Setor '${setor}' não é válido. Setores válidos: ${SETORES_VALIDOS.join(
-              ", "
+              ", ",
             )}`,
           },
-          { status: 400 }
+          { status: 400 },
         );
       }
     }
@@ -365,7 +395,7 @@ export async function POST(request: NextRequest) {
         arr.sort(
           (a, b) =>
             new Date(a.dataCriacao as Date).getTime() -
-            new Date(b.dataCriacao as Date).getTime()
+            new Date(b.dataCriacao as Date).getTime(),
         )[0];
       for (const t of arr) {
         if (t.id === manter.id) continue;
@@ -390,17 +420,28 @@ export async function POST(request: NextRequest) {
         .filter(
           (t) =>
             t.responsavel === "TREINAMENTO" &&
-            typeof t.treinamentoId === "number"
+            typeof t.treinamentoId === "number",
         )
-        .map((t) => t.treinamentoId as number)
+        .map((t) => t.treinamentoId as number),
     );
     const existentesChaves = new Set<string>(
       tarefasExistentes.map((t) =>
-        chaveTarefa(String(t.tipo || ""), String(t.responsavel || ""))
-      )
+        chaveTarefa(String(t.tipo || ""), String(t.responsavel || "")),
+      ),
     );
     const novosTreinoIds = new Set<number>();
     const novosChaves = new Set<string>();
+    const contratoDestinoNumero =
+      remanejamentoFuncionario.solicitacao?.contratoDestinoId != null
+        ? ((
+            await prisma.contrato.findUnique({
+              where: {
+                id: remanejamentoFuncionario.solicitacao.contratoDestinoId,
+              },
+              select: { numero: true },
+            })
+          )?.numero ?? null)
+        : null;
 
     for (const setor of setoresValidos) {
       if (setor === "TREINAMENTO") {
@@ -413,7 +454,7 @@ export async function POST(request: NextRequest) {
           existentesTreinoId,
           existentesChaves,
           novosTreinoIds,
-          novosChaves
+          novosChaves,
         );
       } else {
         // Para RH e MEDICINA, usar tarefas padrão como antes
@@ -429,13 +470,21 @@ export async function POST(request: NextRequest) {
           },
         });
 
-        if (!tarefasSetor || tarefasSetor.length === 0) {
+        const tarefasSetorFiltradas = tarefasSetor.filter((t) =>
+          deveCriarTarefaPadraoParaContrato({
+            setor,
+            tipo: t.tipo,
+            contratoDestinoNumero,
+          }),
+        );
+
+        if (!tarefasSetorFiltradas || tarefasSetorFiltradas.length === 0) {
           console.warn(`Setor ${setor} não possui tarefas padrões definidas`);
           continue;
         }
 
         // Adicionar cada tarefa do setor ao array
-        for (const tarefaPadrao of tarefasSetor) {
+        for (const tarefaPadrao of tarefasSetorFiltradas) {
           const chave = chaveTarefa(String(tarefaPadrao.tipo), setor);
           if (existentesChaves.has(chave) || novosChaves.has(chave)) {
             // Não criar duplicado
@@ -548,7 +597,7 @@ export async function POST(request: NextRequest) {
     console.error("Erro ao reprovar tarefas padrões:", error);
     console.error(
       "Error stack:",
-      error instanceof Error ? error.stack : "No stack trace"
+      error instanceof Error ? error.stack : "No stack trace",
     );
     const message =
       error instanceof Error ? error.message : "Erro desconhecido";
@@ -558,7 +607,7 @@ export async function POST(request: NextRequest) {
         details: message,
         stack: error instanceof Error ? error.stack : undefined,
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -581,17 +630,20 @@ export async function GET() {
     });
 
     // Organizar tarefas por setor
-    const tarefasPorSetor = tarefas.reduce((acc, tarefa) => {
-      if (!acc[tarefa.setor]) {
-        acc[tarefa.setor] = [];
-      }
-      acc[tarefa.setor].push({
-        id: tarefa.id,
-        tipo: tarefa.tipo,
-        descricao: tarefa.descricao,
-      });
-      return acc;
-    }, {} as Record<string, Record<string, unknown>[]>);
+    const tarefasPorSetor = tarefas.reduce(
+      (acc, tarefa) => {
+        if (!acc[tarefa.setor]) {
+          acc[tarefa.setor] = [];
+        }
+        acc[tarefa.setor].push({
+          id: tarefa.id,
+          tipo: tarefa.tipo,
+          descricao: tarefa.descricao,
+        });
+        return acc;
+      },
+      {} as Record<string, Record<string, unknown>[]>,
+    );
 
     return NextResponse.json({
       setores: SETORES_VALIDOS,
@@ -601,7 +653,7 @@ export async function GET() {
     console.error("Erro ao listar tarefas padrões:", error);
     return NextResponse.json(
       { error: "Erro ao listar tarefas padrões" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

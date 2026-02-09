@@ -16,8 +16,31 @@ const norm = (s: string | null | undefined) =>
     .trim()
     .toUpperCase();
 
+const keyTexto = (s: string | null | undefined) =>
+  norm(s).replace(/\s+/g, " ").trim();
+
+const keyNumeroContrato = (s: string | null | undefined) =>
+  String(s ?? "")
+    .replace(/\D/g, "")
+    .replace(/^0+/, "");
+
+function deveCriarTarefaPadraoParaContrato({
+  setor,
+  tipo,
+  contratoDestinoNumero,
+}: {
+  setor: SetorValido;
+  tipo: string;
+  contratoDestinoNumero: string | null;
+}) {
+  if (setor === "RH" && keyTexto(tipo) === "PLANO DE SAUDE") {
+    return keyNumeroContrato(contratoDestinoNumero) === "12345";
+  }
+  return true;
+}
+
 export function detectSetor(
-  s: string | null | undefined
+  s: string | null | undefined,
 ): SetorValido | string {
   const v = norm(s);
   if (!v) return "";
@@ -173,7 +196,7 @@ export async function sincronizarTarefasPadrao({
   if (setoresNormalizados.length === 0) {
     return {
       message: `Nenhum setor válido informado. Válidos: ${SETORES_VALIDOS.join(
-        ", "
+        ", ",
       )}`,
       totalRemanejamentos: 0,
       totalTarefasCriadas: 0,
@@ -234,6 +257,7 @@ export async function sincronizarTarefasPadrao({
   let totalCanceladas = 0;
   let totalReativadas = 0;
   const detalhes: SincronizarResultadoItem[] = [];
+  const contratoNumeroCache = new Map<number, string | null>();
 
   for (const rem of rems) {
     // Segurança adicional: não alterar tarefas quando o Prestserv está em validação ou validado
@@ -244,10 +268,10 @@ export async function sincronizarTarefasPadrao({
       continue;
     }
     const existentes = new Set<string>(
-      rem.tarefas.map((t) => chaveTarefa(t.tipo, t.responsavel))
+      rem.tarefas.map((t) => chaveTarefa(t.tipo, t.responsavel)),
     );
     const existentePorChave = new Map<string, (typeof rem.tarefas)[number]>(
-      rem.tarefas.map((t) => [chaveTarefa(t.tipo, t.responsavel), t])
+      rem.tarefas.map((t) => [chaveTarefa(t.tipo, t.responsavel), t]),
     );
     const tarefasParaCriar: any[] = [];
     const tarefasParaCancelar: {
@@ -293,6 +317,20 @@ export async function sincronizarTarefasPadrao({
     }[] = [];
 
     // Helpers estão no escopo do módulo: detectSetor, findEquipeIdBySetor
+    const contratoDestinoNumero = await (async () => {
+      const contratoId = rem.solicitacao?.contratoDestinoId ?? null;
+      if (contratoId == null) return null;
+      if (contratoNumeroCache.has(contratoId)) {
+        return contratoNumeroCache.get(contratoId) ?? null;
+      }
+      const c = await prisma.contrato.findUnique({
+        where: { id: contratoId },
+        select: { numero: true },
+      });
+      const numero = c?.numero ?? null;
+      contratoNumeroCache.set(contratoId, numero);
+      return numero;
+    })();
 
     const gruposAll = new Map<string, Array<(typeof rem.tarefas)[number]>>();
     for (const t of rem.tarefas) {
@@ -316,7 +354,7 @@ export async function sincronizarTarefasPadrao({
           .sort(
             (a, b) =>
               new Date((a as any).dataCriacao as Date).getTime() -
-              new Date((b as any).dataCriacao as Date).getTime()
+              new Date((b as any).dataCriacao as Date).getTime(),
           )[0];
       for (const t of arr) {
         if (t.id === manter.id) continue;
@@ -361,14 +399,14 @@ export async function sincronizarTarefasPadrao({
           const mandatariosIdSet = new Set<number>(
             matrizObrigatoria
               .map((m) => m.treinamento?.id as number)
-              .filter((id) => typeof id === "number")
+              .filter((id) => typeof id === "number"),
           );
           const mandatariosChaveSet = new Set<string>(
             matrizObrigatoria
               .map((m) =>
-                chaveTarefa(m.treinamento?.treinamento || "", "TREINAMENTO")
+                chaveTarefa(m.treinamento?.treinamento || "", "TREINAMENTO"),
               )
-              .filter((k) => !!k.trim())
+              .filter((k) => !!k.trim()),
           );
 
           const existentesTreinoId = new Set<number>(
@@ -376,9 +414,9 @@ export async function sincronizarTarefasPadrao({
               .filter(
                 (t) =>
                   detectSetor(t.responsavel) === "TREINAMENTO" &&
-                  typeof (t as any).treinamentoId === "number"
+                  typeof (t as any).treinamentoId === "number",
               )
-              .map((t) => (t as any).treinamentoId as number)
+              .map((t) => (t as any).treinamentoId as number),
           );
           const novasTreinoIds = new Set<number>();
           const novasChaves = new Set<string>();
@@ -395,14 +433,14 @@ export async function sincronizarTarefasPadrao({
                 const grupo = rem.tarefas.filter(
                   (t) =>
                     t.responsavel === "TREINAMENTO" &&
-                    (t as any).treinamentoId === tid
+                    (t as any).treinamentoId === tid,
                 );
                 const temNaoCancelado = grupo.some(
-                  (tt) => tt.status !== "CANCELADO"
+                  (tt) => tt.status !== "CANCELADO",
                 );
                 if (!temNaoCancelado) {
                   const cancelada = grupo.find(
-                    (tt) => tt.status === "CANCELADO"
+                    (tt) => tt.status === "CANCELADO",
                   );
                   if (cancelada) {
                     tarefasParaReativar.push({
@@ -419,13 +457,13 @@ export async function sincronizarTarefasPadrao({
                 const grupoNome = rem.tarefas.filter(
                   (t) =>
                     detectSetor(t.responsavel) === "TREINAMENTO" &&
-                    chaveTarefa(t.tipo, t.responsavel) === chaveNome
+                    chaveTarefa(t.tipo, t.responsavel) === chaveNome,
                 );
                 if (grupoNome.length > 0) {
                   const concluida =
                     grupoNome.find(
                       (x) =>
-                        x.status === "CONCLUIDO" || x.status === "CONCLUIDA"
+                        x.status === "CONCLUIDO" || x.status === "CONCLUIDA",
                     ) || null;
                   const manter =
                     concluida ||
@@ -434,7 +472,7 @@ export async function sincronizarTarefasPadrao({
                       .sort(
                         (a, b) =>
                           new Date((a as any).dataCriacao as Date).getTime() -
-                          new Date((b as any).dataCriacao as Date).getTime()
+                          new Date((b as any).dataCriacao as Date).getTime(),
                       )[0];
                   for (const t of grupoNome) {
                     if (t.id === manter.id) continue;
@@ -509,7 +547,7 @@ export async function sincronizarTarefasPadrao({
                   } catch (convErr) {
                     console.error(
                       "Erro ao converter tarefa para treinamentoId:",
-                      convErr
+                      convErr,
                     );
                   }
                   continue;
@@ -519,14 +557,14 @@ export async function sincronizarTarefasPadrao({
               const chave = chaveTarefa(tipo, resp);
               if (existentes.has(chave) || novasChaves.has(chave)) {
                 const grupo = rem.tarefas.filter(
-                  (t) => chaveTarefa(t.tipo, t.responsavel) === chave
+                  (t) => chaveTarefa(t.tipo, t.responsavel) === chave,
                 );
                 const temNaoCancelado = grupo.some(
-                  (tt) => tt.status !== "CANCELADO"
+                  (tt) => tt.status !== "CANCELADO",
                 );
                 if (!temNaoCancelado) {
                   const cancelada = grupo.find(
-                    (tt) => tt.status === "CANCELADO"
+                    (tt) => tt.status === "CANCELADO",
                   );
                   if (cancelada) {
                     tarefasParaReativar.push({
@@ -589,7 +627,7 @@ export async function sincronizarTarefasPadrao({
 
           // Remover (cancelar) tarefas de treinamento que não são mais obrigatórias
           const tarefasTreinamentoExistentes = rem.tarefas.filter(
-            (t) => detectSetor(t.responsavel) === "TREINAMENTO"
+            (t) => detectSetor(t.responsavel) === "TREINAMENTO",
           );
           for (const t of tarefasTreinamentoExistentes) {
             const tidT = (t as any).treinamentoId as number | null;
@@ -631,7 +669,7 @@ export async function sincronizarTarefasPadrao({
             if (arr.length <= 1) continue;
             const concluida =
               arr.find(
-                (x) => x.status === "CONCLUIDO" || x.status === "CONCLUIDA"
+                (x) => x.status === "CONCLUIDO" || x.status === "CONCLUIDA",
               ) || null;
             const manter =
               concluida ||
@@ -640,7 +678,7 @@ export async function sincronizarTarefasPadrao({
                 .sort(
                   (a, b) =>
                     new Date((a as any).dataCriacao as Date).getTime() -
-                    new Date((b as any).dataCriacao as Date).getTime()
+                    new Date((b as any).dataCriacao as Date).getTime(),
                 )[0];
             for (const t of arr) {
               if (t.id === manter.id) continue;
@@ -673,15 +711,22 @@ export async function sincronizarTarefasPadrao({
         where: { setor, ativo: true },
         select: { tipo: true, descricao: true },
       });
+      const tarefasPadraoFiltradas = tarefasPadrao.filter((t) =>
+        deveCriarTarefaPadraoParaContrato({
+          setor,
+          tipo: t.tipo,
+          contratoDestinoNumero,
+        }),
+      );
 
       // Criar faltantes
-      for (const t of tarefasPadrao) {
+      for (const t of tarefasPadraoFiltradas) {
         const tipo = t.tipo;
         const resp = setor;
         const chave = chaveTarefa(tipo, resp);
         if (existentes.has(chave)) {
           const grupo = rem.tarefas.filter(
-            (tt) => chaveTarefa(tt.tipo, tt.responsavel) === chave
+            (tt) => chaveTarefa(tt.tipo, tt.responsavel) === chave,
           );
           const temNaoCancelado = grupo.some((tt) => tt.status !== "CANCELADO");
           if (!temNaoCancelado) {
@@ -735,10 +780,10 @@ export async function sincronizarTarefasPadrao({
 
       // Cancelar tarefas do setor que não constam mais nas tarefas padrão ativas
       const mandatariosPadraoSet = new Set<string>(
-        tarefasPadrao.map((tp) => chaveTarefa(tp.tipo, setor))
+        tarefasPadraoFiltradas.map((tp) => chaveTarefa(tp.tipo, setor)),
       );
       const tarefasSetorExistentes = rem.tarefas.filter(
-        (t) => detectSetor(t.responsavel) === setor
+        (t) => detectSetor(t.responsavel) === setor,
       );
       for (const t of tarefasSetorExistentes) {
         const chave = chaveTarefa(t.tipo, t.responsavel);
@@ -823,7 +868,7 @@ export async function sincronizarTarefasPadrao({
           } catch (obsErr) {
             console.error(
               "Erro ao registrar observação de cancelamento:",
-              obsErr
+              obsErr,
             );
           }
 
@@ -851,7 +896,7 @@ export async function sincronizarTarefasPadrao({
           } catch (histErr) {
             console.error(
               "Erro ao registrar histórico de cancelamento:",
-              histErr
+              histErr,
             );
           }
 
@@ -930,7 +975,7 @@ export async function sincronizarTarefasPadrao({
           (t) =>
             t.status === "CONCLUIDO" ||
             t.status === "CONCLUIDA" ||
-            t.status === "CANCELADO"
+            t.status === "CANCELADO",
         );
 
       let novoStatus = semPendentes ? "SUBMETER RASCUNHO" : "ATENDER TAREFAS";
@@ -943,7 +988,7 @@ export async function sincronizarTarefasPadrao({
         const temTreinamentoAtivo = tarefasAtual.some(
           (t) =>
             t.status !== "CANCELADO" &&
-            detectSetor(t.responsavel) === "TREINAMENTO"
+            detectSetor(t.responsavel) === "TREINAMENTO",
         );
 
         if (!temTreinamentoAtivo) {
@@ -1015,7 +1060,7 @@ export async function sincronizarTarefasPadrao({
           } catch (e) {
             console.error(
               "Erro ao criar observação de mudança de responsável:",
-              e
+              e,
             );
           }
         }
@@ -1152,10 +1197,10 @@ export async function sincronizarTarefasPadrao({
           {
             where: { remanejamentoFuncionarioId: rem.id },
             select: { status: true },
-          }
+          },
         );
         const temReprovadas = tarefasAtualParaCheck.some(
-          (t) => t.status === "REPROVADO"
+          (t) => t.status === "REPROVADO",
         );
         if (!temReprovadas) {
           const observacaoCorr =
