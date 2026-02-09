@@ -125,6 +125,7 @@ export default function TarefasPage() {
 
   // Filtros
   const [filtroNome, setFiltroNome] = useState("");
+  const [filtroNomeList, setFiltroNomeList] = useState<string[]>([]);
   const [filtroStatusList, setFiltroStatusList] = useState<string[]>([]);
   const [filtroPrioridadeList, setFiltroPrioridadeList] = useState<string[]>(
     [],
@@ -148,9 +149,66 @@ export default function TarefasPage() {
   const [dropdownContratoOpen, setDropdownContratoOpen] = useState(false);
   const [dropdownSetorOpen, setDropdownSetorOpen] = useState(false);
   const [dropdownTipoOpen, setDropdownTipoOpen] = useState(false);
+  const [dropdownNomeOpen, setDropdownNomeOpen] = useState(false);
+  const [nomeSearchDraft, setNomeSearchDraft] = useState("");
+  const FILTERS_CACHE_KEY = "tarefas_filters_v1";
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(FILTERS_CACHE_KEY);
+      if (!raw) return;
+      const data = JSON.parse(raw || "{}");
+      if (Array.isArray(data.filtroStatusList))
+        setFiltroStatusList(data.filtroStatusList);
+      if (Array.isArray(data.filtroPrioridadeList))
+        setFiltroPrioridadeList(data.filtroPrioridadeList);
+      if (Array.isArray(data.filtroSetorList))
+        setFiltroSetorList(data.filtroSetorList);
+      if (Array.isArray(data.filtroContratoList))
+        setFiltroContratoList(data.filtroContratoList);
+      if (Array.isArray(data.filtroTipoList))
+        setFiltroTipoList(data.filtroTipoList);
+      if (typeof data.filtroDataCategoria === "string")
+        setFiltroDataCategoria(data.filtroDataCategoria as any);
+      if (typeof data.filtroDataExata === "string")
+        setFiltroDataExata(data.filtroDataExata);
+      if (Array.isArray(data.filtroNomeList))
+        setFiltroNomeList(data.filtroNomeList);
+      if (typeof data.ordenacaoDataLimite === "string")
+        setOrdenacaoDataLimite(data.ordenacaoDataLimite as any);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    try {
+      const data = {
+        filtroStatusList,
+        filtroPrioridadeList,
+        filtroSetorList,
+        filtroContratoList,
+        filtroTipoList,
+        filtroDataCategoria,
+        filtroDataExata,
+        filtroNomeList,
+        ordenacaoDataLimite,
+      };
+      localStorage.setItem(FILTERS_CACHE_KEY, JSON.stringify(data));
+    } catch {}
+  }, [
+    filtroStatusList,
+    filtroPrioridadeList,
+    filtroSetorList,
+    filtroContratoList,
+    filtroTipoList,
+    filtroDataCategoria,
+    filtroDataExata,
+    filtroNomeList,
+    ordenacaoDataLimite,
+  ]);
 
   // Refs para evitar re-renderizações
   const filtroNomeRef = useRef<HTMLInputElement>(null);
+  const nomeSearchInputRef = useRef<HTMLInputElement>(null);
   const controladorFetchRef = useRef<AbortController | null>(null);
   const fetchEmAndamentoRef = useRef(0);
   const tarefasCacheRef = useRef<
@@ -268,6 +326,25 @@ export default function TarefasPage() {
   const [tituloVerObs, setTituloVerObs] = useState("");
 
   useEffect(() => {
+    if (dropdownNomeOpen && nomeSearchInputRef.current) {
+      nomeSearchInputRef.current.focus();
+    }
+  }, [dropdownNomeOpen]);
+
+  useEffect(() => {
+    if (dropdownNomeOpen && nomeSearchInputRef.current) {
+      const el = nomeSearchInputRef.current;
+      if (document.activeElement !== el) {
+        el.focus();
+        try {
+          const len = el.value?.length ?? 0;
+          el.setSelectionRange(len, len);
+        } catch {}
+      }
+    }
+  }, [nomeSearchDraft, dropdownNomeOpen]);
+
+  useEffect(() => {
     // Detectar o setor com base nos parâmetros da URL atual
     const setorParam = searchParams.get("setor");
 
@@ -299,9 +376,9 @@ export default function TarefasPage() {
   }, [filtroSetorServidor]); // Removed fetchTodasTarefas from dependency array
 
   useEffect(() => {
-    setPaginaAtual(1);
+    setPaginaAtualFuncionarios(1);
   }, [
-    filtroNome,
+    filtroNomeList,
     filtroStatusList,
     filtroPrioridadeList,
     filtroSetorList,
@@ -473,6 +550,10 @@ export default function TarefasPage() {
       .toUpperCase()
       .replace(/\s+/g, "_")
       .trim();
+  const normalizePlain = (s: string) =>
+    stripAccents(s || "")
+      .toUpperCase()
+      .trim();
 
   const getRemanejamentosFiltrados = () => {
     if (!solicitacoes.length) return [];
@@ -484,9 +565,12 @@ export default function TarefasPage() {
         (remanejamento: RemanejamentoFuncionario) => {
           // Aplicar filtros no nível do funcionário
           const nomeFuncionario = remanejamento.funcionario?.nome || "";
-          const matchNome = nomeFuncionario
-            .toLowerCase()
-            .includes(filtroNome.toLowerCase());
+          const nomeFuncNorm = stripAccents(nomeFuncionario).toLowerCase();
+          const matchNome =
+            filtroNomeList.length === 0 ||
+            filtroNomeList.some((term) =>
+              nomeFuncNorm.includes(stripAccents(term).toLowerCase()),
+            );
 
           if (!matchNome) return;
 
@@ -506,120 +590,18 @@ export default function TarefasPage() {
             return;
           }
 
-          // Filtrar tarefas dentro do remanejamento
-          const tarefasFiltradas =
-            remanejamento.tarefas?.filter((tarefa: TarefaRemanejamento) => {
-              // Excluir tarefas canceladas de todas as visões (listagem, cards e painéis)
-              if (tarefa.status === "CANCELADO") {
-                return false;
-              }
-              let matchStatus = true;
-              if (filtroStatusList.length > 0) {
-                const allowed = new Set<string>();
-                if (filtroStatusList.includes("CONCLUIDO")) {
-                  allowed.add("CONCLUIDO");
-                  allowed.add("CONCLUIDA");
-                }
-                if (filtroStatusList.includes("PENDENTE")) {
-                  allowed.add("PENDENTE");
-                  allowed.add("EM_ANDAMENTO");
-                }
-                if (filtroStatusList.includes("REPROVADO")) {
-                  allowed.add("REPROVADO");
-                }
-                const statusNorm = normalizeStatus(tarefa.status || "");
-                matchStatus = allowed.has(statusNorm);
-              }
+          // Apenas remover tarefas canceladas; filtros de tarefa são aplicados
+          // exclusivamente na visão por funcionários para não afetar a aba Concluídos.
+          const tarefasSemCanceladas =
+            remanejamento.tarefas?.filter(
+              (tarefa: TarefaRemanejamento) => tarefa.status !== "CANCELADO",
+            ) || [];
 
-              const matchPrioridade =
-                filtroPrioridadeList.length === 0 ||
-                filtroPrioridadeList.includes(tarefa.prioridade);
-              const matchSetor = setorAtual
-                ? tarefa.responsavel === setorAtual
-                : filtroSetorList.length === 0 ||
-                  filtroSetorList.includes(tarefa.responsavel);
-
-              // Filtro por categoria de data limite e "Novo" ("Novo" baseado em data de criação, independente do status)
-              let matchDataCategoria = true;
-              if (filtroDataCategoria) {
-                if (filtroDataCategoria === "NOVO") {
-                  const criadoMs = tarefa.dataCriacao
-                    ? new Date(tarefa.dataCriacao).getTime()
-                    : 0;
-                  const nowMs = Date.now();
-                  matchDataCategoria =
-                    !!tarefa.dataCriacao &&
-                    criadoMs <= nowMs &&
-                    nowMs - criadoMs <= 48 * 60 * 60 * 1000;
-                } else {
-                  const hoje = new Date();
-                  hoje.setHours(0, 0, 0, 0);
-                  const dataLimiteDate = tarefa.dataLimite
-                    ? new Date(tarefa.dataLimite)
-                    : null;
-                  const notConcluida =
-                    tarefa.status !== "CONCLUIDO" &&
-                    tarefa.status !== "CONCLUIDA";
-
-                  if (filtroDataCategoria === "SEM_DATA") {
-                    matchDataCategoria = notConcluida && !dataLimiteDate;
-                  } else if (!dataLimiteDate) {
-                    matchDataCategoria = false;
-                  } else {
-                    const diffDias = Math.floor(
-                      (dataLimiteDate.getTime() - hoje.getTime()) / 86400000,
-                    );
-                    const limiteA_Vencer = 7; // próximos 7 dias
-                    if (filtroDataCategoria === "VENCIDOS") {
-                      matchDataCategoria =
-                        notConcluida && dataLimiteDate < hoje;
-                    } else if (filtroDataCategoria === "A_VENCER") {
-                      matchDataCategoria =
-                        notConcluida &&
-                        diffDias >= 0 &&
-                        diffDias <= limiteA_Vencer;
-                    } else if (filtroDataCategoria === "NO_PRAZO") {
-                      matchDataCategoria =
-                        notConcluida && diffDias > limiteA_Vencer;
-                    }
-                  }
-                }
-              }
-
-              const matchTipo =
-                filtroTipoList.length === 0 ||
-                filtroTipoList.includes(tarefa.tipo || "");
-
-              // Novo: filtro por data limite exata (compara dia civil em UTC)
-              let matchDataExata = true;
-              if (filtroDataExata) {
-                if (!tarefa.dataLimite) {
-                  matchDataExata = false;
-                } else {
-                  const d = new Date(tarefa.dataLimite);
-                  const y = d.getUTCFullYear();
-                  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
-                  const day = String(d.getUTCDate()).padStart(2, "0");
-                  const dataSomenteDia = `${y}-${m}-${day}`;
-                  matchDataExata = dataSomenteDia === filtroDataExata;
-                }
-              }
-
-              return (
-                matchStatus &&
-                matchPrioridade &&
-                matchSetor &&
-                matchDataCategoria &&
-                matchTipo &&
-                matchDataExata
-              );
-            }) || [];
-
-          // Só incluir remanejamento se tem tarefas após filtro
-          if (tarefasFiltradas.length > 0) {
+          // Só incluir remanejamento se possui alguma tarefa não cancelada
+          if (tarefasSemCanceladas.length > 0) {
             remanejamentosFiltrados.push({
               ...remanejamento,
-              tarefas: tarefasFiltradas,
+              tarefas: tarefasSemCanceladas,
               // Manter referência à solicitação
               solicitacao: solicitacao,
             } as RemanejamentoFuncionario & {
@@ -670,7 +652,10 @@ export default function TarefasPage() {
     ).length;
     // Removido status EM_ANDAMENTO conforme solicitação
     const concluidas = todasTarefas.filter(
-      (t) => t.status === "CONCLUIDO" || t.status === "CONCLUIDA",
+      (t) =>
+        t.status === "CONCLUIDO" ||
+        t.status === "CONCLUIDA" ||
+        t.status === "APROVADO",
     ).length;
     const reprovadas = todasTarefas.filter(
       (t) => t.status === "REPROVADO",
@@ -719,6 +704,7 @@ export default function TarefasPage() {
       filtroNomeRef.current.value = "";
     }
     setFiltroNome("");
+    setFiltroNomeList([]);
     setFiltroStatusList([]);
     setFiltroPrioridadeList([]);
     setFiltroSetorList([]);
@@ -729,7 +715,10 @@ export default function TarefasPage() {
     setFiltroDataCategoria("");
     setOrdenacaoDataLimite("");
     setFiltroDataExata("");
-    setPaginaAtual(1);
+    setPaginaAtualFuncionarios(1);
+    try {
+      localStorage.removeItem(FILTERS_CACHE_KEY);
+    } catch {}
   };
 
   const removerFiltroIndividual = (tipoFiltro: string, valor?: string) => {
@@ -770,7 +759,17 @@ export default function TarefasPage() {
         }
         break;
       case "nome":
-        setFiltroNome("");
+        if (valor) {
+          setFiltroNomeList((prev) =>
+            prev.filter(
+              (v) =>
+                stripAccents(v).toLowerCase() !==
+                stripAccents(valor).toLowerCase(),
+            ),
+          );
+        } else {
+          setFiltroNomeList([]);
+        }
         if (filtroNomeRef.current) filtroNomeRef.current.value = "";
         break;
       case "dataCategoria":
@@ -784,13 +783,13 @@ export default function TarefasPage() {
 
   const obterTagsFiltrosAtivos = () => {
     const tags: Array<{ tipo: string; valor: string; label: string }> = [];
-    if (filtroNome) {
+    filtroNomeList.forEach((nome) => {
       tags.push({
         tipo: "nome",
-        valor: filtroNome,
-        label: `Nome: ${filtroNome}`,
+        valor: nome,
+        label: `Nome: ${nome}`,
       });
-    }
+    });
     filtroStatusList.forEach((status) => {
       tags.push({
         tipo: "status",
@@ -1012,11 +1011,125 @@ export default function TarefasPage() {
 
     const funcionariosComTarefas = remanejamentosFiltrados
       .map((remanejamento) => {
-        // Filtrar tarefas por setor se especificado
+        // Filtrar tarefas SOMENTE para a visão por funcionários:
+        // - Setor (quando setorAtual definido ou lista selecionada)
+        // - Status (filtroStatusList)
+        // - Prioridade, Tipo, Categoria de Data, Data Exata
         const tarefasFiltradas =
-          remanejamento.tarefas?.filter(
-            (tarefa: TarefaRemanejamento) =>
-              !setorAtual || tarefa.responsavel === setorAtual,
+          (remanejamento.tarefas || []).filter(
+            (tarefa: TarefaRemanejamento) => {
+              // Setor
+              const matchSetor = setorAtual
+                ? normalizePlain(tarefa.responsavel) ===
+                  normalizePlain(setorAtual)
+                : filtroSetorList.length === 0 ||
+                  filtroSetorList
+                    .map((s) => normalizePlain(s))
+                    .includes(normalizePlain(tarefa.responsavel));
+
+              // Status (união dos selecionados)
+              let matchStatus = true;
+              if (filtroStatusList.length > 0) {
+                const statusNorm = normalizeStatus(tarefa.status || "");
+                matchStatus = filtroStatusList.some((sel) => {
+                  if (sel === "CONCLUIDO") {
+                    return (
+                      statusNorm === "CONCLUIDO" || statusNorm === "CONCLUIDA"
+                    );
+                  }
+                  if (sel === "PENDENTE") {
+                    return (
+                      statusNorm === "PENDENTE" || statusNorm === "EM_ANDAMENTO"
+                    );
+                  }
+                  if (sel === "REPROVADO") {
+                    return statusNorm === "REPROVADO";
+                  }
+                  return false;
+                });
+              }
+
+              // Prioridade
+              const matchPrioridade =
+                filtroPrioridadeList.length === 0 ||
+                filtroPrioridadeList.includes(tarefa.prioridade);
+
+              // Tipo
+              const matchTipo =
+                filtroTipoList.length === 0 ||
+                filtroTipoList.includes(tarefa.tipo || "");
+
+              // Categoria de Data Limite
+              let matchDataCategoria = true;
+              if (filtroDataCategoria) {
+                if (filtroDataCategoria === "NOVO") {
+                  const criadoMs = tarefa.dataCriacao
+                    ? new Date(tarefa.dataCriacao).getTime()
+                    : 0;
+                  const nowMs = Date.now();
+                  matchDataCategoria =
+                    !!tarefa.dataCriacao &&
+                    criadoMs <= nowMs &&
+                    nowMs - criadoMs <= 48 * 60 * 60 * 1000;
+                } else {
+                  const hoje = new Date();
+                  hoje.setHours(0, 0, 0, 0);
+                  const dataLimiteDate = tarefa.dataLimite
+                    ? new Date(tarefa.dataLimite)
+                    : null;
+                  const notConcluida =
+                    tarefa.status !== "CONCLUIDO" &&
+                    tarefa.status !== "CONCLUIDA";
+
+                  if (filtroDataCategoria === "SEM_DATA") {
+                    matchDataCategoria = notConcluida && !dataLimiteDate;
+                  } else if (!dataLimiteDate) {
+                    matchDataCategoria = false;
+                  } else {
+                    const diffDias = Math.floor(
+                      (dataLimiteDate.getTime() - hoje.getTime()) / 86400000,
+                    );
+                    const limiteA_Vencer = 7;
+                    if (filtroDataCategoria === "VENCIDOS") {
+                      matchDataCategoria =
+                        notConcluida && dataLimiteDate < hoje;
+                    } else if (filtroDataCategoria === "A_VENCER") {
+                      matchDataCategoria =
+                        notConcluida &&
+                        diffDias >= 0 &&
+                        diffDias <= limiteA_Vencer;
+                    } else if (filtroDataCategoria === "NO_PRAZO") {
+                      matchDataCategoria =
+                        notConcluida && diffDias > limiteA_Vencer;
+                    }
+                  }
+                }
+              }
+
+              // Data Limite Exata
+              let matchDataExata = true;
+              if (filtroDataExata) {
+                if (!tarefa.dataLimite) {
+                  matchDataExata = false;
+                } else {
+                  const d = new Date(tarefa.dataLimite);
+                  const y = d.getUTCFullYear();
+                  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+                  const day = String(d.getUTCDate()).padStart(2, "0");
+                  const dataSomenteDia = `${y}-${m}-${day}`;
+                  matchDataExata = dataSomenteDia === filtroDataExata;
+                }
+              }
+
+              return (
+                matchSetor &&
+                matchStatus &&
+                matchPrioridade &&
+                matchTipo &&
+                matchDataCategoria &&
+                matchDataExata
+              );
+            },
           ) || [];
 
         // Ordenar tarefas: por Data Limite quando selecionado; caso contrário, por status
@@ -1869,6 +1982,17 @@ export default function TarefasPage() {
       return Array.from(set.values()).sort((a, b) => a.localeCompare(b));
     }, [solicitacoes]);
 
+    const nameOptions = React.useMemo(() => {
+      const set = new Set<string>();
+      solicitacoes.forEach((s) => {
+        s.funcionarios?.forEach((rem) => {
+          const nome = rem.funcionario?.nome;
+          if (nome) set.add(nome);
+        });
+      });
+      return Array.from(set.values()).sort((a, b) => a.localeCompare(b));
+    }, [solicitacoes]);
+
     const [dataExataDraft, setDataExataDraft] = useState(filtroDataExata);
 
     return (
@@ -1878,25 +2002,11 @@ export default function TarefasPage() {
           <button
             className="hover:bg-gray-200 text-gray-400 px-3 py-1.5 rounded-md transition-colors duration-200 flex items-center gap-2"
             onClick={() => {
-              // Limpar todos os filtros
-              if (filtroNomeRef.current) {
-                filtroNomeRef.current.value = "";
-              }
-              setFiltroNome("");
-              setFiltroStatusList([]);
-              setFiltroPrioridadeList([]);
-              setFiltroSetorList([]);
-              setFiltroContratoList([]);
-              // Limpar filtros antigos de intervalo
-              setFiltroDataInicio("");
-              setFiltroDataFim("");
-              // Limpar novos filtros
-              setFiltroTipoList([]);
-              setFiltroDataCategoria("");
-              setOrdenacaoDataLimite("");
-              setFiltroDataExata("");
+              limparFiltros();
               setDataExataDraft("");
-              setPaginaAtual(1);
+              try {
+                localStorage.removeItem(FILTERS_CACHE_KEY);
+              } catch {}
             }}
           >
             <XMarkIcon className="h-5 w-5" />
@@ -2178,36 +2288,96 @@ export default function TarefasPage() {
             <label className="block text-xs font-medium text-slate-800 mb-1">
               Nome do Funcionário
             </label>
-            <div className="relative flex">
-              <input
-                type="text"
-                className="pl-8 w-full h-9 rounded-l-md border-slate-500 bg-slate-100 text-slate-600 shadow-sm focus:border-slate-300 focus:ring-slate-300"
-                placeholder="Buscar por nome..."
-                ref={filtroNomeRef}
-                defaultValue={filtroNome}
-                onKeyDown={(e) => {
-                  e.stopPropagation();
-                  if (e.key === "Enter" && filtroNomeRef.current) {
-                    setFiltroNome(filtroNomeRef.current.value);
-                  }
-                }}
-              />
-              <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
-                <MagnifyingGlassIcon className="h-4 w-4 text-slate-400" />
-              </div>
-              <div className="flex">
-                <button
-                  className="bg-slate-500 hover:bg-slate-600 text-white px-3 rounded-r-md transition-colors duration-200"
-                  onClick={() => {
-                    if (filtroNomeRef.current) {
-                      setFiltroNome(filtroNomeRef.current.value);
-                    }
-                  }}
-                >
-                  <MagnifyingGlassIcon className="h-4 w-4" />
-                </button>
-              </div>
+            <div className="relative dropdown-container">
+              <FunnelIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 z-10" />
+              <button
+                onClick={() => setDropdownNomeOpen(!dropdownNomeOpen)}
+                className="w-full pl-8 pr-8 py-2 text-sm border-slate-800 bg-slate-100 text-slate-600 rounded-md shadow-sm focus:border-slate-300 focus:ring-slate-300 text-left flex items-center justify-between"
+              >
+                <span className="truncate">
+                  {filtroNomeList.length === 0
+                    ? "Todos"
+                    : filtroNomeList.length === 1
+                      ? filtroNomeList[0]
+                      : `${filtroNomeList.length} selecionados`}
+                </span>
+                <ChevronDownIcon className="h-4 w-4 text-gray-400" />
+              </button>
+              {dropdownNomeOpen && (
+                <div className="absolute z-50 mt-1 w-full bg-slate-100 border border-slate-800 rounded-md shadow-lg max-h-60 overflow-auto">
+                  <div className="p-2 border-b border-slate-300 bg-white">
+                    <div className="flex items-center gap-2">
+                      <MagnifyingGlassIcon className="h-4 w-4 text-gray-400" />
+                      <input
+                        type="text"
+                        value={nomeSearchDraft}
+                        onChange={(e) => setNomeSearchDraft(e.target.value)}
+                        placeholder="Buscar..."
+                        ref={nomeSearchInputRef}
+                        className="w-full h-8 text-xs border border-slate-300 rounded px-2 bg-white text-slate-700"
+                      />
+                    </div>
+                  </div>
+                  {nameOptions
+                    .filter((n) =>
+                      stripAccents(n)
+                        .toLowerCase()
+                        .includes(stripAccents(nomeSearchDraft).toLowerCase()),
+                    )
+                    .map((n) => (
+                      <label
+                        key={n}
+                        className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={filtroNomeList.some(
+                            (v) =>
+                              stripAccents(v).toLowerCase() ===
+                              stripAccents(n).toLowerCase(),
+                          )}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setFiltroNomeList((prev) => {
+                                const exists = prev.some(
+                                  (v) =>
+                                    stripAccents(v).toLowerCase() ===
+                                    stripAccents(n).toLowerCase(),
+                                );
+                                return exists ? prev : [...prev, n];
+                              });
+                            } else {
+                              removerFiltroIndividual("nome", n);
+                            }
+                            setPaginaAtualFuncionarios(1);
+                          }}
+                          className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        />
+                        <span className="text-sm text-gray-700">{n}</span>
+                      </label>
+                    ))}
+                </div>
+              )}
             </div>
+            {filtroNomeList.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {filtroNomeList.map((nome, idx) => (
+                  <span
+                    key={`${nome}-${idx}`}
+                    className="inline-flex items-center px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full border border-blue-200"
+                  >
+                    <span className="mr-1">{nome}</span>
+                    <button
+                      onClick={() => removerFiltroIndividual("nome", nome)}
+                      className="ml-1 inline-flex items-center justify-center w-3 h-3 text-blue-600 hover:text-blue-800 hover:bg-blue-200 rounded-full transition-colors"
+                      title="Remover nome"
+                    >
+                      <XMarkIcon className="w-2 h-2" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Filtro por Categoria de Data Limite */}
@@ -2331,7 +2501,7 @@ export default function TarefasPage() {
       () => getRemanejamentosParaVisaoFuncionarios(),
       [
         solicitacoes,
-        filtroNome,
+        filtroNomeList,
         filtroStatusList,
         filtroPrioridadeList,
         filtroSetorList,
