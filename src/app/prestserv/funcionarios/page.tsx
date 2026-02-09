@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import React, { useState, useEffect, useCallback, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useToast } from "@/components/Toast";
 import {
   // RemanejamentoFuncionario,
@@ -54,7 +54,7 @@ ChartJS.register(
   ArcElement,
   PointElement,
   LineElement,
-  ChartDataLabels
+  ChartDataLabels,
 );
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { ROUTE_PROTECTION, PERMISSIONS } from "@/lib/permissions";
@@ -116,13 +116,18 @@ export default function FuncionariosPage() {
       requiredEquipe={ROUTE_PROTECTION.PRESTSERV.requiredEquipe}
       requiredPermissions={ROUTE_PROTECTION.PRESTSERV.requiredPermissions}
     >
-      <FuncionariosPageContent />
+      <Suspense
+        fallback={<div className="flex justify-center p-8">Carregando...</div>}
+      >
+        <FuncionariosPageContent />
+      </Suspense>
     </ProtectedRoute>
   );
 }
 
 function FuncionariosPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { showToast } = useToast();
   const { usuario } = useAuth();
   const { hasAnyPermission } = usePermissions();
@@ -133,21 +138,42 @@ function FuncionariosPageContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filtroStatus, setFiltroStatus] = useState<string>("TODOS");
+
+  useEffect(() => {
+    const statusParam = searchParams.get("status");
+    if (statusParam) {
+      setFiltroStatus(statusParam);
+    }
+    const tabParam = searchParams.get("tab");
+    if (
+      tabParam &&
+      ["nominal", "concluidos", "solicitacao", "dashboard"].includes(tabParam)
+    ) {
+      setActiveTab(
+        tabParam as "nominal" | "concluidos" | "solicitacao" | "dashboard",
+      );
+    }
+    const nomeParam = searchParams.get("nome");
+    if (nomeParam) {
+      setFiltroNome(nomeParam);
+    }
+  }, [searchParams]);
+
   const [filtroNome, setFiltroNome] = useState("");
   const [filtroContratoOrigem, setFiltroContratoOrigem] = useState<string[]>(
-    []
+    [],
   );
   const [dropdownContratoOrigemOpen, setDropdownContratoOrigemOpen] =
     useState(false);
   const [filtroContratoDestino, setFiltroContratoDestino] = useState<string[]>(
-    []
+    [],
   );
   const [dropdownContratoDestinoOpen, setDropdownContratoDestinoOpen] =
     useState(false);
   const [filtroStatusGeral, setFiltroStatusGeral] = useState<string[]>([]);
   const [filtroAcaoNecessaria, setFiltroAcaoNecessaria] = useState<string>("");
   const [filtroTipoSolicitacao, setFiltroTipoSolicitacao] = useState<string[]>(
-    []
+    [],
   );
   const [filtroNumeroSolicitacao, setFiltroNumeroSolicitacao] = useState<
     string[]
@@ -166,7 +192,7 @@ function FuncionariosPageContent() {
   const [dropdownStatusPrestservOpen, setDropdownStatusPrestservOpen] =
     useState(false);
   const [filtroStatusPrestserv, setFiltroStatusPrestserv] = useState<string[]>(
-    []
+    [],
   );
   const [dropdownTipoSolicitacaoOpen, setDropdownTipoSolicitacaoOpen] =
     useState(false);
@@ -260,12 +286,12 @@ function FuncionariosPageContent() {
       try {
         setRemObsLoading(true);
         const response = await fetch(
-          `/api/logistica/remanejamentos/${remanejamentoId}/observacoes`
+          `/api/logistica/remanejamentos/${remanejamentoId}/observacoes`,
         );
         if (!response.ok) {
           const data = await response.json().catch(() => ({}));
           throw new Error(
-            data?.error || "Erro ao carregar observações do remanejamento"
+            data?.error || "Erro ao carregar observações do remanejamento",
           );
         }
         const data: ObservacaoRemanejamento[] = await response.json();
@@ -275,17 +301,17 @@ function FuncionariosPageContent() {
           error instanceof Error
             ? error.message
             : "Erro ao carregar observações do remanejamento",
-          "error"
+          "error",
         );
       } finally {
         setRemObsLoading(false);
       }
     },
-    [showToast]
+    [showToast],
   );
 
   const abrirModalObservacoesRemanejamento = (
-    funcionario: FuncionarioTableData
+    funcionario: FuncionarioTableData,
   ) => {
     if (!funcionario.remanejamentoId) {
       showToast("Remanejamento não encontrado para este funcionário", "error");
@@ -328,7 +354,7 @@ function FuncionariosPageContent() {
           data?.error ||
             (isEdit
               ? "Erro ao atualizar observação"
-              : "Erro ao criar observação")
+              : "Erro ao criar observação"),
         );
       }
       setRemObsTexto("");
@@ -338,14 +364,14 @@ function FuncionariosPageContent() {
         isEdit
           ? "Observação atualizada com sucesso!"
           : "Observação criada com sucesso!",
-        "success"
+        "success",
       );
     } catch (error) {
       showToast(
         error instanceof Error
           ? error.message
           : "Erro ao salvar observação do remanejamento",
-        "error"
+        "error",
       );
     } finally {
       setRemObsLoading(false);
@@ -373,12 +399,12 @@ function FuncionariosPageContent() {
         `/api/logistica/remanejamentos/${remObsRemanejamentoId}/observacoes/${obsId}`,
         {
           method: "DELETE",
-        }
+        },
       );
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
         throw new Error(
-          data?.error || "Erro ao excluir observação do remanejamento"
+          data?.error || "Erro ao excluir observação do remanejamento",
         );
       }
       if (remObsEditando && remObsEditando.id === obsId) {
@@ -392,7 +418,7 @@ function FuncionariosPageContent() {
         error instanceof Error
           ? error.message
           : "Erro ao excluir observação do remanejamento",
-        "error"
+        "error",
       );
     } finally {
       setRemObsLoading(false);
@@ -410,7 +436,7 @@ function FuncionariosPageContent() {
       if (!response.ok) {
         const err = await response.json().catch(() => ({}));
         throw new Error(
-          err?.error || "Erro ao sincronizar tarefas com a matriz"
+          err?.error || "Erro ao sincronizar tarefas com a matriz",
         );
       }
       const result = await response.json();
@@ -419,7 +445,7 @@ function FuncionariosPageContent() {
       const reativadas = Number(result?.totalTarefasReativadas || 0);
       showToast(
         `Sincronização concluída: ${criadas} criadas, ${canceladas} canceladas, ${reativadas} reativadas`,
-        "success"
+        "success",
       );
       try {
         localStorage.setItem("tarefasPadraoAtualizadas", String(Date.now()));
@@ -428,7 +454,7 @@ function FuncionariosPageContent() {
     } catch (error) {
       showToast(
         error instanceof Error ? error.message : "Erro ao sincronizar tarefas",
-        "error"
+        "error",
       );
     } finally {
       setSincronizando(false);
@@ -440,12 +466,11 @@ function FuncionariosPageContent() {
       setSyncingFuncionarios(true);
       showToast(
         "Atualizando base de funcionários antes de criar a solicitação...",
-        "info"
+        "info",
       );
 
-      const { syncWithRetry, formatSyncMessage } = await import(
-        "@/utils/syncUtils"
-      );
+      const { syncWithRetry, formatSyncMessage } =
+        await import("@/utils/syncUtils");
 
       const result = await syncWithRetry({
         maxRetries: 3,
@@ -460,18 +485,18 @@ function FuncionariosPageContent() {
         showToast(
           result.error ||
             "Não foi possível atualizar a base de funcionários. Você ainda pode prosseguir com a criação da solicitação.",
-          "error"
+          "error",
         );
       }
     } catch (error) {
       showToast(
         "Erro ao sincronizar funcionários. Você ainda pode prosseguir com a criação da solicitação.",
-        "error"
+        "error",
       );
     } finally {
       setSyncingFuncionarios(false);
       router.push(
-        "/prestserv/remanejamentos/novo?returnTo=/prestserv/funcionarios"
+        "/prestserv/remanejamentos/novo?returnTo=/prestserv/funcionarios",
       );
     }
   };
@@ -510,7 +535,7 @@ function FuncionariosPageContent() {
               if (
                 filtroContratoOrigem.length > 0 &&
                 !filtroContratoOrigem.includes(
-                  funcionario.solicitacao.centroCustoOrigem
+                  funcionario.solicitacao.centroCustoOrigem,
                 )
               ) {
                 return false;
@@ -519,7 +544,7 @@ function FuncionariosPageContent() {
               if (
                 filtroContratoDestino.length > 0 &&
                 !filtroContratoDestino.includes(
-                  funcionario.solicitacao.centroCustoDestino
+                  funcionario.solicitacao.centroCustoDestino,
                 )
               ) {
                 return false;
@@ -534,7 +559,7 @@ function FuncionariosPageContent() {
               }
 
               return true;
-            }
+            },
           );
         }
 
@@ -557,7 +582,7 @@ function FuncionariosPageContent() {
       setDashboardData(data);
     } catch (err) {
       setDashboardError(
-        err instanceof Error ? err.message : "Erro desconhecido"
+        err instanceof Error ? err.message : "Erro desconhecido",
       );
     } finally {
       setLoadingDashboard(false);
@@ -574,7 +599,7 @@ function FuncionariosPageContent() {
   // Carregar estado dos filtros do localStorage
   useEffect(() => {
     const savedFiltersVisible = localStorage.getItem(
-      "funcionarios-filtros-visiveis"
+      "funcionarios-filtros-visiveis",
     );
     if (savedFiltersVisible !== null) {
       setFiltrosVisiveis(JSON.parse(savedFiltersVisible));
@@ -598,7 +623,7 @@ function FuncionariosPageContent() {
         setPaginaAtual(filters.paginaAtual || 1);
         setItensPorPagina(filters.itensPorPagina || 10);
         setOrdenacao(
-          filters.ordenacao || { campo: "solicitacaoId", direcao: "asc" }
+          filters.ordenacao || { campo: "solicitacaoId", direcao: "asc" },
         );
       } catch (error) {
         console.error("Erro ao carregar filtros salvos:", error);
@@ -656,7 +681,7 @@ function FuncionariosPageContent() {
     if (isInitialized) {
       localStorage.setItem(
         "funcionarios-filtros-visiveis",
-        JSON.stringify(filtrosVisiveis)
+        JSON.stringify(filtrosVisiveis),
       );
     }
   }, [filtrosVisiveis, isInitialized]);
@@ -741,7 +766,7 @@ function FuncionariosPageContent() {
           headers: {
             "Content-Type": "application/json",
           },
-        }
+        },
       );
 
       if (!response.ok) {
@@ -753,7 +778,7 @@ function FuncionariosPageContent() {
 
       showToast(
         `Todas as tarefas de ${funcionario.nome} foram aprovadas! (${result.tarefasAprovadas} tarefas)`,
-        "success"
+        "success",
       );
 
       // Recarregar dados
@@ -764,7 +789,7 @@ function FuncionariosPageContent() {
         `Erro ao aprovar tarefas: ${
           error instanceof Error ? error.message : "Erro desconhecido"
         }`,
-        "error"
+        "error",
       );
     } finally {
       setAprovandoTodasTarefas(null);
@@ -801,7 +826,7 @@ function FuncionariosPageContent() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify(updateData),
-        }
+        },
       );
 
       if (!response.ok) {
@@ -823,8 +848,8 @@ function FuncionariosPageContent() {
                     : "ATIVO",
                 emMigracao: false,
               }
-            : func
-        )
+            : func,
+        ),
       );
 
       const statusMessage =
@@ -840,10 +865,10 @@ function FuncionariosPageContent() {
           `/api/prestserv/verificar-solicitacao/${funcionarioParaSispat.solicitacaoId}`,
           {
             method: "POST",
-          }
+          },
         );
         console.log(
-          `Verificação de status da solicitação ${funcionarioParaSispat.solicitacaoId} iniciada`
+          `Verificação de status da solicitação ${funcionarioParaSispat.solicitacaoId} iniciada`,
         );
       } catch (error) {
         console.error("Erro ao verificar status da solicitação:", error);
@@ -859,7 +884,7 @@ function FuncionariosPageContent() {
         `Erro ao validar funcionário: ${
           error instanceof Error ? error.message : "Erro desconhecido"
         }`,
-        "error"
+        "error",
       );
     } finally {
       setUpdatingStatus(null);
@@ -869,7 +894,7 @@ function FuncionariosPageContent() {
   // Funções existentes
   const updatePrestservStatus = async (
     funcionarioId: string,
-    novoStatus: string
+    novoStatus: string,
   ) => {
     try {
       setUpdatingStatus(funcionarioId);
@@ -918,7 +943,7 @@ function FuncionariosPageContent() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify(updateData),
-        }
+        },
       );
 
       if (!response.ok) {
@@ -950,8 +975,8 @@ function FuncionariosPageContent() {
                 }),
                 // Não alterar statusFuncionario quando invalidado - o setor deve corrigir e o ciclo se repete
               }
-            : func
-        )
+            : func,
+        ),
       );
 
       // Se o status for INVALIDADO, mostrar o modal de LISTA de tarefas para reprovar tarefas
@@ -991,7 +1016,7 @@ function FuncionariosPageContent() {
           statusMessages[novoStatus as keyof typeof statusMessages] ||
           "Status atualizado"
         }`,
-        "success"
+        "success",
       );
 
       // Se o status for VALIDADO ou CANCELADO, verificar se a solicitação deve ser atualizada
@@ -1002,10 +1027,10 @@ function FuncionariosPageContent() {
             `/api/prestserv/verificar-solicitacao/${funcionario.solicitacaoId}`,
             {
               method: "POST",
-            }
+            },
           );
           console.log(
-            `Verificação de status da solicitação ${funcionario.solicitacaoId} iniciada`
+            `Verificação de status da solicitação ${funcionario.solicitacaoId} iniciada`,
           );
         } catch (error) {
           console.error("Erro ao verificar status da solicitação:", error);
@@ -1135,7 +1160,7 @@ function FuncionariosPageContent() {
   };
 
   const getValidStatusOptions = (
-    funcionario: FuncionarioTableData
+    funcionario: FuncionarioTableData,
   ): string[] => {
     const prestservStatus = funcionario.statusPrestserv;
     const statusTarefas = funcionario.statusTarefas;
@@ -1279,8 +1304,8 @@ function FuncionariosPageContent() {
               rf.statusTarefas === "CONCLUIDO"
                 ? "N/A"
                 : rf.statusTarefas === "ATENDER TAREFAS"
-                ? "SETORES"
-                : "LOGÍSTICA",
+                  ? "SETORES"
+                  : "LOGÍSTICA",
             solicitacaoId: solicitacao.id,
             tipoSolicitacao: solicitacao.tipo || "REMANEJAMENTO",
             contratoOrigem: solicitacao.contratoOrigem?.numero || "N/A",
@@ -1311,7 +1336,7 @@ function FuncionariosPageContent() {
                 concluidas:
                   rf.tarefas?.filter(
                     (t: any) =>
-                      t.responsavel === "RH" && t.status === "CONCLUIDO"
+                      t.responsavel === "RH" && t.status === "CONCLUIDO",
                   ).length || 0,
                 percentual: 0,
               },
@@ -1323,7 +1348,7 @@ function FuncionariosPageContent() {
                 concluidas:
                   rf.tarefas?.filter(
                     (t: any) =>
-                      t.responsavel === "MEDICINA" && t.status === "CONCLUIDO"
+                      t.responsavel === "MEDICINA" && t.status === "CONCLUIDO",
                   ).length || 0,
                 percentual: 0,
               },
@@ -1334,14 +1359,14 @@ function FuncionariosPageContent() {
                     (t: any) =>
                       t.responsavel === "TREINAMENTO" &&
                       (t.descricao?.includes("Tipo: AP") || false) &&
-                      t.status !== "CANCELADO"
+                      t.status !== "CANCELADO",
                   ).length || 0,
                 concluidas:
                   rf.tarefas?.filter(
                     (t: any) =>
                       t.responsavel === "TREINAMENTO" &&
                       (t.descricao?.includes("Tipo: AP") || false) &&
-                      t.status === "CONCLUIDO"
+                      t.status === "CONCLUIDO",
                   ).length || 0,
                 percentual: 0,
               },
@@ -1352,7 +1377,7 @@ function FuncionariosPageContent() {
                   ? Math.round((progresso.concluidas / progresso.total) * 100)
                   : 0,
             })),
-          }))
+          })),
         );
 
       setFuncionarios(funcionariosTransformados);
@@ -1428,7 +1453,7 @@ function FuncionariosPageContent() {
                 concluidas:
                   rf.tarefas?.filter(
                     (t: any) =>
-                      t.responsavel === "RH" && t.status === "CONCLUIDO"
+                      t.responsavel === "RH" && t.status === "CONCLUIDO",
                   ).length || 0,
                 percentual: 0,
               },
@@ -1440,7 +1465,7 @@ function FuncionariosPageContent() {
                 concluidas:
                   rf.tarefas?.filter(
                     (t: any) =>
-                      t.responsavel === "MEDICINA" && t.status === "CONCLUIDO"
+                      t.responsavel === "MEDICINA" && t.status === "CONCLUIDO",
                   ).length || 0,
                 percentual: 0,
               },
@@ -1451,14 +1476,14 @@ function FuncionariosPageContent() {
                     (t: any) =>
                       t.responsavel === "TREINAMENTO" &&
                       (t.descricao?.includes("Tipo: AP") || false) &&
-                      t.status !== "CANCELADO"
+                      t.status !== "CANCELADO",
                   ).length || 0,
                 concluidas:
                   rf.tarefas?.filter(
                     (t: any) =>
                       t.responsavel === "TREINAMENTO" &&
                       (t.descricao?.includes("Tipo: AP") || false) &&
-                      t.status === "CONCLUIDO"
+                      t.status === "CONCLUIDO",
                   ).length || 0,
                 percentual: 0,
               },
@@ -1469,7 +1494,7 @@ function FuncionariosPageContent() {
                   ? Math.round((progresso.concluidas / progresso.total) * 100)
                   : 0,
             })),
-          }))
+          })),
       );
       setFuncionariosBaseNominal(baseTransformada);
     } catch (e) {
@@ -1487,7 +1512,7 @@ function FuncionariosPageContent() {
       }
       return false;
     },
-    []
+    [],
   );
 
   // Função para obter o tipo de alerta para funcionário demitido
@@ -1519,20 +1544,23 @@ function FuncionariosPageContent() {
       }
       return null;
     },
-    []
+    [],
   );
 
   const estatisticasPorSetor = () => {
-    const estatisticas = funcionarios.reduce((acc, funcionario) => {
-      funcionario.progressoPorSetor?.forEach((progresso) => {
-        if (!acc[progresso.setor]) {
-          acc[progresso.setor] = { total: 0, concluidas: 0 };
-        }
-        acc[progresso.setor].total += progresso.total;
-        acc[progresso.setor].concluidas += progresso.concluidas;
-      });
-      return acc;
-    }, {} as Record<string, { total: number; concluidas: number }>);
+    const estatisticas = funcionarios.reduce(
+      (acc, funcionario) => {
+        funcionario.progressoPorSetor?.forEach((progresso) => {
+          if (!acc[progresso.setor]) {
+            acc[progresso.setor] = { total: 0, concluidas: 0 };
+          }
+          acc[progresso.setor].total += progresso.total;
+          acc[progresso.setor].concluidas += progresso.concluidas;
+        });
+        return acc;
+      },
+      {} as Record<string, { total: number; concluidas: number }>,
+    );
 
     return Object.entries(estatisticas).map(([setor, dados]) => ({
       setor,
@@ -1610,7 +1638,7 @@ function FuncionariosPageContent() {
           const setoresPendentes = pendingTasks.map((p) => p.setor).join(", ");
           const totalTarefasPendentes = pendingTasks.reduce(
             (acc, p) => acc + (p.total - p.concluidas),
-            0
+            0,
           );
           baseMessage = `🔄 2. Criado - ATENDER TAREFAS ${setoresPendentes} concluir ${totalTarefasPendentes} ${
             totalTarefasPendentes === 1
@@ -1775,7 +1803,7 @@ function FuncionariosPageContent() {
       // Função para determinar status do setor
       const getStatusSetor = (setor: string) => {
         const progressoSetor = funcionario.progressoPorSetor.find(
-          (p) => p.setor === setor
+          (p) => p.setor === setor,
         );
         if (!progressoSetor || progressoSetor.total === 0) {
           return "Sem Tarefas";
@@ -1798,7 +1826,7 @@ function FuncionariosPageContent() {
         Pendente: Math.max(
           (funcionario.totalTarefas || 0) -
             (funcionario.tarefasConcluidas || 0),
-          0
+          0,
         ),
         Concluído: funcionario.tarefasConcluidas || 0,
         "RASCUNHO PRESTSERV": funcionario.statusPrestserv,
@@ -1806,13 +1834,13 @@ function FuncionariosPageContent() {
         MEDICINA: getStatusSetor("MEDICINA"),
         TREINAMENTO: getStatusSetor("TREINAMENTO"),
         "Data Solicitação": new Date(
-          funcionario.dataSolicitacao
+          funcionario.dataSolicitacao,
         ).toLocaleDateString("pt-BR"),
         "Data Criação": new Date(funcionario.createdAt).toLocaleDateString(
-          "pt-BR"
+          "pt-BR",
         ),
         "Data Atualização": new Date(funcionario.updatedAt).toLocaleDateString(
-          "pt-BR"
+          "pt-BR",
         ),
       };
     });
@@ -1841,7 +1869,7 @@ function FuncionariosPageContent() {
   // Funções para gerenciar tags de filtros ativos
   const removerFiltroStatusGeral = (statusParaRemover: string) => {
     setFiltroStatusGeral((prev) =>
-      prev.filter((status) => status !== statusParaRemover)
+      prev.filter((status) => status !== statusParaRemover),
     );
   };
 
@@ -1856,7 +1884,7 @@ function FuncionariosPageContent() {
       case "contratoOrigem":
         if (valor) {
           setFiltroContratoOrigem((prev) =>
-            prev.filter((contrato) => contrato !== valor)
+            prev.filter((contrato) => contrato !== valor),
           );
         } else {
           setFiltroContratoOrigem([]);
@@ -1865,7 +1893,7 @@ function FuncionariosPageContent() {
       case "contratoDestino":
         if (valor) {
           setFiltroContratoDestino((prev) =>
-            prev.filter((contrato) => contrato !== valor)
+            prev.filter((contrato) => contrato !== valor),
           );
         } else {
           setFiltroContratoDestino([]);
@@ -1877,7 +1905,7 @@ function FuncionariosPageContent() {
       case "statusPrestserv":
         if (valor) {
           setFiltroStatusPrestserv((prev) =>
-            prev.filter((status) => status !== valor)
+            prev.filter((status) => status !== valor),
           );
         } else {
           setFiltroStatusPrestserv([]);
@@ -1889,7 +1917,7 @@ function FuncionariosPageContent() {
       case "tipoSolicitacao":
         if (valor) {
           setFiltroTipoSolicitacao((prev) =>
-            prev.filter((tipo) => tipo !== valor)
+            prev.filter((tipo) => tipo !== valor),
           );
         } else {
           setFiltroTipoSolicitacao([]);
@@ -1898,7 +1926,7 @@ function FuncionariosPageContent() {
       case "numeroSolicitacao":
         if (valor) {
           setFiltroNumeroSolicitacao((prev) =>
-            prev.filter((numero) => numero !== valor)
+            prev.filter((numero) => numero !== valor),
           );
         } else {
           setFiltroNumeroSolicitacao([]);
@@ -1907,7 +1935,7 @@ function FuncionariosPageContent() {
       case "responsavel":
         if (valor) {
           setFiltroResponsavel((prev) =>
-            prev.filter((responsavel) => responsavel !== valor)
+            prev.filter((responsavel) => responsavel !== valor),
           );
         } else {
           setFiltroResponsavel([]);
@@ -1916,7 +1944,7 @@ function FuncionariosPageContent() {
       case "pendenciasPorSetor":
         if (valor) {
           setFiltroPendenciasPorSetor((prev) =>
-            prev.filter((setor) => setor !== valor)
+            prev.filter((setor) => setor !== valor),
           );
         } else {
           setFiltroPendenciasPorSetor([]);
@@ -2042,7 +2070,7 @@ function FuncionariosPageContent() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({ statusTarefas: "REJEITADO" }),
-        }
+        },
       );
 
       if (!response.ok) {
@@ -2055,8 +2083,8 @@ function FuncionariosPageContent() {
         prev.map((func) =>
           func.id === selectedFuncionario.id
             ? { ...func, statusTarefas: "SOLICITAÇÃO REJEITADA" }
-            : func
-        )
+            : func,
+        ),
       );
 
       // Atualizar o dashboard após rejeitar a solicitação
@@ -2066,7 +2094,7 @@ function FuncionariosPageContent() {
 
       showToast(
         `Solicitação de ${selectedFuncionario.nome} foi reprovada`,
-        "success"
+        "success",
       );
       cancelarAprovacao();
     } catch (error) {
@@ -2074,7 +2102,7 @@ function FuncionariosPageContent() {
         error instanceof Error
           ? error.message
           : "Erro ao reprovar a solicitação",
-        "error"
+        "error",
       );
     } finally {
       setRejectingStatus(false);
@@ -2100,7 +2128,7 @@ function FuncionariosPageContent() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({ statusTarefas: novoStatus }),
-        }
+        },
       );
 
       if (!response.ok) {
@@ -2113,13 +2141,13 @@ function FuncionariosPageContent() {
         prev.map((func) =>
           func.id === selectedFuncionario.id
             ? { ...func, statusTarefas: novoStatus }
-            : func
-        )
+            : func,
+        ),
       );
 
       showToast(
         `Solicitação de ${selectedFuncionario.nome} foi aprovada`,
-        "success"
+        "success",
       );
 
       // Atualizar o dashboard após aprovar a solicitação
@@ -2133,7 +2161,7 @@ function FuncionariosPageContent() {
       } else {
         showToast(
           `Não foram geradas tarefas para ${selectedFuncionario.nome} por ser um desligamento`,
-          "info"
+          "info",
         );
         // Fechar modais
         setShowConfirmModal(false);
@@ -2142,7 +2170,7 @@ function FuncionariosPageContent() {
     } catch (error) {
       showToast(
         error instanceof Error ? error.message : "Erro ao aprovar solicitação",
-        "error"
+        "error",
       );
     } finally {
       setApprovingStatus(false);
@@ -2159,7 +2187,7 @@ function FuncionariosPageContent() {
 
   const toggleSetor = (setor: string) => {
     setSelectedSetores((prev) =>
-      prev.includes(setor) ? prev.filter((s) => s !== setor) : [...prev, setor]
+      prev.includes(setor) ? prev.filter((s) => s !== setor) : [...prev, setor],
     );
   };
 
@@ -2187,7 +2215,7 @@ function FuncionariosPageContent() {
         const errorData = await response.json();
         showToast(
           errorData.error || "Erro ao reprovar tarefas padrão",
-          "error"
+          "error",
         );
         return;
       }
@@ -2195,7 +2223,7 @@ function FuncionariosPageContent() {
       const result = await response.json();
       showToast(
         `Tarefas padrão criadas com sucesso para ${selectedFuncionario.nome}!`,
-        "success"
+        "success",
       );
       fetchFuncionarios();
 
@@ -2251,12 +2279,12 @@ function FuncionariosPageContent() {
 
   const selecionarTodosFuncionariosSolicitacao = (solicitacao: any) => {
     const funcionariosAprovacao = solicitacao.funcionarios.filter(
-      (f: FuncionarioTableData) => f.statusTarefas === "APROVAR SOLICITAÇÃO"
+      (f: FuncionarioTableData) => f.statusTarefas === "APROVAR SOLICITAÇÃO",
     );
     const newSelecionados = new Set(funcionariosSelecionados);
 
     const todosJaSelecionados = funcionariosAprovacao.every(
-      (f: FuncionarioTableData) => newSelecionados.has(f.id)
+      (f: FuncionarioTableData) => newSelecionados.has(f.id),
     );
 
     if (todosJaSelecionados) {
@@ -2291,7 +2319,7 @@ function FuncionariosPageContent() {
 
     setProcessandoAprovacaoLote(true);
     const funcionariosParaAprovar = funcionarios.filter((f) =>
-      funcionariosSelecionados.has(f.id)
+      funcionariosSelecionados.has(f.id),
     );
 
     let sucessos = 0;
@@ -2318,7 +2346,7 @@ function FuncionariosPageContent() {
                 "Content-Type": "application/json",
               },
               body: JSON.stringify({ statusTarefas: novoStatus }),
-            }
+            },
           );
 
           if (!response.ok) {
@@ -2350,12 +2378,12 @@ function FuncionariosPageContent() {
               errosTarefas++;
               console.error(
                 `Erro ao gerar tarefas para ${funcionario.nome}:`,
-                tarefaError
+                tarefaError,
               );
             }
           } else {
             console.log(
-              `Não foram geradas tarefas para ${funcionario.nome} por ser um desligamento`
+              `Não foram geradas tarefas para ${funcionario.nome} por ser um desligamento`,
             );
           }
         } catch (error) {
@@ -2369,21 +2397,21 @@ function FuncionariosPageContent() {
         prev.map((func) =>
           funcionariosSelecionados.has(func.id)
             ? { ...func, statusTarefas: "REPROVAR TAREFAS" }
-            : func
-        )
+            : func,
+        ),
       );
 
       // Mostrar resultado
       if (sucessos > 0) {
         showToast(
           `${sucessos} funcionário(s) aprovado(s) com sucesso!`,
-          "success"
+          "success",
         );
       }
       if (sucessosTarefas > 0) {
         showToast(
           `Tarefas geradas com sucesso para ${sucessosTarefas} funcionário(s)!`,
-          "success"
+          "success",
         );
       }
       if (erros > 0) {
@@ -2392,7 +2420,7 @@ function FuncionariosPageContent() {
       if (errosTarefas > 0) {
         showToast(
           `Falha ao gerar tarefas para ${errosTarefas} funcionário(s)`,
-          "error"
+          "error",
         );
       }
 
@@ -2424,13 +2452,13 @@ function FuncionariosPageContent() {
         f.statusTarefas === "SOLICITAÇÃO CONCLUÍDA" ||
         f.statusTarefas === "CANCELADO" ||
         // Alinhar com a visão "Concluídos": contar também Prestserv VALIDADO
-        f.statusPrestserv === "VALIDADO"
+        f.statusPrestserv === "VALIDADO",
     ).length;
     const pendentes = funcionarios.filter(
       (f) =>
         f.statusTarefas === "ATENDER TAREFAS" ||
         f.statusTarefas === "TAREFAS PENDENTES" ||
-        f.statusTarefas === "SUBMETER RASCUNHO"
+        f.statusTarefas === "SUBMETER RASCUNHO",
     ).length;
 
     // Calcular status da solicitação baseado no progresso
@@ -2546,7 +2574,7 @@ function FuncionariosPageContent() {
           (progresso) =>
             filtroPendenciasPorSetor.includes(progresso.setor) &&
             progresso.total > 0 &&
-            progresso.concluidas < progresso.total
+            progresso.concluidas < progresso.total,
         );
 
       return (
@@ -2609,7 +2637,7 @@ function FuncionariosPageContent() {
           (progresso) =>
             filtroPendenciasPorSetor.includes(progresso.setor) &&
             progresso.total > 0 &&
-            progresso.concluidas < progresso.total
+            progresso.concluidas < progresso.total,
         );
 
       return (
@@ -2628,7 +2656,7 @@ function FuncionariosPageContent() {
     });
 
   const funcionariosFiltradosNominal = aplicarFiltrosNominal(
-    funcionariosBaseNominal
+    funcionariosBaseNominal,
   );
 
   // Aplicar ordenação
@@ -2669,15 +2697,15 @@ function FuncionariosPageContent() {
   const indiceFim = indiceInicio + itensPorPagina;
   const funcionariosPaginados = funcionariosOrdenados.slice(
     indiceInicio,
-    indiceFim
+    indiceFim,
   );
   console.log(funcionariosOrdenados);
   const funcionariosFiltradosConcluidos = funcionariosFiltrados.filter(
-    (f) => f.statusPrestserv === "VALIDADO" || f.statusTarefas === "CONCLUIDO"
+    (f) => f.statusPrestserv === "VALIDADO" || f.statusTarefas === "CONCLUIDO",
   );
   const funcionariosFiltradosNaoConcluidos = funcionariosFiltrados.filter(
     (f) =>
-      !(f.statusPrestserv === "VALIDADO" || f.statusTarefas === "CONCLUIDO")
+      !(f.statusPrestserv === "VALIDADO" || f.statusTarefas === "CONCLUIDO"),
   );
   const funcionariosOrdenadosNaoConcluidos = [
     ...funcionariosFiltradosNaoConcluidos,
@@ -2744,16 +2772,16 @@ function FuncionariosPageContent() {
     return 0;
   });
   const totalPaginasNaoConcluidos = Math.ceil(
-    funcionariosOrdenadosNaoConcluidos.length / itensPorPagina
+    funcionariosOrdenadosNaoConcluidos.length / itensPorPagina,
   );
   const totalPaginasConcluidos = Math.ceil(
-    funcionariosOrdenadosConcluidos.length / itensPorPagina
+    funcionariosOrdenadosConcluidos.length / itensPorPagina,
   );
   const funcionariosPaginadosNaoConcluidos =
     funcionariosOrdenadosNaoConcluidos.slice(indiceInicio, indiceFim);
   const funcionariosPaginadosConcluidos = funcionariosOrdenadosConcluidos.slice(
     indiceInicio,
-    indiceFim
+    indiceFim,
   );
   useEffect(() => {
     const totalAtual =
@@ -2811,7 +2839,7 @@ function FuncionariosPageContent() {
       // Atualizar datas agregadas
       try {
         const curCreated = new Date(
-          acc[solicitacaoId].createdAtGroup
+          acc[solicitacaoId].createdAtGroup,
         ).getTime();
         const fCreated = new Date(funcionario.createdAt).getTime();
         if (!curCreated || (fCreated && fCreated < curCreated)) {
@@ -2820,7 +2848,7 @@ function FuncionariosPageContent() {
       } catch {}
       try {
         const curUpdated = new Date(
-          acc[solicitacaoId].updatedAtGroup
+          acc[solicitacaoId].updatedAtGroup,
         ).getTime();
         const fUpdated = new Date(funcionario.updatedAt).getTime();
         if (!curUpdated || (fUpdated && fUpdated > curUpdated)) {
@@ -2829,7 +2857,7 @@ function FuncionariosPageContent() {
       } catch {}
       return acc;
     },
-    {} as Record<string, any>
+    {} as Record<string, any>,
   );
 
   const todasSolicitacoes = Object.values(funcionariosAgrupados);
@@ -2865,7 +2893,7 @@ function FuncionariosPageContent() {
       if (valorA < valorB) return direcao === "asc" ? -1 : 1;
       if (valorA > valorB) return direcao === "asc" ? 1 : -1;
       return 0;
-    }
+    },
   );
 
   const solicitacoesFiltradas =
@@ -2874,7 +2902,7 @@ function FuncionariosPageContent() {
       : todasSolicitacoes.slice(
           (paginaAtualSolicitacoes - 1) * itensPorPaginaSolicitacoes,
           (paginaAtualSolicitacoes - 1) * itensPorPaginaSolicitacoes +
-            itensPorPaginaSolicitacoes
+            itensPorPaginaSolicitacoes,
         );
 
   if (loading) {
@@ -3022,7 +3050,7 @@ function FuncionariosPageContent() {
                   funcionariosFiltradosNominal.filter(
                     (f) =>
                       f.statusPrestserv === "VALIDADO" ||
-                      f.statusTarefas === "CONCLUIDO"
+                      f.statusTarefas === "CONCLUIDO",
                   ).length
                 }
               </span>
@@ -3101,7 +3129,7 @@ function FuncionariosPageContent() {
                     {dashboardData.funcionariosPorStatusTarefa.map(
                       (
                         { status, count }: { status: string; count: number },
-                        index: number
+                        index: number,
                       ) => (
                         <div
                           key={index}
@@ -3133,7 +3161,7 @@ function FuncionariosPageContent() {
                         </div> */}
                           </div>
                         </div>
-                      )
+                      ),
                     )}
                   </div>
 
@@ -3148,8 +3176,9 @@ function FuncionariosPageContent() {
                           <p className="text-2xl font-semibold text-sky-500">
                             {formatDuracao(
                               Number(
-                                dashboardData.slaTempoMedioSolicitacaoHoras || 0
-                              )
+                                dashboardData.slaTempoMedioSolicitacaoHoras ||
+                                  0,
+                              ),
                             )}
                           </p>
                         </div>
@@ -3180,8 +3209,8 @@ function FuncionariosPageContent() {
                             {formatDuracao(
                               Number(
                                 dashboardData.slaLogisticaTempoMedioAprovacaoHoras ||
-                                  0
-                              )
+                                  0,
+                              ),
                             )}
                           </p>
                         </div>
@@ -3221,13 +3250,13 @@ function FuncionariosPageContent() {
                             <Bar
                               data={{
                                 labels: Object.keys(
-                                  dashboardData.slaTempoMedioPorSetorHoras
+                                  dashboardData.slaTempoMedioPorSetorHoras,
                                 ),
                                 datasets: [
                                   {
                                     label: "Horas (média)",
                                     data: Object.values(
-                                      dashboardData.slaTempoMedioPorSetorHoras
+                                      dashboardData.slaTempoMedioPorSetorHoras,
                                     ).map((v: any) => {
                                       const n = Number(v);
                                       return Number.isNaN(n) ? 0 : n;
@@ -3314,13 +3343,13 @@ function FuncionariosPageContent() {
                             <Bar
                               data={{
                                 labels: Object.keys(
-                                  dashboardData.volumetriaCorrecoesPorTipo
+                                  dashboardData.volumetriaCorrecoesPorTipo,
                                 ),
                                 datasets: [
                                   {
                                     label: "Reprovações",
                                     data: Object.values(
-                                      dashboardData.volumetriaCorrecoesPorTipo
+                                      dashboardData.volumetriaCorrecoesPorTipo,
                                     ),
                                     backgroundColor: "rgba(239, 68, 68, 0.7)", // red-500
                                     borderColor: "#EF4444",
@@ -3408,12 +3437,13 @@ function FuncionariosPageContent() {
                               data={{
                                 labels:
                                   dashboardData.funcionariosPorStatusTarefa.map(
-                                    (s: any) => getStatusLabel(String(s.status))
+                                    (s: any) =>
+                                      getStatusLabel(String(s.status)),
                                   ),
                                 datasets: [
                                   {
                                     data: dashboardData.funcionariosPorStatusTarefa.map(
-                                      (s: any) => Number(s.count)
+                                      (s: any) => Number(s.count),
                                     ),
                                     backgroundColor: [
                                       "#94A3B8", // slate-400
@@ -3466,7 +3496,7 @@ function FuncionariosPageContent() {
                                         const total =
                                           context.dataset.data.reduce(
                                             (a: number, b: number) => a + b,
-                                            0
+                                            0,
                                           );
                                         const percentage = (
                                           (context.parsed / total) *
@@ -3481,7 +3511,7 @@ function FuncionariosPageContent() {
                                       const total = ctx.dataset.data.reduce(
                                         (a: number, b: any) =>
                                           a + (typeof b === "number" ? b : 0),
-                                        0
+                                        0,
                                       );
                                       const percentage =
                                         total > 0
@@ -3533,14 +3563,14 @@ function FuncionariosPageContent() {
                                     (s: any) =>
                                       (s.status || "Não definido").replace(
                                         "_",
-                                        " "
-                                      )
+                                        " ",
+                                      ),
                                   ),
                                 datasets: [
                                   {
                                     label: "Funcionários",
                                     data: dashboardData.funcionariosPorStatusPrestserv.map(
-                                      (s: any) => Number(s.count)
+                                      (s: any) => Number(s.count),
                                     ),
                                     backgroundColor: [
                                       "rgba(14, 165, 233, 0.7)", // sky-500
@@ -3879,7 +3909,7 @@ function FuncionariosPageContent() {
                           <Doughnut
                             data={{
                               labels: Object.keys(
-                                dashboardData.solicitacoesPorTipo
+                                dashboardData.solicitacoesPorTipo,
                               ).map((tipo) => {
                                 switch (tipo) {
                                   case "ALOCACAO":
@@ -3895,7 +3925,7 @@ function FuncionariosPageContent() {
                               datasets: [
                                 {
                                   data: Object.values(
-                                    dashboardData.solicitacoesPorTipo
+                                    dashboardData.solicitacoesPorTipo,
                                   ),
                                   backgroundColor: [
                                     "#0EA5E9", // sky-500
@@ -3943,7 +3973,7 @@ function FuncionariosPageContent() {
                                     label: function (context) {
                                       const total = context.dataset.data.reduce(
                                         (a: number, b: number) => a + b,
-                                        0
+                                        0,
                                       );
                                       const percentage = (
                                         (context.parsed / total) *
@@ -3958,7 +3988,7 @@ function FuncionariosPageContent() {
                                     const total = ctx.dataset.data.reduce(
                                       (a: number, b: any) =>
                                         a + (typeof b === "number" ? b : 0),
-                                      0
+                                      0,
                                     );
                                     const percentage =
                                       total > 0
@@ -4068,7 +4098,7 @@ function FuncionariosPageContent() {
                       <div className="h-80">
                         {dashboardData.solicitacoesPorMes &&
                         dashboardData.solicitacoesPorMes.some(
-                          (valor: number) => valor > 0
+                          (valor: number) => valor > 0,
                         ) ? (
                           <Line
                             data={{
@@ -4250,19 +4280,19 @@ function FuncionariosPageContent() {
                                       </td>
                                       <td className="py-2 pr-4 text-slate-700">
                                         {new Date(
-                                          item.dataSolicitacao
+                                          item.dataSolicitacao,
                                         ).toLocaleString("pt-BR")}
                                       </td>
                                       <td className="py-2 pr-4 text-slate-700">
                                         {new Date(
-                                          item.dataConclusao
+                                          item.dataConclusao,
                                         ).toLocaleString("pt-BR")}
                                       </td>
                                       <td className="py-2 pr-4 font-semibold text-sky-600">
                                         {formatDuracao(Number(item.horas))}
                                       </td>
                                     </tr>
-                                  )
+                                  ),
                                 )}
                               </tbody>
                             </table>
@@ -4313,7 +4343,7 @@ function FuncionariosPageContent() {
                                       </td>
                                       <td className="py-2 pr-4 text-slate-700">
                                         {String(
-                                          item.funcionarioMatricula || ""
+                                          item.funcionarioMatricula || "",
                                         )}
                                       </td>
                                       <td className="py-2 pr-4 text-slate-700">
@@ -4327,19 +4357,19 @@ function FuncionariosPageContent() {
                                       </td>
                                       <td className="py-2 pr-4 text-slate-700">
                                         {new Date(
-                                          item.dataSubmetido
+                                          item.dataSubmetido,
                                         ).toLocaleString("pt-BR")}
                                       </td>
                                       <td className="py-2 pr-4 text-slate-700">
                                         {new Date(
-                                          item.dataResposta
+                                          item.dataResposta,
                                         ).toLocaleString("pt-BR")}
                                       </td>
                                       <td className="py-2 pr-4 font-semibold text-pink-600">
                                         {formatDuracao(Number(item.horas))}
                                       </td>
                                     </tr>
-                                  )
+                                  ),
                                 )}
                               </tbody>
                             </table>
@@ -4400,19 +4430,19 @@ function FuncionariosPageContent() {
                                   </td>
                                   <td className="py-2 pr-4 text-slate-700">
                                     {new Date(item.dataCriacao).toLocaleString(
-                                      "pt-BR"
+                                      "pt-BR",
                                     )}
                                   </td>
                                   <td className="py-2 pr-4 text-slate-700">
                                     {new Date(
-                                      item.dataConclusao
+                                      item.dataConclusao,
                                     ).toLocaleString("pt-BR")}
                                   </td>
                                   <td className="py-2 pr-4 font-semibold text-sky-600">
                                     {formatDuracao(Number(item.horas))}
                                   </td>
                                 </tr>
-                              )
+                              ),
                             )}
                           </tbody>
                         </table>
@@ -4468,8 +4498,8 @@ function FuncionariosPageContent() {
                       {filtroContratoOrigem.length === 0
                         ? "Todos"
                         : filtroContratoOrigem.length === 1
-                        ? filtroContratoOrigem[0]
-                        : `${filtroContratoOrigem.length} selecionados`}
+                          ? filtroContratoOrigem[0]
+                          : `${filtroContratoOrigem.length} selecionados`}
                     </span>
                     <svg
                       className={`w-4 h-4 transition-transform ${
@@ -4507,8 +4537,8 @@ function FuncionariosPageContent() {
                                 } else {
                                   setFiltroContratoOrigem(
                                     filtroContratoOrigem.filter(
-                                      (c) => c !== contrato
-                                    )
+                                      (c) => c !== contrato,
+                                    ),
                                   );
                                 }
                               }}
@@ -4534,7 +4564,7 @@ function FuncionariosPageContent() {
                   <button
                     onClick={() =>
                       setDropdownContratoDestinoOpen(
-                        !dropdownContratoDestinoOpen
+                        !dropdownContratoDestinoOpen,
                       )
                     }
                     className="w-full pl-8 pr-8 py-2 text-sm border-slate-800 bg-slate-100 text-slate-500 rounded-md shadow-sm focus:border-slate-300 focus:ring-slate-300 text-left flex items-center justify-between"
@@ -4544,8 +4574,8 @@ function FuncionariosPageContent() {
                       {filtroContratoDestino.length === 0
                         ? "Todos"
                         : filtroContratoDestino.length === 1
-                        ? filtroContratoDestino[0]
-                        : `${filtroContratoDestino.length} selecionados`}
+                          ? filtroContratoDestino[0]
+                          : `${filtroContratoDestino.length} selecionados`}
                     </span>
                     <svg
                       className={`w-4 h-4 transition-transform ${
@@ -4583,8 +4613,8 @@ function FuncionariosPageContent() {
                                 } else {
                                   setFiltroContratoDestino(
                                     filtroContratoDestino.filter(
-                                      (c) => c !== contrato
-                                    )
+                                      (c) => c !== contrato,
+                                    ),
                                   );
                                 }
                               }}
@@ -4654,8 +4684,8 @@ function FuncionariosPageContent() {
                                 } else {
                                   setFiltroStatusGeral(
                                     filtroStatusGeral.filter(
-                                      (s) => s !== status
-                                    )
+                                      (s) => s !== status,
+                                    ),
                                   );
                                 }
                               }}
@@ -4682,7 +4712,7 @@ function FuncionariosPageContent() {
                     type="button"
                     onClick={() =>
                       setDropdownStatusPrestservOpen(
-                        !dropdownStatusPrestservOpen
+                        !dropdownStatusPrestservOpen,
                       )
                     }
                     className="w-full pl-8 pr-3 py-2 text-sm border-slate-800 bg-slate-100 text-slate-500 rounded-md shadow-sm focus:border-slate-300 focus:ring-slate-300 text-left flex justify-between items-center"
@@ -4750,8 +4780,8 @@ function FuncionariosPageContent() {
                                   } else {
                                     setFiltroStatusPrestserv(
                                       filtroStatusPrestserv.filter(
-                                        (s) => s !== status
-                                      )
+                                        (s) => s !== status,
+                                      ),
                                     );
                                   }
                                 }}
@@ -4777,7 +4807,7 @@ function FuncionariosPageContent() {
                   <button
                     onClick={() =>
                       setDropdownTipoSolicitacaoOpen(
-                        !dropdownTipoSolicitacaoOpen
+                        !dropdownTipoSolicitacaoOpen,
                       )
                     }
                     className="w-full pl-8 pr-8 py-2 text-sm border-slate-800 bg-slate-100 text-slate-500 rounded-md shadow-sm focus:border-slate-300 focus:ring-slate-300 text-left flex items-center justify-between"
@@ -4787,8 +4817,8 @@ function FuncionariosPageContent() {
                       {filtroTipoSolicitacao.length === 0
                         ? "Todos"
                         : filtroTipoSolicitacao.length === 1
-                        ? filtroTipoSolicitacao[0]
-                        : `${filtroTipoSolicitacao.length} selecionados`}
+                          ? filtroTipoSolicitacao[0]
+                          : `${filtroTipoSolicitacao.length} selecionados`}
                     </span>
                     <svg
                       className={`w-4 h-4 transition-transform ${
@@ -4826,8 +4856,8 @@ function FuncionariosPageContent() {
                                 } else {
                                   setFiltroTipoSolicitacao(
                                     filtroTipoSolicitacao.filter(
-                                      (t) => t !== tipo
-                                    )
+                                      (t) => t !== tipo,
+                                    ),
                                   );
                                 }
                               }}
@@ -4855,7 +4885,7 @@ function FuncionariosPageContent() {
                     type="button"
                     onClick={() =>
                       setDropdownNumeroSolicitacaoOpen(
-                        !dropdownNumeroSolicitacaoOpen
+                        !dropdownNumeroSolicitacaoOpen,
                       )
                     }
                     className="w-full pl-8 pr-8 py-2 text-sm border-slate-800 bg-slate-100 text-slate-500 rounded-md shadow-sm focus:border-slate-300 focus:ring-slate-300 text-left flex items-center justify-between"
@@ -4864,8 +4894,8 @@ function FuncionariosPageContent() {
                       {filtroNumeroSolicitacao.length === 0
                         ? "Todos"
                         : filtroNumeroSolicitacao.length === 1
-                        ? filtroNumeroSolicitacao[0]
-                        : `${filtroNumeroSolicitacao.length} selecionados`}
+                          ? filtroNumeroSolicitacao[0]
+                          : `${filtroNumeroSolicitacao.length} selecionados`}
                     </span>
                     <ChevronDownIcon className="h-4 w-4 text-gray-400" />
                   </button>
@@ -4887,7 +4917,7 @@ function FuncionariosPageContent() {
                                 ]);
                               } else {
                                 setFiltroNumeroSolicitacao((prev) =>
-                                  prev.filter((n) => n !== numero)
+                                  prev.filter((n) => n !== numero),
                                 );
                               }
                             }}
@@ -4920,8 +4950,8 @@ function FuncionariosPageContent() {
                       {filtroResponsavel.length === 0
                         ? "Todos"
                         : filtroResponsavel.length === 1
-                        ? filtroResponsavel[0]
-                        : `${filtroResponsavel.length} selecionados`}
+                          ? filtroResponsavel[0]
+                          : `${filtroResponsavel.length} selecionados`}
                     </span>
                     <ChevronDownIcon className="h-4 w-4 text-gray-400" />
                   </button>
@@ -4943,7 +4973,7 @@ function FuncionariosPageContent() {
                                 ]);
                               } else {
                                 setFiltroResponsavel((prev) =>
-                                  prev.filter((r) => r !== responsavel)
+                                  prev.filter((r) => r !== responsavel),
                                 );
                               }
                             }}
@@ -4969,7 +4999,7 @@ function FuncionariosPageContent() {
                   <button
                     onClick={() =>
                       setDropdownPendenciasSetorOpen(
-                        !dropdownPendenciasSetorOpen
+                        !dropdownPendenciasSetorOpen,
                       )
                     }
                     className="w-full pl-8 pr-8 py-2 text-sm border-slate-800 bg-slate-100 text-slate-500 rounded-md shadow-sm focus:border-slate-300 focus:ring-slate-300 text-left flex items-center justify-between"
@@ -4978,8 +5008,8 @@ function FuncionariosPageContent() {
                       {filtroPendenciasPorSetor.length === 0
                         ? "Todos"
                         : filtroPendenciasPorSetor.length === 1
-                        ? filtroPendenciasPorSetor[0]
-                        : `${filtroPendenciasPorSetor.length} selecionados`}
+                          ? filtroPendenciasPorSetor[0]
+                          : `${filtroPendenciasPorSetor.length} selecionados`}
                     </span>
                     <ChevronDownIcon className="h-4 w-4 text-gray-400" />
                   </button>
@@ -5001,7 +5031,7 @@ function FuncionariosPageContent() {
                                 ]);
                               } else {
                                 setFiltroPendenciasPorSetor((prev) =>
-                                  prev.filter((s) => s !== setor)
+                                  prev.filter((s) => s !== setor),
                                 );
                               }
                             }}
@@ -5144,7 +5174,7 @@ function FuncionariosPageContent() {
                                 <div>
                                   Criado:{" "}
                                   {new Date(
-                                    funcionario.createdAt
+                                    funcionario.createdAt,
                                   ).toLocaleDateString("pt-BR", {
                                     day: "2-digit",
                                     month: "2-digit",
@@ -5156,7 +5186,7 @@ function FuncionariosPageContent() {
                                 <div>
                                   Atualizado:{" "}
                                   {new Date(
-                                    funcionario.updatedAt
+                                    funcionario.updatedAt,
                                   ).toLocaleDateString("pt-BR", {
                                     day: "2-digit",
                                     month: "2-digit",
@@ -5209,7 +5239,7 @@ function FuncionariosPageContent() {
                                   {(() => {
                                     const precisaAtencao =
                                       funcionarioDemitidoPrecisaAtencao(
-                                        funcionario
+                                        funcionario,
                                       );
                                     const alertaDemitido = precisaAtencao
                                       ? getTipoAlertaDemitido(funcionario)
@@ -5222,10 +5252,10 @@ function FuncionariosPageContent() {
                                             {
                                               className: `h-5 w-5 ${
                                                 alertaDemitido.classes.split(
-                                                  " "
+                                                  " ",
                                                 )[0]
                                               } cursor-help`,
-                                            }
+                                            },
                                           )}
                                           <div
                                             className={`absolute z-50 invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity duration-200 bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 text-sm rounded-lg border shadow-lg max-w-xs whitespace-nowrap ${alertaDemitido.classes}`}
@@ -5237,14 +5267,14 @@ function FuncionariosPageContent() {
                                             <div
                                               className={`absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent ${
                                                 alertaDemitido.classes.includes(
-                                                  "red"
+                                                  "red",
                                                 )
                                                   ? "border-t-red-200"
                                                   : alertaDemitido.classes.includes(
-                                                      "orange"
-                                                    )
-                                                  ? "border-t-orange-200"
-                                                  : "border-t-yellow-200"
+                                                        "orange",
+                                                      )
+                                                    ? "border-t-orange-200"
+                                                    : "border-t-yellow-200"
                                               }`}
                                             ></div>
                                           </div>
@@ -5262,10 +5292,10 @@ function FuncionariosPageContent() {
                                     title="Inconsistência informada por setor"
                                     onClick={() => {
                                       setObsTitulo(
-                                        `${funcionario.nome} (${funcionario.matricula})`
+                                        `${funcionario.nome} (${funcionario.matricula})`,
                                       );
                                       setObsTexto(
-                                        funcionario.observacoesPrestserv || ""
+                                        funcionario.observacoesPrestserv || "",
                                       );
                                       setShowObsModal(true);
                                     }}
@@ -5288,7 +5318,7 @@ function FuncionariosPageContent() {
                                 <span
                                   className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${getStatusColor(
                                     funcionario.statusFuncionario ??
-                                      "SEM CADASTRO"
+                                      "SEM CADASTRO",
                                   )}`}
                                 >
                                   {funcionario.statusFuncionario ||
@@ -5300,7 +5330,7 @@ function FuncionariosPageContent() {
                           <td className="px-3 py-2 text-xs text-gray-700">
                             <span
                               className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${getStatusColor(
-                                funcionario.statusTarefas
+                                funcionario.statusTarefas,
                               )}`}
                             >
                               {getStatusGeralLabel(funcionario.statusTarefas)}
@@ -5311,7 +5341,7 @@ function FuncionariosPageContent() {
                           <td className="px-3 py-2 text-xs text-gray-700 text-center">
                             <span
                               className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${getResponsavelColor(
-                                getResponsavelAtual(funcionario)
+                                getResponsavelAtual(funcionario),
                               )}`}
                             >
                               {getResponsavelAtual(funcionario)}
@@ -5325,7 +5355,7 @@ function FuncionariosPageContent() {
                                 (setor) => {
                                   const progresso =
                                     funcionario.progressoPorSetor?.find(
-                                      (p) => p.setor === setor
+                                      (p) => p.setor === setor,
                                     );
                                   const hasData =
                                     progresso && progresso.total > 0;
@@ -5333,8 +5363,8 @@ function FuncionariosPageContent() {
                                     setor === "RH"
                                       ? "Recursos Humanos"
                                       : setor === "MEDICINA"
-                                      ? "Medicina"
-                                      : "Treinamento";
+                                        ? "Medicina"
+                                        : "Treinamento";
                                   return (
                                     <div
                                       key={setor}
@@ -5364,7 +5394,7 @@ function FuncionariosPageContent() {
                                             hasData
                                               ? getProgressColor(
                                                   progresso.concluidas,
-                                                  progresso.total
+                                                  progresso.total,
                                                 )
                                               : "text-gray-300"
                                           }`}
@@ -5372,14 +5402,14 @@ function FuncionariosPageContent() {
                                           {hasData
                                             ? getProgressIcon(
                                                 progresso.concluidas,
-                                                progresso.total
+                                                progresso.total,
                                               )
                                             : "●"}
                                         </span>
                                       </div>
                                     </div>
                                   );
-                                }
+                                },
                               )}
                             </div>
                           </td>
@@ -5394,13 +5424,13 @@ function FuncionariosPageContent() {
                                   ) {
                                     updatePrestservStatus(
                                       funcionario.id,
-                                      novoStatus
+                                      novoStatus,
                                     );
                                   }
                                 }}
                                 disabled={updatingStatus === funcionario.id}
                                 className={`w-full text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 ${getStatusColor(
-                                  funcionario.statusPrestserv
+                                  funcionario.statusPrestserv,
                                 )} font-medium`}
                               >
                                 <option value={funcionario.statusPrestserv}>
@@ -5409,7 +5439,7 @@ function FuncionariosPageContent() {
                                 {getValidStatusOptions(funcionario)
                                   .filter(
                                     (status) =>
-                                      status !== funcionario.statusPrestserv
+                                      status !== funcionario.statusPrestserv,
                                   )
                                   .map((status) => (
                                     <option key={status} value={status}>
@@ -5451,7 +5481,7 @@ function FuncionariosPageContent() {
                                   <button
                                     onClick={() =>
                                       router.push(
-                                        `/prestserv/remanejamentos/${funcionario.id}`
+                                        `/prestserv/remanejamentos/${funcionario.id}`,
                                       )
                                     }
                                     className="inline-flex items-center px-2 py-1 text-xs font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded hover:bg-gray-100 transition-colors focus:outline-none focus:ring-1 focus:ring-gray-500"
@@ -5464,7 +5494,7 @@ function FuncionariosPageContent() {
                               <button
                                 onClick={() =>
                                   abrirModalObservacoesRemanejamento(
-                                    funcionario
+                                    funcionario,
                                   )
                                 }
                                 className="inline-flex items-center px-2 py-1 text-xs font-medium text-sky-700 bg-sky-50 border border-sky-200 rounded hover:bg-sky-100 transition-colors focus:outline-none focus:ring-1 focus:ring-sky-500"
@@ -5540,7 +5570,7 @@ function FuncionariosPageContent() {
                                     const confirmar =
                                       typeof window !== "undefined"
                                         ? window.confirm(
-                                            `Excluir remanejamento de ${funcionario.nome} (${funcionario.matricula})?`
+                                            `Excluir remanejamento de ${funcionario.nome} (${funcionario.matricula})?`,
                                           )
                                         : true;
                                     if (!confirmar) return;
@@ -5554,11 +5584,11 @@ function FuncionariosPageContent() {
                                       for (const tryId of idsToTry) {
                                         // 1) Tentar primeiro a rota base com query param (estável em dev)
                                         const queryUrl = `/api/logistica/remanejamentos?id=${encodeURIComponent(
-                                          String(tryId)
+                                          String(tryId),
                                         )}`;
                                         console.log(
                                           "Solicitando DELETE via query param",
-                                          { id: tryId, url: queryUrl }
+                                          { id: tryId, url: queryUrl },
                                         );
                                         let statusQuery = 0;
                                         let contentTypeQuery = "";
@@ -5571,20 +5601,20 @@ function FuncionariosPageContent() {
                                               headers: {
                                                 Accept: "application/json",
                                               },
-                                            }
+                                            },
                                           );
                                           statusQuery = respQuery.status;
                                           contentTypeQuery =
                                             respQuery.headers.get(
-                                              "content-type"
+                                              "content-type",
                                             ) || "";
                                           if (
                                             respQuery.ok &&
                                             contentTypeQuery.includes(
-                                              "application/json"
+                                              "application/json",
                                             ) &&
                                             !contentTypeQuery.includes(
-                                              "text/html"
+                                              "text/html",
                                             )
                                           ) {
                                             console.log(
@@ -5593,11 +5623,11 @@ function FuncionariosPageContent() {
                                                 status: statusQuery,
                                                 id: tryId,
                                                 contentType: contentTypeQuery,
-                                              }
+                                              },
                                             );
                                             showToast(
                                               "Remanejamento excluído com sucesso",
-                                              "success"
+                                              "success",
                                             );
                                             await fetchFuncionarios();
                                             return;
@@ -5610,7 +5640,7 @@ function FuncionariosPageContent() {
                                               const parsedQuery =
                                                 rawTextQuery &&
                                                 contentTypeQuery.includes(
-                                                  "application/json"
+                                                  "application/json",
                                                 )
                                                   ? JSON.parse(rawTextQuery)
                                                   : {};
@@ -5635,7 +5665,7 @@ function FuncionariosPageContent() {
                                               id: tryId,
                                               url: queryUrl,
                                               contentType: contentTypeQuery,
-                                            }
+                                            },
                                           );
                                           lastStatus = statusQuery;
                                           lastDetail = errorDetailQuery || "";
@@ -5646,7 +5676,7 @@ function FuncionariosPageContent() {
                                               id: tryId,
                                               url: queryUrl,
                                               err: errQuery,
-                                            }
+                                            },
                                           );
                                           lastStatus = statusQuery;
                                           lastDetail =
@@ -5659,17 +5689,17 @@ function FuncionariosPageContent() {
                                       }
                                       throw new Error(
                                         lastDetail ||
-                                          `Falha ao excluir remanejamento (HTTP ${lastStatus})`
+                                          `Falha ao excluir remanejamento (HTTP ${lastStatus})`,
                                       );
                                     } catch (err: any) {
                                       console.error(
                                         "Erro ao excluir remanejamento:",
-                                        err
+                                        err,
                                       );
                                       showToast(
                                         err?.message ||
                                           "Erro ao excluir remanejamento",
-                                        "error"
+                                        "error",
                                       );
                                     }
                                   }}
@@ -5684,7 +5714,7 @@ function FuncionariosPageContent() {
                           </td>
                         </tr>
                       );
-                    }
+                    },
                   )}
                 </tbody>
               </table>
@@ -5708,7 +5738,7 @@ function FuncionariosPageContent() {
                     <button
                       onClick={() =>
                         setPaginaAtual(
-                          Math.min(totalPaginasNaoConcluidos, paginaAtual + 1)
+                          Math.min(totalPaginasNaoConcluidos, paginaAtual + 1),
                         )
                       }
                       disabled={paginaAtual === totalPaginasNaoConcluidos}
@@ -5727,7 +5757,7 @@ function FuncionariosPageContent() {
                         <span className="font-medium">
                           {Math.min(
                             indiceFim,
-                            funcionariosOrdenadosNaoConcluidos.length
+                            funcionariosOrdenadosNaoConcluidos.length,
                           )}
                         </span>{" "}
                         de{" "}
@@ -5830,7 +5860,7 @@ function FuncionariosPageContent() {
                             >
                               {item}
                             </button>
-                          )
+                          ),
                         )}
 
                         <button
@@ -5838,8 +5868,8 @@ function FuncionariosPageContent() {
                             setPaginaAtual(
                               Math.min(
                                 totalPaginasNaoConcluidos,
-                                paginaAtual + 1
-                              )
+                                paginaAtual + 1,
+                              ),
                             )
                           }
                           disabled={paginaAtual === totalPaginasNaoConcluidos}
@@ -6002,7 +6032,7 @@ function FuncionariosPageContent() {
                             </span>
                             <span
                               className={`px-2 py-0.5 text-[10px] rounded ${getStatusColor(
-                                funcionario.statusPrestserv
+                                funcionario.statusPrestserv,
                               )} border`}
                             >
                               {getStatusLabel(funcionario.statusPrestserv)}
@@ -6012,7 +6042,7 @@ function FuncionariosPageContent() {
                         <td className="px-3 py-2 text-xs text-gray-700">
                           <span
                             className={`px-2 py-0.5 text-[10px] rounded border ${getResponsavelColor(
-                              getResponsavelAtual(funcionario)
+                              getResponsavelAtual(funcionario),
                             )}`}
                           >
                             {getResponsavelAtual(funcionario)}
@@ -6023,15 +6053,15 @@ function FuncionariosPageContent() {
                             {["RH", "MEDICINA", "TREINAMENTO"].map((setor) => {
                               const progresso =
                                 funcionario.progressoPorSetor?.find(
-                                  (p) => p.setor === setor
+                                  (p) => p.setor === setor,
                                 );
                               const hasData = progresso && progresso.total > 0;
                               const nomeSetor =
                                 setor === "RH"
                                   ? "Recursos Humanos"
                                   : setor === "MEDICINA"
-                                  ? "Medicina"
-                                  : "Treinamento";
+                                    ? "Medicina"
+                                    : "Treinamento";
                               return (
                                 <div
                                   key={setor}
@@ -6067,7 +6097,7 @@ function FuncionariosPageContent() {
                                         hasData
                                           ? getProgressColor(
                                               progresso!.concluidas,
-                                              progresso!.total
+                                              progresso!.total,
                                             )
                                           : "text-gray-300"
                                       }`}
@@ -6075,7 +6105,7 @@ function FuncionariosPageContent() {
                                       {hasData
                                         ? getProgressIcon(
                                             progresso!.concluidas,
-                                            progresso!.total
+                                            progresso!.total,
                                           )
                                         : "●"}
                                     </span>
@@ -6096,7 +6126,7 @@ function FuncionariosPageContent() {
                           <div className="flex items-center gap-2">
                             <span
                               className={`px-2 py-0.5 text-[10px] rounded ${getStatusColor(
-                                funcionario.statusPrestserv
+                                funcionario.statusPrestserv,
                               )} border`}
                             >
                               {getStatusLabel(funcionario.statusPrestserv)}
@@ -6115,7 +6145,7 @@ function FuncionariosPageContent() {
                                   ) {
                                     updatePrestservStatus(
                                       funcionario.id,
-                                      novoStatus
+                                      novoStatus,
                                     );
                                   }
                                 }}
@@ -6126,7 +6156,7 @@ function FuncionariosPageContent() {
                                     <option key={opt} value={opt}>
                                       {getStatusLabel(opt)}
                                     </option>
-                                  )
+                                  ),
                                 )}
                               </select>
                             ) : (
@@ -6141,7 +6171,7 @@ function FuncionariosPageContent() {
                             <button
                               onClick={() =>
                                 router.push(
-                                  `/prestserv/remanejamentos/${funcionario.id}`
+                                  `/prestserv/remanejamentos/${funcionario.id}`,
                                 )
                               }
                               className="px-2 py-1 text-[11px] bg-blue-600 text-white rounded hover:bg-blue-700"
@@ -6183,7 +6213,7 @@ function FuncionariosPageContent() {
                     <button
                       onClick={() =>
                         setPaginaAtual(
-                          Math.min(totalPaginasConcluidos, paginaAtual + 1)
+                          Math.min(totalPaginasConcluidos, paginaAtual + 1),
                         )
                       }
                       disabled={paginaAtual === totalPaginasConcluidos}
@@ -6202,7 +6232,7 @@ function FuncionariosPageContent() {
                         <span className="font-medium">
                           {Math.min(
                             indiceFim,
-                            funcionariosOrdenadosConcluidos.length
+                            funcionariosOrdenadosConcluidos.length,
                           )}
                         </span>{" "}
                         de{" "}
@@ -6304,13 +6334,13 @@ function FuncionariosPageContent() {
                             >
                               {item}
                             </button>
-                          )
+                          ),
                         )}
 
                         <button
                           onClick={() =>
                             setPaginaAtual(
-                              Math.min(totalPaginasConcluidos, paginaAtual + 1)
+                              Math.min(totalPaginasConcluidos, paginaAtual + 1),
                             )
                           }
                           disabled={paginaAtual === totalPaginasConcluidos}
@@ -6456,10 +6486,10 @@ function FuncionariosPageContent() {
                     {solicitacoesFiltradas.map(
                       (solicitacao: any, index: number) => {
                         const resumo = getFuncionariosResumo(
-                          solicitacao.funcionarios
+                          solicitacao.funcionarios,
                         );
                         const isExpanded = expandedRows.has(
-                          solicitacao.solicitacaoId
+                          solicitacao.solicitacaoId,
                         );
 
                         return (
@@ -6495,7 +6525,8 @@ function FuncionariosPageContent() {
                                       <div>
                                         Criado:{" "}
                                         {new Date(
-                                          solicitacao.funcionarios[0]?.createdAt
+                                          solicitacao.funcionarios[0]
+                                            ?.createdAt,
                                         ).toLocaleDateString("pt-BR", {
                                           day: "2-digit",
                                           month: "2-digit",
@@ -6507,7 +6538,8 @@ function FuncionariosPageContent() {
                                       <div>
                                         Atualizado:{" "}
                                         {new Date(
-                                          solicitacao.funcionarios[0]?.updatedAt
+                                          solicitacao.funcionarios[0]
+                                            ?.updatedAt,
                                         ).toLocaleDateString("pt-BR", {
                                           day: "2-digit",
                                           month: "2-digit",
@@ -6536,7 +6568,7 @@ function FuncionariosPageContent() {
                                 <div className="space-y-1">
                                   <span
                                     className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(
-                                      resumo.status
+                                      resumo.status,
                                     )}`}
                                   >
                                     {resumo.status}
@@ -6564,12 +6596,12 @@ function FuncionariosPageContent() {
                                   {/* Botão para selecionar todos os funcionários da solicitação que podem ser aprovados */}
                                   {solicitacao.funcionarios.some(
                                     (f: FuncionarioTableData) =>
-                                      f.statusTarefas === "APROVAR SOLICITAÇÃO"
+                                      f.statusTarefas === "APROVAR SOLICITAÇÃO",
                                   ) && (
                                     <button
                                       onClick={() =>
                                         selecionarTodosFuncionariosSolicitacao(
-                                          solicitacao
+                                          solicitacao,
                                         )
                                       }
                                       className={`inline-flex items-center px-2 py-1.5 text-xs font-medium border rounded-md transition-colors ${
@@ -6577,10 +6609,10 @@ function FuncionariosPageContent() {
                                           .filter(
                                             (f: FuncionarioTableData) =>
                                               f.statusTarefas ===
-                                              "APROVAR SOLICITAÇÃO"
+                                              "APROVAR SOLICITAÇÃO",
                                           )
                                           .every((f: FuncionarioTableData) =>
-                                            funcionariosSelecionados.has(f.id)
+                                            funcionariosSelecionados.has(f.id),
                                           )
                                           ? "text-blue-700 bg-blue-50 border-blue-300 hover:bg-blue-100"
                                           : "text-gray-600 bg-white border-gray-300 hover:bg-gray-50"
@@ -6591,10 +6623,10 @@ function FuncionariosPageContent() {
                                         .filter(
                                           (f: FuncionarioTableData) =>
                                             f.statusTarefas ===
-                                            "APROVAR SOLICITAÇÃO"
+                                            "APROVAR SOLICITAÇÃO",
                                         )
                                         .every((f: FuncionarioTableData) =>
-                                          funcionariosSelecionados.has(f.id)
+                                          funcionariosSelecionados.has(f.id),
                                         )
                                         ? "Desmarcar Todos"
                                         : "Selecionar Todos"}
@@ -6619,11 +6651,11 @@ function FuncionariosPageContent() {
                               solicitacao.funcionarios.map(
                                 (
                                   funcionario: FuncionarioTableData,
-                                  funcIndex: number
+                                  funcIndex: number,
                                 ) => {
                                   const precisaAtencao =
                                     funcionarioDemitidoPrecisaAtencao(
-                                      funcionario
+                                      funcionario,
                                     );
                                   const alertaDemitido = precisaAtencao
                                     ? getTipoAlertaDemitido(funcionario)
@@ -6648,11 +6680,11 @@ function FuncionariosPageContent() {
                                             <input
                                               type="checkbox"
                                               checked={funcionariosSelecionados.has(
-                                                funcionario.id
+                                                funcionario.id,
                                               )}
                                               onChange={() =>
                                                 toggleFuncionarioSelecionado(
-                                                  funcionario.id
+                                                  funcionario.id,
                                                 )
                                               }
                                               className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
@@ -6665,12 +6697,12 @@ function FuncionariosPageContent() {
                                                 {(() => {
                                                   const precisaAtencao =
                                                     funcionarioDemitidoPrecisaAtencao(
-                                                      funcionario
+                                                      funcionario,
                                                     );
                                                   const alertaDemitido =
                                                     precisaAtencao
                                                       ? getTipoAlertaDemitido(
-                                                          funcionario
+                                                          funcionario,
                                                         )
                                                       : null;
                                                   return (
@@ -6681,10 +6713,10 @@ function FuncionariosPageContent() {
                                                           {
                                                             className: `h-5 w-5 ${
                                                               alertaDemitido.classes.split(
-                                                                " "
+                                                                " ",
                                                               )[0]
                                                             } cursor-help`,
-                                                          }
+                                                          },
                                                         )}
                                                         <div
                                                           className={`absolute z-50 invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity duration-200 bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 text-sm rounded-lg border shadow-lg max-w-xs whitespace-nowrap ${alertaDemitido.classes}`}
@@ -6701,14 +6733,14 @@ function FuncionariosPageContent() {
                                                           <div
                                                             className={`absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent ${
                                                               alertaDemitido.classes.includes(
-                                                                "red"
+                                                                "red",
                                                               )
                                                                 ? "border-t-red-200"
                                                                 : alertaDemitido.classes.includes(
-                                                                    "orange"
-                                                                  )
-                                                                ? "border-t-orange-200"
-                                                                : "border-t-yellow-200"
+                                                                      "orange",
+                                                                    )
+                                                                  ? "border-t-orange-200"
+                                                                  : "border-t-yellow-200"
                                                             }`}
                                                           ></div>
                                                         </div>
@@ -6730,7 +6762,7 @@ function FuncionariosPageContent() {
                                       <td className="px-4 py-3 text-xs text-gray-600">
                                         <span
                                           className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(
-                                            funcionario.statusTarefas
+                                            funcionario.statusTarefas,
                                           )}`}
                                         >
                                           {funcionario.statusTarefas}
@@ -6743,7 +6775,7 @@ function FuncionariosPageContent() {
                                       <td className="px-4 py-3 text-xs text-gray-600">
                                         <span
                                           className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(
-                                            funcionario.statusPrestserv
+                                            funcionario.statusPrestserv,
                                           )}`}
                                         >
                                           {funcionario.statusPrestserv}
@@ -6757,7 +6789,7 @@ function FuncionariosPageContent() {
                                             <button
                                               onClick={() =>
                                                 abrirModalConfirmacao(
-                                                  funcionario
+                                                  funcionario,
                                                 )
                                               }
                                               className="inline-flex items-center px-2 py-1 text-xs font-medium text-gray-600 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors"
@@ -6774,7 +6806,7 @@ function FuncionariosPageContent() {
                                             <button
                                               onClick={() =>
                                                 router.push(
-                                                  `/prestserv/funcionario/${funcionario.id}/tarefas`
+                                                  `/prestserv/funcionario/${funcionario.id}/tarefas`,
                                                 )
                                               }
                                               className="inline-flex items-center px-2 py-1 text-xs font-medium text-blue-600 bg-blue-50 border border-blue-300 rounded hover:bg-blue-100 transition-colors"
@@ -6794,11 +6826,11 @@ function FuncionariosPageContent() {
                                       </td>
                                     </tr>
                                   );
-                                }
+                                },
                               )}
                           </React.Fragment>
                         );
-                      }
+                      },
                     )}
                   </tbody>
                 </table>
@@ -6815,14 +6847,14 @@ function FuncionariosPageContent() {
                           (paginaAtualSolicitacoes - 1) *
                             itensPorPaginaSolicitacoes +
                             1,
-                          totalSolicitacoes
+                          totalSolicitacoes,
                         )}
                       </span>{" "}
                       até{" "}
                       <span className="font-medium">
                         {Math.min(
                           paginaAtualSolicitacoes * itensPorPaginaSolicitacoes,
-                          totalSolicitacoes
+                          totalSolicitacoes,
                         )}
                       </span>{" "}
                       de{" "}
@@ -6834,7 +6866,7 @@ function FuncionariosPageContent() {
                     <button
                       onClick={() =>
                         setPaginaAtualSolicitacoes((prev) =>
-                          Math.max(prev - 1, 1)
+                          Math.max(prev - 1, 1),
                         )
                       }
                       disabled={paginaAtualSolicitacoes === 1}
@@ -6847,13 +6879,13 @@ function FuncionariosPageContent() {
                       {Array.from(
                         {
                           length: Math.ceil(
-                            totalSolicitacoes / itensPorPaginaSolicitacoes
+                            totalSolicitacoes / itensPorPaginaSolicitacoes,
                           ),
                         },
-                        (_, i) => i + 1
+                        (_, i) => i + 1,
                       ).map((numeroPagina) => {
                         const totalPaginas = Math.ceil(
-                          totalSolicitacoes / itensPorPaginaSolicitacoes
+                          totalSolicitacoes / itensPorPaginaSolicitacoes,
                         );
 
                         // Mostrar apenas algumas páginas ao redor da página atual
@@ -6901,15 +6933,15 @@ function FuncionariosPageContent() {
                           Math.min(
                             prev + 1,
                             Math.ceil(
-                              totalSolicitacoes / itensPorPaginaSolicitacoes
-                            )
-                          )
+                              totalSolicitacoes / itensPorPaginaSolicitacoes,
+                            ),
+                          ),
                         )
                       }
                       disabled={
                         paginaAtualSolicitacoes >=
                         Math.ceil(
-                          totalSolicitacoes / itensPorPaginaSolicitacoes
+                          totalSolicitacoes / itensPorPaginaSolicitacoes,
                         )
                       }
                       className="relative inline-flex items-center px-2 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-r-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -7193,8 +7225,8 @@ function FuncionariosPageContent() {
                           ? "Salvando..."
                           : "Adicionando..."
                         : remObsEditando
-                        ? "Salvar"
-                        : "Adicionar"}
+                          ? "Salvar"
+                          : "Adicionar"}
                     </button>
                   </div>
                 </div>
@@ -7365,7 +7397,7 @@ function FuncionariosPageContent() {
               <div className="bg-gray-50 rounded-lg p-4 mb-6 max-h-60 overflow-y-auto">
                 {Array.from(funcionariosSelecionados).map((funcionarioId) => {
                   const funcionario = funcionarios.find(
-                    (f) => f.id === funcionarioId
+                    (f) => f.id === funcionarioId,
                   );
                   return funcionario ? (
                     <div
@@ -7459,6 +7491,6 @@ const formatDuracao = (valorHoras: number): string => {
   const s = restoHora % 60;
   return `${d}d ${String(h).padStart(2, "0")}h ${String(m).padStart(
     2,
-    "0"
+    "0",
   )}m ${String(s).padStart(2, "0")}s`;
 };

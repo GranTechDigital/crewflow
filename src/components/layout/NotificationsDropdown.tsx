@@ -142,51 +142,77 @@ export default function NotificationsDropdown() {
                     {data.priority?.length > 0 && (
                       <div className="border-b-4 border-red-100">
                         {/* Removido o cabeçalho de texto "Prioridade" conforme solicitado, mantendo o destaque visual */}
-                        {data.priority.map((item: any) => (
-                          <Menu.Item key={`prio-${item.id}`}>
-                            {({ active }) => (
-                              <Link
-                                href={
-                                  item.solicitacao?.contratoDestino?.id
-                                    ? `/matriz-treinamento/contratos/${
-                                        item.solicitacao.contratoDestino.id
-                                      }?search=${encodeURIComponent(
-                                        item.funcionario?.funcao || ""
-                                      )}`
-                                    : "#"
-                                }
-                                className={`${
-                                  active ? "bg-red-50" : "bg-red-50/50"
-                                } block px-4 py-3 border-b border-red-100 last:border-0 transition-colors`}
-                              >
-                                <div className="flex items-start">
-                                  <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 mr-3 flex-shrink-0" />
-                                  <div>
-                                    <p className="text-sm font-medium text-gray-900">
-                                      {item.funcionario?.nome}
-                                    </p>
-                                    <p className="text-xs text-gray-700 mt-0.5">
-                                      <span className="font-semibold">
-                                        Contrato:
-                                      </span>{" "}
-                                      {item.solicitacao?.contratoDestino
-                                        ?.numero || "N/A"}
-                                    </p>
-                                    <p className="text-xs text-gray-700 mt-0.5">
-                                      <span className="font-semibold">
-                                        Função:
-                                      </span>{" "}
-                                      {item.funcionario?.funcao || "N/A"}
-                                    </p>
-                                    <p className="text-xs text-red-600 font-bold mt-1 uppercase">
-                                      Criar função na matriz
-                                    </p>
+                        {data.priority.map((item: any) => {
+                          const isAprovar =
+                            item.statusTarefas === "APROVAR SOLICITAÇÃO";
+                          const isSubmeter =
+                            item.statusTarefas === "SUBMETER RASCUNHO";
+
+                          let linkUrl = "#";
+                          let actionText = "Criar função na matriz";
+
+                          if (isAprovar) {
+                            linkUrl = `/prestserv/funcionarios?status=${encodeURIComponent(
+                              "APROVAR SOLICITAÇÃO",
+                            )}&tab=nominal&nome=${encodeURIComponent(
+                              item.funcionario?.nome || "",
+                            )}`;
+                            actionText = "Aprovar Solicitação";
+                          } else if (isSubmeter) {
+                            linkUrl = `/prestserv/funcionarios?status=${encodeURIComponent(
+                              "SUBMETER RASCUNHO",
+                            )}&tab=nominal&nome=${encodeURIComponent(
+                              item.funcionario?.nome || "",
+                            )}`;
+                            actionText = "Analisar e Submeter";
+                          } else {
+                            linkUrl = item.solicitacao?.contratoDestino?.id
+                              ? `/matriz-treinamento/contratos/${
+                                  item.solicitacao.contratoDestino.id
+                                }?search=${encodeURIComponent(
+                                  item.funcionario?.funcao || "",
+                                )}`
+                              : "#";
+                          }
+
+                          return (
+                            <Menu.Item key={`prio-${item.id}`}>
+                              {({ active }) => (
+                                <Link
+                                  href={linkUrl}
+                                  className={`${
+                                    active ? "bg-red-50" : "bg-red-50/50"
+                                  } block px-4 py-3 border-b border-red-100 last:border-0 transition-colors`}
+                                >
+                                  <div className="flex items-start">
+                                    <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 mr-3 flex-shrink-0" />
+                                    <div>
+                                      <p className="text-sm font-medium text-gray-900">
+                                        {item.funcionario?.nome}
+                                      </p>
+                                      <p className="text-xs text-gray-700 mt-0.5">
+                                        <span className="font-semibold">
+                                          Contrato:
+                                        </span>{" "}
+                                        {item.solicitacao?.contratoDestino
+                                          ?.numero || "N/A"}
+                                      </p>
+                                      <p className="text-xs text-gray-700 mt-0.5">
+                                        <span className="font-semibold">
+                                          Função:
+                                        </span>{" "}
+                                        {item.funcionario?.funcao || "N/A"}
+                                      </p>
+                                      <p className="text-xs text-red-600 font-bold mt-1 uppercase">
+                                        {actionText}
+                                      </p>
+                                    </div>
                                   </div>
-                                </div>
-                              </Link>
-                            )}
-                          </Menu.Item>
-                        ))}
+                                </Link>
+                              )}
+                            </Menu.Item>
+                          );
+                        })}
                       </div>
                     )}
 

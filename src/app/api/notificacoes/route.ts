@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     }
 
     const secret = new TextEncoder().encode(
-      process.env.JWT_SECRET || "fallback-secret"
+      process.env.JWT_SECRET || "fallback-secret",
     );
 
     let decoded;
@@ -43,8 +43,14 @@ export async function GET(request: NextRequest) {
       permissions.includes(PERMISSIONS.ACCESS_LOGISTICA) ||
       permissions.includes(PERMISSIONS.ACCESS_PREST_SERV) ||
       ["Planejamento", "Logística", "Prestserv", "Administração"].some((t) =>
-        equipeNome.includes(t)
+        equipeNome.includes(t),
       );
+
+    const isLogistica =
+      permissions.includes(PERMISSIONS.ACCESS_LOGISTICA) ||
+      permissions.includes(PERMISSIONS.ADMIN) ||
+      equipeNome.includes("Logística") ||
+      equipeNome.includes("Administração");
 
     // 1. Recentes (Criação de remanejamentos) - Últimas 24h
     // Visível apenas para equipes de gestão (Planejamento, Logística, Prestserv, Admin)
@@ -86,7 +92,7 @@ export async function GET(request: NextRequest) {
     // Priority treinamento tasks (0/0) - Treinamento team only
     let priorityItems: any[] = [];
     if (isTreinamento) {
-      priorityItems = await prisma.remanejamentoFuncionario.findMany({
+      const treinamentoItems = await prisma.remanejamentoFuncionario.findMany({
         where: {
           statusPrestserv: {
             notIn: [
@@ -101,9 +107,13 @@ export async function GET(request: NextRequest) {
               "validado",
             ],
           },
-          // Verifica se NÃO existe tarefa vinculada ao setor de treinamento OU se não tem tarefas de treinamento
+          // Condição 1: Status deve indicar que Logística já aprovou (REPROVAR TAREFAS)
+          statusTarefas: "REPROVAR TAREFAS",
+          // Condição 2: Devem existir tarefas geradas (gerarTarefasPadrao já rodou)
           tarefas: {
+            some: {}, // Garante que existem tarefas (qualquer setor)
             none: {
+              // Mas especificamente para Treinamento, falta a tarefa/matriz
               OR: [
                 {
                   setor: {
@@ -128,6 +138,42 @@ export async function GET(request: NextRequest) {
           },
         },
       });
+      priorityItems = [...priorityItems, ...treinamentoItems];
+    }
+
+    if (isLogistica) {
+      const logisticaItems = await prisma.remanejamentoFuncionario.findMany({
+        where: {
+          OR: [
+            { statusTarefas: "APROVAR SOLICITAÇÃO" },
+            { statusTarefas: "SUBMETER RASCUNHO" },
+          ],
+          statusPrestserv: {
+            notIn: [
+              "CONCLUIDO",
+              "CANCELADO",
+              "CONCLUÍDO",
+              "Cancelado",
+              "Concluido",
+              "Concluído",
+              "VALIDADO",
+              "Validado",
+              "validado",
+            ],
+          },
+        },
+        take: 20,
+        orderBy: { createdAt: "asc" },
+        include: {
+          funcionario: { select: { nome: true, funcao: true } },
+          solicitacao: {
+            include: {
+              contratoDestino: { select: { id: true, numero: true } },
+            },
+          },
+        },
+      });
+      priorityItems = [...priorityItems, ...logisticaItems];
     }
 
     // 3. Pendências (Tarefas vencidas)
