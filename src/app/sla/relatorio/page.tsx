@@ -3121,6 +3121,12 @@ export default function RelatorioSLA() {
             Relatório de atendimentos realizados
           </h1>
           <p className="text-sm text-gray-600">Visão por setor</p>
+          <div className="mt-1 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gray-100 text-gray-800 text-xs font-medium">
+            <QuestionMarkCircleIcon className="w-4 h-4" />
+            <span>
+              Dados considerados: 2026 em diante (aplicado automaticamente)
+            </span>
+          </div>
         </div>
 
         {loading && (
