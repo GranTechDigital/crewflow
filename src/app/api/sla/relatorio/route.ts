@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 
-type Duracao = { status: string; ms: number };
+type Duracao = { status: string; ms: number; inicio: Date; fim: Date };
 
 function msDiff(a: Date, b: Date) {
   return Math.max(0, b.getTime() - a.getTime());
@@ -38,12 +38,24 @@ function segmentosTarefa(
   for (const e of evts) {
     const ts = e.dataEvento || fim;
     const ms = msDiff(lastTs, ts);
-    if (ms > 0) segs.push({ status: String(currentStatus), ms });
+    if (ms > 0)
+      segs.push({
+        status: String(currentStatus),
+        ms,
+        inicio: lastTs,
+        fim: ts,
+      });
     currentStatus = e.statusNovo ?? currentStatus;
     lastTs = ts;
   }
   const msFinal = msDiff(lastTs, fim);
-  if (msFinal > 0) segs.push({ status: String(currentStatus), ms: msFinal });
+  if (msFinal > 0)
+    segs.push({
+      status: String(currentStatus),
+      ms: msFinal,
+      inicio: lastTs,
+      fim,
+    });
   return segs;
 }
 
@@ -56,6 +68,23 @@ function somar(segs: Duracao[], status: string) {
 function media(vals: number[]) {
   if (!vals.length) return 0;
   return vals.reduce((a, b) => a + b, 0) / vals.length;
+}
+
+function isExcludedStatus(status: string | null | undefined): boolean {
+  if (!status) return false;
+  const s = status.toString().toUpperCase().trim();
+  // Status solicitados: 11 (pendente de desligamento), 6 (em validação), 12 (em validação)
+  // Adicionado tratamento mais permissivo
+  return (
+    s === "11" ||
+    s === "6" ||
+    s === "12" ||
+    s.includes("PENDENTE DE DESLIGAMENTO") ||
+    s.includes("EM VALIDAÇÃO") ||
+    s.includes("EM VALIDACAO") ||
+    s.includes("EMV ALIDAÇÃO") ||
+    s.includes("EMV ALIDACAO")
+  );
 }
 
 export async function GET(request: NextRequest) {
@@ -132,17 +161,31 @@ export async function GET(request: NextRequest) {
             { statusTarefas: { not: "CANCELADO" } },
           ],
         };
-    if (inicioFiltro || fimFiltro) {
-      const createdAtFilter: any = {};
-      if (inicioFiltro) createdAtFilter.gte = inicioFiltro;
-      if (fimFiltro) createdAtFilter.lte = fimFiltro;
-      whereBase.AND = [
-        ...(whereBase.AND || []),
-        {
-          createdAt: createdAtFilter,
-        },
-      ];
-    }
+    // Janela de tempo: somente dados de 2026 (com possibilidade de limitar por fim via query)
+    const START_2026 = new Date("2026-01-01T00:00:00.000Z");
+    const END_2026 = new Date("2026-12-31T23:59:59.999Z");
+    const effectiveStart =
+      inicioFiltro && inicioFiltro > START_2026 ? inicioFiltro : START_2026;
+    const effectiveEnd =
+      fimFiltro && fimFiltro < END_2026 ? fimFiltro : END_2026;
+
+    // Filtro temporal abrangente: inclui remanejamentos criados antes de 2026
+    // mas com atividade relevante em 2026 (submissão, resposta, aprovação, conclusão, atualização)
+    const timeWindowOr = [
+      { createdAt: { gte: effectiveStart, lte: effectiveEnd } },
+      { dataSubmetido: { gte: effectiveStart, lte: effectiveEnd } },
+      { dataResposta: { gte: effectiveStart, lte: effectiveEnd } },
+      { dataAprovado: { gte: effectiveStart, lte: effectiveEnd } },
+      { dataConcluido: { gte: effectiveStart, lte: effectiveEnd } },
+      { updatedAt: { gte: effectiveStart, lte: effectiveEnd } },
+    ];
+
+    whereBase.AND = [
+      ...(whereBase.AND || []),
+      {
+        OR: timeWindowOr,
+      },
+    ];
     // Buscar remanejamentos sem carregar tarefas diretamente (evita coluna ausente em tarefas)
     try {
       remanejamentos = await prisma.remanejamentoFuncionario.findMany({
@@ -191,17 +234,20 @@ export async function GET(request: NextRequest) {
               { statusTarefas: { not: "CANCELADO" } },
             ],
           };
-      if (inicioFiltro || fimFiltro) {
-        const createdAtFilter: any = {};
-        if (inicioFiltro) createdAtFilter.gte = inicioFiltro;
-        if (fimFiltro) createdAtFilter.lte = fimFiltro;
-        whereFallback.AND = [
-          ...(whereFallback.AND || []),
-          {
-            createdAt: createdAtFilter,
-          },
-        ];
-      }
+      // Aplicar janela de 2026 também no fallback
+      whereFallback.AND = [
+        ...(whereFallback.AND || []),
+        {
+          OR: [
+            { createdAt: { gte: effectiveStart, lte: effectiveEnd } },
+            { dataSubmetido: { gte: effectiveStart, lte: effectiveEnd } },
+            { dataResposta: { gte: effectiveStart, lte: effectiveEnd } },
+            { dataAprovado: { gte: effectiveStart, lte: effectiveEnd } },
+            { dataConcluido: { gte: effectiveStart, lte: effectiveEnd } },
+            { updatedAt: { gte: effectiveStart, lte: effectiveEnd } },
+          ],
+        },
+      ];
       remanejamentos = await prisma.remanejamentoFuncionario.findMany({
         where: whereFallback,
         include: {
@@ -400,6 +446,7 @@ export async function GET(request: NextRequest) {
       const totalDurMs = msDiff(totalStart, totalEnd);
 
       const setorDur: Record<string, number> = {};
+      const exclusoesPorSetor: Record<string, number> = {};
       const tarefaReprovCount: Record<string, number> = {};
       const temposConclusaoPorSetor: Record<string, number[]> = {};
       let downtimeMsSum = 0;
@@ -480,6 +527,55 @@ export async function GET(request: NextRequest) {
         return "DESCONHECIDO";
       };
 
+      // Construir timeline de exclusão global baseada no histórico do remanejamento (statusPrestserv)
+      const exclusionTimeline: { inicio: number; fim: number }[] = [];
+      const histStatus = historicosPrestserv
+        .filter((h: any) => h.campoAlterado === "statusPrestserv")
+        .sort(
+          (a: any, b: any) =>
+            new Date(a.dataAcao).getTime() - new Date(b.dataAcao).getTime(),
+        );
+
+      if (histStatus.length > 0) {
+        let currentStatus = "CRIADO"; // Estado inicial padrão seguro
+        // Tentar inferir estado inicial se possível, mas CRIADO é neutro.
+
+        let lastTime = totalStart.getTime();
+
+        for (const h of histStatus) {
+          const time = new Date(h.dataAcao).getTime();
+          if (time > lastTime) {
+            if (isExcludedStatus(currentStatus)) {
+              exclusionTimeline.push({ inicio: lastTime, fim: time });
+            }
+          }
+          currentStatus = h.valorNovo || currentStatus;
+          lastTime = time;
+        }
+        // Último intervalo até o fim
+        if (lastTime < totalEnd.getTime()) {
+          if (isExcludedStatus(currentStatus)) {
+            exclusionTimeline.push({
+              inicio: lastTime,
+              fim: totalEnd.getTime(),
+            });
+          }
+        }
+      } else {
+        // Se não tem histórico, verifica o status atual do remanejamento
+        if (isExcludedStatus(rf.statusPrestserv)) {
+          exclusionTimeline.push({
+            inicio: totalStart.getTime(),
+            fim: totalEnd.getTime(),
+          });
+        }
+      }
+
+      let totalOutrosMs = 0;
+      for (const interval of exclusionTimeline) {
+        totalOutrosMs += interval.fim - interval.inicio;
+      }
+
       // Removido filtro rígido de pré-validação para evitar resposta vazia. Filtramos somente no momento de montar a lista porRemanejamento.
 
       for (const t of rf.tarefas) {
@@ -491,8 +587,41 @@ export async function GET(request: NextRequest) {
         );
         downtimeMsSum += somar(segs, "PENDENTE");
         const setor = deriveSetor(t);
-        setorDur[setor] =
-          (setorDur[setor] || 0) + segs.reduce((acc, s) => acc + s.ms, 0);
+        for (const s of segs) {
+          let msExcluido = 0;
+          const sInicio = s.inicio.getTime();
+          const sFim = s.fim.getTime();
+
+          // 1. Se o status da tarefa é excluído, conta tudo
+          if (isExcludedStatus(s.status)) {
+            msExcluido = s.ms;
+          } else {
+            // 2. Verifica interseção com exclusão global (statusPrestserv)
+            for (const interval of exclusionTimeline) {
+              const interInicio = Math.max(sInicio, interval.inicio);
+              const interFim = Math.min(sFim, interval.fim);
+              if (interFim > interInicio) {
+                msExcluido += interFim - interInicio;
+              }
+            }
+            // Limitar ao tamanho do segmento
+            if (msExcluido > s.ms) msExcluido = s.ms;
+          }
+
+          if (msExcluido > 0) {
+            // Não somamos em setorDur["OUTROS"] aqui para evitar duplicação em tarefas paralelas.
+            // O valor total de OUTROS será definido por totalOutrosMs.
+            exclusoesPorSetor[setor] =
+              (exclusoesPorSetor[setor] || 0) + msExcluido;
+
+            const msLiquido = s.ms - msExcluido;
+            if (msLiquido > 0) {
+              setorDur[setor] = (setorDur[setor] || 0) + msLiquido;
+            }
+          } else {
+            setorDur[setor] = (setorDur[setor] || 0) + s.ms;
+          }
+        }
 
         const conclEvt = (t.eventosStatus || []).find(
           (e: any) =>
@@ -527,7 +656,11 @@ export async function GET(request: NextRequest) {
         const rawTaskReprovs = (t.eventosStatus || [])
           .filter((e: any) => {
             const s = (e.statusNovo || "").toString().toUpperCase();
-            return s === "REPROVADO";
+            if (s !== "REPROVADO") return false;
+            const d = e.dataEvento ? new Date(e.dataEvento) : null;
+            if (!d) return false;
+            // Contabilizar apenas reprovações dentro da janela 2026 (ou até fim especificado)
+            return d >= effectiveStart && d <= effectiveEnd;
           })
           .map((e: any) => ({
             setor,
@@ -586,6 +719,8 @@ export async function GET(request: NextRequest) {
         porSetor.set(setor, setorAgg);
       }
 
+      setorDur["OUTROS"] = totalOutrosMs;
+
       const tarefasAtivas = (rf.tarefas || []).filter(
         (t: any) => t.status !== "CANCELADO",
       );
@@ -623,6 +758,8 @@ export async function GET(request: NextRequest) {
         ms: number;
         ciclo?: number;
         tipo?: string;
+        inicioDisplay?: string;
+        fimDisplay?: string;
         qtdReprovacoes?: number;
         tarefasReprovadas?: string[];
       }[] = [];
@@ -1557,18 +1694,42 @@ export async function GET(request: NextRequest) {
       ];
 
       let duracaoPorSetorMsArr = Object.entries(ciclosSetorDurMs).map(
-        ([setor, arr]) => ({ setor, ms: arr.reduce((a, b) => a + b, 0) }),
+        ([setor, arr]) => {
+          const totalCiclo = arr.reduce((a, b) => a + b, 0);
+          const desconto = exclusoesPorSetor[setor] || 0;
+          // Subtrai o tempo dos status excluídos (11, 6, 12) do tempo calculado pelos ciclos
+          return { setor, ms: Math.max(0, totalCiclo - desconto) };
+        },
       );
-      const somaDuracaoCiclos = duracaoPorSetorMsArr.reduce(
-        (acc, it) => acc + (it.ms || 0),
-        0,
-      );
+
+      const somaCiclosOriginal = Object.values(ciclosSetorDurMs)
+        .flat()
+        .reduce((a, b) => a + b, 0);
+
       const setorDurArr = Object.entries(setorDur).map(([setor, ms]) => ({
         setor,
         ms,
       }));
-      if (somaDuracaoCiclos === 0) {
+
+      if (somaCiclosOriginal === 0) {
         // Fallback: sem ciclos válidos, usa soma direta dos segmentos por setor
+        // setorDurArr já contém a lógica de exclusão (processada no loop inicial)
+
+        // Ajuste OUTROS no fallback: maior valor entre exclusões de tarefas e exclusão global
+        const totalExclusoes = Object.values(exclusoesPorSetor).reduce(
+          (a, b) => a + b,
+          0,
+        );
+        const valorOutros = Math.max(totalExclusoes, setorDur["OUTROS"] || 0);
+
+        // Se calculamos um valor para OUTROS maior que o existente em setorDurArr, atualizamos
+        const outrosIndex = setorDurArr.findIndex((x) => x.setor === "OUTROS");
+        if (outrosIndex >= 0) {
+          setorDurArr[outrosIndex].ms = valorOutros;
+        } else if (valorOutros > 0) {
+          setorDurArr.push({ setor: "OUTROS", ms: valorOutros });
+        }
+
         duracaoPorSetorMsArr = setorDurArr;
         // Também alimentar agregados para cálculo de médias por setor
         for (const { setor, ms } of setorDurArr) {
@@ -1576,6 +1737,28 @@ export async function GET(request: NextRequest) {
             const ag = agregadosSetorDuracoes.get(setor) || [];
             ag.push(ms);
             agregadosSetorDuracoes.set(setor, ag);
+          }
+        }
+      } else {
+        // Se houve ciclos, adicionar o tempo excluído ao setor OUTROS
+        const totalExclusoes = Object.values(exclusoesPorSetor).reduce(
+          (a, b) => a + b,
+          0,
+        );
+
+        // O valor de OUTROS deve ser o maior entre:
+        // 1. A soma das exclusões aplicadas aos setores (totalExclusoes)
+        // 2. O tempo total calculado pela timeline global de exclusão (setorDur["OUTROS"])
+        const valorOutros = Math.max(totalExclusoes, setorDur["OUTROS"] || 0);
+
+        if (valorOutros > 0) {
+          const outrosIdx = duracaoPorSetorMsArr.findIndex(
+            (x) => x.setor === "OUTROS",
+          );
+          if (outrosIdx >= 0) {
+            duracaoPorSetorMsArr[outrosIdx].ms = valorOutros;
+          } else {
+            duracaoPorSetorMsArr.push({ setor: "OUTROS", ms: valorOutros });
           }
         }
       }
@@ -1624,6 +1807,42 @@ export async function GET(request: NextRequest) {
             tarefaDescricao: ev.tarefaDescricao || null,
           })),
         });
+      }
+
+      // Ajuste de tempos excluídos em downtimePorSetor (para refletir nos agregados globais)
+      for (const [setor, msExcluido] of Object.entries(exclusoesPorSetor)) {
+        if (msExcluido > 0) {
+          if (downtimePorSetor[setor]) {
+            downtimePorSetor[setor] = Math.max(
+              0,
+              downtimePorSetor[setor] - msExcluido,
+            );
+          }
+          // Incrementa OUTROS com o que foi deduzido dos setores
+          downtimePorSetor["OUTROS"] =
+            (downtimePorSetor["OUTROS"] || 0) + msExcluido;
+        }
+      }
+
+      // Garantir que OUTROS reflete o tempo global calculado (se maior que a soma das deduções)
+      if ((setorDur["OUTROS"] || 0) > (downtimePorSetor["OUTROS"] || 0)) {
+        downtimePorSetor["OUTROS"] = setorDur["OUTROS"];
+      }
+
+      // Se houver tempo em OUTROS, garantir que existe no mapa global porSetor
+      if ((downtimePorSetor["OUTROS"] || 0) > 0) {
+        const outMs = downtimePorSetor["OUTROS"];
+        const setorAgg = porSetor.get("OUTROS") || {
+          setor: "OUTROS",
+          qtdTarefas: 0,
+          downtimeMs: 0,
+          conclusoesMs: [],
+          reprovações: 0,
+        };
+        // Não incrementamos qtdTarefas pois são apenas tempos desviados
+        setorAgg.downtimeMs += outMs;
+        setorAgg.conclusoesMs.push(outMs);
+        porSetor.set("OUTROS", setorAgg);
       }
 
       for (const [setor, ms] of Object.entries(downtimePorSetor)) {

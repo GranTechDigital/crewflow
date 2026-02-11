@@ -23,6 +23,7 @@ import {
   ArrowTrendingUpIcon,
   ChevronUpIcon,
   ChevronDownIcon,
+  QuestionMarkCircleIcon,
 } from "@heroicons/react/24/outline";
 import {
   ResponsiveContainer,
@@ -868,6 +869,7 @@ export default function RelatorioSLA() {
     "MEDICINA",
     "TREINAMENTO",
     "LOGISTICA",
+    "OUTROS",
   ]);
   const [filtroBuckets, setFiltroBuckets] = useState<string[]>([
     "lt1",
@@ -1019,8 +1021,8 @@ export default function RelatorioSLA() {
   }, [activeTab, carregar, carregarAll, filtroDataInicio, filtroDataFim]);
 
   const setoresDisponiveis = useMemo(() => {
-    // Fixar colunas principais para consistência e incluir logística
-    return ["RH", "MEDICINA", "TREINAMENTO", "LOGISTICA"];
+    // Fixar colunas principais para consistência e incluir logística e outros
+    return ["RH", "MEDICINA", "TREINAMENTO", "LOGISTICA", "OUTROS"];
   }, []);
 
   const setoresVisiveis = useMemo(() => {
@@ -1031,7 +1033,7 @@ export default function RelatorioSLA() {
   }, [filtroSetores, setoresDisponiveis]);
 
   const requiredSetores = useMemo(
-    () => ["RH", "MEDICINA", "TREINAMENTO", "LOGISTICA"],
+    () => ["RH", "MEDICINA", "TREINAMENTO", "LOGISTICA", "OUTROS"],
     [],
   );
   const MIN_VALID_MS = 1 * 1000; // 1s
@@ -2385,8 +2387,7 @@ export default function RelatorioSLA() {
                         </span>
                       ) : isLast ? (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">
-                          <ArrowTrendingUpIcon className="w-4 h-4" /> Precisa
-                          melhorar
+                          <ArrowTrendingUpIcon className="w-4 h-4" /> Atenção
                         </span>
                       ) : (
                         <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">
@@ -2565,6 +2566,7 @@ export default function RelatorioSLA() {
                             MEDICINA: "#10B981",
                             TREINAMENTO: "#8B5CF6",
                             LOGISTICA: "#EC4899",
+                            OUTROS: "#9CA3AF",
                           };
                           const c =
                             colorMap[(entry.setor || "").toUpperCase()] ||
@@ -2595,6 +2597,7 @@ export default function RelatorioSLA() {
                       MEDICINA: "#10B981",
                       TREINAMENTO: "#8B5CF6",
                       LOGISTICA: "#EC4899",
+                      OUTROS: "#9CA3AF",
                     };
                     const c =
                       colorMap[(s || "").toUpperCase()] ||
@@ -2675,6 +2678,15 @@ export default function RelatorioSLA() {
                         fill="#EC4899"
                         stroke="rgba(148, 163, 184, 0.7)"
                         strokeWidth={1}
+                        radius={[0, 0, 0, 0]}
+                      />
+                      <Bar
+                        dataKey="OUTROS"
+                        name="Outros"
+                        stackId="stack"
+                        fill="#9CA3AF"
+                        stroke="rgba(148, 163, 184, 0.7)"
+                        strokeWidth={1}
                         radius={[8, 8, 0, 0]}
                       />
                     </BarChart>
@@ -2701,6 +2713,11 @@ export default function RelatorioSLA() {
                       key: "LOGISTICA",
                       label: "Logística",
                       color: "#EC4899",
+                    },
+                    {
+                      key: "OUTROS",
+                      label: "Outros",
+                      color: "#9CA3AF",
                     },
                   ].map((it) => (
                     <span
@@ -2758,6 +2775,7 @@ export default function RelatorioSLA() {
                             MEDICINA: "#10B981",
                             TREINAMENTO: "#8B5CF6",
                             LOGISTICA: "#EC4899",
+                            OUTROS: "#9CA3AF",
                           };
                           const c =
                             colorMap[(entry.setor || "").toUpperCase()] ||
@@ -2802,6 +2820,7 @@ export default function RelatorioSLA() {
                             MEDICINA: "#10B981",
                             TREINAMENTO: "#8B5CF6",
                             LOGISTICA: "#EC4899",
+                            OUTROS: "#9CA3AF",
                           };
                           const c =
                             colorMap[(entry.setor || "").toUpperCase()] ||
@@ -2846,6 +2865,7 @@ export default function RelatorioSLA() {
                             MEDICINA: "#10B981",
                             TREINAMENTO: "#8B5CF6",
                             LOGISTICA: "#EC4899",
+                            OUTROS: "#9CA3AF",
                           };
                           const c =
                             colorMap[(entry.setor || "").toUpperCase()] ||
@@ -2890,6 +2910,7 @@ export default function RelatorioSLA() {
                             MEDICINA: "#10B981",
                             TREINAMENTO: "#8B5CF6",
                             LOGISTICA: "#EC4899",
+                            OUTROS: "#9CA3AF",
                           };
                           const c =
                             colorMap[(entry.setor || "").toUpperCase()] ||
@@ -2934,6 +2955,7 @@ export default function RelatorioSLA() {
                             MEDICINA: "#10B981",
                             TREINAMENTO: "#8B5CF6",
                             LOGISTICA: "#EC4899",
+                            OUTROS: "#9CA3AF",
                           };
                           const c =
                             colorMap[(entry.setor || "").toUpperCase()] ||
@@ -2977,6 +2999,7 @@ export default function RelatorioSLA() {
                       color: "#8B5CF6",
                     },
                     { key: "LOGISTICA", label: "Logística", color: "#EC4899" },
+                    { key: "OUTROS", label: "Outros", color: "#9CA3AF" },
                   ].map((it) => (
                     <span
                       key={`legend-view-sector-${it.key}`}
@@ -3032,6 +3055,7 @@ export default function RelatorioSLA() {
                             MEDICINA: "#10B981",
                             TREINAMENTO: "#8B5CF6",
                             LOGISTICA: "#EC4899",
+                            OUTROS: "#9CA3AF",
                           };
                           const c =
                             colorMap[(entry.setor || "").toUpperCase()] ||
@@ -3062,6 +3086,7 @@ export default function RelatorioSLA() {
                       MEDICINA: "#10B981",
                       TREINAMENTO: "#8B5CF6",
                       LOGISTICA: "#EC4899",
+                      OUTROS: "#9CA3AF",
                     };
                     const c =
                       colorMap[(s || "").toUpperCase()] ||
@@ -3145,30 +3170,34 @@ export default function RelatorioSLA() {
                         Setor
                       </label>
                       <div className="flex flex-wrap gap-2">
-                        {["RH", "MEDICINA", "TREINAMENTO", "LOGISTICA"].map(
-                          (s) => {
-                            const active = filtroSetores.includes(s);
-                            const cls = active
-                              ? "bg-gray-900 text-white"
-                              : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50";
-                            return (
-                              <button
-                                key={`fsetor-${s}`}
-                                onClick={() => {
-                                  setPage(1);
-                                  setFiltroSetores((prev) => {
-                                    const has = prev.includes(s);
-                                    if (has) return prev.filter((x) => x !== s);
-                                    return [...prev, s];
-                                  });
-                                }}
-                                className={`px-2 py-1 rounded text-xs ${cls}`}
-                              >
-                                {s}
-                              </button>
-                            );
-                          },
-                        )}
+                        {[
+                          "RH",
+                          "MEDICINA",
+                          "TREINAMENTO",
+                          "LOGISTICA",
+                          "OUTROS",
+                        ].map((s) => {
+                          const active = filtroSetores.includes(s);
+                          const cls = active
+                            ? "bg-gray-900 text-white"
+                            : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50";
+                          return (
+                            <button
+                              key={`fsetor-${s}`}
+                              onClick={() => {
+                                setPage(1);
+                                setFiltroSetores((prev) => {
+                                  const has = prev.includes(s);
+                                  if (has) return prev.filter((x) => x !== s);
+                                  return [...prev, s];
+                                });
+                              }}
+                              className={`px-2 py-1 rounded text-xs ${cls}`}
+                            >
+                              {s}
+                            </button>
+                          );
+                        })}
                         <button
                           onClick={() => {
                             setPage(1);
@@ -3177,6 +3206,7 @@ export default function RelatorioSLA() {
                               "MEDICINA",
                               "TREINAMENTO",
                               "LOGISTICA",
+                              "OUTROS",
                             ]);
                           }}
                           className="px-2 py-1 rounded text-xs bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
@@ -3308,6 +3338,7 @@ export default function RelatorioSLA() {
                             "MEDICINA",
                             "TREINAMENTO",
                             "LOGISTICA",
+                            "OUTROS",
                           ]);
                           setFiltroBuckets([
                             "lt1",
@@ -3382,7 +3413,7 @@ export default function RelatorioSLA() {
                                 ) : isLast ? (
                                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">
                                     <ArrowTrendingUpIcon className="w-4 h-4" />{" "}
-                                    Precisa melhorar
+                                    Atenção
                                   </span>
                                 ) : (
                                   <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">
@@ -3577,6 +3608,7 @@ export default function RelatorioSLA() {
                                       MEDICINA: "#10B981",
                                       TREINAMENTO: "#8B5CF6",
                                       LOGISTICA: "#EC4899",
+                                      OUTROS: "#9CA3AF",
                                     };
                                     const c =
                                       colorMap[
@@ -3608,6 +3640,7 @@ export default function RelatorioSLA() {
                                 MEDICINA: "#10B981",
                                 TREINAMENTO: "#8B5CF6",
                                 LOGISTICA: "#EC4899",
+                                OUTROS: "#9CA3AF",
                               };
                               const c =
                                 colorMap[(s || "").toUpperCase()] ||
@@ -3694,6 +3727,15 @@ export default function RelatorioSLA() {
                                   fill="#EC4899"
                                   stroke="rgba(148, 163, 184, 0.7)"
                                   strokeWidth={1}
+                                  radius={[0, 0, 0, 0]}
+                                />
+                                <Bar
+                                  dataKey="OUTROS"
+                                  name="Outros"
+                                  stackId="stack"
+                                  fill="#9CA3AF"
+                                  stroke="rgba(148, 163, 184, 0.7)"
+                                  strokeWidth={1}
                                   radius={[8, 8, 0, 0]}
                                 />
                               </BarChart>
@@ -3720,6 +3762,11 @@ export default function RelatorioSLA() {
                                 key: "LOGISTICA",
                                 label: "Logística",
                                 color: "#EC4899",
+                              },
+                              {
+                                key: "OUTROS",
+                                label: "Outros",
+                                color: "#9CA3AF",
                               },
                             ].map((it) => (
                               <span
@@ -3782,6 +3829,7 @@ export default function RelatorioSLA() {
                                       MEDICINA: "#10B981",
                                       TREINAMENTO: "#8B5CF6",
                                       LOGISTICA: "#EC4899",
+                                      OUTROS: "#9CA3AF",
                                     };
                                     const c =
                                       colorMap[
@@ -3830,6 +3878,7 @@ export default function RelatorioSLA() {
                                       MEDICINA: "#10B981",
                                       TREINAMENTO: "#8B5CF6",
                                       LOGISTICA: "#EC4899",
+                                      OUTROS: "#9CA3AF",
                                     };
                                     const c =
                                       colorMap[
@@ -3878,6 +3927,7 @@ export default function RelatorioSLA() {
                                       MEDICINA: "#10B981",
                                       TREINAMENTO: "#8B5CF6",
                                       LOGISTICA: "#EC4899",
+                                      OUTROS: "#9CA3AF",
                                     };
                                     const c =
                                       colorMap[
@@ -3926,6 +3976,7 @@ export default function RelatorioSLA() {
                                       MEDICINA: "#10B981",
                                       TREINAMENTO: "#8B5CF6",
                                       LOGISTICA: "#EC4899",
+                                      OUTROS: "#9CA3AF",
                                     };
                                     const c =
                                       colorMap[
@@ -4200,6 +4251,7 @@ export default function RelatorioSLA() {
                               MEDICINA: HeartIcon,
                               TREINAMENTO: AcademicCapIcon,
                               LOGISTICA: TruckIcon,
+                              OUTROS: QuestionMarkCircleIcon,
                             };
                             const Icon = iconMap[s] || ChartBarIcon;
                             return (
@@ -4245,30 +4297,34 @@ export default function RelatorioSLA() {
                         Setor
                       </label>
                       <div className="flex flex-wrap gap-2">
-                        {["RH", "MEDICINA", "TREINAMENTO", "LOGISTICA"].map(
-                          (s) => {
-                            const active = filtroSetores.includes(s);
-                            const cls = active
-                              ? "bg-gray-900 text-white"
-                              : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50";
-                            return (
-                              <button
-                                key={`fsetor-all-${s}`}
-                                onClick={() => {
-                                  setPage(1);
-                                  setFiltroSetores((prev) => {
-                                    const has = prev.includes(s);
-                                    if (has) return prev.filter((x) => x !== s);
-                                    return [...prev, s];
-                                  });
-                                }}
-                                className={`px-2 py-1 rounded text-xs ${cls}`}
-                              >
-                                {s}
-                              </button>
-                            );
-                          },
-                        )}
+                        {[
+                          "RH",
+                          "MEDICINA",
+                          "TREINAMENTO",
+                          "LOGISTICA",
+                          "OUTROS",
+                        ].map((s) => {
+                          const active = filtroSetores.includes(s);
+                          const cls = active
+                            ? "bg-gray-900 text-white"
+                            : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50";
+                          return (
+                            <button
+                              key={`fsetor-all-${s}`}
+                              onClick={() => {
+                                setPage(1);
+                                setFiltroSetores((prev) => {
+                                  const has = prev.includes(s);
+                                  if (has) return prev.filter((x) => x !== s);
+                                  return [...prev, s];
+                                });
+                              }}
+                              className={`px-2 py-1 rounded text-xs ${cls}`}
+                            >
+                              {s}
+                            </button>
+                          );
+                        })}
                         <button
                           onClick={() => {
                             setPage(1);
@@ -4277,6 +4333,7 @@ export default function RelatorioSLA() {
                               "MEDICINA",
                               "TREINAMENTO",
                               "LOGISTICA",
+                              "OUTROS",
                             ]);
                           }}
                           className="px-2 py-1 rounded text-xs bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
@@ -4408,6 +4465,7 @@ export default function RelatorioSLA() {
                             "MEDICINA",
                             "TREINAMENTO",
                             "LOGISTICA",
+                            "OUTROS",
                           ]);
                           setFiltroBuckets([
                             "lt1",
@@ -4491,6 +4549,7 @@ export default function RelatorioSLA() {
                               MEDICINA: HeartIcon,
                               TREINAMENTO: AcademicCapIcon,
                               LOGISTICA: TruckIcon,
+                              OUTROS: QuestionMarkCircleIcon,
                             };
                             const Icon = iconMap[s] || ChartBarIcon;
                             return (
