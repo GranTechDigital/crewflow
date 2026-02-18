@@ -197,10 +197,34 @@ export async function POST(request: NextRequest) {
           const novoStatus = semPendentes
             ? "SUBMETER RASCUNHO"
             : "ATENDER TAREFAS";
+          const statusAnterior = (rem as any).statusTarefas || null;
           await prisma.remanejamentoFuncionario.update({
             where: { id: rem.id },
             data: { statusTarefas: novoStatus },
           });
+          // Histórico da atualização
+          try {
+            if (statusAnterior !== novoStatus) {
+              await prisma.historicoRemanejamento.create({
+                data: {
+                  solicitacaoId: rem.solicitacao?.id,
+                  remanejamentoFuncionarioId: rem.id,
+                  tipoAcao: "ATUALIZACAO_STATUS",
+                  entidade: "STATUS_TAREFAS",
+                  descricaoAcao: `Status geral das tarefas atualizado para: ${novoStatus} (via deduplicação)`,
+                  campoAlterado: "statusTarefas",
+                  valorAnterior: statusAnterior,
+                  valorNovo: novoStatus,
+                  usuarioResponsavel,
+                },
+              });
+            }
+          } catch (histErr) {
+            console.error(
+              "Erro ao registrar histórico após deduplicação:",
+              histErr
+            );
+          }
         } catch (statusErr) {
           console.error(
             "Erro ao atualizar statusTarefas após deduplicação:",

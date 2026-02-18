@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import {
-  AtualizarStatusPrestserv,
-} from "@/types/remanejamento-funcionario";
+import { AtualizarStatusPrestserv } from "@/types/remanejamento-funcionario";
 
 // GET - Buscar detalhes de um funcionário em remanejamento
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
@@ -60,7 +58,7 @@ export async function GET(
     if (!remanejamentoFuncionario) {
       return NextResponse.json(
         { error: "Funcionário em remanejamento não encontrado" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -69,7 +67,7 @@ export async function GET(
     console.error("Erro ao buscar funcionário:", error);
     return NextResponse.json(
       { error: "Erro interno do servidor" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -77,14 +75,16 @@ export async function GET(
 // PUT - Atualizar status do Prestserv
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { getUserFromRequest } = await import('@/utils/authUtils');
+    const { getUserFromRequest } = await import("@/utils/authUtils");
     const usuarioAutenticado = await getUserFromRequest(request);
     const usuarioId = usuarioAutenticado?.id ?? null;
     if (usuarioId === null) {
-      console.warn("Auth: usuário não identificado no PUT de Prestserv; campos de responsável serão deixados nulos");
+      console.warn(
+        "Auth: usuário não identificado no PUT de Prestserv; campos de responsável serão deixados nulos",
+      );
     }
     const { id } = await params;
     const body: AtualizarStatusPrestserv = await request.json();
@@ -98,23 +98,51 @@ export async function PUT(
       sispat,
     } = body;
 
-    const spUpper = statusPrestserv?.toUpperCase();
-    const isValidado = spUpper === "VALIDADO" || spUpper === "VALIDAO" || spUpper === "VALIDADA";
+    const rawInputPrestservValue = (body as any)?.statusPrestserv;
+    const inputIdNumericPut =
+      typeof rawInputPrestservValue === "number"
+        ? rawInputPrestservValue
+        : (() => {
+            const s = String(rawInputPrestservValue ?? "").trim();
+            const n = Number(s);
+            return !Number.isNaN(n) && s !== "" ? n : null;
+          })();
+    const entradaIdSufixoPut =
+      inputIdNumericPut !== null ? ` [entrada: ID ${inputIdNumericPut}]` : "";
+
+    const coerceStatusPrestserv = (input: unknown): string | undefined => {
+      if (input === undefined || input === null) return undefined;
+      if (typeof input === "number") {
+        if (input === 6 || input === 12) return "EM VALIDAÇÃO";
+        if (input === 11) return "PENDENTE DE DESLIGAMENTO";
+        return String(input);
+      }
+      const raw = String(input).trim();
+      const n = Number(raw);
+      if (!Number.isNaN(n) && raw !== "") return coerceStatusPrestserv(n);
+      return raw;
+    };
+    const spUpper = coerceStatusPrestserv(statusPrestserv)?.toUpperCase();
+    const isValidado =
+      spUpper === "VALIDADO" || spUpper === "VALIDAO" || spUpper === "VALIDADA";
     const isCancelado = spUpper === "CANCELADO";
-    const isInvalidado = spUpper === "INVALIDADO" || spUpper === "INVALIDAO" || spUpper === "INVALIDADA";
+    const isInvalidado =
+      spUpper === "INVALIDADO" ||
+      spUpper === "INVALIDAO" ||
+      spUpper === "INVALIDADA";
     const statusPrestservCanonical = isValidado
       ? "VALIDADO"
       : isInvalidado
-      ? "INVALIDADO"
-      : isCancelado
-      ? "CANCELADO"
-      : spUpper;
+        ? "INVALIDADO"
+        : isCancelado
+          ? "CANCELADO"
+          : spUpper;
 
     // Validações
     if (!statusPrestserv) {
       return NextResponse.json(
         { error: "Status do Prestserv é obrigatório" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -139,14 +167,17 @@ export async function PUT(
     if (!remanejamentoFuncionario) {
       return NextResponse.json(
         { error: "Funcionário em remanejamento não encontrado" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
     // Validação: só pode submeter se todas as tarefas estiverem concluídas, desconsiderando canceladas
     if (statusPrestserv === "EM VALIDAÇÃO") {
       const tarefasPendentes = remanejamentoFuncionario.tarefas.filter(
-        (tarefa) => tarefa.status !== "CONCLUIDO" && tarefa.status !== "CONCLUIDA" && tarefa.status !== "CANCELADO"
+        (tarefa) =>
+          tarefa.status !== "CONCLUIDO" &&
+          tarefa.status !== "CONCLUIDA" &&
+          tarefa.status !== "CANCELADO",
       );
 
       if (tarefasPendentes.length > 0) {
@@ -155,7 +186,7 @@ export async function PUT(
             error: "Não é possível submeter. Ainda existem tarefas pendentes.",
             tarefasPendentes: tarefasPendentes.length,
           },
-          { status: 400 }
+          { status: 400 },
         );
       }
     }
@@ -207,10 +238,10 @@ export async function PUT(
         remanejamentoFuncionario.dataRascunhoCriado;
     }
     if (
-        !updateData.dataSubmetido &&
-        remanejamentoFuncionario.dataSubmetido &&
-        statusPrestserv !== "EM VALIDAÇÃO"
-      ) {
+      !updateData.dataSubmetido &&
+      remanejamentoFuncionario.dataSubmetido &&
+      statusPrestserv !== "EM VALIDAÇÃO"
+    ) {
       updateData.dataSubmetido = remanejamentoFuncionario.dataSubmetido;
     }
     if (
@@ -318,7 +349,8 @@ export async function PUT(
             });
           } else {
             const deveAtualizarConclusao =
-              !existente.dataConclusao || existente.dataConclusao < novaConclusao;
+              !existente.dataConclusao ||
+              existente.dataConclusao < novaConclusao;
             const deveAtualizarValidade =
               (existente.dataVencimento == null && novaValidade != null) ||
               (existente.dataVencimento != null &&
@@ -328,13 +360,23 @@ export async function PUT(
               (existente.descricao == null && novaDescricao != null) ||
               (novaDescricao != null && existente.descricao !== novaDescricao);
 
-            if (deveAtualizarConclusao || deveAtualizarValidade || deveAtualizarDescricao) {
+            if (
+              deveAtualizarConclusao ||
+              deveAtualizarValidade ||
+              deveAtualizarDescricao
+            ) {
               await prisma.funcionarioCapacitacao.update({
                 where: { id: existente.id },
                 data: {
-                  ...(deveAtualizarConclusao ? { dataConclusao: novaConclusao } : {}),
-                  ...(deveAtualizarValidade ? { dataVencimento: novaValidade } : {}),
-                  ...(deveAtualizarDescricao ? { descricao: novaDescricao } : {}),
+                  ...(deveAtualizarConclusao
+                    ? { dataConclusao: novaConclusao }
+                    : {}),
+                  ...(deveAtualizarValidade
+                    ? { dataVencimento: novaValidade }
+                    : {}),
+                  ...(deveAtualizarDescricao
+                    ? { descricao: novaDescricao }
+                    : {}),
                   origemRemanejamentoId: funcionarioAtualizado.id,
                 },
               });
@@ -342,7 +384,10 @@ export async function PUT(
           }
         }
       } catch (capError) {
-        console.error("Erro ao salvar/atualizar capacitações do funcionário:", capError);
+        console.error(
+          "Erro ao salvar/atualizar capacitações do funcionário:",
+          capError,
+        );
       }
     }
 
@@ -354,8 +399,8 @@ export async function PUT(
             solicitacaoId: funcionarioAtualizado.solicitacaoId,
             remanejamentoFuncionarioId: funcionarioAtualizado.id,
             tipoAcao: "ATUALIZACAO_STATUS",
-            entidade: "PRESTSERV",
-            descricaoAcao: `Status do Prestserv alterado de ${statusAnterior} para ${statusPrestserv} para ${funcionarioAtualizado.funcionario.nome} (${funcionarioAtualizado.funcionario.matricula})`,
+            entidade: "STATUS_TAREFAS",
+            descricaoAcao: `Status do Prestserv alterado de ${statusAnterior} para ${statusPrestserv} para ${funcionarioAtualizado.funcionario.nome} (${funcionarioAtualizado.funcionario.matricula})${entradaIdSufixoPut}`,
             campoAlterado: "statusPrestserv",
             valorAnterior: statusAnterior,
             valorNovo: statusPrestserv,
@@ -374,7 +419,7 @@ export async function PUT(
       console.log("🔍 Status VALIDADO detectado no PUT");
       console.log(
         "📋 Dados da solicitação:",
-        funcionarioAtualizado.solicitacao
+        funcionarioAtualizado.solicitacao,
       );
 
       const funcionarioMainUpdateData: Record<string, unknown> = {
@@ -391,7 +436,7 @@ export async function PUT(
         funcionarioMainUpdateData.statusPrestserv = "INATIVO";
         funcionarioMainUpdateData.contratoId = null;
         console.log(
-          "❌ Tipo DESLIGAMENTO - definindo status como INATIVO e removendo vínculo com contrato"
+          "❌ Tipo DESLIGAMENTO - definindo status como INATIVO e removendo vínculo com contrato",
         );
       } else {
         funcionarioMainUpdateData.statusPrestserv = "ATIVO";
@@ -403,7 +448,7 @@ export async function PUT(
             funcionarioAtualizado.solicitacao.contratoDestinoId;
           console.log(
             "🔗 Vinculando funcionário ao contrato:",
-            funcionarioAtualizado.solicitacao.contratoDestinoId
+            funcionarioAtualizado.solicitacao.contratoDestinoId,
           );
         } else {
           console.log("⚠️ contratoDestinoId não encontrado na solicitação");
@@ -412,7 +457,7 @@ export async function PUT(
 
       console.log(
         "💾 Dados para atualização do funcionário:",
-        funcionarioMainUpdateData
+        funcionarioMainUpdateData,
       );
 
       await prisma.funcionario.update({
@@ -444,7 +489,7 @@ export async function PUT(
         });
 
         console.log(
-          `Funcionário ${funcionarioAtualizado.funcionarioId} movido para contrato ${solicitacao.contratoDestinoId} e status atualizado para ATIVO`
+          `Funcionário ${funcionarioAtualizado.funcionarioId} movido para contrato ${solicitacao.contratoDestinoId} e status atualizado para ATIVO`,
         );
       }
     }
@@ -457,7 +502,7 @@ export async function PUT(
       });
 
       console.log(
-        `Funcionário ${funcionarioAtualizado.funcionarioId} desmarcado como em migração após ${statusPrestserv}`
+        `Funcionário ${funcionarioAtualizado.funcionarioId} desmarcado como em migração após ${statusPrestserv}`,
       );
     }
 
@@ -473,7 +518,7 @@ export async function PUT(
             solicitacaoId: funcionarioAtualizado.solicitacaoId,
             remanejamentoFuncionarioId: funcionarioAtualizado.id,
             tipoAcao: "ATUALIZACAO_STATUS",
-            entidade: "TAREFA",
+            entidade: "STATUS_TAREFAS",
             descricaoAcao:
               "Todas as tarefas foram canceladas devido ao cancelamento do Prestserv.",
             usuarioResponsavel: "Sistema",
@@ -484,7 +529,7 @@ export async function PUT(
       } catch (historicoError) {
         console.error(
           "Erro ao registrar histórico de cancelamento das tarefas:",
-          historicoError
+          historicoError,
         );
       }
     }
@@ -496,7 +541,7 @@ export async function PUT(
     ) {
       await verificarConclusaoSolicitacao(
         funcionarioAtualizado.solicitacaoId,
-        usuarioAutenticado?.id ?? undefined
+        usuarioAutenticado?.id ?? undefined,
       );
     }
 
@@ -518,7 +563,7 @@ export async function PUT(
         error: "Erro interno do servidor",
         details: error instanceof Error ? error.message : "Erro desconhecido",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -526,10 +571,10 @@ export async function PUT(
 // PATCH - Atualizar apenas o status do Prestserv (método simplificado)
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { getUserFromRequest } = await import('@/utils/authUtils');
+    const { getUserFromRequest } = await import("@/utils/authUtils");
     const usuarioAutenticado = await getUserFromRequest(request);
     const usuarioId = usuarioAutenticado?.id ?? null;
     const { id } = await params;
@@ -544,17 +589,47 @@ export async function PATCH(
       observacoesPrestserv,
     } = body;
 
-    const spUpper = statusPrestserv?.toUpperCase();
-    const isValidado = spUpper === 'VALIDADO' || spUpper === 'VALIDAO' || spUpper === 'VALIDADA';
-    const isCancelado = spUpper === 'CANCELADO';
-    const isInvalidado = spUpper === 'INVALIDADO' || spUpper === 'INVALIDAO' || spUpper === 'INVALIDADA';
+    const rawInputPrestservPatch = statusPrestserv;
+    const inputIdNumericPatch =
+      typeof rawInputPrestservPatch === "number"
+        ? rawInputPrestservPatch
+        : (() => {
+            const s = String(rawInputPrestservPatch ?? "").trim();
+            const n = Number(s);
+            return !Number.isNaN(n) && s !== "" ? n : null;
+          })();
+    const entradaIdSufixoPatch =
+      inputIdNumericPatch !== null
+        ? ` [entrada: ID ${inputIdNumericPatch}]`
+        : "";
+
+    const coerceStatusPrestservPatch = (input: unknown): string | undefined => {
+      if (input === undefined || input === null) return undefined;
+      if (typeof input === "number") {
+        if (input === 6 || input === 12) return "EM VALIDAÇÃO";
+        if (input === 11) return "PENDENTE DE DESLIGAMENTO";
+        return String(input);
+      }
+      const raw = String(input).trim();
+      const n = Number(raw);
+      if (!Number.isNaN(n) && raw !== "") return coerceStatusPrestservPatch(n);
+      return raw;
+    };
+    const spUpper = coerceStatusPrestservPatch(statusPrestserv)?.toUpperCase();
+    const isValidado =
+      spUpper === "VALIDADO" || spUpper === "VALIDAO" || spUpper === "VALIDADA";
+    const isCancelado = spUpper === "CANCELADO";
+    const isInvalidado =
+      spUpper === "INVALIDADO" ||
+      spUpper === "INVALIDAO" ||
+      spUpper === "INVALIDADA";
     const statusPrestservCanonical = isValidado
-      ? 'VALIDADO'
+      ? "VALIDADO"
       : isInvalidado
-      ? 'INVALIDADO'
-      : isCancelado
-      ? 'CANCELADO'
-      : spUpper;
+        ? "INVALIDADO"
+        : isCancelado
+          ? "CANCELADO"
+          : spUpper;
 
     // Permitir atualizar statusTarefas, statusPrestserv, statusFuncionario, emMigracao, contratoId ou sispat
     if (
@@ -571,7 +646,7 @@ export async function PATCH(
           error:
             "Informe status do Prestserv, status do Funcionário, status das Tarefas, emMigracao, contratoId ou sispat",
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -589,7 +664,7 @@ export async function PATCH(
     if (!remanejamentoFuncionario) {
       return NextResponse.json(
         { error: "Funcionário em remanejamento não encontrado" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -597,7 +672,10 @@ export async function PATCH(
     if (statusPrestserv === "EM VALIDAÇÃO") {
       // Considerar tarefa concluída tanto "CONCLUIDO" quanto "CONCLUIDA" e ignorar "CANCELADO"
       const tarefasPendentes = remanejamentoFuncionario.tarefas.filter(
-        (tarefa) => tarefa.status !== "CONCLUIDO" && tarefa.status !== "CONCLUIDA" && tarefa.status !== "CANCELADO"
+        (tarefa) =>
+          tarefa.status !== "CONCLUIDO" &&
+          tarefa.status !== "CONCLUIDA" &&
+          tarefa.status !== "CANCELADO",
       );
       if (tarefasPendentes.length > 0) {
         return NextResponse.json(
@@ -605,7 +683,7 @@ export async function PATCH(
             error: "Não é possível submeter. Ainda existem tarefas pendentes.",
             tarefasPendentes: tarefasPendentes.length,
           },
-          { status: 400 }
+          { status: 400 },
         );
       }
     }
@@ -621,7 +699,7 @@ export async function PATCH(
             error:
               "Não é possível atender tarefas enquanto o funcionário não foi desligado da logística.",
           },
-          { status: 400 }
+          { status: 400 },
         );
       }
     }
@@ -631,7 +709,8 @@ export async function PATCH(
     if (statusPrestserv) updateData.statusPrestserv = statusPrestservCanonical;
     if (statusFuncionario) updateData.statusFuncionario = statusFuncionario;
     if (statusTarefas) updateData.statusTarefas = statusTarefas;
-    if (observacoesPrestserv) updateData.observacoesPrestserv = observacoesPrestserv;
+    if (observacoesPrestserv)
+      updateData.observacoesPrestserv = observacoesPrestserv;
 
     // Adicionar datas automaticamente conforme o statusPrestserv
     if (statusPrestserv) {
@@ -640,14 +719,9 @@ export async function PATCH(
         !remanejamentoFuncionario.dataRascunhoCriado
       ) {
         updateData.dataRascunhoCriado = new Date();
-      } else if (
-        statusPrestserv === "EM VALIDAÇÃO"
-      ) {
+      } else if (statusPrestserv === "EM VALIDAÇÃO") {
         updateData.dataSubmetido = new Date();
-      } else if (
-        isValidado ||
-        isInvalidado
-      ) {
+      } else if (isValidado || isInvalidado) {
         updateData.dataResposta = new Date();
       }
       if (
@@ -714,6 +788,78 @@ export async function PATCH(
       },
     });
 
+    try {
+      const usuarioNome = usuarioAutenticado?.funcionario?.nome || "Sistema";
+      const usuarioIdNum = usuarioAutenticado?.id;
+      const equipeIdNum = (usuarioAutenticado as any)?.equipeId;
+      const prevPrestserv = remanejamentoFuncionario.statusPrestserv;
+      const newPrestserv = funcionarioAtualizado.statusPrestserv;
+      const prevTarefas = remanejamentoFuncionario.statusTarefas;
+      const newTarefas = funcionarioAtualizado.statusTarefas;
+      const prevFunc = remanejamentoFuncionario.statusFuncionario;
+      const newFunc = funcionarioAtualizado.statusFuncionario;
+
+      if (typeof newPrestserv === "string" && newPrestserv !== prevPrestserv) {
+        await prisma.historicoRemanejamento.create({
+          data: {
+            solicitacaoId: funcionarioAtualizado.solicitacaoId,
+            remanejamentoFuncionarioId: funcionarioAtualizado.id,
+            tipoAcao: "ATUALIZACAO_STATUS",
+            entidade: "STATUS_TAREFAS",
+            descricaoAcao: `Status do Prestserv alterado de ${prevPrestserv} para ${newPrestserv} para ${funcionarioAtualizado.funcionario.nome} (${funcionarioAtualizado.funcionario.matricula})${entradaIdSufixoPatch}`,
+            campoAlterado: "statusPrestserv",
+            valorAnterior: prevPrestserv,
+            valorNovo: newPrestserv,
+            usuarioResponsavel: usuarioNome,
+            usuarioResponsavelId: usuarioIdNum ?? undefined,
+            equipeId: equipeIdNum ?? undefined,
+            observacoes: (updateData as any)?.observacoesPrestserv || undefined,
+          },
+        });
+      }
+
+      if (typeof newTarefas === "string" && newTarefas !== prevTarefas) {
+        await prisma.historicoRemanejamento.create({
+          data: {
+            solicitacaoId: funcionarioAtualizado.solicitacaoId,
+            remanejamentoFuncionarioId: funcionarioAtualizado.id,
+            tipoAcao: "ATUALIZACAO_STATUS",
+            entidade: "STATUS_TAREFAS",
+            descricaoAcao: `Status geral das tarefas atualizado para: ${newTarefas}`,
+            campoAlterado: "statusTarefas",
+            valorAnterior: prevTarefas || null,
+            valorNovo: newTarefas,
+            usuarioResponsavel: usuarioNome,
+            usuarioResponsavelId: usuarioIdNum ?? undefined,
+            equipeId: equipeIdNum ?? undefined,
+          },
+        });
+      }
+
+      if (typeof newFunc === "string" && newFunc !== prevFunc) {
+        await prisma.historicoRemanejamento.create({
+          data: {
+            solicitacaoId: funcionarioAtualizado.solicitacaoId,
+            remanejamentoFuncionarioId: funcionarioAtualizado.id,
+            tipoAcao: "ATUALIZACAO_STATUS",
+            entidade: "STATUS_TAREFAS",
+            descricaoAcao: `Status do Funcionário alterado de ${prevFunc} para ${newFunc} para ${funcionarioAtualizado.funcionario.nome} (${funcionarioAtualizado.funcionario.matricula})`,
+            campoAlterado: "statusFuncionario",
+            valorAnterior: prevFunc || null,
+            valorNovo: newFunc,
+            usuarioResponsavel: usuarioNome,
+            usuarioResponsavelId: usuarioIdNum ?? undefined,
+            equipeId: equipeIdNum ?? undefined,
+          },
+        });
+      }
+    } catch (histPatchErr) {
+      console.error(
+        "Erro ao registrar histórico (PATCH status):",
+        histPatchErr,
+      );
+    }
+
     // Se statusFuncionario, emMigracao ou contratoId foram fornecidos, atualizar também na tabela funcionario
     if (
       statusFuncionario ||
@@ -744,7 +890,7 @@ export async function PATCH(
       console.log("🔍 Status VALIDADO detectado");
       console.log(
         "📋 Dados da solicitação:",
-        funcionarioAtualizado.solicitacao
+        funcionarioAtualizado.solicitacao,
       );
 
       const funcionarioMainUpdateData: Record<string, unknown> = {
@@ -761,7 +907,7 @@ export async function PATCH(
         funcionarioMainUpdateData.statusPrestserv = "INATIVO";
         funcionarioMainUpdateData.contratoId = null;
         console.log(
-          "❌ Tipo DESLIGAMENTO - definindo status como INATIVO e removendo vínculo com contrato"
+          "❌ Tipo DESLIGAMENTO - definindo status como INATIVO e removendo vínculo com contrato",
         );
       } else {
         funcionarioMainUpdateData.statusPrestserv = "ATIVO";
@@ -773,7 +919,7 @@ export async function PATCH(
             funcionarioAtualizado.solicitacao.contratoDestinoId;
           console.log(
             "🔗 Vinculando funcionário ao contrato:",
-            funcionarioAtualizado.solicitacao.contratoDestinoId
+            funcionarioAtualizado.solicitacao.contratoDestinoId,
           );
         } else {
           console.log("⚠️ contratoDestinoId não encontrado na solicitação");
@@ -782,7 +928,7 @@ export async function PATCH(
 
       console.log(
         "💾 Dados para atualização do funcionário:",
-        funcionarioMainUpdateData
+        funcionarioMainUpdateData,
       );
 
       await prisma.funcionario.update({
@@ -838,7 +984,7 @@ export async function PATCH(
         });
 
         console.log(
-          `Funcionário ${funcionarioAtualizado.funcionarioId} desmarcado como em migração após ${statusPrestserv}`
+          `Funcionário ${funcionarioAtualizado.funcionarioId} desmarcado como em migração após ${statusPrestserv}`,
         );
       }
     }
@@ -855,7 +1001,7 @@ export async function PATCH(
             solicitacaoId: funcionarioAtualizado.solicitacaoId,
             remanejamentoFuncionarioId: funcionarioAtualizado.id,
             tipoAcao: "ATUALIZACAO_STATUS",
-            entidade: "TAREFA",
+            entidade: "STATUS_TAREFAS",
             descricaoAcao:
               "Todas as tarefas foram canceladas devido ao cancelamento do Prestserv.",
             usuarioResponsavel: "Sistema",
@@ -866,7 +1012,7 @@ export async function PATCH(
       } catch (historicoError) {
         console.error(
           "Erro ao registrar histórico de cancelamento das tarefas:",
-          historicoError
+          historicoError,
         );
       }
     }
@@ -874,7 +1020,7 @@ export async function PATCH(
     if (isValidado && funcionarioAtualizado.statusTarefas === "CONCLUIDO") {
       await verificarConclusaoSolicitacao(
         funcionarioAtualizado.solicitacaoId,
-        usuarioAutenticado?.id ?? undefined
+        usuarioAutenticado?.id ?? undefined,
       );
     }
 
@@ -882,20 +1028,23 @@ export async function PATCH(
   } catch (error) {
     console.error(
       "Erro ao atualizar status do funcionário ou prestserv:",
-      error
+      error,
     );
     return NextResponse.json(
       {
         error: "Erro interno do servidor",
         details: error instanceof Error ? error.message : "Erro desconhecido",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
 
 // Função para verificar se toda a solicitação pode ser marcada como concluída
-async function verificarConclusaoSolicitacao(solicitacaoId: number, usuarioId?: number) {
+async function verificarConclusaoSolicitacao(
+  solicitacaoId: number,
+  usuarioId?: number,
+) {
   try {
     // Buscar todos os funcionários da solicitação
     const funcionarios = await prisma.remanejamentoFuncionario.findMany({
@@ -906,7 +1055,7 @@ async function verificarConclusaoSolicitacao(solicitacaoId: number, usuarioId?: 
 
     if (funcionarios.length === 0) {
       console.log(
-        `Nenhum funcionário encontrado para a solicitação ${solicitacaoId}`
+        `Nenhum funcionário encontrado para a solicitação ${solicitacaoId}`,
       );
       return;
     }
@@ -914,12 +1063,12 @@ async function verificarConclusaoSolicitacao(solicitacaoId: number, usuarioId?: 
     // Verificar se todos os funcionários estão VALIDADOS ou CANCELADOS
     const todosValidosOuCancelados = funcionarios.every(
       (f) =>
-        f.statusPrestserv === "VALIDADO" || f.statusPrestserv === "CANCELADO"
+        f.statusPrestserv === "VALIDADO" || f.statusPrestserv === "CANCELADO",
     );
 
     // Verificar se algum funcionário foi iniciado (não está mais como PENDENTE)
     const algumIniciado = funcionarios.some(
-      (f) => f.statusPrestserv !== "PENDENTE"
+      (f) => f.statusPrestserv !== "PENDENTE",
     );
 
     let novoStatus = "Pendente";
@@ -927,16 +1076,16 @@ async function verificarConclusaoSolicitacao(solicitacaoId: number, usuarioId?: 
     if (todosValidosOuCancelados) {
       novoStatus = "Concluído";
       console.log(
-        `Todos os funcionários da solicitação ${solicitacaoId} estão validados ou cancelados. Marcando como Concluído.`
+        `Todos os funcionários da solicitação ${solicitacaoId} estão validados ou cancelados. Marcando como Concluído.`,
       );
     } else if (algumIniciado) {
       novoStatus = "Em Andamento";
       console.log(
-        `Alguns funcionários da solicitação ${solicitacaoId} estão em processamento. Marcando como Em Andamento.`
+        `Alguns funcionários da solicitação ${solicitacaoId} estão em processamento. Marcando como Em Andamento.`,
       );
     } else {
       console.log(
-        `Todos os funcionários da solicitação ${solicitacaoId} estão pendentes. Mantendo status como Pendente.`
+        `Todos os funcionários da solicitação ${solicitacaoId} estão pendentes. Mantendo status como Pendente.`,
       );
     }
 
@@ -965,7 +1114,7 @@ async function verificarConclusaoSolicitacao(solicitacaoId: number, usuarioId?: 
     });
 
     console.log(
-      `Solicitação de remanejamento ${solicitacaoId} atualizada para status: ${novoStatus}`
+      `Solicitação de remanejamento ${solicitacaoId} atualizada para status: ${novoStatus}`,
     );
   } catch (error) {
     console.error("Erro ao verificar conclusão da solicitação:", error);

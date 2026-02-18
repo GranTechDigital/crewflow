@@ -1171,7 +1171,7 @@ export async function sincronizarTarefasPadrao({
               solicitacaoId: rem.solicitacao!.id,
               remanejamentoFuncionarioId: rem.id,
               tipoAcao: "ATUALIZACAO_STATUS",
-              entidade: "STATUS_PRESTSERV",
+              entidade: "STATUS_TAREFAS",
               descricaoAcao: `Prestserv resetado automaticamente para CRIADO: ${motivoReset}.`,
               campoAlterado: "statusPrestserv",
               valorAnterior: rem.statusPrestserv,
@@ -1246,7 +1246,7 @@ export async function sincronizarTarefasPadrao({
                 solicitacaoId: rem.solicitacao!.id,
                 remanejamentoFuncionarioId: rem.id,
                 tipoAcao: "ATUALIZACAO_STATUS",
-                entidade: "STATUS_PRESTSERV",
+                entidade: "STATUS_TAREFAS",
                 descricaoAcao:
                   "Status 'INVALIDADO' revertido para 'CRIADO' por ausência de tarefas reprovadas/pendentes para setores após sincronização.",
                 campoAlterado: "statusPrestserv",

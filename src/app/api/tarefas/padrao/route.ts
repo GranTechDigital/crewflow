@@ -553,6 +553,49 @@ export async function POST(request: NextRequest) {
           ...(usuarioId !== null ? { aprovadoPorId: usuarioId } : {}),
         },
       });
+      try {
+        const prevTarefas = (remanejamentoFuncionario as any).statusTarefas;
+        const prevPrestserv = (remanejamentoFuncionario as any).statusPrestserv;
+        if (prevTarefas !== "ATENDER TAREFAS") {
+          await prisma.historicoRemanejamento.create({
+            data: {
+              solicitacaoId: remanejamentoFuncionario.solicitacaoId as number,
+              remanejamentoFuncionarioId: remanejamentoFuncionario.id as string,
+              tipoAcao: "ATUALIZACAO_STATUS",
+              entidade: "STATUS_TAREFAS",
+              descricaoAcao:
+                "Status geral das tarefas atualizado para: ATENDER TAREFAS (após criação de tarefas padrão)",
+              campoAlterado: "statusTarefas",
+              valorAnterior: prevTarefas || null,
+              valorNovo: "ATENDER TAREFAS",
+              usuarioResponsavel: (criadoPor as string) || "Sistema",
+              usuarioResponsavelId: usuarioId ?? undefined,
+            },
+          });
+        }
+        if (prevPrestserv !== "PENDENTE") {
+          await prisma.historicoRemanejamento.create({
+            data: {
+              solicitacaoId: remanejamentoFuncionario.solicitacaoId as number,
+              remanejamentoFuncionarioId: remanejamentoFuncionario.id as string,
+              tipoAcao: "ATUALIZACAO_STATUS",
+              entidade: "STATUS_TAREFAS",
+              descricaoAcao:
+                "Status do Prestserv atualizado para PENDENTE (após criação de tarefas padrão)",
+              campoAlterado: "statusPrestserv",
+              valorAnterior: prevPrestserv || null,
+              valorNovo: "PENDENTE",
+              usuarioResponsavel: (criadoPor as string) || "Sistema",
+              usuarioResponsavelId: usuarioId ?? undefined,
+            },
+          });
+        }
+      } catch (histErr) {
+        console.error(
+          "Erro ao registrar histórico de atualização de status padrão:",
+          histErr,
+        );
+      }
     } catch (statusError) {
       console.error("Erro ao atualizar status geral:", statusError);
       // Não falha a criação das tarefas se a atualização do status falhar
