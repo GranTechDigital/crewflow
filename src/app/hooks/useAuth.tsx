@@ -46,6 +46,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (response.ok) {
         const userData = await response.json();
         setUsuario(userData.user);
+        try {
+          localStorage.setItem("user", JSON.stringify(userData.user));
+        } catch {}
         if (
           userData.user?.obrigarAdicionarEmail ||
           !userData.user?.emailSecundario
@@ -69,6 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           document.cookie =
             "auth-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+          localStorage.removeItem("user");
         } catch {}
       }
     } catch (error) {
@@ -77,6 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         document.cookie =
           "auth-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+        localStorage.removeItem("user");
       } catch {}
     } finally {
       setLoading(false);
@@ -93,8 +98,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (res.ok) {
         const data = await res.json();
         setUsuario(data.user);
+        try {
+          localStorage.setItem("user", JSON.stringify(data.user));
+        } catch {}
       } else {
         setUsuario(null);
+        try {
+          localStorage.removeItem("user");
+        } catch {}
         if (typeof window !== "undefined") {
           window.location.replace("/login");
         }
@@ -117,6 +128,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const data = await response.json();
         // console.log('Login successful, setting user:', data.user);
         setUsuario(data.user);
+        try {
+          localStorage.setItem("user", JSON.stringify(data.user));
+        } catch {}
 
         // Forçar revalidação do estado
         await checkAuth();
@@ -158,6 +172,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Limpar o estado local independente da resposta da API
       setUsuario(null);
+      try {
+        localStorage.removeItem("user");
+      } catch {}
 
       if (typeof window !== "undefined") {
         localStorage.removeItem("user");
@@ -179,16 +196,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
+    try {
+      const raw =
+        typeof window !== "undefined" ? localStorage.getItem("user") : null;
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object") {
+          setUsuario(parsed);
+        }
+      }
+    } catch {}
     checkAuth();
   }, []);
 
   useEffect(() => {
     if (!usuario) return;
-    const intervalId = setInterval(() => {
-      refresh();
-    }, 2 * 60 * 60 * 1000);
+    const intervalId = setInterval(
+      () => {
+        refresh();
+      },
+      2 * 60 * 60 * 1000,
+    );
     return () => clearInterval(intervalId);
   }, [usuario]);
+  useEffect(() => {
+    const onFocus = () => {
+      checkAuth();
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        checkAuth();
+      }
+    };
+    if (typeof window !== "undefined") {
+      window.addEventListener("focus", onFocus);
+      document.addEventListener("visibilitychange", onVisibility);
+    }
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("focus", onFocus);
+        document.removeEventListener("visibilitychange", onVisibility);
+      }
+    };
+  }, []);
 
   const value = {
     usuario,
