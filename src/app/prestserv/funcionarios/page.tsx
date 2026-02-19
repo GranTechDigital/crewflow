@@ -196,6 +196,8 @@ function FuncionariosPageContent() {
   );
   const [dropdownTipoSolicitacaoOpen, setDropdownTipoSolicitacaoOpen] =
     useState(false);
+  const [filtroDataInicio, setFiltroDataInicio] = useState<string>("");
+  const [filtroDataFim, setFiltroDataFim] = useState<string>("");
   const [setoresSelecionados, setSetoresSelecionados] = useState<string[]>([]);
   const [paginaAtual, setPaginaAtual] = useState(1);
   const [itensPorPagina, setItensPorPagina] = useState(10);
@@ -506,8 +508,16 @@ function FuncionariosPageContent() {
     try {
       setLoadingDashboard(true);
 
-      // Obter todos os dados primeiro
-      const response = await fetch("/api/prestserv/dashboard");
+      // Montar querystring com range de datas (apenas para o dashboard)
+      const params = new URLSearchParams();
+      if (filtroDataInicio) params.set("startDate", filtroDataInicio);
+      if (filtroDataFim) params.set("endDate", filtroDataFim);
+      const qs = params.toString();
+
+      // Obter dados do dashboard respeitando o range de datas
+      const response = await fetch(
+        `/api/prestserv/dashboard${qs ? `?${qs}` : ""}`,
+      );
 
       if (!response.ok) {
         throw new Error("Erro ao carregar dados do dashboard");
@@ -619,6 +629,8 @@ function FuncionariosPageContent() {
         setFiltroNumeroSolicitacao(filters.filtroNumeroSolicitacao || []);
         setFiltroResponsavel(filters.filtroResponsavel || []);
         setFiltroPendenciasPorSetor(filters.filtroPendenciasPorSetor || []);
+        setFiltroDataInicio(filters.filtroDataInicio || "");
+        setFiltroDataFim(filters.filtroDataFim || "");
         setActiveTab(filters.activeTab || "nominal");
         setPaginaAtual(filters.paginaAtual || 1);
         setItensPorPagina(filters.itensPorPagina || 10);
@@ -627,6 +639,27 @@ function FuncionariosPageContent() {
         );
       } catch (error) {
         console.error("Erro ao carregar filtros salvos:", error);
+      }
+    }
+
+    // Definir padrão do range de data para o Dashboard (2026-01-01 até hoje) quando ausente
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, "0");
+    const dd = String(today.getDate()).padStart(2, "0");
+    const hojeStr = `${yyyy}-${mm}-${dd}`;
+    const saved = localStorage.getItem("funcionarios-filtros");
+    if (!saved) {
+      setFiltroDataInicio("2026-01-01");
+      setFiltroDataFim(hojeStr);
+    } else {
+      try {
+        const f = JSON.parse(saved);
+        if (!f?.filtroDataInicio) setFiltroDataInicio("2026-01-01");
+        if (!f?.filtroDataFim) setFiltroDataFim(hojeStr);
+      } catch {
+        setFiltroDataInicio("2026-01-01");
+        setFiltroDataFim(hojeStr);
       }
     }
 
@@ -700,6 +733,8 @@ function FuncionariosPageContent() {
         filtroNumeroSolicitacao,
         filtroResponsavel,
         filtroPendenciasPorSetor,
+        filtroDataInicio,
+        filtroDataFim,
         activeTab,
         paginaAtual,
         itensPorPagina,
@@ -718,6 +753,8 @@ function FuncionariosPageContent() {
     filtroNumeroSolicitacao,
     filtroResponsavel,
     filtroPendenciasPorSetor,
+    filtroDataInicio,
+    filtroDataFim,
     activeTab,
     paginaAtual,
     itensPorPagina,
@@ -1792,6 +1829,13 @@ function FuncionariosPageContent() {
     setFiltroNumeroSolicitacao([]);
     setFiltroResponsavel([]);
     setFiltroPendenciasPorSetor([]);
+    // Reset do range de data para o padrão de análise do dashboard (não afeta outras abas)
+    setFiltroDataInicio("2026-01-01");
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, "0");
+    const dd = String(today.getDate()).padStart(2, "0");
+    setFiltroDataFim(`${yyyy}-${mm}-${dd}`);
     setSetoresSelecionados([]);
     setPaginaAtual(1);
     setItensPorPagina(10);
@@ -3095,6 +3139,375 @@ function FuncionariosPageContent() {
         {/* Dashboard */}
         {activeTab === "dashboard" && (
           <div className="mt-6">
+            {/* Filtros compactos (apenas os que interferem no dashboard) */}
+            {filtrosVisiveis && (
+              <div className="bg-white rounded-lg shadow p-4 border-slate-400 border-1 mb-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-base font-medium text-gray-900">
+                    Filtros (Dashboard)
+                  </h3>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={fetchDashboardData}
+                      className="px-3 py-1.5 text-sm bg-slate-800 text-white rounded hover:bg-slate-900"
+                    >
+                      Aplicar
+                    </button>
+                    <button
+                      onClick={() => {
+                        limparFiltros();
+                        fetchDashboardData();
+                      }}
+                      className="px-3 py-1.5 text-sm border border-slate-400 text-slate-600 rounded hover:bg-slate-50"
+                    >
+                      Limpar
+                    </button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {/* Período do Remanejamento (aplica apenas ao Dashboard) */}
+                  <div className="md:col-span-1">
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Data Inicial (Dashboard)
+                    </label>
+                    <input
+                      type="date"
+                      value={filtroDataInicio}
+                      onChange={(e) => setFiltroDataInicio(e.target.value)}
+                      className="w-full px-3 py-2 text-sm border-slate-800 bg-slate-100 text-slate-700 rounded-md shadow-sm focus:border-slate-300 focus:ring-slate-300"
+                    />
+                  </div>
+                  <div className="md:col-span-1">
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Data Final (Dashboard)
+                    </label>
+                    <input
+                      type="date"
+                      value={filtroDataFim}
+                      onChange={(e) => setFiltroDataFim(e.target.value)}
+                      className="w-full px-3 py-2 text-sm border-slate-800 bg-slate-100 text-slate-700 rounded-md shadow-sm focus:border-slate-300 focus:ring-slate-300"
+                    />
+                  </div>
+                  {/* Nome/Matrícula */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Nome/Matrícula
+                    </label>
+                    <div className="relative">
+                      <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <input
+                        type="text"
+                        value={filtroNome}
+                        onChange={(e) => setFiltroNome(e.target.value)}
+                        placeholder="Buscar..."
+                        className="w-full pl-10 pr-3 py-2 text-sm border-slate-800 bg-slate-100 text-slate-500 rounded-md shadow-sm focus:border-slate-300 focus:ring-slate-300"
+                      />
+                    </div>
+                  </div>
+                  {/* Contrato Origem */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Contrato Origem
+                    </label>
+                    <div className="relative dropdown-container">
+                      <button
+                        onClick={() =>
+                          setDropdownContratoOrigemOpen(
+                            !dropdownContratoOrigemOpen,
+                          )
+                        }
+                        className="w-full pl-8 pr-8 py-2 text-sm border-slate-800 bg-slate-100 text-slate-500 rounded-md shadow-sm focus:border-slate-300 focus:ring-slate-300 text-left flex items-center justify-between"
+                      >
+                        <FunnelIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <span className="truncate">
+                          {filtroContratoOrigem.length === 0
+                            ? "Todos"
+                            : filtroContratoOrigem.length === 1
+                              ? filtroContratoOrigem[0]
+                              : `${filtroContratoOrigem.length} selecionados`}
+                        </span>
+                        <svg
+                          className={`w-4 h-4 transition-transform ${
+                            dropdownContratoOrigemOpen ? "rotate-180" : ""
+                          }`}
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M19 9l-7 7-7-7"
+                          />
+                        </svg>
+                      </button>
+                      {dropdownContratoOrigemOpen && (
+                        <div className="absolute z-10 w-full mt-1 bg-slate-100 border border-slate-800 rounded-md shadow-lg">
+                          <div className="p-2 space-y-2 max-h-48 overflow-y-auto">
+                            {getContratosOrigem().map((contrato) => (
+                              <label
+                                key={contrato}
+                                className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-1 rounded"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={filtroContratoOrigem.includes(
+                                    contrato,
+                                  )}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setFiltroContratoOrigem([
+                                        ...filtroContratoOrigem,
+                                        contrato,
+                                      ]);
+                                    } else {
+                                      setFiltroContratoOrigem(
+                                        filtroContratoOrigem.filter(
+                                          (c) => c !== contrato,
+                                        ),
+                                      );
+                                    }
+                                  }}
+                                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                />
+                                <span className="text-sm text-gray-700">
+                                  {contrato}
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  {/* Contrato Destino */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Contrato Destino
+                    </label>
+                    <div className="relative dropdown-container">
+                      <button
+                        onClick={() =>
+                          setDropdownContratoDestinoOpen(
+                            !dropdownContratoDestinoOpen,
+                          )
+                        }
+                        className="w-full pl-8 pr-8 py-2 text-sm border-slate-800 bg-slate-100 text-slate-500 rounded-md shadow-sm focus:border-slate-300 focus:ring-slate-300 text-left flex items-center justify-between"
+                      >
+                        <FunnelIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <span className="truncate">
+                          {filtroContratoDestino.length === 0
+                            ? "Todos"
+                            : filtroContratoDestino.length === 1
+                              ? filtroContratoDestino[0]
+                              : `${filtroContratoDestino.length} selecionados`}
+                        </span>
+                        <svg
+                          className={`w-4 h-4 transition-transform ${
+                            dropdownContratoDestinoOpen ? "rotate-180" : ""
+                          }`}
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M19 9l-7 7-7-7"
+                          />
+                        </svg>
+                      </button>
+                      {dropdownContratoDestinoOpen && (
+                        <div className="absolute z-10 w-full mt-1 bg-slate-100 border border-slate-800 rounded-md shadow-lg">
+                          <div className="p-2 space-y-2 max-h-48 overflow-y-auto">
+                            {getContratosDestino().map((contrato) => (
+                              <label
+                                key={contrato}
+                                className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-1 rounded"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={filtroContratoDestino.includes(
+                                    contrato,
+                                  )}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setFiltroContratoDestino([
+                                        ...filtroContratoDestino,
+                                        contrato,
+                                      ]);
+                                    } else {
+                                      setFiltroContratoDestino(
+                                        filtroContratoDestino.filter(
+                                          (c) => c !== contrato,
+                                        ),
+                                      );
+                                    }
+                                  }}
+                                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                />
+                                <span className="text-sm text-gray-700">
+                                  {contrato}
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  {/* Status Ação Necessária */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Status Ação Necessária
+                    </label>
+                    <div className="relative dropdown-container">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setDropdownStatusOpen(!dropdownStatusOpen)
+                        }
+                        className="w-full pl-8 pr-3 py-2 text-sm border-slate-800 bg-slate-100 text-slate-500 rounded-md shadow-sm focus:border-slate-300 focus:ring-slate-300 text-left flex justify-between items-center"
+                      >
+                        <FunnelIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <span className="text-gray-700">
+                          {filtroStatusGeral.length === 0
+                            ? "Todos"
+                            : `${filtroStatusGeral.length} selecionado(s)`}
+                        </span>
+                        <svg
+                          className={`w-4 h-4 transition-transform ${
+                            dropdownStatusOpen ? "rotate-180" : ""
+                          }`}
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M19 9l-7 7-7-7"
+                          />
+                        </svg>
+                      </button>
+                      {dropdownStatusOpen && (
+                        <div className="absolute z-10 w-full mt-1 bg-slate-100 border border-slate-800 rounded-md shadow-lg">
+                          <div className="p-2 space-y-2 max-h-48 overflow-y-auto">
+                            {getStatusGerais().map((status) => (
+                              <label
+                                key={status}
+                                className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-1 rounded"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={filtroStatusGeral.includes(status)}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setFiltroStatusGeral([
+                                        ...filtroStatusGeral,
+                                        status,
+                                      ]);
+                                    } else {
+                                      setFiltroStatusGeral(
+                                        filtroStatusGeral.filter(
+                                          (s) => s !== status,
+                                        ),
+                                      );
+                                    }
+                                  }}
+                                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                />
+                                <span className="text-sm text-gray-700">
+                                  {getStatusSemNumeracao(status)}
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  {/* Responsável */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Responsável
+                    </label>
+                    <div className="relative dropdown-container">
+                      <button
+                        onClick={() =>
+                          setDropdownResponsavelOpen(!dropdownResponsavelOpen)
+                        }
+                        className="w-full pl-8 pr-8 py-2 text-sm border-slate-800 bg-slate-100 text-slate-500 rounded-md shadow-sm focus:border-slate-300 focus:ring-slate-300 text-left flex items-center justify-between"
+                      >
+                        <FunnelIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <span className="truncate">
+                          {filtroResponsavel.length === 0
+                            ? "Todos"
+                            : filtroResponsavel.length === 1
+                              ? filtroResponsavel[0]
+                              : `${filtroResponsavel.length} selecionados`}
+                        </span>
+                        <svg
+                          className={`w-4 h-4 transition-transform ${
+                            dropdownResponsavelOpen ? "rotate-180" : ""
+                          }`}
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M19 9l-7 7-7-7"
+                          />
+                        </svg>
+                      </button>
+                      {dropdownResponsavelOpen && (
+                        <div className="absolute z-10 w-full mt-1 bg-slate-100 border border-slate-800 rounded-md shadow-lg">
+                          <div className="p-2 space-y-2 max-h-48 overflow-y-auto">
+                            {getResponsaveis().map((responsavel) => (
+                              <label
+                                key={responsavel}
+                                className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-1 rounded"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={filtroResponsavel.includes(
+                                    responsavel,
+                                  )}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setFiltroResponsavel([
+                                        ...filtroResponsavel,
+                                        responsavel,
+                                      ]);
+                                    } else {
+                                      setFiltroResponsavel(
+                                        filtroResponsavel.filter(
+                                          (r) => r !== responsavel,
+                                        ),
+                                      );
+                                    }
+                                  }}
+                                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                />
+                                <span className="text-sm text-gray-700">
+                                  {responsavel}
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
             {loadingDashboard ? (
               <div className="h-full flex items-center justify-center py-12">
                 <div className="text-center">
@@ -3123,7 +3536,7 @@ function FuncionariosPageContent() {
               </div>
             ) : (
               <>
-                <div className="space-y-8 max-w-7xl mx-auto">
+                <div className="space-y-8 w-full">
                   {/* Cards de Resumo - Design Minimalista */}
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
                     {dashboardData.funcionariosPorStatusTarefa.map(
@@ -3261,8 +3674,36 @@ function FuncionariosPageContent() {
                                       const n = Number(v);
                                       return Number.isNaN(n) ? 0 : n;
                                     }),
-                                    backgroundColor: "rgba(14, 165, 233, 0.7)",
-                                    borderColor: "#0EA5E9",
+                                    backgroundColor: Object.keys(
+                                      dashboardData.slaTempoMedioPorSetorHoras,
+                                    ).map((k: string) => {
+                                      const map: Record<string, string> = {
+                                        RH: "#60A5FA",
+                                        MEDICINA: "#10B981",
+                                        TREINAMENTO: "#8B5CF6",
+                                        LOGISTICA: "#EC4899",
+                                        OUTROS: "#9CA3AF",
+                                      };
+                                      return (
+                                        map[(k || "").toUpperCase()] ||
+                                        "#9CA3AF"
+                                      );
+                                    }),
+                                    borderColor: Object.keys(
+                                      dashboardData.slaTempoMedioPorSetorHoras,
+                                    ).map((k: string) => {
+                                      const map: Record<string, string> = {
+                                        RH: "#60A5FA",
+                                        MEDICINA: "#10B981",
+                                        TREINAMENTO: "#8B5CF6",
+                                        LOGISTICA: "#EC4899",
+                                        OUTROS: "#9CA3AF",
+                                      };
+                                      return (
+                                        map[(k || "").toUpperCase()] ||
+                                        "#9CA3AF"
+                                      );
+                                    }),
                                     borderWidth: 1,
                                     borderRadius: 4,
                                     borderSkipped: false,
@@ -3351,8 +3792,8 @@ function FuncionariosPageContent() {
                                     data: Object.values(
                                       dashboardData.volumetriaCorrecoesPorTipo,
                                     ),
-                                    backgroundColor: "rgba(239, 68, 68, 0.7)", // red-500
-                                    borderColor: "#EF4444",
+                                    backgroundColor: "#9CA3AF",
+                                    borderColor: "#9CA3AF",
                                     borderWidth: 1,
                                     borderRadius: 4,
                                     borderSkipped: false,
@@ -3446,21 +3887,21 @@ function FuncionariosPageContent() {
                                       (s: any) => Number(s.count),
                                     ),
                                     backgroundColor: [
-                                      "#94A3B8", // slate-400
-                                      "#0EA5E9", // sky-500
-                                      "#64748B", // slate-500
-                                      "#475569", // slate-600
-                                      "#0284C7", // sky-600
+                                      "#60A5FA",
+                                      "#10B981",
+                                      "#8B5CF6",
+                                      "#EC4899",
+                                      "#9CA3AF",
                                     ],
                                     borderWidth: 1,
                                     borderColor: "#ffffff",
                                     hoverBorderWidth: 2,
                                     hoverBackgroundColor: [
-                                      "#64748B", // slate-500
-                                      "#0284C7", // sky-600
-                                      "#475569", // slate-600
-                                      "#334155", // slate-700
-                                      "#0369A1", // sky-700
+                                      "#3B82F6",
+                                      "#059669",
+                                      "#7C3AED",
+                                      "#DB2777",
+                                      "#6B7280",
                                     ],
                                   },
                                 ],
@@ -3572,30 +4013,12 @@ function FuncionariosPageContent() {
                                     data: dashboardData.funcionariosPorStatusPrestserv.map(
                                       (s: any) => Number(s.count),
                                     ),
-                                    backgroundColor: [
-                                      "rgba(14, 165, 233, 0.7)", // sky-500
-                                      "rgba(100, 116, 139, 0.7)", // slate-500
-                                      "rgba(148, 163, 184, 0.7)", // slate-400
-                                      "rgba(71, 85, 105, 0.7)", // slate-600
-                                      "rgba(2, 132, 199, 0.7)", // sky-600
-                                    ],
-                                    borderColor: [
-                                      "#0EA5E9", // sky-500
-                                      "#64748B", // slate-500
-                                      "#94A3B8", // slate-400
-                                      "#475569", // slate-600
-                                      "#0284C7", // sky-600
-                                    ],
+                                    backgroundColor: "#9CA3AF",
+                                    borderColor: "#9CA3AF",
                                     borderWidth: 1,
                                     borderRadius: 4,
                                     borderSkipped: false,
-                                    hoverBackgroundColor: [
-                                      "rgba(14, 165, 233, 0.9)", // sky-500
-                                      "rgba(100, 116, 139, 0.9)", // slate-500
-                                      "rgba(148, 163, 184, 0.9)", // slate-400
-                                      "rgba(71, 85, 105, 0.9)", // slate-600
-                                      "rgba(2, 132, 199, 0.9)", // sky-600
-                                    ],
+                                    hoverBackgroundColor: "#6B7280",
                                   },
                                 ],
                               }}
@@ -3927,19 +4350,33 @@ function FuncionariosPageContent() {
                                   data: Object.values(
                                     dashboardData.solicitacoesPorTipo,
                                   ),
-                                  backgroundColor: [
-                                    "#0EA5E9", // sky-500
-                                    "#64748B", // slate-500
-                                    "#353e4b", // gray-500
-                                  ],
+                                  backgroundColor: Object.keys(
+                                    dashboardData.solicitacoesPorTipo,
+                                  ).map((t) => {
+                                    const map: Record<string, string> = {
+                                      ALOCACAO: "#10B981",
+                                      REMANEJAMENTO: "#60A5FA",
+                                      DESLIGAMENTO: "#EC4899",
+                                    };
+                                    return (
+                                      map[(t || "").toUpperCase()] || "#9CA3AF"
+                                    );
+                                  }),
                                   borderWidth: 1,
                                   borderColor: "#ffffff",
                                   hoverBorderWidth: 2,
-                                  hoverBackgroundColor: [
-                                    "#2563EB", // blue-600
-                                    "#059669", // emerald-600
-                                    "#D97706", // amber-600
-                                  ],
+                                  hoverBackgroundColor: Object.keys(
+                                    dashboardData.solicitacoesPorTipo,
+                                  ).map((t) => {
+                                    const map: Record<string, string> = {
+                                      ALOCACAO: "#059669",
+                                      REMANEJAMENTO: "#3B82F6",
+                                      DESLIGAMENTO: "#DB2777",
+                                    };
+                                    return (
+                                      map[(t || "").toUpperCase()] || "#6B7280"
+                                    );
+                                  }),
                                 },
                               ],
                             }}
@@ -4384,7 +4821,7 @@ function FuncionariosPageContent() {
                   </div>
                 </div>
                 {/* Auditoria de Tarefas */}
-                <div className="bg-white-300 rounded-lg shadow-lg border border-slate-400">
+                <div className="bg-white-300 rounded-lg shadow-lg border border-slate-400 mt-8">
                   <div className="p-5 border-b border-slate-500 flex items-center justify-between">
                     <h2 className="text-lg font-medium text-slate-500">
                       Auditoria de Tarefas
@@ -4398,47 +4835,49 @@ function FuncionariosPageContent() {
                     dashboardData.tarefasAuditoriaDetalhes.length > 0 ? (
                       <div className="overflow-auto max-h-96">
                         <table className="min-w-full text-sm">
-                          <thead>
-                            <tr className="text-left text-slate-600 border-b border-slate-200">
-                              <th className="py-2 pr-4">ID Tarefa</th>
-                              <th className="py-2 pr-4">Funcionário</th>
-                              <th className="py-2 pr-4">Criado por</th>
-                              <th className="py-2 pr-4">Concluído por</th>
-                              <th className="py-2 pr-4">Data Criação</th>
-                              <th className="py-2 pr-4">Data Conclusão</th>
-                              <th className="py-2 pr-4">Horas (Delta)</th>
+                          <thead className="bg-slate-700 sticky top-0 z-10">
+                            <tr>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">
+                                ID Tarefa
+                              </th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                                Funcionário
+                              </th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                                Data Criação
+                              </th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                                Data Conclusão
+                              </th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                                Horas (Delta)
+                              </th>
                             </tr>
                           </thead>
-                          <tbody>
+                          <tbody className="bg-white divide-y divide-gray-200">
                             {dashboardData.tarefasAuditoriaDetalhes.map(
                               (item: any, idx: number) => (
                                 <tr
                                   key={`task-${item.id}-${idx}`}
                                   className="border-b border-slate-100"
                                 >
-                                  <td className="py-2 pr-4 text-slate-700">
+                                  <td className="px-6 py-2 text-slate-700">
                                     {item.id}
                                   </td>
-                                  <td className="py-2 pr-4 text-slate-700">
+                                  <td className="px-6 py-2 text-slate-700">
                                     {item.funcionarioNome}
                                   </td>
-                                  <td className="py-2 pr-4 text-slate-700">
-                                    {item.criadoPor}
-                                  </td>
-                                  <td className="py-2 pr-4 text-slate-700">
-                                    {item.concluidoPor}
-                                  </td>
-                                  <td className="py-2 pr-4 text-slate-700">
+                                  <td className="px-6 py-2 text-slate-700">
                                     {new Date(item.dataCriacao).toLocaleString(
                                       "pt-BR",
                                     )}
                                   </td>
-                                  <td className="py-2 pr-4 text-slate-700">
+                                  <td className="px-6 py-2 text-slate-700">
                                     {new Date(
                                       item.dataConclusao,
                                     ).toLocaleString("pt-BR")}
                                   </td>
-                                  <td className="py-2 pr-4 font-semibold text-sky-600">
+                                  <td className="px-6 py-2 font-semibold text-sky-600">
                                     {formatDuracao(Number(item.horas))}
                                   </td>
                                 </tr>
