@@ -438,9 +438,20 @@ async function buscarRemanejamentos(
 
   const tarefasFields = {
     select: {
+      id: true,
+      remanejamentoFuncionarioId: true,
+      tarefaPadraoId: true,
+      treinamentoId: true,
+      tipo: true,
+      descricao: true,
       responsavel: true,
       status: true,
-      descricao: true,
+      prioridade: true,
+      dataCriacao: true,
+      dataLimite: true,
+      dataVencimento: true,
+      dataConclusao: true,
+      observacoes: true,
     },
   } as const;
   const tarefasInclude =

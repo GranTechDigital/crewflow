@@ -3429,7 +3429,7 @@ export default function TarefasPage() {
 
                                               return priorityA - priorityB;
                                             })
-                                        ).map((tarefa) => {
+                                        ).map((tarefa, index) => {
                                           // Classes de status
                                           let statusClasses =
                                             "px-2 py-1 text-xs rounded-full";
@@ -3505,9 +3505,13 @@ export default function TarefasPage() {
                                             tarefa.status !== "CONCLUIDA" &&
                                             tarefa.status !== "CONCLUIDO";
 
+                                          const tarefaKey =
+                                            tarefa.id ??
+                                            `${chaveGrupo}-${index}`;
+
                                           return (
                                             <tr
-                                              key={tarefa.id}
+                                              key={tarefaKey}
                                               className="hover:bg-gray-50"
                                             >
                                               <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-500">
