@@ -135,12 +135,47 @@ export async function POST(
       console.error("Erro ao registrar eventos de status em lote:", eventoError);
     }
 
-    // Atualizar o status geral do funcionário para SUBMETER RASCUNHO
+    // Recalcular o status geral considerando regra especial Treinamento 0/0
+    const tarefasAtual = await prisma.tarefaRemanejamento.findMany({
+      where: { remanejamentoFuncionarioId: funcionarioId },
+    });
+
+    const todasConcluidas =
+      tarefasAtual.length === 0 ||
+      tarefasAtual.every(
+        (tarefa) =>
+          tarefa.status === "CONCLUIDO" ||
+          tarefa.status === "CONCLUIDA" ||
+          tarefa.status === "CANCELADO"
+      );
+
+    const temTreinamentoAtivo = tarefasAtual.some(
+      (t) =>
+        t.status !== "CANCELADO" &&
+        (t.responsavel || "").toUpperCase().includes("TREIN")
+    );
+
+    const statusAnterior = remanejamentoFuncionario.statusTarefas;
+    let novoStatus: "SUBMETER RASCUNHO" | "ATENDER TAREFAS" = todasConcluidas
+      ? "SUBMETER RASCUNHO"
+      : "ATENDER TAREFAS";
+
+    let aplicarDevolucaoTreinamento = false;
+    if (
+      remanejamentoFuncionario.responsavelAtual === "LOGISTICA" &&
+      !temTreinamentoAtivo
+    ) {
+      novoStatus = "ATENDER TAREFAS";
+      aplicarDevolucaoTreinamento = true;
+    }
+
+    const dadosUpdate: Record<string, unknown> = {
+      statusTarefas: novoStatus,
+    };
+
     await prisma.remanejamentoFuncionario.update({
       where: { id: funcionarioId },
-      data: {
-        statusTarefas: "SUBMETER RASCUNHO"
-      }
+      data: dadosUpdate,
     });
 
     // Registrar no histórico
@@ -166,9 +201,9 @@ export async function POST(
           remanejamentoFuncionarioId: funcionarioId,
           tipoAcao: "ATUALIZACAO_STATUS",
           entidade: "STATUS_TAREFAS",
-          descricaoAcao: "Status geral atualizado para SUBMETER RASCUNHO após aprovação de todas as tarefas",
+          descricaoAcao: `Status geral atualizado para ${novoStatus} após aprovação de todas as tarefas`,
           campoAlterado: "statusTarefas",
-          valorNovo: "SUBMETER RASCUNHO",
+          valorNovo: novoStatus,
           usuarioResponsavel: usuarioAutenticado?.funcionario?.nome || "Sistema",
           usuarioResponsavelId: usuarioAutenticado?.id,
           equipeId: usuarioAutenticado?.equipeId,
@@ -178,10 +213,30 @@ export async function POST(
       console.error("Erro ao registrar histórico:", historicoError);
     }
 
+    if (aplicarDevolucaoTreinamento) {
+      const textoDevolucao =
+        "Devolvido para TREINAMENTO automaticamente: Nenhuma tarefa de treinamento gerada (Matriz inexistente ou vazia). Necessário criar matriz.";
+      try {
+        await prisma.observacaoRemanejamentoFuncionario.create({
+          data: {
+            remanejamentoFuncionarioId: funcionarioId,
+            texto: `${textoDevolucao} Data: ${new Date().toISOString()}`,
+            criadoPor: usuarioAutenticado?.funcionario?.nome || "Sistema",
+            modificadoPor: usuarioAutenticado?.funcionario?.nome || "Sistema",
+          },
+        });
+      } catch (e) {
+        console.error(
+          "Erro ao criar observação de devolução para Treinamento (aprovar-todas):",
+          e
+        );
+      }
+    }
+
     return NextResponse.json({
       message: `Todas as tarefas de ${remanejamentoFuncionario.funcionario.nome} foram aprovadas com sucesso`,
       tarefasAprovadas: tarefasPendentes.length,
-      novoStatus: "SUBMETER RASCUNHO"
+      novoStatus,
     });
 
   } catch (error) {

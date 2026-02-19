@@ -333,6 +333,13 @@ async function atualizarStatusTarefasFuncionario(
           tarefa.status === "CANCELADO",
       );
 
+    // Verificar se existe alguma tarefa de Treinamento ativa (não cancelada)
+    const temTreinamentoAtivo = tarefas.some(
+      (t) =>
+        t.status !== "CANCELADO" &&
+        (t.responsavel || "").toUpperCase().includes("TREIN"),
+    );
+
     // Buscar o funcionário do remanejamento com a solicitação
     const remanejamentoFuncionario =
       await prisma.remanejamentoFuncionario.findUnique({
@@ -352,17 +359,33 @@ async function atualizarStatusTarefasFuncionario(
       return;
     }
 
-    // Atualizar o status das tarefas do funcionário
     const statusAnterior = remanejamentoFuncionario.statusTarefas;
+
+    // Regra geral: todas concluídas => SUBMETER RASCUNHO, caso contrário ATENDER TAREFAS
+    let novoStatus: "SUBMETER RASCUNHO" | "ATENDER TAREFAS" = todasConcluidas
+      ? "SUBMETER RASCUNHO"
+      : "ATENDER TAREFAS";
+
+    // Regra especial: se responsável atual é Logística e Treinamento está 0/0,
+    // devolver para Treinamento (ATENDER TAREFAS) para criação da matriz.
+    let aplicarDevolucaoTreinamento = false;
+    if (
+      remanejamentoFuncionario.responsavelAtual === "LOGISTICA" &&
+      !temTreinamentoAtivo
+    ) {
+      novoStatus = "ATENDER TAREFAS";
+      aplicarDevolucaoTreinamento = true;
+    }
+
+    const dadosUpdate: Record<string, unknown> = {
+      statusTarefas: novoStatus,
+    };
+
     await prisma.remanejamentoFuncionario.update({
       where: {
         id: remanejamentoFuncionarioId,
       },
-      data: {
-        statusTarefas: todasConcluidas
-          ? "SUBMETER RASCUNHO"
-          : "ATENDER TAREFAS",
-      },
+      data: dadosUpdate,
     });
 
     // Registrar no histórico a mudança de status das tarefas
@@ -372,17 +395,36 @@ async function atualizarStatusTarefasFuncionario(
         remanejamentoFuncionarioId: remanejamentoFuncionarioId,
         tipoAcao: "ATUALIZACAO_STATUS",
         entidade: "STATUS_TAREFAS",
-        descricaoAcao: `Status geral das tarefas atualizado para: ${
-          todasConcluidas ? "SUBMETER RASCUNHO" : "ATENDER TAREFAS"
-        } (via conclusão de tarefa)`,
+        descricaoAcao: `Status geral das tarefas atualizado para: ${novoStatus} (via conclusão de tarefa)`,
         campoAlterado: "statusTarefas",
-        valorNovo: todasConcluidas ? "SUBMETER RASCUNHO" : "ATENDER TAREFAS",
+        valorNovo: novoStatus,
       });
     } catch (historicoError) {
       console.error(
         "Erro ao registrar histórico de status das tarefas:",
         historicoError,
       );
+    }
+
+    // Quando houver devolução para Treinamento por matriz inexistente, registrar observação
+    if (aplicarDevolucaoTreinamento) {
+      const textoDevolucao =
+        "Devolvido para TREINAMENTO automaticamente: Nenhuma tarefa de treinamento gerada (Matriz inexistente ou vazia). Necessário criar matriz.";
+      try {
+        await prisma.observacaoRemanejamentoFuncionario.create({
+          data: {
+            remanejamentoFuncionarioId,
+            texto: `${textoDevolucao} Data: ${new Date().toISOString()}`,
+            criadoPor: "Sistema",
+            modificadoPor: "Sistema",
+          },
+        });
+      } catch (e) {
+        console.error(
+          "Erro ao criar observação de devolução para Treinamento:",
+          e,
+        );
+      }
     }
 
     // Se todas as tarefas estão concluídas E o Prestserv está aprovado,

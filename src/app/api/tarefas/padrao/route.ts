@@ -516,6 +516,26 @@ export async function POST(request: NextRequest) {
 
     // Criar todas as tarefas de uma vez usando createMany (mais eficiente)
     if (tarefasParaCriar.length === 0) {
+      const incluiTreinamento = setoresValidos.includes("TREINAMENTO");
+      if (incluiTreinamento && remanejamentoFuncionario) {
+        try {
+          await prisma.observacaoRemanejamentoFuncionario.create({
+            data: {
+              remanejamentoFuncionarioId: remanejamentoFuncionario.id,
+              texto:
+                "Nenhuma tarefa de TREINAMENTO foi gerada automaticamente para este funcionário. Matriz de treinamento inexistente ou sem treinamentos obrigatórios para o contrato/função. Necessário setor de TREINAMENTO criar ou atualizar a matriz.",
+              criadoPor: (criadoPor as string) || "Sistema",
+              modificadoPor: (criadoPor as string) || "Sistema",
+            },
+          });
+        } catch (obsErr) {
+          console.error(
+            "Erro ao registrar observação de matriz ausente (TREINAMENTO):",
+            obsErr,
+          );
+        }
+      }
+
       return NextResponse.json({
         message:
           "Nenhuma tarefa foi criada - setores inválidos ou sem tarefas definidas",

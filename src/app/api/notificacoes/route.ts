@@ -117,26 +117,21 @@ export async function GET(request: NextRequest) {
     // Priority treinamento tasks (0/0) - Treinamento team only
     let priorityItems: any[] = [];
     if (isTreinamento) {
-      const treinamentoItems = await prisma.remanejamentoFuncionario.findMany({
+      const treinamentoItemsRaw = await prisma.remanejamentoFuncionario.findMany({
         where: {
-          // Condição 1: Prestserv já foi aprovado/validado pela logística
+          // Condição 1: Status do Prestserv aceitos para priorizar Treinamento 0/0
+          // Inclui: VALIDADO/APROVADO (variações), CRIADO, PENDENTE. Exclui CANCELADO implicitamente por não estar na lista.
           statusPrestserv: {
             in: [
-              "VALIDADO",
-              "Validado",
-              "validado",
-              "VALIDADA",
-              "Validada",
-              "validada",
-              "VALIDAO",
-              "Validao",
-              "validao",
-              "APROVADO",
-              "Aprovado",
-              "aprovado",
-              "APROVADA",
-              "Aprovada",
-              "aprovada",
+              // Validado / Aprovado (variações)
+              "VALIDADO", "Validado", "validado",
+              "VALIDADA", "Validada", "validada",
+              "VALIDAO", "Validao", "validao",
+              "APROVADO", "Aprovado", "aprovado",
+              "APROVADA", "Aprovada", "aprovada",
+              // Incluídos conforme solicitação
+              "CRIADO", "Criado", "criado",
+              "PENDENTE", "Pendente", "pendente",
             ],
           },
           // Condição 2: Devem existir tarefas geradas (gerarTarefasPadrao já rodou)
@@ -165,11 +160,15 @@ export async function GET(request: NextRequest) {
           },
         },
       });
+      const treinamentoItems = treinamentoItemsRaw.map((it) => ({
+        ...it,
+        categoria: "TREINAMENTO_00",
+      }));
       priorityItems = [...priorityItems, ...treinamentoItems];
     }
 
     if (isLogistica) {
-      const logisticaItems = await prisma.remanejamentoFuncionario.findMany({
+      const logisticaItemsRaw = await prisma.remanejamentoFuncionario.findMany({
         where: {
           OR: [
             { statusTarefas: "APROVAR SOLICITAÇÃO" },
@@ -200,6 +199,10 @@ export async function GET(request: NextRequest) {
           },
         },
       });
+      const logisticaItems = logisticaItemsRaw.map((it) => ({
+        ...it,
+        categoria: "LOGISTICA",
+      }));
       priorityItems = [...priorityItems, ...logisticaItems];
     }
 

@@ -149,30 +149,51 @@ export default function NotificationsDropdown() {
                             item.statusTarefas === "SUBMETER RASCUNHO";
 
                           let linkUrl = "#";
-                          let actionText = "Criar função na matriz";
+                          let actionText = "Criar/Atualizar Matriz de Treinamento";
 
-                          if (isAprovar) {
-                            linkUrl = `/prestserv/funcionarios?status=${encodeURIComponent(
-                              "APROVAR SOLICITAÇÃO",
-                            )}&tab=nominal&nome=${encodeURIComponent(
-                              item.funcionario?.nome || "",
-                            )}`;
-                            actionText = "Aprovar Solicitação";
-                          } else if (isSubmeter) {
-                            linkUrl = `/prestserv/funcionarios?status=${encodeURIComponent(
-                              "SUBMETER RASCUNHO",
-                            )}&tab=nominal&nome=${encodeURIComponent(
-                              item.funcionario?.nome || "",
-                            )}`;
-                            actionText = "Analisar e Submeter";
-                          } else {
+                          const categoria = (item as any)?.categoria as
+                            | "TREINAMENTO_00"
+                            | "LOGISTICA"
+                            | undefined;
+
+                          if (categoria === "TREINAMENTO_00") {
                             linkUrl = item.solicitacao?.contratoDestino?.id
                               ? `/matriz-treinamento/contratos/${
                                   item.solicitacao.contratoDestino.id
                                 }?search=${encodeURIComponent(
                                   item.funcionario?.funcao || "",
                                 )}`
-                              : "#";
+                              : "/matriz-treinamento";
+                            actionText = "Criar/Atualizar Matriz de Treinamento";
+                          } else if (categoria === "LOGISTICA") {
+                            if (isAprovar) {
+                              linkUrl = `/prestserv/funcionarios?status=${encodeURIComponent(
+                                "APROVAR SOLICITAÇÃO",
+                              )}&tab=nominal&nome=${encodeURIComponent(
+                                item.funcionario?.nome || "",
+                              )}`;
+                              actionText = "Aprovar Solicitação";
+                            } else if (isSubmeter) {
+                              linkUrl = `/prestserv/funcionarios?status=${encodeURIComponent(
+                                "SUBMETER RASCUNHO",
+                              )}&tab=nominal&nome=${encodeURIComponent(
+                                item.funcionario?.nome || "",
+                              )}`;
+                              actionText = "Analisar e Submeter";
+                            } else {
+                              linkUrl = "/prestserv/funcionarios";
+                              actionText = "Gerenciar Solicitação";
+                            }
+                          } else {
+                            // Fallback seguro: direcionar Treinamento 0/0
+                            linkUrl = item.solicitacao?.contratoDestino?.id
+                              ? `/matriz-treinamento/contratos/${
+                                  item.solicitacao.contratoDestino.id
+                                }?search=${encodeURIComponent(
+                                  item.funcionario?.funcao || "",
+                                )}`
+                              : "/matriz-treinamento";
+                            actionText = "Criar/Atualizar Matriz de Treinamento";
                           }
 
                           return (
