@@ -665,8 +665,9 @@ function FuncionariosPageContent() {
 
     setIsInitialized(true);
     fetchFuncionarios();
-    // Carregar base nominal independente da aba para manter o badge de "Concluídos" consistente
-    fetchFuncionariosBaseNominal();
+    if (activeTab === "solicitacao") {
+      fetchFuncionariosBaseNominal();
+    }
   }, []);
 
   // Recarregar dados quando a página atual mudar (apenas para aba solicitacao)
@@ -1294,17 +1295,12 @@ function FuncionariosPageContent() {
 
       const data = await response.json();
 
-      console.log("Dados da API:", data);
-
       // Verificar se a resposta tem paginação (apenas para aba solicitação)
       let solicitacoes, totalSolicitacoesAPI;
 
       if (activeTab === "solicitacao" && data.solicitacoes) {
         // Resposta com paginação
         solicitacoes = data.solicitacoes;
-        console.log("solicitacoes");
-        console.log(solicitacoes);
-
         totalSolicitacoesAPI = data.totalSolicitacoes;
       } else {
         // Resposta sem paginação (array direto)
@@ -1426,9 +1422,6 @@ function FuncionariosPageContent() {
       if (totalSolicitacoesAPI !== totalSolicitacoes) {
         setTotalSolicitacoes(totalSolicitacoesAPI);
       }
-      console.log("Total:", totalSolicitacoesAPI);
-
-      console.log("Resultado data:", funcionariosTransformados);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro desconhecido");
     } finally {

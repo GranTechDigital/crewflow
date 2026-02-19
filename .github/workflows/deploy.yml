@@ -121,7 +121,6 @@ jobs:
           EOF
 
       - name: 🧹 Prepare server before image load (safe prune)
-        if: ${{ false }}
         run: |
           ssh -o StrictHostKeyChecking=no root@${{ secrets.PROD_SERVER_HOST }} << 'EOF'
             set -e
@@ -129,10 +128,11 @@ jobs:
             df -h
             echo "🧮 Docker system df (before):"
             docker system df || true
-            echo "🧼 Pruning unused Docker images and caches (no volumes)"
+            echo "🧼 Pruning unused Docker images, caches and volumes"
             docker image prune -af || true
             docker builder prune -af || true
-            docker system prune -af || true
+            docker volume prune -f || true
+            docker system prune -af --volumes || true
             echo "🧼 Cleaning /tmp to free ephemeral space"
             rm -rf /tmp/* || true
             echo "🧼 Reducing journald logs size"
@@ -368,7 +368,6 @@ jobs:
           EOF
 
       - name: 🧹 Cleanup old images (keep latest and current SHA)
-        if: ${{ steps.changes.outputs.compose == 'true' }}
         run: |
           ssh -o StrictHostKeyChecking=no root@${{ secrets.PROD_SERVER_HOST }} << 'EOF'
             set -e
@@ -395,6 +394,16 @@ jobs:
             done
             echo "🧮 Docker system df (post-cleanup):"
             docker system df || true
+          EOF
+
+      - name: 🧹 Truncate oversized container logs (defensive)
+        run: |
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.PROD_SERVER_HOST }} << 'EOF'
+            set -e
+            LOGS_DIR="/var/lib/docker/containers"
+            if [ -d "$LOGS_DIR" ]; then
+              find "$LOGS_DIR" -type f -name "*.log" -size +100M -exec sh -c 'for f in "$@"; do echo "Truncating $f"; : > "$f"; done' _ {} + || true
+            fi
           EOF
 
       - name: "🔎 Health check: app responds (login route)"

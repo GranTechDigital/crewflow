@@ -661,6 +661,26 @@ export async function POST(
       const filePath = path.join(reportsDir, filename);
       await wb.xlsx.writeFile(filePath);
       reportUrl = `/import-reports/${filename}`;
+      try {
+        const retentionDays = Number.parseInt(
+          process.env.IMPORT_REPORTS_RETENTION_DAYS || "30",
+          10
+        );
+        if (Number.isFinite(retentionDays) && retentionDays > 0) {
+          const now = Date.now();
+          const threshold = now - retentionDays * 24 * 60 * 60 * 1000;
+          const entries = fs.readdirSync(reportsDir);
+          for (const entry of entries) {
+            const full = path.join(reportsDir, entry);
+            try {
+              const st = fs.statSync(full);
+              if (st.isFile() && st.mtime.getTime() < threshold) {
+                fs.unlinkSync(full);
+              }
+            } catch {}
+          }
+        }
+      } catch {}
     } catch {}
 
     try {

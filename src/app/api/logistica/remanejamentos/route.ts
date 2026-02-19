@@ -436,8 +436,17 @@ async function buscarRemanejamentos(
   // Obter todos os IDs dos remanejamentos, sem filtrar por funcionário único
   const remanejamentoIds = funcionariosComRemanejamentos.map((rem) => rem.id);
 
+  const tarefasFields = {
+    select: {
+      responsavel: true,
+      status: true,
+      descricao: true,
+    },
+  } as const;
   const tarefasInclude =
-    Object.keys(tarefasWhere).length > 0 ? { where: tarefasWhere } : true;
+    Object.keys(tarefasWhere).length > 0
+      ? { where: tarefasWhere, ...tarefasFields }
+      : tarefasFields;
 
   const funcionarioSelect = {
     id: true,

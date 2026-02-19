@@ -9,6 +9,7 @@ services:
       - DATABASE_URL=${DATABASE_URL}
       - JWT_SECRET=${JWT_SECRET}
       - NEXTAUTH_URL=${NEXTAUTH_URL}
+      - IMPORT_REPORTS_RETENTION_DAYS=${IMPORT_REPORTS_RETENTION_DAYS}
       - ADMIN_USER=${ADMIN_USER}
       - ADMIN_EMAIL=${ADMIN_EMAIL}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
@@ -20,6 +21,11 @@ services:
       - /opt/projetogran/data:/app/data:ro
       # Exporta relatórios gerados pelo script para o host
       - /opt/projetogran/relatorios:/app/relatorios:rw
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     restart: unless-stopped
     networks:
       - projetogran_crewflow-network
@@ -37,6 +43,11 @@ services:
       - "5434:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     restart: unless-stopped
     networks:
       - projetogran_crewflow-network
@@ -55,6 +66,11 @@ services:
       - "5050:80"
     volumes:
       - pgadmin_data:/var/lib/pgadmin
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     restart: unless-stopped
     networks:
       - projetogran_crewflow-network
