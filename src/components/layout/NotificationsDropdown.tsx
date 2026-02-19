@@ -270,38 +270,46 @@ export default function NotificationsDropdown() {
                           <Info size={14} className="mr-2" />
                           Atividade Recente
                         </div>
-                        {data.recent.map((hist: any) => (
-                          <Menu.Item key={`recent-${hist.id}`}>
-                            {({ active }) => (
-                              <Link
-                                href={`/prestserv/remanejamentos?nome=${
-                                  hist.remanejamentoFuncionario?.funcionario
-                                    ?.nome || ""
-                                }`}
-                                className={`${
-                                  active ? "bg-blue-50" : ""
-                                } block px-4 py-3 border-b border-gray-100 last:border-0 transition-colors`}
-                              >
-                                <div className="flex items-start">
-                                  <Info className="w-5 h-5 text-blue-500 mt-0.5 mr-3 flex-shrink-0" />
-                                  <div>
-                                    <p className="text-sm font-medium text-gray-900">
-                                      Novo Remanejamento
-                                    </p>
-                                    <p className="text-xs text-gray-500 mt-0.5">
-                                      {hist.usuario?.funcionario?.nome ||
-                                        "Sistema"}{" "}
-                                      criou uma solicitação.
-                                    </p>
-                                    <p className="text-xs text-gray-400 mt-1">
-                                      {formatTimeAgo(hist.dataAcao)}
-                                    </p>
+                        {data.recent.map((hist: any) => {
+                          const titulo =
+                            typeof hist?.descricaoAcao === "string" &&
+                            hist.descricaoAcao.toLowerCase().includes("status")
+                              ? "Atualização de Status"
+                              : "Novo Remanejamento";
+                          const descricao =
+                            hist?.descricaoAcao ||
+                            `${hist.usuario?.funcionario?.nome || "Sistema"} criou uma solicitação.`;
+                          return (
+                            <Menu.Item key={`recent-${hist.id}`}>
+                              {({ active }) => (
+                                <Link
+                                  href={`/prestserv/remanejamentos?nome=${
+                                    hist.remanejamentoFuncionario?.funcionario
+                                      ?.nome || ""
+                                  }`}
+                                  className={`${
+                                    active ? "bg-blue-50" : ""
+                                  } block px-4 py-3 border-b border-gray-100 last:border-0 transition-colors`}
+                                >
+                                  <div className="flex items-start">
+                                    <Info className="w-5 h-5 text-blue-500 mt-0.5 mr-3 flex-shrink-0" />
+                                    <div>
+                                      <p className="text-sm font-medium text-gray-900">
+                                        {titulo}
+                                      </p>
+                                      <p className="text-xs text-gray-500 mt-0.5">
+                                        {descricao}
+                                      </p>
+                                      <p className="text-xs text-gray-400 mt-1">
+                                        {formatTimeAgo(hist.dataAcao)}
+                                      </p>
+                                    </div>
                                   </div>
-                                </div>
-                              </Link>
-                            )}
-                          </Menu.Item>
-                        ))}
+                                </Link>
+                              )}
+                            </Menu.Item>
+                          );
+                        })}
                       </div>
                     )}
                   </>

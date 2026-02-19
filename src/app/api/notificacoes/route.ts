@@ -52,9 +52,10 @@ export async function GET(request: NextRequest) {
       equipeNome.includes("Logística") ||
       equipeNome.includes("Administração");
 
-    // 1. Recentes (Criação de remanejamentos) - Últimas 24h
+    // 1. Recentes (Criação e Aprovação) - Últimas 24h
     // Visível apenas para equipes de gestão (Planejamento, Logística, Prestserv, Admin)
     let recentCreates: any[] = [];
+    let recentApprovals: any[] = [];
     if (isManagementTeam) {
       const oneDayAgo = new Date();
       oneDayAgo.setHours(oneDayAgo.getHours() - 24);
@@ -87,6 +88,30 @@ export async function GET(request: NextRequest) {
           },
         },
       });
+
+      // Registrar aprovações recentes (statusPrestserv -> VALIDADO/APROVADO)
+      recentApprovals = await prisma.historicoRemanejamento.findMany({
+        where: {
+          tipoAcao: "ATUALIZACAO_STATUS",
+          campoAlterado: "statusPrestserv",
+          valorNovo: { in: ["VALIDADO", "APROVADO"] },
+          dataAcao: { gte: oneDayAgo },
+        },
+        take: 10,
+        orderBy: { dataAcao: "desc" },
+        include: {
+          usuario: {
+            select: {
+              funcionario: { select: { nome: true } },
+            },
+          },
+          remanejamentoFuncionario: {
+            select: {
+              funcionario: { select: { nome: true } },
+            },
+          },
+        },
+      });
     }
 
     // Priority treinamento tasks (0/0) - Treinamento team only
@@ -94,32 +119,34 @@ export async function GET(request: NextRequest) {
     if (isTreinamento) {
       const treinamentoItems = await prisma.remanejamentoFuncionario.findMany({
         where: {
+          // Condição 1: Prestserv já foi aprovado/validado pela logística
           statusPrestserv: {
-            notIn: [
-              "CONCLUIDO",
-              "CANCELADO",
-              "CONCLUÍDO",
-              "Cancelado",
-              "Concluido",
-              "Concluído",
+            in: [
               "VALIDADO",
               "Validado",
               "validado",
+              "VALIDADA",
+              "Validada",
+              "validada",
+              "VALIDAO",
+              "Validao",
+              "validao",
+              "APROVADO",
+              "Aprovado",
+              "aprovado",
+              "APROVADA",
+              "Aprovada",
+              "aprovada",
             ],
           },
-          // Condição 1: Status deve indicar que Logística já aprovou (REPROVAR TAREFAS)
-          statusTarefas: "REPROVAR TAREFAS",
           // Condição 2: Devem existir tarefas geradas (gerarTarefasPadrao já rodou)
           tarefas: {
             some: {}, // Garante que existem tarefas (qualquer setor)
             none: {
               // Mas especificamente para Treinamento, falta a tarefa/matriz
               OR: [
-                {
-                  setor: {
-                    nome: { contains: "Treinamento", mode: "insensitive" },
-                  },
-                },
+                // Usar o ID da equipe (setor) do usuário de Treinamento
+                { setorId: equipeId },
                 {
                   treinamentoId: { not: null },
                 },
@@ -127,8 +154,8 @@ export async function GET(request: NextRequest) {
             },
           },
         },
-        take: 10,
-        orderBy: { createdAt: "desc" },
+        take: 50,
+        orderBy: { updatedAt: "desc" },
         include: {
           funcionario: { select: { nome: true, funcao: true } },
           solicitacao: {
@@ -221,7 +248,7 @@ export async function GET(request: NextRequest) {
     });
 
     return NextResponse.json({
-      recent: recentCreates,
+      recent: [...recentCreates, ...recentApprovals],
       priority: priorityItems,
       overdue: overdueTasks,
     });
