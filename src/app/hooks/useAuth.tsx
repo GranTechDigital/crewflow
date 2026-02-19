@@ -6,6 +6,7 @@ import {
   useState,
   useEffect,
   ReactNode,
+  useRef,
 } from "react";
 import { useRouter } from "next/navigation";
 
@@ -34,9 +35,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  const checkAuth = async () => {
+  const lastCheckRef = useRef<number>(0);
+  const checkAuthInternal = async (silent: boolean) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const response = await fetch("/api/auth/verify", {
         method: "GET",
         headers: { "Content-Type": "application/json" },
@@ -84,9 +86,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.removeItem("user");
       } catch {}
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
+  const checkAuth = () => checkAuthInternal(false);
 
   const refresh = async () => {
     try {
@@ -221,11 +224,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [usuario]);
   useEffect(() => {
     const onFocus = () => {
-      checkAuth();
+      const now = Date.now();
+      if (now - lastCheckRef.current < 60000) return;
+      lastCheckRef.current = now;
+      checkAuthInternal(true);
     };
     const onVisibility = () => {
       if (document.visibilityState === "visible") {
-        checkAuth();
+        const now = Date.now();
+        if (now - lastCheckRef.current < 60000) return;
+        lastCheckRef.current = now;
+        checkAuthInternal(true);
       }
     };
     if (typeof window !== "undefined") {
