@@ -151,11 +151,7 @@ export interface SincronizarResultadoItem {
       treinamentoId?: number | null;
     }[];
     alteracoes?: {
-      campo:
-        | "statusTarefas"
-        | "statusPrestserv"
-        | "responsavelAtual"
-        | "observacoesPrestserv";
+      campo: "statusTarefas" | "statusPrestserv" | "observacoesPrestserv";
       de?: string | null;
       para?: string | null;
       observacoes?: string;
@@ -306,11 +302,7 @@ export async function sincronizarTarefasPadrao({
       treinamentoId?: number | null;
     }[] = [];
     const alteracoesResumo: {
-      campo:
-        | "statusTarefas"
-        | "statusPrestserv"
-        | "responsavelAtual"
-        | "observacoesPrestserv";
+      campo: "statusTarefas" | "statusPrestserv" | "observacoesPrestserv";
       de?: string | null;
       para?: string | null;
       observacoes?: string;
@@ -979,12 +971,12 @@ export async function sincronizarTarefasPadrao({
         );
 
       let novoStatus = semPendentes ? "SUBMETER RASCUNHO" : "ATENDER TAREFAS";
-      let novoResponsavel: string | null = null;
-      let obsMudancaResponsavel: string | null = null;
+      let aplicarDevolucaoTreinamento = false;
 
-      // Lógica Especial: Se responsável for Logística e não houver tarefas de Treinamento ativas (0/0),
-      // devolver para Treinamento (ATENDER TAREFAS) para criação da matriz.
-      if (rem.responsavelAtual === "LOGISTICA") {
+      // Lógica Especial: Se o fluxo está em etapa de Logística (SUBMETER RASCUNHO)
+      // e não houver tarefas de Treinamento ativas (0/0), devolver para Treinamento
+      // (ATENDER TAREFAS) para criação/ajuste da matriz.
+      if (rem.statusTarefas === "SUBMETER RASCUNHO") {
         const temTreinamentoAtivo = tarefasAtual.some(
           (t) =>
             t.status !== "CANCELADO" &&
@@ -993,9 +985,7 @@ export async function sincronizarTarefasPadrao({
 
         if (!temTreinamentoAtivo) {
           novoStatus = "ATENDER TAREFAS";
-          novoResponsavel = "TREINAMENTO";
-          obsMudancaResponsavel =
-            "Devolvido para TREINAMENTO automaticamente: Nenhuma tarefa de treinamento gerada (Matriz inexistente ou vazia). Necessário criar matriz.";
+          aplicarDevolucaoTreinamento = true;
         }
       }
 
@@ -1028,59 +1018,27 @@ export async function sincronizarTarefasPadrao({
             },
           });
         } catch {}
-
-        if (novoStatus === "SUBMETER RASCUNHO" && !novoResponsavel) {
-          try {
-            await prisma.remanejamentoFuncionario.update({
-              where: { id: rem.id },
-              data: { responsavelAtual: "LOGISTICA" },
-            });
-          } catch {}
-          if (verbose) {
-            alteracoesResumo.push({
-              campo: "responsavelAtual",
-              para: "LOGISTICA",
-            });
-          }
-        }
       }
 
-      // Aplicar mudança de responsável se houver (caso especial Treinamento)
-      if (novoResponsavel && rem.responsavelAtual !== novoResponsavel) {
-        if (obsMudancaResponsavel) {
-          try {
-            await prisma.observacaoRemanejamentoFuncionario.create({
-              data: {
-                remanejamentoFuncionarioId: rem.id,
-                texto: `${obsMudancaResponsavel} Data: ${new Date().toISOString()}`,
-                criadoPor: usuarioResponsavel || "Sistema",
-                modificadoPor: usuarioResponsavel || "Sistema",
-              },
-            });
-          } catch (e) {
-            console.error(
-              "Erro ao criar observação de mudança de responsável:",
-              e,
-            );
-          }
-        }
-
-        await prisma.remanejamentoFuncionario.update({
-          where: { id: rem.id },
-          data: {
-            responsavelAtual: novoResponsavel,
-          },
-        });
-
-        if (verbose) {
-          alteracoesResumo.push({
-            campo: "responsavelAtual",
-            de: rem.responsavelAtual,
-            para: novoResponsavel,
-            observacoes: obsMudancaResponsavel || undefined,
+      // Registrar devolução para Treinamento quando aplicável (caso 0/0 de Treinamento)
+      if (aplicarDevolucaoTreinamento) {
+        const textoDevolucao =
+          "Devolvido para TREINAMENTO automaticamente: Nenhuma tarefa de treinamento gerada (Matriz inexistente ou vazia). Necessário criar matriz.";
+        try {
+          await prisma.observacaoRemanejamentoFuncionario.create({
+            data: {
+              remanejamentoFuncionarioId: rem.id,
+              texto: `${textoDevolucao} Data: ${new Date().toISOString()}`,
+              criadoPor: usuarioResponsavel || "Sistema",
+              modificadoPor: usuarioResponsavel || "Sistema",
+            },
           });
+        } catch (e) {
+          console.error(
+            "Erro ao criar observação de devolução para Treinamento (sync):",
+            e,
+          );
         }
-
         try {
           await prisma.historicoRemanejamento.create({
             data: {
@@ -1088,16 +1046,14 @@ export async function sincronizarTarefasPadrao({
               remanejamentoFuncionarioId: rem.id,
               tipoAcao: "ATUALIZACAO_RESPONSAVEL",
               entidade: "RESPONSAVEL_ATUAL",
-              descricaoAcao:
-                obsMudancaResponsavel ||
-                `Responsável atualizado para ${novoResponsavel}`,
+              descricaoAcao: textoDevolucao,
               campoAlterado: "responsavelAtual",
-              valorAnterior: rem.responsavelAtual,
-              valorNovo: novoResponsavel,
+              valorAnterior: null,
+              valorNovo: "TREINAMENTO",
               usuarioResponsavel: usuarioResponsavel || "Sistema",
               usuarioResponsavelId: usuarioResponsavelId,
               equipeId: equipeId,
-              observacoes: obsMudancaResponsavel || undefined,
+              observacoes: textoDevolucao,
             },
           });
         } catch {}

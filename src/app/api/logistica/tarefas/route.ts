@@ -373,7 +373,6 @@ async function atualizarStatusTarefasFuncionario(
           id: true,
           solicitacaoId: true,
           statusTarefas: true,
-          responsavelAtual: true,
         },
       });
 
@@ -392,11 +391,12 @@ async function atualizarStatusTarefasFuncionario(
       ? "SUBMETER RASCUNHO"
       : "ATENDER TAREFAS";
 
-    // Regra especial: se responsável atual é Logística e Treinamento está 0/0,
-    // devolver para Treinamento (ATENDER TAREFAS) para criação da matriz.
+    // Regra especial: se fluxo está em etapa de Logística (SUBMETER RASCUNHO)
+    // e Treinamento está 0/0, devolver para Treinamento (ATENDER TAREFAS)
+    // para criação da matriz.
     let aplicarDevolucaoTreinamento = false;
     if (
-      remanejamentoFuncionario.responsavelAtual === "LOGISTICA" &&
+      statusAnterior === "SUBMETER RASCUNHO" &&
       !temTreinamentoAtivo
     ) {
       novoStatus = "ATENDER TAREFAS";

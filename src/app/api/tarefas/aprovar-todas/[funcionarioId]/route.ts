@@ -161,10 +161,7 @@ export async function POST(
       : "ATENDER TAREFAS";
 
     let aplicarDevolucaoTreinamento = false;
-    if (
-      remanejamentoFuncionario.responsavelAtual === "LOGISTICA" &&
-      !temTreinamentoAtivo
-    ) {
+    if (statusAnterior === "SUBMETER RASCUNHO" && !temTreinamentoAtivo) {
       novoStatus = "ATENDER TAREFAS";
       aplicarDevolucaoTreinamento = true;
     }
