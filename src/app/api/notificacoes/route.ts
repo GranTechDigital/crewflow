@@ -117,49 +117,73 @@ export async function GET(request: NextRequest) {
     // Priority treinamento tasks (0/0) - Treinamento team only
     let priorityItems: any[] = [];
     if (isTreinamento) {
-      const treinamentoItemsRaw = await prisma.remanejamentoFuncionario.findMany({
-        where: {
-          // Condição 1: Status do Prestserv aceitos para priorizar Treinamento 0/0
-          // Inclui: VALIDADO/APROVADO (variações), CRIADO, PENDENTE. Exclui CANCELADO implicitamente por não estar na lista.
-          statusPrestserv: {
-            in: [
-              // Validado / Aprovado (variações)
-              "VALIDADO", "Validado", "validado",
-              "VALIDADA", "Validada", "validada",
-              "VALIDAO", "Validao", "validao",
-              "APROVADO", "Aprovado", "aprovado",
-              "APROVADA", "Aprovada", "aprovada",
-              // Incluídos conforme solicitação
-              "CRIADO", "Criado", "criado",
-              "PENDENTE", "Pendente", "pendente",
-            ],
-          },
-          // Condição 2: Devem existir tarefas geradas (gerarTarefasPadrao já rodou)
-          tarefas: {
-            some: {}, // Garante que existem tarefas (qualquer setor)
-            none: {
-              // Mas especificamente para Treinamento, falta a tarefa/matriz
-              OR: [
-                // Usar o ID da equipe (setor) do usuário de Treinamento
-                { setorId: equipeId },
-                {
-                  treinamentoId: { not: null },
-                },
+      const treinamentoItemsRaw =
+        await prisma.remanejamentoFuncionario.findMany({
+          where: {
+            // Condição 1: Status do Prestserv aceitos para priorizar Treinamento 0/0
+            // Inclui: VALIDADO/APROVADO (variações), CRIADO, PENDENTE. Exclui CANCELADO implicitamente por não estar na lista.
+            statusPrestserv: {
+              in: [
+                // Validado / Aprovado (variações)
+                "VALIDADO",
+                "Validado",
+                "validado",
+                "VALIDADA",
+                "Validada",
+                "validada",
+                "VALIDAO",
+                "Validao",
+                "validao",
+                "APROVADO",
+                "Aprovado",
+                "aprovado",
+                "APROVADA",
+                "Aprovada",
+                "aprovada",
+                // Incluídos conforme solicitação
+                "CRIADO",
+                "Criado",
+                "criado",
+                "PENDENTE",
+                "Pendente",
+                "pendente",
               ],
             },
-          },
-        },
-        take: 50,
-        orderBy: { updatedAt: "desc" },
-        include: {
-          funcionario: { select: { nome: true, funcao: true } },
-          solicitacao: {
-            include: {
-              contratoDestino: { select: { id: true, numero: true } },
+            // Condição 2: Devem existir tarefas geradas (gerarTarefasPadrao já rodou)
+            tarefas: {
+              some: {}, // Garante que existem tarefas (qualquer setor)
+              none: {
+                // Filtra para garantir que NÃO existe nenhuma tarefa de Treinamento ativa
+                // Se existir qualquer tarefa que satisfaça estas condições, o remanejamento sai da lista
+                AND: [
+                  { status: { notIn: ["CANCELADO", "Cancelado"] } },
+                  {
+                    OR: [
+                      {
+                        responsavel: {
+                          contains: "TREINAMENTO",
+                          mode: "insensitive",
+                        },
+                      },
+                      { treinamentoId: { not: null } },
+                      { setorId: equipeId },
+                    ],
+                  },
+                ],
+              },
             },
           },
-        },
-      });
+          take: 50,
+          orderBy: { updatedAt: "desc" },
+          include: {
+            funcionario: { select: { nome: true, funcao: true } },
+            solicitacao: {
+              include: {
+                contratoDestino: { select: { id: true, numero: true } },
+              },
+            },
+          },
+        });
       const treinamentoItems = treinamentoItemsRaw.map((it) => ({
         ...it,
         categoria: "TREINAMENTO_00",
