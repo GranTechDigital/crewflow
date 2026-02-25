@@ -159,7 +159,7 @@ export default function Sidebar() {
           //   label: "Visualizar Funcionários por Centro de Custo (Folha)",
           //   href: "/prestserv/funcionarios-por-contrato",
           // },
-          { label: "Tarefas dos Setores", href: "/tarefas" },
+          { label: "Tarefas dos Setores", href: "/logistica/tarefas" },
           {
             label: "Lista de Funcionários",
             href: "/prestserv/funcionarios-por-contrato",

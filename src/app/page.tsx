@@ -122,7 +122,7 @@ const setores: SetorCard[] = [
         label: "Solicitações de Remanejamento",
         href: "/prestserv/funcionarios",
       },
-      { label: "Tarefas dos Setores", href: "/tarefas" },
+      { label: "Tarefas dos Setores", href: "/logistica/tarefas" },
       // { label: "Funcionários em Processo", href: "/prestserv/funcionarios" },
       // {
       //   label: "Funcionários por Centro de Custo",
