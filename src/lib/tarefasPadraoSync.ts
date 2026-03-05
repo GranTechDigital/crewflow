@@ -374,7 +374,12 @@ export async function sincronizarTarefasPadrao({
 
       if (contratoId && funcaoNome) {
         const funcao = await prisma.funcao.findFirst({
-          where: { funcao: funcaoNome },
+          where: {
+            funcao: {
+              equals: funcaoNome.trim(),
+              mode: "insensitive",
+            },
+          },
         });
         if (funcao) {
           // Buscar somente treinamentos obrigatórios ativos para criação
@@ -383,7 +388,7 @@ export async function sincronizarTarefasPadrao({
               contratoId,
               funcaoId: funcao.id,
               ativo: true,
-              tipoObrigatoriedade: "AP",
+              tipoObrigatoriedade: { in: ["AP", "RA"] },
             },
             include: { treinamento: true, contrato: true },
           });
@@ -973,10 +978,10 @@ export async function sincronizarTarefasPadrao({
       let novoStatus = semPendentes ? "SUBMETER RASCUNHO" : "ATENDER TAREFAS";
       let aplicarDevolucaoTreinamento = false;
 
-      // Lógica Especial: Se o fluxo está em etapa de Logística (SUBMETER RASCUNHO)
-      // e não houver tarefas de Treinamento ativas (0/0), devolver para Treinamento
+      // Lógica Especial: Se o fluxo está indo para Logística (SUBMETER RASCUNHO)
+      // e não houver tarefas de Treinamento ativas (0/0), forçar permanência em Treinamento
       // (ATENDER TAREFAS) para criação/ajuste da matriz.
-      if (rem.statusTarefas === "SUBMETER RASCUNHO") {
+      if (novoStatus === "SUBMETER RASCUNHO") {
         const temTreinamentoAtivo = tarefasAtual.some(
           (t) =>
             t.status !== "CANCELADO" &&
@@ -985,7 +990,11 @@ export async function sincronizarTarefasPadrao({
 
         if (!temTreinamentoAtivo) {
           novoStatus = "ATENDER TAREFAS";
-          aplicarDevolucaoTreinamento = true;
+          // Só aplicar devolução (e gerar observação) se o status ANTERIOR era SUBMETER RASCUNHO.
+          // Isso evita loop de observações se o status já estiver corretamente em ATENDER TAREFAS.
+          if (rem.statusTarefas === "SUBMETER RASCUNHO") {
+            aplicarDevolucaoTreinamento = true;
+          }
         }
       }
 

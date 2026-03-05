@@ -161,9 +161,11 @@ export async function POST(
       : "ATENDER TAREFAS";
 
     let aplicarDevolucaoTreinamento = false;
-    if (statusAnterior === "SUBMETER RASCUNHO" && !temTreinamentoAtivo) {
+    if (novoStatus === "SUBMETER RASCUNHO" && !temTreinamentoAtivo) {
       novoStatus = "ATENDER TAREFAS";
-      aplicarDevolucaoTreinamento = true;
+      if (statusAnterior === "SUBMETER RASCUNHO") {
+        aplicarDevolucaoTreinamento = true;
+      }
     }
 
     const dadosUpdate: Record<string, unknown> = {

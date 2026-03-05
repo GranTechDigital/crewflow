@@ -391,16 +391,19 @@ async function atualizarStatusTarefasFuncionario(
       ? "SUBMETER RASCUNHO"
       : "ATENDER TAREFAS";
 
-    // Regra especial: se fluxo está em etapa de Logística (SUBMETER RASCUNHO)
-    // e Treinamento está 0/0, devolver para Treinamento (ATENDER TAREFAS)
-    // para criação da matriz.
+    // Regra especial: se fluxo está indo para Logística (SUBMETER RASCUNHO)
+    // e não houver tarefas de Treinamento ativas (0/0), forçar permanência em Treinamento
+    // (ATENDER TAREFAS) para criação/ajuste da matriz.
     let aplicarDevolucaoTreinamento = false;
-    if (
-      statusAnterior === "SUBMETER RASCUNHO" &&
-      !temTreinamentoAtivo
-    ) {
-      novoStatus = "ATENDER TAREFAS";
-      aplicarDevolucaoTreinamento = true;
+    if (novoStatus === "SUBMETER RASCUNHO") {
+      if (!temTreinamentoAtivo) {
+        novoStatus = "ATENDER TAREFAS";
+        // Só aplicar devolução (e gerar observação) se o status ANTERIOR era SUBMETER RASCUNHO.
+        // Isso evita loop de observações se o status já estiver corretamente em ATENDER TAREFAS.
+        if (statusAnterior === "SUBMETER RASCUNHO") {
+          aplicarDevolucaoTreinamento = true;
+        }
+      }
     }
 
     const dadosUpdate: Record<string, unknown> = {
