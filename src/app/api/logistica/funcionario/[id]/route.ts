@@ -154,6 +154,11 @@ export async function PUT(
         },
         include: {
           tarefas: true,
+          solicitacao: {
+            select: {
+              tipo: true,
+            },
+          },
           funcionario: {
             select: {
               id: true,
@@ -188,6 +193,50 @@ export async function PUT(
           },
           { status: 400 },
         );
+      }
+    }
+
+    // Validação: para validar (exceto DESLIGAMENTO), deve haver tarefas ativas em todos os setores (RH, Med, Trein)
+    if (statusPrestservCanonical === "VALIDADO") {
+      const tipoSolicitacao = remanejamentoFuncionario.solicitacao?.tipo;
+
+      if (tipoSolicitacao !== "DESLIGAMENTO") {
+        const setoresObrigatorios = ["RH", "MEDICINA", "TREINAMENTO"];
+        const setoresFaltantes: string[] = [];
+
+        const detectSetorLocal = (resp: string) => {
+          const r = resp.toUpperCase();
+          if (r.includes("RH") || r.includes("RECURSOS HUMANOS")) return "RH";
+          if (r.includes("MED") || r.includes("SAUDE") || r.includes("SAÚDE"))
+            return "MEDICINA";
+          if (r.includes("TREIN") || r.includes("CAPACIT"))
+            return "TREINAMENTO";
+          return "OUTROS";
+        };
+
+        const tarefasAtivas = remanejamentoFuncionario.tarefas.filter(
+          (t) => t.status !== "CANCELADO",
+        );
+
+        for (const setor of setoresObrigatorios) {
+          const temTarefa = tarefasAtivas.some(
+            (t) => detectSetorLocal(t.responsavel) === setor,
+          );
+          if (!temTarefa) {
+            setoresFaltantes.push(setor);
+          }
+        }
+
+        if (setoresFaltantes.length > 0) {
+          return NextResponse.json(
+            {
+              error: `Não é possível validar. Não existem tarefas ativas para os setores: ${setoresFaltantes.join(", ")}.`,
+              details:
+                "Para Alocação e Remanejamento, é obrigatório ter tarefas (não canceladas) em RH, Medicina e Treinamento.",
+            },
+            { status: 400 },
+          );
+        }
       }
     }
 
@@ -658,6 +707,11 @@ export async function PATCH(
         },
         include: {
           tarefas: true,
+          solicitacao: {
+            select: {
+              tipo: true,
+            },
+          },
         },
       });
 
@@ -685,6 +739,50 @@ export async function PATCH(
           },
           { status: 400 },
         );
+      }
+    }
+
+    // Validação: para validar (exceto DESLIGAMENTO), deve haver tarefas ativas em todos os setores (RH, Med, Trein)
+    if (statusPrestservCanonical === "VALIDADO") {
+      const tipoSolicitacao = remanejamentoFuncionario.solicitacao?.tipo;
+
+      if (tipoSolicitacao !== "DESLIGAMENTO") {
+        const setoresObrigatorios = ["RH", "MEDICINA", "TREINAMENTO"];
+        const setoresFaltantes: string[] = [];
+
+        const detectSetorLocal = (resp: string) => {
+          const r = resp.toUpperCase();
+          if (r.includes("RH") || r.includes("RECURSOS HUMANOS")) return "RH";
+          if (r.includes("MED") || r.includes("SAUDE") || r.includes("SAÚDE"))
+            return "MEDICINA";
+          if (r.includes("TREIN") || r.includes("CAPACIT"))
+            return "TREINAMENTO";
+          return "OUTROS";
+        };
+
+        const tarefasAtivas = remanejamentoFuncionario.tarefas.filter(
+          (t) => t.status !== "CANCELADO",
+        );
+
+        for (const setor of setoresObrigatorios) {
+          const temTarefa = tarefasAtivas.some(
+            (t) => detectSetorLocal(t.responsavel) === setor,
+          );
+          if (!temTarefa) {
+            setoresFaltantes.push(setor);
+          }
+        }
+
+        if (setoresFaltantes.length > 0) {
+          return NextResponse.json(
+            {
+              error: `Não é possível validar. Não existem tarefas ativas para os setores: ${setoresFaltantes.join(", ")}.`,
+              details:
+                "Para Alocação e Remanejamento, é obrigatório ter tarefas (não canceladas) em RH, Medicina e Treinamento.",
+            },
+            { status: 400 },
+          );
+        }
       }
     }
 
