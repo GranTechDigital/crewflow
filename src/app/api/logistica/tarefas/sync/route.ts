@@ -37,8 +37,8 @@ export async function POST(request: NextRequest) {
       equipeId: user?.equipeId,
       funcionarioIds,
       remanejamentoIds,
-      // Sincronização manual não cria tarefas novas; apenas alinha com a matriz/padrões (cancelar/reativar)
-      criarFaltantes: false,
+      // Sincronização manual DEVE criar tarefas novas (agora que o usuário reclamou que não gera)
+      criarFaltantes: true,
       verbose: true,
     });
 
