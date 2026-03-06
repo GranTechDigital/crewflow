@@ -3,9 +3,9 @@ import { prisma } from "@/lib/prisma";
 
 export async function GET(request: NextRequest) {
   try {
-    // 1. Definir janela de tempo (últimos 10 dias)
+    // 1. Definir janela de tempo (últimos 30 dias)
     const dataLimite = new Date();
-    dataLimite.setDate(dataLimite.getDate() - 10);
+    dataLimite.setDate(dataLimite.getDate() - 30);
 
     // 2. Buscar candidatos (VALIDADO + atualizado recentemente + não é desligamento)
     const candidatos = await prisma.remanejamentoFuncionario.findMany({
