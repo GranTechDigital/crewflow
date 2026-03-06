@@ -224,7 +224,12 @@ export async function sincronizarTarefasPadrao({
         select: { id: true, nome: true, matricula: true, funcao: true },
       },
       solicitacao: {
-        select: { id: true, contratoDestinoId: true, prioridade: true },
+        select: {
+          id: true,
+          contratoDestinoId: true,
+          prioridade: true,
+          tipo: true,
+        },
       },
       tarefas: {
         select: {
@@ -704,6 +709,10 @@ export async function sincronizarTarefasPadrao({
     // RH e MEDICINA via tarefas padrão (criação faltantes e cancelamento retroativo)
     for (const setor of setoresNormalizados) {
       if (setor === "TREINAMENTO") continue;
+
+      // Se for DESLIGAMENTO, não deve criar tarefas padrão de admissão/alocação (RH/MEDICINA)
+      if (rem.solicitacao?.tipo === "DESLIGAMENTO") continue;
+
       const tarefasPadrao = await prisma.tarefaPadrao.findMany({
         where: { setor, ativo: true },
         select: { tipo: true, descricao: true },
