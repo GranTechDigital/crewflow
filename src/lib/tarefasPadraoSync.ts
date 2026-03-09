@@ -120,6 +120,7 @@ export interface SincronizarInput {
   funcionarioIds?: number[]; // opcional: restringe aos remanejamentos destes funcionários
   remanejamentoIds?: string[]; // opcional: restringe pelos IDs de remanejamentoFuncionario
   criarFaltantes?: boolean; // se true, cria tarefas faltantes; se false, apenas sincroniza (cancelar/reativar) — default: true
+  verbose?: boolean;
 }
 
 export interface SincronizarResultadoItem {
@@ -202,7 +203,12 @@ export async function sincronizarTarefasPadrao({
 
   const whereRemanejamentos: any = {
     statusTarefas: {
-      in: ["ATENDER TAREFAS", "SUBMETER RASCUNHO", "REPROVAR TAREFAS"],
+      in: [
+        "ATENDER TAREFAS",
+        "SUBMETER RASCUNHO",
+        "REPROVAR TAREFAS",
+        "APROVAR SOLICITAÇÃO",
+      ],
     },
     statusPrestserv: {
       notIn: ["EM VALIDAÇÃO", "VALIDADO", "CANCELADO"],
@@ -221,7 +227,12 @@ export async function sincronizarTarefasPadrao({
     where: whereRemanejamentos,
     include: {
       funcionario: {
-        select: { id: true, nome: true, matricula: true, funcao: true },
+        select: {
+          id: true,
+          nome: true,
+          matricula: true,
+          funcao: true,
+        },
       },
       solicitacao: {
         select: {
@@ -375,271 +386,325 @@ export async function sincronizarTarefasPadrao({
     // TREINAMENTO via matriz
     if (setoresNormalizados.includes("TREINAMENTO")) {
       const contratoId = rem.solicitacao?.contratoDestinoId || undefined;
-      const funcaoNome = rem.funcionario?.funcao || undefined;
-
-      if (contratoId && funcaoNome) {
-        const funcao = await prisma.funcao.findFirst({
-          where: {
-            funcao: {
-              equals: funcaoNome.trim(),
-              mode: "insensitive",
-            },
-          },
+      const contratoIds: number[] = [];
+      if (contratoDestinoNumero) {
+        const contratosMesmoNumero = await prisma.contrato.findMany({
+          where: { numero: contratoDestinoNumero },
+          select: { id: true },
         });
-        if (funcao) {
-          // Buscar somente treinamentos obrigatórios ativos para criação
-          const matrizObrigatoria = await prisma.matrizTreinamento.findMany({
-            where: {
-              contratoId,
-              funcaoId: funcao.id,
-              ativo: true,
-              tipoObrigatoriedade: { in: ["AP", "RA"] },
-            },
-            include: { treinamento: true, contrato: true },
-          });
+        for (const c of contratosMesmoNumero) {
+          if (typeof c.id === "number") contratoIds.push(c.id);
+        }
+      }
+      if (typeof contratoId === "number" && !contratoIds.includes(contratoId)) {
+        contratoIds.push(contratoId);
+      }
+      // Buscar possíveis IDs de função para cobrir casos com múltiplos regimes/duplicidades
+      const funcaoIds: number[] = [];
+      if (rem.funcionario?.id) {
+        const f = await prisma.funcionario.findUnique({
+          where: { id: rem.funcionario.id },
+          select: { funcaoId: true },
+        });
+        if (typeof f?.funcaoId === "number") funcaoIds.push(f.funcaoId);
+      }
+      if (contratoIds.length > 0 && funcaoIds.length > 0) {
+        // Buscar somente treinamentos obrigatórios ativos para criação
+        const matrizObrigatoria = await prisma.matrizTreinamento.findMany({
+          where: {
+            contratoId: { in: contratoIds },
+            funcaoId: { in: funcaoIds },
+            ativo: true,
+          },
+          include: { treinamento: true, contrato: true },
+        });
 
-          const mandatariosIdSet = new Set<number>(
-            matrizObrigatoria
-              .map((m) => m.treinamento?.id as number)
-              .filter((id) => typeof id === "number"),
-          );
-          const mandatariosChaveSet = new Set<string>(
-            matrizObrigatoria
-              .map((m) =>
-                chaveTarefa(m.treinamento?.treinamento || "", "TREINAMENTO"),
-              )
-              .filter((k) => !!k.trim()),
-          );
+        const mandatariosIdSet = new Set<number>(
+          matrizObrigatoria
+            .map((m) => m.treinamento?.id as number)
+            .filter((id) => typeof id === "number"),
+        );
+        const mandatariosChaveSet = new Set<string>(
+          matrizObrigatoria
+            .map((m) =>
+              chaveTarefa(m.treinamento?.treinamento || "", "TREINAMENTO"),
+            )
+            .filter((k) => !!k.trim()),
+        );
 
-          const existentesTreinoId = new Set<number>(
-            rem.tarefas
-              .filter(
+        const existentesTreinoId = new Set<number>(
+          rem.tarefas
+            .filter(
+              (t) =>
+                detectSetor(t.responsavel) === "TREINAMENTO" &&
+                typeof (t as any).treinamentoId === "number",
+            )
+            .map((t) => (t as any).treinamentoId as number),
+        );
+        const novasTreinoIds = new Set<number>();
+        const novasChaves = new Set<string>();
+
+        // Criar faltantes
+        for (const m of matrizObrigatoria) {
+          const tipoObrig = String(m.tipoObrigatoriedade || "")
+            .trim()
+            .toUpperCase();
+          if (!["AP", "RA"].includes(tipoObrig)) continue;
+          const tipo = m.treinamento?.treinamento || "";
+          const resp = "TREINAMENTO";
+          if (!tipo) continue;
+          const tid = (m.treinamento?.id ?? null) as number | null;
+          const chaveNome = chaveTarefa(tipo, resp);
+          if (typeof tid === "number") {
+            if (existentesTreinoId.has(tid) || novasTreinoIds.has(tid)) {
+              const grupo = rem.tarefas.filter(
+                (t) =>
+                  t.responsavel === "TREINAMENTO" &&
+                  (t as any).treinamentoId === tid,
+              );
+              const temNaoCancelado = grupo.some(
+                (tt) => tt.status !== "CANCELADO",
+              );
+              if (!temNaoCancelado) {
+                const cancelada = grupo.find((tt) => tt.status === "CANCELADO");
+                if (cancelada) {
+                  tarefasParaReativar.push({
+                    id: cancelada.id,
+                    responsavel: "TREINAMENTO",
+                    statusAnterior: cancelada.status,
+                  });
+                }
+              }
+              continue;
+            }
+            // Se não há tarefa com treinamentoId, mas existe tarefa por chave de nome, converter uma existente para usar o treinamentoId
+            if (existentes.has(chaveNome)) {
+              const grupoNome = rem.tarefas.filter(
                 (t) =>
                   detectSetor(t.responsavel) === "TREINAMENTO" &&
-                  typeof (t as any).treinamentoId === "number",
-              )
-              .map((t) => (t as any).treinamentoId as number),
-          );
-          const novasTreinoIds = new Set<number>();
-          const novasChaves = new Set<string>();
-
-          // Criar faltantes
-          for (const m of matrizObrigatoria) {
-            const tipo = m.treinamento?.treinamento || "";
-            const resp = "TREINAMENTO";
-            if (!tipo) continue;
-            const tid = (m.treinamento?.id ?? null) as number | null;
-            const chaveNome = chaveTarefa(tipo, resp);
-            if (typeof tid === "number") {
-              if (existentesTreinoId.has(tid) || novasTreinoIds.has(tid)) {
-                const grupo = rem.tarefas.filter(
-                  (t) =>
-                    t.responsavel === "TREINAMENTO" &&
-                    (t as any).treinamentoId === tid,
-                );
-                const temNaoCancelado = grupo.some(
-                  (tt) => tt.status !== "CANCELADO",
-                );
-                if (!temNaoCancelado) {
-                  const cancelada = grupo.find(
-                    (tt) => tt.status === "CANCELADO",
-                  );
-                  if (cancelada) {
-                    tarefasParaReativar.push({
-                      id: cancelada.id,
+                  chaveTarefa(t.tipo, t.responsavel) === chaveNome,
+              );
+              if (grupoNome.length > 0) {
+                const concluida =
+                  grupoNome.find(
+                    (x) => x.status === "CONCLUIDO" || x.status === "CONCLUIDA",
+                  ) || null;
+                const manter =
+                  concluida ||
+                  grupoNome
+                    .slice()
+                    .sort(
+                      (a, b) =>
+                        new Date((a as any).dataCriacao as Date).getTime() -
+                        new Date((b as any).dataCriacao as Date).getTime(),
+                    )[0];
+                for (const t of grupoNome) {
+                  if (t.id === manter.id) continue;
+                  if (t.status !== "CANCELADO") {
+                    tarefasParaCancelar.push({
+                      id: t.id,
+                      statusAnterior: t.status,
                       responsavel: "TREINAMENTO",
-                      statusAnterior: cancelada.status,
                     });
-                  }
-                }
-                continue;
-              }
-              // Se não há tarefa com treinamentoId, mas existe tarefa por chave de nome, converter uma existente para usar o treinamentoId
-              if (existentes.has(chaveNome)) {
-                const grupoNome = rem.tarefas.filter(
-                  (t) =>
-                    detectSetor(t.responsavel) === "TREINAMENTO" &&
-                    chaveTarefa(t.tipo, t.responsavel) === chaveNome,
-                );
-                if (grupoNome.length > 0) {
-                  const concluida =
-                    grupoNome.find(
-                      (x) =>
-                        x.status === "CONCLUIDO" || x.status === "CONCLUIDA",
-                    ) || null;
-                  const manter =
-                    concluida ||
-                    grupoNome
-                      .slice()
-                      .sort(
-                        (a, b) =>
-                          new Date((a as any).dataCriacao as Date).getTime() -
-                          new Date((b as any).dataCriacao as Date).getTime(),
-                      )[0];
-                  for (const t of grupoNome) {
-                    if (t.id === manter.id) continue;
-                    if (t.status !== "CANCELADO") {
-                      tarefasParaCancelar.push({
+                    if (verbose) {
+                      canceladasResumo.push({
                         id: t.id,
-                        statusAnterior: t.status,
+                        tipo: t.tipo,
                         responsavel: "TREINAMENTO",
+                        statusAnterior: t.status,
+                        treinamentoId: (t as any).treinamentoId as
+                          | number
+                          | null,
                       });
-                      if (verbose) {
-                        canceladasResumo.push({
-                          id: t.id,
-                          tipo: t.tipo,
-                          responsavel: "TREINAMENTO",
-                          statusAnterior: t.status,
-                          treinamentoId: (t as any).treinamentoId as
-                            | number
-                            | null,
-                        });
-                      }
                     }
                   }
+                }
+                try {
+                  await prisma.tarefaRemanejamento.update({
+                    where: { id: manter.id },
+                    data: {
+                      treinamentoId: tid,
+                      descricao: `Treinamento: ${
+                        m.treinamento?.treinamento
+                      }\nCarga Horária: ${
+                        m.treinamento?.cargaHoraria ?? "N/A"
+                      }\nValidade: ${m.treinamento?.validadeValor ?? "N/A"} ${
+                        m.treinamento?.validadeUnidade ?? ""
+                      }\nTipo: ${m.tipoObrigatoriedade}\nContrato: ${
+                        m.contrato?.nome ?? "N/A"
+                      }`,
+                      setorId:
+                        (await findEquipeIdBySetor(detectSetor(resp))) ??
+                        undefined,
+                    },
+                  });
                   try {
-                    await prisma.tarefaRemanejamento.update({
-                      where: { id: manter.id },
+                    await prisma.observacaoTarefaRemanejamento.create({
                       data: {
-                        treinamentoId: tid,
-                        descricao: `Treinamento: ${
-                          m.treinamento?.treinamento
-                        }\nCarga Horária: ${
-                          m.treinamento?.cargaHoraria ?? "N/A"
-                        }\nValidade: ${m.treinamento?.validadeValor ?? "N/A"} ${
-                          m.treinamento?.validadeUnidade ?? ""
-                        }\nTipo: ${m.tipoObrigatoriedade}\nContrato: ${
-                          m.contrato?.nome ?? "N/A"
-                        }`,
-                        setorId:
-                          (await findEquipeIdBySetor(detectSetor(resp))) ??
-                          undefined,
+                        tarefaId: manter.id,
+                        texto:
+                          "Vinculada automaticamente ao Treinamento (ID) durante sincronização de matriz",
+                        criadoPor: usuarioResponsavel || "Sistema",
+                        modificadoPor: usuarioResponsavel || "Sistema",
                       },
                     });
-                    try {
-                      await prisma.observacaoTarefaRemanejamento.create({
-                        data: {
-                          tarefaId: manter.id,
-                          texto:
-                            "Vinculada automaticamente ao Treinamento (ID) durante sincronização de matriz",
-                          criadoPor: usuarioResponsavel || "Sistema",
-                          modificadoPor: usuarioResponsavel || "Sistema",
-                        },
-                      });
-                    } catch {}
-                    try {
-                      await prisma.historicoRemanejamento.create({
-                        data: {
-                          solicitacaoId: rem.solicitacao!.id,
-                          remanejamentoFuncionarioId: rem.id,
-                          tarefaId: manter.id,
-                          tipoAcao: "ATUALIZACAO",
-                          entidade: "TAREFA",
-                          campoAlterado: "treinamentoId",
-                          valorAnterior: null,
-                          valorNovo: String(tid),
-                          descricaoAcao:
-                            "Tarefa de TREINAMENTO convertida para vínculo por ID do treinamento durante sincronização",
-                          usuarioResponsavel: usuarioResponsavel || "Sistema",
-                          usuarioResponsavelId: usuarioResponsavelId,
-                          equipeId: equipeId,
-                        },
-                      });
-                    } catch {}
-                  } catch (convErr) {
-                    console.error(
-                      "Erro ao converter tarefa para treinamentoId:",
-                      convErr,
-                    );
-                  }
-                  continue;
-                }
-              }
-            } else {
-              const chave = chaveTarefa(tipo, resp);
-              if (existentes.has(chave) || novasChaves.has(chave)) {
-                const grupo = rem.tarefas.filter(
-                  (t) => chaveTarefa(t.tipo, t.responsavel) === chave,
-                );
-                const temNaoCancelado = grupo.some(
-                  (tt) => tt.status !== "CANCELADO",
-                );
-                if (!temNaoCancelado) {
-                  const cancelada = grupo.find(
-                    (tt) => tt.status === "CANCELADO",
-                  );
-                  if (cancelada) {
-                    tarefasParaReativar.push({
-                      id: cancelada.id,
-                      responsavel: "TREINAMENTO",
-                      statusAnterior: cancelada.status,
+                  } catch {}
+                  try {
+                    await prisma.historicoRemanejamento.create({
+                      data: {
+                        solicitacaoId: rem.solicitacao!.id,
+                        remanejamentoFuncionarioId: rem.id,
+                        tarefaId: manter.id,
+                        tipoAcao: "ATUALIZACAO",
+                        entidade: "TAREFA",
+                        campoAlterado: "treinamentoId",
+                        valorAnterior: null,
+                        valorNovo: String(tid),
+                        descricaoAcao:
+                          "Tarefa de TREINAMENTO convertida para vínculo por ID do treinamento durante sincronização",
+                        usuarioResponsavel: usuarioResponsavel || "Sistema",
+                        usuarioResponsavelId: usuarioResponsavelId,
+                        equipeId: equipeId,
+                      },
                     });
-                  }
+                  } catch {}
+                } catch (convErr) {
+                  console.error(
+                    "Erro ao converter tarefa para treinamentoId:",
+                    convErr,
+                  );
                 }
                 continue;
               }
             }
-
-            const prioridade = (() => {
-              const v = (rem.solicitacao?.prioridade || "media").toLowerCase();
-              if (v === "baixa") return "BAIXA";
-              if (v === "media") return "MEDIA";
-              if (v === "alta") return "ALTA";
-              if (v === "urgente") return "URGENTE";
-              return "MEDIA";
-            })();
-
-            const descricao = `Treinamento: ${
-              m.treinamento?.treinamento
-            }\nCarga Horária: ${
-              m.treinamento?.cargaHoraria ?? "N/A"
-            }\nValidade: ${m.treinamento?.validadeValor ?? "N/A"} ${
-              m.treinamento?.validadeUnidade ?? ""
-            }\nTipo: ${m.tipoObrigatoriedade}\nContrato: ${
-              m.contrato?.nome ?? "N/A"
-            }`;
-
-            tarefasParaCriar.push({
-              remanejamentoFuncionarioId: rem.id,
-              treinamentoId: typeof tid === "number" ? tid : null,
-              tipo,
-              descricao,
-              responsavel: resp,
-              status: "PENDENTE",
-              prioridade,
-              dataLimite: new Date(Date.now() + 48 * 60 * 60 * 1000),
-              setorId:
-                (await findEquipeIdBySetor(detectSetor(resp))) ?? undefined,
-            });
-            if (verbose) {
-              criadasPlanResumo.push({
-                tipo,
-                responsavel: resp,
-                treinamentoId: typeof tid === "number" ? tid : null,
-                descricao,
-                prioridade,
-              });
-            }
-            if (typeof tid === "number") {
-              novasTreinoIds.add(tid);
-            } else {
-              novasChaves.add(chaveTarefa(tipo, resp));
+          } else {
+            const chave = chaveTarefa(tipo, resp);
+            if (existentes.has(chave) || novasChaves.has(chave)) {
+              const grupo = rem.tarefas.filter(
+                (t) => chaveTarefa(t.tipo, t.responsavel) === chave,
+              );
+              const temNaoCancelado = grupo.some(
+                (tt) => tt.status !== "CANCELADO",
+              );
+              if (!temNaoCancelado) {
+                const cancelada = grupo.find((tt) => tt.status === "CANCELADO");
+                if (cancelada) {
+                  tarefasParaReativar.push({
+                    id: cancelada.id,
+                    responsavel: "TREINAMENTO",
+                    statusAnterior: cancelada.status,
+                  });
+                }
+              }
+              continue;
             }
           }
 
-          // Remover (cancelar) tarefas de treinamento que não são mais obrigatórias
-          const tarefasTreinamentoExistentes = rem.tarefas.filter(
-            (t) => detectSetor(t.responsavel) === "TREINAMENTO",
-          );
-          for (const t of tarefasTreinamentoExistentes) {
-            const tidT = (t as any).treinamentoId as number | null;
-            const chave = chaveTarefa(t.tipo, t.responsavel);
-            const deveManter =
-              (typeof tidT === "number" && mandatariosIdSet.has(tidT)) ||
-              mandatariosChaveSet.has(chave);
-            const podeCancelar =
-              t.status !== "CANCELADO" && t.status !== "CONCLUIDO"; // preservar conclusões
-            if (!deveManter && podeCancelar) {
+          const prioridade = (() => {
+            const v = (rem.solicitacao?.prioridade || "media").toLowerCase();
+            if (v === "baixa") return "BAIXA";
+            if (v === "media") return "MEDIA";
+            if (v === "alta") return "ALTA";
+            if (v === "urgente") return "URGENTE";
+            return "MEDIA";
+          })();
+
+          const descricao = `Treinamento: ${
+            m.treinamento?.treinamento
+          }\nCarga Horária: ${
+            m.treinamento?.cargaHoraria ?? "N/A"
+          }\nValidade: ${m.treinamento?.validadeValor ?? "N/A"} ${
+            m.treinamento?.validadeUnidade ?? ""
+          }\nTipo: ${m.tipoObrigatoriedade}\nContrato: ${
+            m.contrato?.nome ?? "N/A"
+          }`;
+
+          tarefasParaCriar.push({
+            remanejamentoFuncionarioId: rem.id,
+            treinamentoId: typeof tid === "number" ? tid : null,
+            tipo,
+            descricao,
+            responsavel: resp,
+            status: "PENDENTE",
+            prioridade,
+            dataLimite: new Date(Date.now() + 48 * 60 * 60 * 1000),
+            setorId:
+              (await findEquipeIdBySetor(detectSetor(resp))) ?? undefined,
+          });
+          if (verbose) {
+            criadasPlanResumo.push({
+              tipo,
+              responsavel: resp,
+              treinamentoId: typeof tid === "number" ? tid : null,
+              descricao,
+              prioridade,
+            });
+          }
+          if (typeof tid === "number") {
+            novasTreinoIds.add(tid);
+          } else {
+            novasChaves.add(chaveTarefa(tipo, resp));
+          }
+        }
+
+        // Remover (cancelar) tarefas de treinamento que não são mais obrigatórias
+        const tarefasTreinamentoExistentes = rem.tarefas.filter(
+          (t) => detectSetor(t.responsavel) === "TREINAMENTO",
+        );
+        for (const t of tarefasTreinamentoExistentes) {
+          const tidT = (t as any).treinamentoId as number | null;
+          const chave = chaveTarefa(t.tipo, t.responsavel);
+          const deveManter =
+            (typeof tidT === "number" && mandatariosIdSet.has(tidT)) ||
+            mandatariosChaveSet.has(chave);
+          const podeCancelar =
+            t.status !== "CANCELADO" && t.status !== "CONCLUIDO"; // preservar conclusões
+          if (!deveManter && podeCancelar) {
+            tarefasParaCancelar.push({
+              id: t.id,
+              statusAnterior: t.status,
+              responsavel: "TREINAMENTO",
+            });
+            if (verbose) {
+              canceladasResumo.push({
+                id: t.id,
+                tipo: t.tipo,
+                responsavel: "TREINAMENTO",
+                statusAnterior: t.status,
+                treinamentoId: tidT,
+              });
+            }
+          }
+        }
+
+        const grupos = new Map<
+          string,
+          Array<(typeof tarefasTreinamentoExistentes)[number]>
+        >();
+        for (const t of tarefasTreinamentoExistentes) {
+          const key = chaveTarefa(t.tipo, "TREINAMENTO");
+          const arr = grupos.get(key) || [];
+          arr.push(t);
+          grupos.set(key, arr);
+        }
+        for (const [key, arr] of grupos.entries()) {
+          if (arr.length <= 1) continue;
+          const concluida =
+            arr.find(
+              (x) => x.status === "CONCLUIDO" || x.status === "CONCLUIDA",
+            ) || null;
+          const manter =
+            concluida ||
+            arr
+              .slice()
+              .sort(
+                (a, b) =>
+                  new Date((a as any).dataCriacao as Date).getTime() -
+                  new Date((b as any).dataCriacao as Date).getTime(),
+              )[0];
+          for (const t of arr) {
+            if (t.id === manter.id) continue;
+            if (t.status !== "CANCELADO") {
               tarefasParaCancelar.push({
                 id: t.id,
                 statusAnterior: t.status,
@@ -651,54 +716,8 @@ export async function sincronizarTarefasPadrao({
                   tipo: t.tipo,
                   responsavel: "TREINAMENTO",
                   statusAnterior: t.status,
-                  treinamentoId: tidT,
+                  treinamentoId: (t as any).treinamentoId as number | null,
                 });
-              }
-            }
-          }
-
-          const grupos = new Map<
-            string,
-            Array<(typeof tarefasTreinamentoExistentes)[number]>
-          >();
-          for (const t of tarefasTreinamentoExistentes) {
-            const key = chaveTarefa(t.tipo, "TREINAMENTO");
-            const arr = grupos.get(key) || [];
-            arr.push(t);
-            grupos.set(key, arr);
-          }
-          for (const [key, arr] of grupos.entries()) {
-            if (arr.length <= 1) continue;
-            const concluida =
-              arr.find(
-                (x) => x.status === "CONCLUIDO" || x.status === "CONCLUIDA",
-              ) || null;
-            const manter =
-              concluida ||
-              arr
-                .slice()
-                .sort(
-                  (a, b) =>
-                    new Date((a as any).dataCriacao as Date).getTime() -
-                    new Date((b as any).dataCriacao as Date).getTime(),
-                )[0];
-            for (const t of arr) {
-              if (t.id === manter.id) continue;
-              if (t.status !== "CANCELADO") {
-                tarefasParaCancelar.push({
-                  id: t.id,
-                  statusAnterior: t.status,
-                  responsavel: "TREINAMENTO",
-                });
-                if (verbose) {
-                  canceladasResumo.push({
-                    id: t.id,
-                    tipo: t.tipo,
-                    responsavel: "TREINAMENTO",
-                    statusAnterior: t.status,
-                    treinamentoId: (t as any).treinamentoId as number | null,
-                  });
-                }
               }
             }
           }
@@ -1042,39 +1061,53 @@ export async function sincronizarTarefasPadrao({
       if (aplicarDevolucaoTreinamento) {
         const textoDevolucao =
           "Devolvido para TREINAMENTO automaticamente: Nenhuma tarefa de treinamento gerada (Matriz inexistente ou vazia). Necessário criar matriz.";
+        let deveRegistrarDevolucao = true;
         try {
-          await prisma.observacaoRemanejamentoFuncionario.create({
-            data: {
-              remanejamentoFuncionarioId: rem.id,
-              texto: `${textoDevolucao} Data: ${new Date().toISOString()}`,
-              criadoPor: usuarioResponsavel || "Sistema",
-              modificadoPor: usuarioResponsavel || "Sistema",
-            },
-          });
-        } catch (e) {
-          console.error(
-            "Erro ao criar observação de devolução para Treinamento (sync):",
-            e,
-          );
-        }
-        try {
-          await prisma.historicoRemanejamento.create({
-            data: {
-              solicitacaoId: rem.solicitacao!.id,
-              remanejamentoFuncionarioId: rem.id,
-              tipoAcao: "ATUALIZACAO_RESPONSAVEL",
-              entidade: "RESPONSAVEL_ATUAL",
-              descricaoAcao: textoDevolucao,
-              campoAlterado: "responsavelAtual",
-              valorAnterior: null,
-              valorNovo: "TREINAMENTO",
-              usuarioResponsavel: usuarioResponsavel || "Sistema",
-              usuarioResponsavelId: usuarioResponsavelId,
-              equipeId: equipeId,
-              observacoes: textoDevolucao,
-            },
-          });
+          const totalObsExistentes =
+            await prisma.observacaoRemanejamentoFuncionario.count({
+              where: {
+                remanejamentoFuncionarioId: rem.id,
+                texto: { contains: textoDevolucao },
+              },
+            });
+          if (totalObsExistentes > 0) deveRegistrarDevolucao = false;
         } catch {}
+
+        if (deveRegistrarDevolucao) {
+          try {
+            await prisma.observacaoRemanejamentoFuncionario.create({
+              data: {
+                remanejamentoFuncionarioId: rem.id,
+                texto: textoDevolucao,
+                criadoPor: usuarioResponsavel || "Sistema",
+                modificadoPor: usuarioResponsavel || "Sistema",
+              },
+            });
+          } catch (e) {
+            console.error(
+              "Erro ao criar observação de devolução para Treinamento (sync):",
+              e,
+            );
+          }
+          try {
+            await prisma.historicoRemanejamento.create({
+              data: {
+                solicitacaoId: rem.solicitacao!.id,
+                remanejamentoFuncionarioId: rem.id,
+                tipoAcao: "ATUALIZACAO_RESPONSAVEL",
+                entidade: "RESPONSAVEL_ATUAL",
+                descricaoAcao: textoDevolucao,
+                campoAlterado: "responsavelAtual",
+                valorAnterior: null,
+                valorNovo: "TREINAMENTO",
+                usuarioResponsavel: usuarioResponsavel || "Sistema",
+                usuarioResponsavelId: usuarioResponsavelId,
+                equipeId: equipeId,
+                observacoes: textoDevolucao,
+              },
+            });
+          } catch {}
+        }
       }
 
       const temPendentes = !semPendentes;
@@ -1211,7 +1244,7 @@ export async function sincronizarTarefasPadrao({
             alteracoesResumo.push({
               campo: "observacoesPrestserv",
               de: rem.observacoesPrestserv ?? null,
-              para: novaObsCorr,
+              para: observacaoCorr,
             });
           }
           try {

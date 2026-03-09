@@ -2,6 +2,17 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sincronizarTarefasPadrao } from "@/lib/tarefasPadraoSync";
+import { toSlug } from "@/utils/slug";
+
+function normalizeFuncaoText(funcao: unknown) {
+  const raw = String(funcao || "").trim();
+  return raw.toUpperCase();
+}
+
+function normalizeRegime(regime: unknown) {
+  const r = String(regime || "ONSHORE").toUpperCase();
+  return r.includes("OFFSHORE") ? "OFFSHORE" : "ONSHORE";
+}
 
 function parseDate(dateStr: string): Date | null {
   const s = String(dateStr || "").trim();
@@ -98,6 +109,7 @@ export async function POST(request: Request) {
     console.log("Iniciando sincronização de funcionários...");
     // Opções da requisição
     let forceUpdateAdmissao = false;
+    let treinoFuncionarioIds: number[] = [];
     try {
       const body = await request.json().catch(() => null);
       if (body && typeof body === "object") {
@@ -105,6 +117,12 @@ export async function POST(request: Request) {
           (body as any).forceUpdateAdmissao === true ||
           (body as any).fullRefreshAdmissao === true ||
           (body as any).forceAdmissao === true;
+        const rawIds = (body as any).treinamentoFuncionarioIds;
+        if (Array.isArray(rawIds)) {
+          treinoFuncionarioIds = rawIds
+            .map((x: any) => parseInt(String(x), 10))
+            .filter((n: number) => Number.isFinite(n));
+        }
       }
     } catch {}
 
@@ -163,51 +181,73 @@ export async function POST(request: Request) {
     );
 
     if (novosFuncionarios.length > 0) {
-      const dadosParaInserir = novosFuncionarios.map(
-        (item: Record<string, unknown>) => ({
-          matricula: String(item.MATRICULA),
-          cpf: item.CPF ? String(item.CPF) : null,
-          nome: String(item.NOME),
-          funcao: item.FUNCAO ? String(item.FUNCAO).trim() : null,
-          rg: item.RG ? String(item.RG) : null,
-          orgaoEmissor: item["ORGÃO_EMISSOR"]
-            ? String(item["ORGÃO_EMISSOR"])
-            : null,
-          uf: item.UF ? String(item.UF) : null,
-          dataNascimento: item.DATA_NASCIMENTO
-            ? parseDate(String(item.DATA_NASCIMENTO))
-            : null,
-          dataAdmissao: getDateField(item, [
-            "DATA_ADMISSAO",
-            "DATA_ADMISSÃO",
-            "DATAADMISSAO",
-            "DT_ADMISSAO",
-            "DTADMISSAO",
-            "ADMISSAO",
-            "dataAdmissao",
-          ]),
-          dataDemissao: getDateField(item, [
-            "DATA_DEMISSAO",
-            "DATA_DEMISSÃO",
-            "DATADEMISSAO",
-            "DT_DEMISSAO",
-            "DTDEMISSAO",
-            "DEMISSAO",
-            "dataDemissao",
-          ]),
-          email: item.EMAIL ? String(item.EMAIL) : null,
-          telefone: item.TELEFONE,
-          centroCusto: item.CENTRO_CUSTO,
-          departamento: item.DEPARTAMENTO,
-          status: item.STATUS, // Status da folha de pagamento
-          statusPrestserv: "SEM_CADASTRO", // Novos funcionários sempre começam com SEM_CADASTRO no Prestserv
-          criadoEm: now,
-          atualizadoEm: now,
-          excluidoEm: null,
-        }),
-      );
-
-      await prisma.funcionario.createMany({ data: dadosParaInserir });
+      for (const item of novosFuncionarios) {
+        const matricula = String(item.MATRICULA);
+        const funcaoTxt = item.FUNCAO ? normalizeFuncaoText(item.FUNCAO) : null;
+        const regime = normalizeRegime(item.EMPREGADO);
+        let funcaoRow = null;
+        if (funcaoTxt) {
+          funcaoRow = await prisma.funcao.findFirst({
+            where: { funcao: funcaoTxt, regime },
+          });
+          if (!funcaoRow) {
+            funcaoRow = await prisma.funcao.create({
+              data: {
+                funcao: funcaoTxt,
+                regime,
+                funcao_slug: toSlug(funcaoTxt),
+                ativo: true,
+              },
+            });
+          }
+        }
+        await prisma.funcionario.create({
+          data: {
+            matricula,
+            cpf: item.CPF ? String(item.CPF) : null,
+            nome: String(item.NOME),
+            funcao: funcaoTxt,
+            rg: item.RG ? String(item.RG) : null,
+            orgaoEmissor: item["ORGÃO_EMISSOR"]
+              ? String(item["ORGÃO_EMISSOR"])
+              : null,
+            uf: item.UF ? String(item.UF) : null,
+            dataNascimento: item.DATA_NASCIMENTO
+              ? parseDate(String(item.DATA_NASCIMENTO))
+              : null,
+            dataAdmissao: getDateField(item, [
+              "DATA_ADMISSAO",
+              "DATA_ADMISSÃO",
+              "DATAADMISSAO",
+              "DT_ADMISSAO",
+              "DTADMISSAO",
+              "ADMISSAO",
+              "dataAdmissao",
+            ]),
+            dataDemissao: getDateField(item, [
+              "DATA_DEMISSAO",
+              "DATA_DEMISSÃO",
+              "DATADEMISSAO",
+              "DT_DEMISSAO",
+              "DTDEMISSAO",
+              "DEMISSAO",
+              "dataDemissao",
+            ]),
+            email: item.EMAIL ? String(item.EMAIL) : null,
+            telefone: item.TELEFONE,
+            centroCusto: item.CENTRO_CUSTO,
+            departamento: item.DEPARTAMENTO,
+            status: item.STATUS,
+            statusPrestserv: "SEM_CADASTRO",
+            criadoEm: now,
+            atualizadoEm: now,
+            excluidoEm: null,
+          },
+        });
+        if (funcaoRow) {
+          await prisma.$executeRaw`UPDATE "public"."Funcionario" SET "funcaoId"=${funcaoRow.id} WHERE "matricula"=${matricula}`;
+        }
+      }
     }
 
     // 3) Atualizar funcionários cujo status mudou e/ou função mudou
@@ -229,9 +269,9 @@ export async function POST(request: Request) {
       valorNovo: string;
     }> = [];
 
-    dadosBanco.forEach((func) => {
+    for (const func of dadosBanco) {
       const dadosApi = mapApi.get(func.matricula);
-      if (!dadosApi) return;
+      if (!dadosApi) continue;
 
       const statusApi = String((dadosApi as any).STATUS);
       const statusBanco = func.status;
@@ -328,10 +368,26 @@ export async function POST(request: Request) {
       if (funcaoApi && funcaoBancoNorm !== funcaoApi) {
         if (isRhudson)
           console.log("[SYNC rhudson] função será atualizada para", funcaoApi);
+        const regimeApi = normalizeRegime((dadosApi as any).EMPREGADO);
+        const funcaoApiNorm = normalizeFuncaoText(funcaoApi);
+        let funcaoRow = await prisma.funcao.findFirst({
+          where: { funcao: funcaoApiNorm, regime: regimeApi },
+        });
+        if (!funcaoRow) {
+          funcaoRow = await prisma.funcao.create({
+            data: {
+              funcao: funcaoApiNorm,
+              regime: regimeApi,
+              funcao_slug: toSlug(funcaoApiNorm),
+              ativo: true,
+            },
+          });
+        }
         paraAtualizar.push({
           matricula: func.matricula,
           status: func.status || "ATIVO",
-          funcao: funcaoApi,
+          funcao: funcaoApiNorm,
+          funcaoId: funcaoRow.id,
           atualizadoEm: now,
           excluidoEm: null,
         });
@@ -365,7 +421,7 @@ export async function POST(request: Request) {
           dataDemissao: shouldUpdateDemissao ? dataDemissaoApi : undefined,
         });
       }
-    });
+    }
 
     // Atualizar os registros
     for (const f of paraAtualizar) {
@@ -384,6 +440,9 @@ export async function POST(request: Request) {
             f.dataDemissao !== undefined ? f.dataDemissao : undefined,
         },
       });
+      if (typeof (f as any).funcaoId === "number") {
+        await prisma.$executeRaw`UPDATE "public"."Funcionario" SET "funcaoId"=${(f as any).funcaoId} WHERE "matricula"=${f.matricula}`;
+      }
     }
     console.log("[SYNC] total atualizações aplicadas:", paraAtualizar.length);
 
@@ -453,6 +512,23 @@ export async function POST(request: Request) {
           "Erro ao re-sincronizar treinamentos após mudança de função:",
           syncError,
         );
+      }
+    }
+
+    // Re-sync de treinamento opcional e direcionado por IDs informados no body
+    if (treinoFuncionarioIds.length > 0) {
+      try {
+        const resultado = await sincronizarTarefasPadrao({
+          setores: ["TREINAMENTO"],
+          usuarioResponsavel: "Sistema - Forçado (FuncaoId)",
+          funcionarioIds: treinoFuncionarioIds,
+        });
+        console.log(
+          `Re-sync de TREINAMENTO forçado para ${treinoFuncionarioIds.length} funcionário(s):`,
+          resultado.message,
+        );
+      } catch (err) {
+        console.error("Falha no re-sync forçado de TREINAMENTO:", err);
       }
     }
 

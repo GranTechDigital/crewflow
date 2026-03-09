@@ -69,16 +69,25 @@ export async function GET(request: NextRequest) {
           },
         });
 
-        // Registrar observação
-        await prisma.observacaoRemanejamentoFuncionario.create({
-          data: {
-            remanejamentoFuncionarioId: rem.id,
-            texto:
-              "Reversão automática: Status retornado para CRIADO pois foi validado sem tarefas de treinamento. Necessário sincronizar/gerar matriz.",
-            criadoPor: "Sistema (Correção)",
-            modificadoPor: "Sistema (Correção)",
-          },
-        });
+        const textoReversao =
+          "Reversão automática: Status retornado para CRIADO pois foi validado sem tarefas de treinamento. Necessário sincronizar/gerar matriz.";
+        const totalObsReversao =
+          await prisma.observacaoRemanejamentoFuncionario.count({
+            where: {
+              remanejamentoFuncionarioId: rem.id,
+              texto: { contains: textoReversao },
+            },
+          });
+        if (totalObsReversao === 0) {
+          await prisma.observacaoRemanejamentoFuncionario.create({
+            data: {
+              remanejamentoFuncionarioId: rem.id,
+              texto: textoReversao,
+              criadoPor: "Sistema (Correção)",
+              modificadoPor: "Sistema (Correção)",
+            },
+          });
+        }
 
         processados.push({
           id: rem.id,

@@ -65,17 +65,21 @@ model Funcionario {
   statusPrestserv           String?
   emMigracao                Boolean                    @default(false)
   contratoId                Int?
+  funcaoId                  Int?
   criadoEm                  DateTime                   @default(now())
   atualizadoEm              DateTime                   @updatedAt
   excluidoEm                DateTime?
   sispat                    String?
   contrato                  Contrato?                  @relation(fields: [contratoId], references: [id])
+  funcaoRef                 Funcao?                    @relation(name: "FuncionarioToFuncao", fields: [funcaoId], references: [id], onDelete: SetNull)
   periodoUploads            PeriodoUpload[]
   remanejamentosFuncionario RemanejamentoFuncionario[]
   uptimeSheets              UptimeSheet[]
   uptimeUploads             UptimeUpload[]
   usuario                   Usuario?
   capacitacoes              FuncionarioCapacitacao[]
+
+  @@index([funcaoId])
 }
 
 model UptimeSheet {
@@ -510,6 +514,7 @@ model Funcao {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   matrizTreinamento MatrizTreinamento[]
+  funcionarios      Funcionario[] @relation("FuncionarioToFuncao")
 
   @@unique([funcao, regime])
   @@unique([funcao_slug, regime])

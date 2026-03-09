@@ -83,42 +83,57 @@ jobs:
       - name: 💾 Backup banco de dados (produção) antes do deploy
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.skip_backup != 'true' }}
         run: |
-          ssh -o StrictHostKeyChecking=no root@${{ secrets.PROD_SERVER_HOST }} << 'EOF'
-            set -e
-            mkdir -p /var/backups/projetogran/producao
-            TS=$(date -u +%Y%m%d_%H%M%S)
-            FILE="/var/backups/projetogran/producao/crewflow_production_${TS}.dump"
-            echo "🔎 Sanity-check container e DB antes do dump..."
-            docker ps --format '{{.Names}}' | grep -q '^postgres-prod$' || { echo '❌ Container postgres-prod não está em execução'; exit 1; }
-            # Obter variáveis do DB com fallback seguro
-            POSTGRES_PASSWORD_VALUE="${{ secrets.POSTGRES_PASSWORD }}"
-            DB_NAME=$(docker exec postgres-prod bash -lc 'echo -n "${POSTGRES_DB:-projetogran}"')
-            DB_USER=$(docker exec postgres-prod bash -lc 'echo -n "${POSTGRES_USER:-postgres}"')
-            DB_PASS=$(docker exec postgres-prod bash -lc 'echo -n "${POSTGRES_PASSWORD:-}"')
-            if [ -z "$DB_PASS" ]; then
-              if [ -f /opt/projetogran/.env.production ]; then
-                DB_PASS=$(grep -E '^POSTGRES_PASSWORD=' /opt/projetogran/.env.production | head -n1 | cut -d= -f2-)
+          set -euo pipefail
+          PORT="${{ secrets.PROD_SERVER_SSH_PORT }}"; [ -z "$PORT" ] && PORT=22
+          SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=20 -o ServerAliveInterval=30 -o ServerAliveCountMax=6 -p $PORT"
+          ATTEMPTS=5
+          SLEEP=8
+          for i in $(seq 1 $ATTEMPTS); do
+            echo "🔌 Tentativa SSH para backup #$i/$ATTEMPTS (host=${{ secrets.PROD_SERVER_HOST }}, port=$PORT)"
+            if ssh $SSH_OPTS root@${{ secrets.PROD_SERVER_HOST }} << 'EOF'
+              set -e
+              mkdir -p /var/backups/projetogran/producao
+              TS=$(date -u +%Y%m%d_%H%M%S)
+              FILE="/var/backups/projetogran/producao/crewflow_production_${TS}.dump"
+              echo "🔎 Sanity-check container e DB antes do dump..."
+              docker ps --format '{{.Names}}' | grep -q '^postgres-prod$' || { echo '❌ Container postgres-prod não está em execução'; exit 1; }
+              POSTGRES_PASSWORD_VALUE="${{ secrets.POSTGRES_PASSWORD }}"
+              DB_NAME=$(docker exec postgres-prod bash -lc 'echo -n "${POSTGRES_DB:-projetogran}"')
+              DB_USER=$(docker exec postgres-prod bash -lc 'echo -n "${POSTGRES_USER:-postgres}"')
+              DB_PASS=$(docker exec postgres-prod bash -lc 'echo -n "${POSTGRES_PASSWORD:-}"')
+              if [ -z "$DB_PASS" ]; then
+                if [ -f /opt/projetogran/.env.production ]; then
+                  DB_PASS=$(grep -E '^POSTGRES_PASSWORD=' /opt/projetogran/.env.production | head -n1 | cut -d= -f2-)
+                fi
               fi
+              if [ -z "$DB_PASS" ]; then
+                DB_PASS="$POSTGRES_PASSWORD_VALUE"
+              fi
+              if [ -z "$DB_PASS" ]; then
+                echo "⚠️ POSTGRES_PASSWORD não encontrado; usando fallback padrão"; DB_PASS="postgres"
+              fi
+              echo "🔎 Validando conexão ao DB '${DB_NAME}'..."
+              DB_USER=${DB_USER:-postgres}
+              DB_NAME=${DB_NAME:-projetogran}
+              docker exec postgres-prod env PGPASSWORD="$DB_PASS" psql -h localhost -U "$DB_USER" -d "$DB_NAME" -tAc "SELECT current_database();" | grep -q "^${DB_NAME}$" || { echo "❌ Conexão ao DB ${DB_NAME} falhou"; exit 1; }
+              echo "🔎 Realizando pg_dump (custom format, compress nível 1) do banco '${DB_NAME}'..."
+              docker exec postgres-prod env PGPASSWORD="$DB_PASS" pg_dump -h localhost -U "$DB_USER" -d "$DB_NAME" -Fc -Z 1 > "$FILE"
+              ls -lh "$FILE" || true
+              if [ ! -s "$FILE" ]; then
+                echo "❌ Backup vazio ou não encontrado: $FILE"; exit 1; fi
+              echo "✅ Backup criado: $FILE"
+              ls -1t /var/backups/projetogran/producao/crewflow_production_*.dump | tail -n +31 | xargs -r rm -f
+            EOF
+            then
+              echo "✅ Backup concluído com sucesso"
+              break
             fi
-            if [ -z "$DB_PASS" ]; then
-              DB_PASS="$POSTGRES_PASSWORD_VALUE"
+            if [ "$i" -eq "$ATTEMPTS" ]; then
+              echo "❌ Falha no backup após $ATTEMPTS tentativas"; exit 1
             fi
-            if [ -z "$DB_PASS" ]; then
-              echo "⚠️ POSTGRES_PASSWORD não encontrado; usando fallback padrão"; DB_PASS="postgres"
-            fi
-
-            echo "🔎 Validando conexão ao DB '${DB_NAME}'..."
-            DB_USER=${DB_USER:-postgres}
-            DB_NAME=${DB_NAME:-projetogran}
-            docker exec postgres-prod env PGPASSWORD="$DB_PASS" psql -h localhost -U "$DB_USER" -d "$DB_NAME" -tAc "SELECT current_database();" | grep -q "^${DB_NAME}$" || { echo "❌ Conexão ao DB ${DB_NAME} falhou"; exit 1; }
-            echo "🔎 Realizando pg_dump (custom format, compress nível 1) do banco '${DB_NAME}'..."
-            docker exec postgres-prod env PGPASSWORD="$DB_PASS" pg_dump -h localhost -U "$DB_USER" -d "$DB_NAME" -Fc -Z 1 > "$FILE"
-            ls -lh "$FILE" || true
-            if [ ! -s "$FILE" ]; then
-              echo "❌ Backup vazio ou não encontrado: $FILE"; exit 1; fi
-            echo "✅ Backup criado: $FILE"
-            ls -1t /var/backups/projetogran/producao/crewflow_production_*.dump | tail -n +31 | xargs -r rm -f
-          EOF
+            echo "⚠️ Falha transitória na tentativa #$i. Aguardando ${SLEEP}s..."
+            sleep $SLEEP
+          done
 
       - name: 🧹 Prepare server before image load (safe prune)
         run: |
@@ -362,6 +377,8 @@ jobs:
             docker exec crewflow-app-production node scripts/fix-eventos-data-conclusao.cjs --apply --batch=500 || true
             echo "🔁 Backfill de reprovações de tarefas a partir do histórico (valorNovo REPROVADO) ..."
             docker exec crewflow-app-production node scripts/backfill-reprovacoes-tarefa.cjs || true
+            echo "🔁 Backfill de Funcionario.funcaoId ..."
+            docker exec crewflow-app-production node scripts/backfill-funcionario-funcaoid.cjs || true
             echo "📊 Validação pós-backfill (contagens)"
             docker exec postgres-prod psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "select count(*) from \"TarefaStatusEvento\" where upper(\"statusNovo\") like '%REPROV%';" | awk '{print "Eventos REPROV: "$0}'
             docker exec postgres-prod psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "select tipo, count(*) as qtd from \"TarefaRemanejamento\" t join \"TarefaStatusEvento\" e on e.\"tarefaId\" = t.id where upper(e.\"statusNovo\") like '%REPROV%' group by tipo order by qtd desc limit 5;" | sed 's/|/ => /g'

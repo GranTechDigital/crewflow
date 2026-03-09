@@ -3,6 +3,11 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { toSlug } from '@/utils/slug';
 
+function normalizeFuncaoText(funcao: unknown) {
+  const raw = String(funcao || "").trim();
+  return raw.toUpperCase();
+}
+
 function normalizeRegime(regime: unknown) {
   const r = String(regime || "ONSHORE").toUpperCase();
   return r.includes("OFFSHORE") ? "OFFSHORE" : "ONSHORE";
@@ -94,8 +99,9 @@ export async function POST() {
 
     funcoesDistintas.forEach(({ funcao, regime }, key) => {
       if (!funcoesExistentesSet.has(key)) {
-        const funcao_slug = toSlug(funcao);
-        funcoesParaInserir.push({ funcao, regime, funcao_slug, ativo: true });
+        const funcaoNorm = normalizeFuncaoText(funcao);
+        const funcao_slug = toSlug(funcaoNorm);
+        funcoesParaInserir.push({ funcao: funcaoNorm, regime, funcao_slug, ativo: true });
       }
     });
 
