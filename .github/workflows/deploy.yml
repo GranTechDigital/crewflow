@@ -260,12 +260,9 @@ jobs:
             df -h
             cd /opt/projetogran
 
-            # Garantir tags previsíveis da imagem (latest e SHA atual) para o compose
-            SRC_TAG=$(docker image ls crewflow-app --format '{{.Tag}}' | grep -v '^<none>$' | head -n1)
-            if [ -n "$SRC_TAG" ]; then
-              docker tag crewflow-app:"$SRC_TAG" crewflow-app:latest || true
-              docker tag crewflow-app:"$SRC_TAG" crewflow-app:${{ github.sha }} || true
-            fi
+            # Garantir que o deploy use exatamente a imagem carregada deste run
+            docker image inspect crewflow-app:${{ github.sha }} >/dev/null 2>&1 || { echo "❌ Imagem crewflow-app:${{ github.sha }} não encontrada após docker load"; exit 1; }
+            docker tag crewflow-app:${{ github.sha }} crewflow-app:latest
 
             docker system df || true
 
