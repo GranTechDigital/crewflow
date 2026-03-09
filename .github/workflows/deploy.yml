@@ -123,7 +123,7 @@ jobs:
                 echo "❌ Backup vazio ou não encontrado: $FILE"; exit 1; fi
               echo "✅ Backup criado: $FILE"
               ls -1t /var/backups/projetogran/producao/crewflow_production_*.dump | tail -n +31 | xargs -r rm -f
-            EOF
+          EOF
             then
               echo "✅ Backup concluído com sucesso"
               break
