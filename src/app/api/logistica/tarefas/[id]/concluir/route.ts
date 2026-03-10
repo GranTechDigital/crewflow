@@ -411,14 +411,27 @@ async function atualizarStatusTarefasFuncionario(
       const textoDevolucao =
         "Devolvido para TREINAMENTO automaticamente: Nenhuma tarefa de treinamento gerada (Matriz inexistente ou vazia). Necessário criar matriz.";
       try {
-        await prisma.observacaoRemanejamentoFuncionario.create({
-          data: {
-            remanejamentoFuncionarioId,
-            texto: `${textoDevolucao} Data: ${new Date().toISOString()}`,
-            criadoPor: "Sistema",
-            modificadoPor: "Sistema",
-          },
-        });
+        const observacaoExistente =
+          await prisma.observacaoRemanejamentoFuncionario.findFirst({
+            where: {
+              remanejamentoFuncionarioId,
+              texto: {
+                startsWith: textoDevolucao,
+              },
+            },
+            select: { id: true },
+          });
+
+        if (!observacaoExistente) {
+          await prisma.observacaoRemanejamentoFuncionario.create({
+            data: {
+              remanejamentoFuncionarioId,
+              texto: textoDevolucao,
+              criadoPor: "Sistema",
+              modificadoPor: "Sistema",
+            },
+          });
+        }
       } catch (e) {
         console.error(
           "Erro ao criar observação de devolução para Treinamento:",

@@ -94,6 +94,56 @@ async function findEquipeIdBySetor(setor: string) {
   return e?.id ?? null;
 }
 
+async function criarObservacaoTarefaSeNaoExistir({
+  tarefaId,
+  texto,
+  autor,
+}: {
+  tarefaId: string;
+  texto: string;
+  autor: string;
+}) {
+  const existente = await prisma.observacaoTarefaRemanejamento.findFirst({
+    where: { tarefaId, texto },
+    select: { id: true },
+  });
+  if (existente) return false;
+  await prisma.observacaoTarefaRemanejamento.create({
+    data: {
+      tarefaId,
+      texto,
+      criadoPor: autor,
+      modificadoPor: autor,
+    },
+  });
+  return true;
+}
+
+async function criarObservacaoRemanejamentoSeNaoExistir({
+  remanejamentoFuncionarioId,
+  texto,
+  autor,
+}: {
+  remanejamentoFuncionarioId: string;
+  texto: string;
+  autor: string;
+}) {
+  const existente = await prisma.observacaoRemanejamentoFuncionario.findFirst({
+    where: { remanejamentoFuncionarioId, texto },
+    select: { id: true },
+  });
+  if (existente) return false;
+  await prisma.observacaoRemanejamentoFuncionario.create({
+    data: {
+      remanejamentoFuncionarioId,
+      texto,
+      criadoPor: autor,
+      modificadoPor: autor,
+    },
+  });
+  return true;
+}
+
 function chaveTarefa(tipo: string, responsavel: string) {
   const det = detectSetor(responsavel);
   const r = (normalizarSetor(det) ||
@@ -539,14 +589,11 @@ export async function sincronizarTarefasPadrao({
                     },
                   });
                   try {
-                    await prisma.observacaoTarefaRemanejamento.create({
-                      data: {
-                        tarefaId: manter.id,
-                        texto:
-                          "Vinculada automaticamente ao Treinamento (ID) durante sincronização de matriz",
-                        criadoPor: usuarioResponsavel || "Sistema",
-                        modificadoPor: usuarioResponsavel || "Sistema",
-                      },
+                    await criarObservacaoTarefaSeNaoExistir({
+                      tarefaId: manter.id,
+                      texto:
+                        "Vinculada automaticamente ao Treinamento (ID) durante sincronização de matriz",
+                      autor: usuarioResponsavel || "Sistema",
                     });
                   } catch {}
                   try {
@@ -879,16 +926,13 @@ export async function sincronizarTarefasPadrao({
 
           // Observação da tarefa (mensagem contextual por setor)
           try {
-            await prisma.observacaoTarefaRemanejamento.create({
-              data: {
-                tarefaId: tc.id,
-                texto:
-                  tc.responsavel === "TREINAMENTO"
-                    ? "Cancelada automaticamente: treinamento marcado como não obrigatório na matriz"
-                    : "Cancelada automaticamente: tarefa padrão desativada/removida",
-                criadoPor: usuarioResponsavel || "Sistema",
-                modificadoPor: usuarioResponsavel || "Sistema",
-              },
+            await criarObservacaoTarefaSeNaoExistir({
+              tarefaId: tc.id,
+              texto:
+                tc.responsavel === "TREINAMENTO"
+                  ? "Cancelada automaticamente: treinamento marcado como não obrigatório na matriz"
+                  : "Cancelada automaticamente: tarefa padrão desativada/removida",
+              autor: usuarioResponsavel || "Sistema",
             });
           } catch (obsErr) {
             console.error(
@@ -947,16 +991,13 @@ export async function sincronizarTarefasPadrao({
             data: { status: "PENDENTE", dataConclusao: null },
           });
           try {
-            await prisma.observacaoTarefaRemanejamento.create({
-              data: {
-                tarefaId: tr.id,
-                texto:
-                  tr.responsavel === "TREINAMENTO"
-                    ? "Reativada automaticamente: treinamento voltou a ser obrigatório na matriz"
-                    : "Reativada automaticamente: tarefa padrão reativada",
-                criadoPor: usuarioResponsavel || "Sistema",
-                modificadoPor: usuarioResponsavel || "Sistema",
-              },
+            await criarObservacaoTarefaSeNaoExistir({
+              tarefaId: tr.id,
+              texto:
+                tr.responsavel === "TREINAMENTO"
+                  ? "Reativada automaticamente: treinamento voltou a ser obrigatório na matriz"
+                  : "Reativada automaticamente: tarefa padrão reativada",
+              autor: usuarioResponsavel || "Sistema",
             });
           } catch {}
           try {
@@ -1075,13 +1116,10 @@ export async function sincronizarTarefasPadrao({
 
         if (deveRegistrarDevolucao) {
           try {
-            await prisma.observacaoRemanejamentoFuncionario.create({
-              data: {
-                remanejamentoFuncionarioId: rem.id,
-                texto: textoDevolucao,
-                criadoPor: usuarioResponsavel || "Sistema",
-                modificadoPor: usuarioResponsavel || "Sistema",
-              },
+            await criarObservacaoRemanejamentoSeNaoExistir({
+              remanejamentoFuncionarioId: rem.id,
+              texto: textoDevolucao,
+              autor: usuarioResponsavel || "Sistema",
             });
           } catch (e) {
             console.error(
@@ -1145,13 +1183,10 @@ export async function sincronizarTarefasPadrao({
 
         // Registrar observação na nova tabela
         try {
-          await prisma.observacaoRemanejamentoFuncionario.create({
-            data: {
-              remanejamentoFuncionarioId: rem.id,
-              texto: observacao,
-              criadoPor: usuarioResponsavel || "Sistema",
-              modificadoPor: usuarioResponsavel || "Sistema",
-            },
+          await criarObservacaoRemanejamentoSeNaoExistir({
+            remanejamentoFuncionarioId: rem.id,
+            texto: observacao,
+            autor: usuarioResponsavel || "Sistema",
           });
         } catch (e) {
           console.error("Erro ao criar observação de reset:", e);
@@ -1215,13 +1250,10 @@ export async function sincronizarTarefasPadrao({
 
           // Registrar observação na nova tabela
           try {
-            await prisma.observacaoRemanejamentoFuncionario.create({
-              data: {
-                remanejamentoFuncionarioId: rem.id,
-                texto: observacaoCorr,
-                criadoPor: usuarioResponsavel || "Sistema",
-                modificadoPor: usuarioResponsavel || "Sistema",
-              },
+            await criarObservacaoRemanejamentoSeNaoExistir({
+              remanejamentoFuncionarioId: rem.id,
+              texto: observacaoCorr,
+              autor: usuarioResponsavel || "Sistema",
             });
           } catch (e) {
             console.error("Erro ao criar observação de correção:", e);

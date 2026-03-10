@@ -100,12 +100,20 @@ function ContratoDetalheContent() {
   >([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [funcaoIdFiltro, setFuncaoIdFiltro] = useState<number | null>(null);
 
   useEffect(() => {
     const search = searchParams.get("search");
+    const funcaoIdParam = searchParams.get("funcaoId");
     if (search) {
       setSearchTerm(search);
     }
+    const parsedFuncaoId = Number(funcaoIdParam);
+    setFuncaoIdFiltro(
+      Number.isFinite(parsedFuncaoId) && parsedFuncaoId > 0
+        ? parsedFuncaoId
+        : null,
+    );
   }, [searchParams]);
   const [expandedFuncao, setExpandedFuncao] = useState<number | null>(null);
 
@@ -135,7 +143,7 @@ function ContratoDetalheContent() {
       if (!contratoId) return;
       const res = await fetch(
         `/api/matriz-treinamento/contratos/${contratoId}/export-v2`,
-        { cache: "no-store" }
+        { cache: "no-store" },
       );
       if (!res.ok) {
         const text = await res.text();
@@ -179,7 +187,7 @@ function ContratoDetalheContent() {
         {
           method: "POST",
           body: formData,
-        }
+        },
       );
       const json = await res.json();
       if (!res.ok || !json.success) {
@@ -214,13 +222,13 @@ function ContratoDetalheContent() {
         linhasResumo.push(
           "",
           "Alguns erros:",
-          ...mostrados.map((msg, i) => `${i + 1}. ${msg}`)
+          ...mostrados.map((msg, i) => `${i + 1}. ${msg}`),
         );
         if (errosDetalhes.length > mostrados.length) {
           linhasResumo.push(
             `... e mais ${
               errosDetalhes.length - mostrados.length
-            } erro(s). Consulte o console para lista completa.`
+            } erro(s). Consulte o console para lista completa.`,
           );
         }
       }
@@ -289,7 +297,7 @@ function ContratoDetalheContent() {
     try {
       const response = await fetch(
         `/api/matriz-treinamento/contratos/${contratoId}`,
-        { cache: "no-store" }
+        { cache: "no-store" },
       );
       const data: ApiResponse = await response.json();
       if (!data.success) {
@@ -335,7 +343,7 @@ function ContratoDetalheContent() {
           "| status:",
           response.status,
           "| body:",
-          rawText?.slice(0, 500)
+          rawText?.slice(0, 500),
         );
         setTodasFuncoes([]);
         return;
@@ -356,7 +364,7 @@ function ContratoDetalheContent() {
           "| status:",
           response.status,
           "| body:",
-          rawText?.slice(0, 500)
+          rawText?.slice(0, 500),
         );
         setTodasFuncoes([]);
         return;
@@ -375,7 +383,7 @@ function ContratoDetalheContent() {
   // Atualizar tipo de obrigatoriedade de um item da matriz
   const handleChangeObrigatoriedade = async (
     matrizId: number,
-    novoTipo: string
+    novoTipo: string,
   ) => {
     try {
       setSavingObrigatoriedadeId(matrizId);
@@ -394,7 +402,7 @@ function ContratoDetalheContent() {
       alert(
         err instanceof Error
           ? err.message
-          : "Falha ao atualizar obrigatoriedade"
+          : "Falha ao atualizar obrigatoriedade",
       );
     } finally {
       setSavingObrigatoriedadeId(null);
@@ -425,7 +433,7 @@ function ContratoDetalheContent() {
 
     try {
       const funcoesNovas = funcoesSelecionadas.filter(
-        (id) => !funcoes.some((f) => f.id === id)
+        (id) => !funcoes.some((f) => f.id === id),
       );
 
       let mensagem = "";
@@ -442,7 +450,7 @@ function ContratoDetalheContent() {
             body: JSON.stringify({
               funcaoIds: funcoesNovas,
             }),
-          }
+          },
         );
 
         const data = await response.json();
@@ -470,7 +478,7 @@ function ContratoDetalheContent() {
             body: JSON.stringify({
               funcaoIds: funcoesParaRemover,
             }),
-          }
+          },
         );
 
         const data = await response.json();
@@ -494,7 +502,7 @@ function ContratoDetalheContent() {
       console.error("Erro ao confirmar seleção:", error);
       alert(
         "Erro ao salvar alterações: " +
-          (error instanceof Error ? error.message : "Erro desconhecido")
+          (error instanceof Error ? error.message : "Erro desconhecido"),
       );
     }
   };
@@ -509,7 +517,7 @@ function ContratoDetalheContent() {
 
   const handleSubmit = async (
     treinamentosSelecionados: number[],
-    tipoObrigatoriedadeGlobal: string
+    tipoObrigatoriedadeGlobal: string,
   ) => {
     if (
       !selectedFuncao ||
@@ -536,7 +544,7 @@ function ContratoDetalheContent() {
             treinamentoId,
             tipoObrigatoriedade: tipoObrigatoriedadeGlobal,
           }),
-        })
+        }),
       );
 
       const responses = await Promise.all(promises);
@@ -547,7 +555,7 @@ function ContratoDetalheContent() {
         alert(`Erro ao adicionar ${errors.length} treinamento(s)`);
       } else {
         alert(
-          `${treinamentosSelecionados.length} treinamento(s) adicionado(s) com sucesso!`
+          `${treinamentosSelecionados.length} treinamento(s) adicionado(s) com sucesso!`,
         );
         await fetchContratoDetalhes();
         closeModal();
@@ -599,7 +607,7 @@ function ContratoDetalheContent() {
     if (!contrato?.id) return;
     if (
       !confirm(
-        "Tem certeza que deseja excluir esta função e todos os seus treinamentos?"
+        "Tem certeza que deseja excluir esta função e todos os seus treinamentos?",
       )
     )
       return;
@@ -611,7 +619,7 @@ function ContratoDetalheContent() {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ funcaoIds: [funcaoId] }),
-        }
+        },
       );
 
       const data = await response.json();
@@ -628,9 +636,36 @@ function ContratoDetalheContent() {
     }
   };
 
-  const filteredFuncoes = funcoes.filter((funcao) =>
-    funcao.funcao.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredFuncoes = funcoes.filter((funcao) => {
+    if (funcaoIdFiltro !== null) {
+      return funcao.id === funcaoIdFiltro;
+    }
+    return funcao.funcao.toLowerCase().includes(searchTerm.toLowerCase());
+  });
+  const funcaoFiltroDetalhe =
+    funcaoIdFiltro !== null
+      ? todasFuncoes.find((funcao) => funcao.id === funcaoIdFiltro) || null
+      : null;
+  const funcoesMesmoNomeNoContrato = funcaoFiltroDetalhe
+    ? funcoes.filter((funcao) => funcao.funcao === funcaoFiltroDetalhe.funcao)
+    : [];
+  const regimesAlternativosNoContrato = Array.from(
+    new Set(
+      funcoesMesmoNomeNoContrato
+        .filter((funcao) => funcao.id !== funcaoFiltroDetalhe?.id)
+        .map((funcao) => funcao.regime)
+        .filter(Boolean),
+    ),
   );
+  const regimeSolicitado = (funcaoFiltroDetalhe?.regime || "")
+    .trim()
+    .toUpperCase();
+  const regimeAlternativoEsperado =
+    regimeSolicitado === "OFFSHORE"
+      ? "ONSHORE"
+      : regimeSolicitado === "ONSHORE"
+        ? "OFFSHORE"
+        : null;
 
   const getTipoObrigatoriedadeLabel = (tipo: string) => {
     const tipoObj = tiposObrigatoriedade.find((t) => t.value === tipo);
@@ -775,7 +810,7 @@ function ContratoDetalheContent() {
                 className="p-6 cursor-pointer hover:bg-gray-50"
                 onClick={() => {
                   setExpandedFuncao(
-                    expandedFuncao === funcao.id ? null : funcao.id
+                    expandedFuncao === funcao.id ? null : funcao.id,
                   );
                   setBuscaTreinamento("");
                   setFiltroObrigatoriedade("");
@@ -795,7 +830,7 @@ function ContratoDetalheContent() {
                     <span className="text-sm text-gray-600">
                       {
                         funcao.matrizTreinamento.filter(
-                          (item) => item.treinamento !== null
+                          (item) => item.treinamento !== null,
                         ).length
                       }{" "}
                       treinamentos
@@ -885,7 +920,7 @@ function ContratoDetalheContent() {
                                   .includes(buscaTreinamento.toLowerCase()) &&
                                 (filtroObrigatoriedade === "" ||
                                   item.tipoObrigatoriedade ===
-                                    filtroObrigatoriedade)
+                                    filtroObrigatoriedade),
                             )
                             .map((item) => (
                               <tr key={item.id} className="hover:bg-gray-50">
@@ -907,7 +942,7 @@ function ContratoDetalheContent() {
                                     onChange={(e) =>
                                       handleChangeObrigatoriedade(
                                         item.id,
-                                        e.target.value
+                                        e.target.value,
                                       )
                                     }
                                     disabled={
@@ -948,7 +983,7 @@ function ContratoDetalheContent() {
                                 .includes(buscaTreinamento.toLowerCase()) &&
                               (filtroObrigatoriedade === "" ||
                                 item.tipoObrigatoriedade ===
-                                  filtroObrigatoriedade)
+                                  filtroObrigatoriedade),
                           ).length === 0 && (
                             <tr>
                               <td
@@ -1005,9 +1040,46 @@ function ContratoDetalheContent() {
               Nenhuma função encontrada
             </h3>
             <p className="mt-1 text-sm text-gray-500">
-              {searchTerm
-                ? "Tente ajustar os termos de busca."
-                : "Não há funções cadastradas para este contrato."}
+              {funcaoIdFiltro !== null ? (
+                funcaoFiltroDetalhe ? (
+                  regimesAlternativosNoContrato.length > 0 ? (
+                    <>
+                      Não existe matriz para{" "}
+                      <span className="font-semibold">
+                        {funcaoFiltroDetalhe.funcao} (
+                        {funcaoFiltroDetalhe.regime})
+                      </span>
+                      .{" "}
+                      {regimeAlternativoEsperado &&
+                      regimesAlternativosNoContrato.includes(
+                        regimeAlternativoEsperado,
+                      )
+                        ? "Encontramos essa função neste contrato no outro regime"
+                        : "Encontramos essa função neste contrato no(s) regime(s)"}{" "}
+                      <span className="font-semibold">
+                        {regimesAlternativosNoContrato.join(", ")}
+                      </span>
+                      .
+                    </>
+                  ) : (
+                    <>
+                      Não existe matriz para{" "}
+                      <span className="font-semibold">
+                        {funcaoFiltroDetalhe.funcao} (
+                        {funcaoFiltroDetalhe.regime})
+                      </span>
+                      . Também não encontramos no outro regime
+                      (OFFSHORE/ONSHORE) neste contrato.
+                    </>
+                  )
+                ) : (
+                  "O filtro recebido aponta para uma função que não foi encontrada na base de funções."
+                )
+              ) : searchTerm ? (
+                "Tente ajustar os termos de busca."
+              ) : (
+                "Não há funções cadastradas para este contrato."
+              )}
             </p>
           </div>
         )}
@@ -1065,7 +1137,7 @@ function ContratoDetalheContent() {
                           .filter(
                             (funcao) =>
                               filtroRegime === "" ||
-                              funcao.regime === filtroRegime
+                              funcao.regime === filtroRegime,
                           ).length
                       }{" "}
                       funções
@@ -1090,7 +1162,7 @@ function ContratoDetalheContent() {
                     >
                       <option value="">Todos os regimes</option>
                       {Array.from(
-                        new Set(todasFuncoes.map((f) => f.regime))
+                        new Set(todasFuncoes.map((f) => f.regime)),
                       ).map((regime) => (
                         <option key={String(regime)} value={String(regime)}>
                           {String(regime)}
@@ -1116,11 +1188,11 @@ function ContratoDetalheContent() {
                         .filter(
                           (funcao) =>
                             filtroRegime === "" ||
-                            String(funcao.regime) === filtroRegime
+                            String(funcao.regime) === filtroRegime,
                         )
                         .map((funcao) => {
                           const jaExiste = funcoes.some(
-                            (f) => f.id === funcao.id
+                            (f) => f.id === funcao.id,
                           );
                           return (
                             <div
@@ -1129,8 +1201,8 @@ function ContratoDetalheContent() {
                                 funcoesSelecionadas.includes(funcao.id)
                                   ? "border-blue-500 bg-blue-50 shadow-sm"
                                   : jaExiste
-                                  ? "border-green-500 bg-green-50"
-                                  : "border-gray-200 hover:border-gray-300"
+                                    ? "border-green-500 bg-green-50"
+                                    : "border-gray-200 hover:border-gray-300"
                               }`}
                               onClick={() =>
                                 handleFuncaoToggle(funcao.id.toString())
@@ -1140,7 +1212,7 @@ function ContratoDetalheContent() {
                                 <input
                                   type="checkbox"
                                   checked={funcoesSelecionadas.includes(
-                                    funcao.id
+                                    funcao.id,
                                   )}
                                   onChange={() =>
                                     handleFuncaoToggle(funcao.id.toString())
@@ -1183,7 +1255,7 @@ function ContratoDetalheContent() {
                       })
                       .filter(
                         (funcao) =>
-                          filtroRegime === "" || funcao.regime === filtroRegime
+                          filtroRegime === "" || funcao.regime === filtroRegime,
                       ).length === 0 && (
                       <div className="text-center py-6 text-gray-500">
                         <UsersIcon className="h-10 w-10 mx-auto mb-2 text-gray-400" />
@@ -1219,7 +1291,7 @@ function ContratoDetalheContent() {
                       <div className="space-y-1.5">
                         {funcoesSelecionadas.map((funcaoId) => {
                           const funcao = todasFuncoes.find(
-                            (f) => f.id === funcaoId
+                            (f) => f.id === funcaoId,
                           );
                           if (!funcao) return null;
 

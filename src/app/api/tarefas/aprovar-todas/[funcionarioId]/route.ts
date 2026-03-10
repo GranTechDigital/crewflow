@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 // POST - Aprovar todas as tarefas de um funcionário (para teste)
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ funcionarioId: string }> }
+  { params }: { params: Promise<{ funcionarioId: string }> },
 ) {
   try {
     const { funcionarioId } = await params;
@@ -15,26 +15,27 @@ export async function POST(
     if (!funcionarioId) {
       return NextResponse.json(
         { error: "ID do funcionário é obrigatório" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     // Buscar o funcionário e suas tarefas
-    const remanejamentoFuncionario = await prisma.remanejamentoFuncionario.findUnique({
-      where: { id: funcionarioId },
-      include: {
-        tarefas: {
-          where: { status: { not: "CONCLUIDO" } },
-          select: { id: true, status: true }
+    const remanejamentoFuncionario =
+      await prisma.remanejamentoFuncionario.findUnique({
+        where: { id: funcionarioId },
+        include: {
+          tarefas: {
+            where: { status: { not: "CONCLUIDO" } },
+            select: { id: true, status: true },
+          },
+          funcionario: { select: { id: true, nome: true, matricula: true } },
         },
-        funcionario: { select: { id: true, nome: true, matricula: true } }
-      }
-    });
+      });
 
     if (!remanejamentoFuncionario) {
       return NextResponse.json(
         { error: "Funcionário não encontrado" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -42,97 +43,145 @@ export async function POST(
 
     if (tarefasPendentes.length === 0) {
       return NextResponse.json(
-        { 
+        {
           message: "Nenhuma tarefa pendente encontrada",
-          tarefasAprovadas: 0
+          tarefasAprovadas: 0,
         },
-        { status: 200 }
+        { status: 200 },
       );
     }
 
     // Aprovar todas as tarefas pendentes
     const dataAtual = new Date();
-    const tarefasIds = tarefasPendentes.map(t => t.id);
+    const tarefasIds = tarefasPendentes.map((t) => t.id);
 
     await prisma.tarefaRemanejamento.updateMany({
       where: {
-        id: { in: tarefasIds }
+        id: { in: tarefasIds },
       },
       data: {
         status: "CONCLUIDO",
         dataConclusao: dataAtual,
-        observacoes: "Aprovado automaticamente para teste"
-      }
+        observacoes: "Aprovado automaticamente para teste",
+      },
     });
 
     // Registrar eventos de status por tarefa
     try {
       if (tarefasPendentes.length > 0) {
-        const norm = (s: string | null | undefined) => (s || '').normalize('NFD').replace(/[^A-Za-z0-9\s]/g, '').trim().toUpperCase();
+        const norm = (s: string | null | undefined) =>
+          (s || "")
+            .normalize("NFD")
+            .replace(/[^A-Za-z0-9\s]/g, "")
+            .trim()
+            .toUpperCase();
         const detectSetor = (s: string | null | undefined) => {
           const v = norm(s);
-          if (!v) return '';
-          if (v.includes('TREIN')) return 'TREINAMENTO';
-          if (v.includes('MEDIC')) return 'MEDICINA';
-          if (v.includes('RECURSOS') || v.includes('HUMANOS') || v.includes(' RH') || v === 'RH' || v.includes('RH')) return 'RH';
+          if (!v) return "";
+          if (v.includes("TREIN")) return "TREINAMENTO";
+          if (v.includes("MEDIC")) return "MEDICINA";
+          if (
+            v.includes("RECURSOS") ||
+            v.includes("HUMANOS") ||
+            v.includes(" RH") ||
+            v === "RH" ||
+            v.includes("RH")
+          )
+            return "RH";
           return v;
         };
         async function findEquipeIdBySetor(setor: string) {
           const s = norm(setor);
           if (!s) return null;
-          if (s === 'RH') {
-            const e = await prisma.equipe.findFirst({ where: { OR: [{ nome: { contains: 'RH', mode: 'insensitive' } }, { nome: { contains: 'RECURSOS', mode: 'insensitive' } }, { nome: { contains: 'HUMANOS', mode: 'insensitive' } }] }, select: { id: true } });
+          if (s === "RH") {
+            const e = await prisma.equipe.findFirst({
+              where: {
+                OR: [
+                  { nome: { contains: "RH", mode: "insensitive" } },
+                  { nome: { contains: "RECURSOS", mode: "insensitive" } },
+                  { nome: { contains: "HUMANOS", mode: "insensitive" } },
+                ],
+              },
+              select: { id: true },
+            });
             return e?.id ?? null;
           }
-          if (s === 'MEDICINA') {
-            const e = await prisma.equipe.findFirst({ where: { nome: { contains: 'MEDIC', mode: 'insensitive' } }, select: { id: true } });
+          if (s === "MEDICINA") {
+            const e = await prisma.equipe.findFirst({
+              where: { nome: { contains: "MEDIC", mode: "insensitive" } },
+              select: { id: true },
+            });
             return e?.id ?? null;
           }
-          if (s === 'TREINAMENTO') {
-            const e = await prisma.equipe.findFirst({ where: { nome: { contains: 'TREIN', mode: 'insensitive' } }, select: { id: true } });
+          if (s === "TREINAMENTO") {
+            const e = await prisma.equipe.findFirst({
+              where: { nome: { contains: "TREIN", mode: "insensitive" } },
+              select: { id: true },
+            });
             return e?.id ?? null;
           }
-          const e = await prisma.equipe.findFirst({ where: { nome: { equals: s, mode: 'insensitive' } }, select: { id: true } });
+          const e = await prisma.equipe.findFirst({
+            where: { nome: { equals: s, mode: "insensitive" } },
+            select: { id: true },
+          });
           return e?.id ?? null;
         }
         // Carregar metadados necessários para equipe/setor
         const tarefasDetalhadas = await prisma.tarefaRemanejamento.findMany({
-          where: { id: { in: tarefasPendentes.map(t => t.id) } },
-          select: { id: true, tarefaPadraoId: true, treinamentoId: true, responsavel: true, tipo: true, descricao: true }
+          where: { id: { in: tarefasPendentes.map((t) => t.id) } },
+          select: {
+            id: true,
+            tarefaPadraoId: true,
+            treinamentoId: true,
+            responsavel: true,
+            tipo: true,
+            descricao: true,
+          },
         });
         const eventosData = [] as any[];
         for (const t of tarefasDetalhadas) {
-          let setorBase = '';
+          let setorBase = "";
           const tpId = t.tarefaPadraoId;
           const trId = t.treinamentoId;
-          if (trId) setorBase = 'TREINAMENTO';
+          if (trId) setorBase = "TREINAMENTO";
           if (!setorBase && tpId) {
-            const tp = await prisma.tarefaPadrao.findUnique({ where: { id: tpId }, select: { setor: true } });
-            setorBase = tp?.setor || '';
+            const tp = await prisma.tarefaPadrao.findUnique({
+              where: { id: tpId },
+              select: { setor: true },
+            });
+            setorBase = tp?.setor || "";
           }
-          if (!setorBase) setorBase = t.responsavel || t.tipo || t.descricao || '';
+          if (!setorBase)
+            setorBase = t.responsavel || t.tipo || t.descricao || "";
           const eqId = await findEquipeIdBySetor(detectSetor(setorBase));
           if (eqId) {
             try {
               await prisma.tarefaRemanejamento.update({
                 where: { id: t.id },
-                data: ({ setor: { connect: { id: eqId } } } as any),
+                data: { setor: { connect: { id: eqId } } } as any,
               });
             } catch {}
           }
           eventosData.push({
             tarefaId: t.id,
             remanejamentoFuncionarioId: funcionarioId,
-            statusAnterior: tarefasPendentes.find(x => x.id === t.id)?.status ?? 'PENDENTE',
-            statusNovo: 'CONCLUIDO',
-            observacoes: 'Aprovado automaticamente (lote)',
+            statusAnterior:
+              tarefasPendentes.find((x) => x.id === t.id)?.status ?? "PENDENTE",
+            statusNovo: "CONCLUIDO",
+            observacoes: "Aprovado automaticamente (lote)",
             usuarioResponsavelId: usuarioAutenticado?.id ?? null,
           });
         }
-        await prisma.tarefaStatusEvento.createMany({ data: eventosData, skipDuplicates: true });
+        await prisma.tarefaStatusEvento.createMany({
+          data: eventosData,
+          skipDuplicates: true,
+        });
       }
     } catch (eventoError) {
-      console.error("Erro ao registrar eventos de status em lote:", eventoError);
+      console.error(
+        "Erro ao registrar eventos de status em lote:",
+        eventoError,
+      );
     }
 
     // Recalcular o status geral considerando regra especial Treinamento 0/0
@@ -146,13 +195,13 @@ export async function POST(
         (tarefa) =>
           tarefa.status === "CONCLUIDO" ||
           tarefa.status === "CONCLUIDA" ||
-          tarefa.status === "CANCELADO"
+          tarefa.status === "CANCELADO",
       );
 
     const temTreinamentoAtivo = tarefasAtual.some(
       (t) =>
         t.status !== "CANCELADO" &&
-        (t.responsavel || "").toUpperCase().includes("TREIN")
+        (t.responsavel || "").toUpperCase().includes("TREIN"),
     );
 
     const statusAnterior = remanejamentoFuncionario.statusTarefas;
@@ -188,7 +237,8 @@ export async function POST(
           descricaoAcao: `Todas as tarefas foram aprovadas automaticamente para teste (${tarefasPendentes.length} tarefas)`,
           campoAlterado: "status",
           valorNovo: "CONCLUIDO",
-          usuarioResponsavel: usuarioAutenticado?.funcionario?.nome || "Sistema",
+          usuarioResponsavel:
+            usuarioAutenticado?.funcionario?.nome || "Sistema",
           usuarioResponsavelId: usuarioAutenticado?.id,
           equipeId: usuarioAutenticado?.equipeId,
         },
@@ -203,7 +253,8 @@ export async function POST(
           descricaoAcao: `Status geral atualizado para ${novoStatus} após aprovação de todas as tarefas`,
           campoAlterado: "statusTarefas",
           valorNovo: novoStatus,
-          usuarioResponsavel: usuarioAutenticado?.funcionario?.nome || "Sistema",
+          usuarioResponsavel:
+            usuarioAutenticado?.funcionario?.nome || "Sistema",
           usuarioResponsavelId: usuarioAutenticado?.id,
           equipeId: usuarioAutenticado?.equipeId,
         },
@@ -216,18 +267,31 @@ export async function POST(
       const textoDevolucao =
         "Devolvido para TREINAMENTO automaticamente: Nenhuma tarefa de treinamento gerada (Matriz inexistente ou vazia). Necessário criar matriz.";
       try {
-        await prisma.observacaoRemanejamentoFuncionario.create({
-          data: {
-            remanejamentoFuncionarioId: funcionarioId,
-            texto: `${textoDevolucao} Data: ${new Date().toISOString()}`,
-            criadoPor: usuarioAutenticado?.funcionario?.nome || "Sistema",
-            modificadoPor: usuarioAutenticado?.funcionario?.nome || "Sistema",
-          },
-        });
+        const observacaoExistente =
+          await prisma.observacaoRemanejamentoFuncionario.findFirst({
+            where: {
+              remanejamentoFuncionarioId: funcionarioId,
+              texto: {
+                startsWith: textoDevolucao,
+              },
+            },
+            select: { id: true },
+          });
+
+        if (!observacaoExistente) {
+          await prisma.observacaoRemanejamentoFuncionario.create({
+            data: {
+              remanejamentoFuncionarioId: funcionarioId,
+              texto: textoDevolucao,
+              criadoPor: usuarioAutenticado?.funcionario?.nome || "Sistema",
+              modificadoPor: usuarioAutenticado?.funcionario?.nome || "Sistema",
+            },
+          });
+        }
       } catch (e) {
         console.error(
           "Erro ao criar observação de devolução para Treinamento (aprovar-todas):",
-          e
+          e,
         );
       }
     }
@@ -237,15 +301,14 @@ export async function POST(
       tarefasAprovadas: tarefasPendentes.length,
       novoStatus,
     });
-
   } catch (error) {
     console.error("Erro ao aprovar todas as tarefas:", error);
     return NextResponse.json(
-      { 
+      {
         error: "Erro interno do servidor",
-        details: error instanceof Error ? error.message : "Erro desconhecido"
+        details: error instanceof Error ? error.message : "Erro desconhecido",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

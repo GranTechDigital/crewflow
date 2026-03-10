@@ -289,6 +289,9 @@ function FuncionariosPageContent() {
         setRemObsLoading(true);
         const response = await fetch(
           `/api/logistica/remanejamentos/${remanejamentoId}/observacoes`,
+          {
+            cache: "no-store",
+          },
         );
         if (!response.ok) {
           const data = await response.json().catch(() => ({}));
@@ -1287,7 +1290,9 @@ function FuncionariosPageContent() {
         params.append("filtrarProcesso", "false");
       }
 
-      const response = await fetch(`/api/logistica/remanejamentos?${params}`);
+      const response = await fetch(`/api/logistica/remanejamentos?${params}`, {
+        cache: "no-store",
+      });
 
       if (!response.ok) {
         throw new Error("Erro ao carregar remanejamentos");
@@ -1434,7 +1439,9 @@ function FuncionariosPageContent() {
     try {
       const params = new URLSearchParams();
       params.append("filtrarProcesso", "false");
-      const response = await fetch(`/api/logistica/remanejamentos?${params}`);
+      const response = await fetch(`/api/logistica/remanejamentos?${params}`, {
+        cache: "no-store",
+      });
       if (!response.ok) {
         throw new Error("Erro ao carregar remanejamentos (base nominal)");
       }
