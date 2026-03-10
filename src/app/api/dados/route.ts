@@ -9,9 +9,20 @@ export async function GET() {
         matricula: {
           not: 'ADMIN001'
         }
+      },
+      include: {
+        funcaoRef: {
+          select: {
+            regime: true
+          }
+        }
       }
     });
-    return NextResponse.json(funcionarios);
+    const funcionariosComRegime = funcionarios.map((funcionario) => ({
+      ...funcionario,
+      regime: funcionario.funcaoRef?.regime ?? null
+    }));
+    return NextResponse.json(funcionariosComRegime);
   } catch (error) {
     console.error('Erro ao buscar funcionários do banco:', error);
     return NextResponse.json({ error: 'Erro ao buscar funcionários.' }, { status: 500 });

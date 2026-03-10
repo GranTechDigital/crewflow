@@ -176,7 +176,19 @@ export async function GET(request: NextRequest) {
           take: 50,
           orderBy: { updatedAt: "desc" },
           include: {
-            funcionario: { select: { nome: true, funcao: true } },
+            funcionario: {
+              select: {
+                id: true,
+                nome: true,
+                funcao: true,
+                funcaoId: true,
+                funcaoRef: {
+                  select: {
+                    regime: true,
+                  },
+                },
+              },
+            },
             solicitacao: {
               include: {
                 contratoDestino: { select: { id: true, numero: true } },
@@ -184,10 +196,110 @@ export async function GET(request: NextRequest) {
             },
           },
         });
-      const treinamentoItems = treinamentoItemsRaw.map((it) => ({
-        ...it,
-        categoria: "TREINAMENTO_00",
-      }));
+
+      const contratosNumero = Array.from(
+        new Set(
+          treinamentoItemsRaw
+            .map((it) => it.solicitacao?.contratoDestino?.numero)
+            .filter((numero): numero is string => !!numero),
+        ),
+      );
+      const funcoesId = Array.from(
+        new Set(
+          treinamentoItemsRaw
+            .map((it) => it.funcionario?.funcaoId)
+            .filter((id): id is number => typeof id === "number"),
+        ),
+      );
+      const funcoesNome = Array.from(
+        new Set(
+          treinamentoItemsRaw
+            .map((it) => (it.funcionario?.funcao || "").trim())
+            .filter((nome): nome is string => nome.length > 0),
+        ),
+      );
+      const regimesNome = Array.from(
+        new Set(
+          treinamentoItemsRaw
+            .map((it) => (it.funcionario?.funcaoRef?.regime || "").trim())
+            .filter((regime): regime is string => regime.length > 0),
+        ),
+      );
+
+      const paresComMatriz = new Set<string>();
+      const paresNomeRegimeComMatriz = new Set<string>();
+      if (
+        contratosNumero.length > 0 &&
+        (funcoesId.length > 0 ||
+          (funcoesNome.length > 0 && regimesNome.length > 0))
+      ) {
+        const matrizesAtivas = await prisma.matrizTreinamento.findMany({
+          where: {
+            ativo: true,
+            tipoObrigatoriedade: { in: ["AP", "RA"] },
+            treinamentoId: { not: null },
+            contrato: { numero: { in: contratosNumero } },
+            OR: [
+              ...(funcoesId.length > 0
+                ? [{ funcaoId: { in: funcoesId } }]
+                : []),
+              ...(funcoesNome.length > 0 && regimesNome.length > 0
+                ? [
+                    {
+                      funcao: {
+                        funcao: { in: funcoesNome },
+                        regime: { in: regimesNome },
+                      },
+                    },
+                  ]
+                : []),
+            ],
+          },
+          select: {
+            funcaoId: true,
+            contrato: { select: { numero: true } },
+            funcao: { select: { funcao: true, regime: true } },
+          },
+        });
+
+        for (const matriz of matrizesAtivas) {
+          const numero = matriz.contrato?.numero;
+          if (!numero) continue;
+          paresComMatriz.add(`${numero}:${matriz.funcaoId}`);
+          const nomeFuncao = (matriz.funcao?.funcao || "").trim().toLowerCase();
+          const regime = (matriz.funcao?.regime || "").trim().toLowerCase();
+          if (nomeFuncao && regime) {
+            paresNomeRegimeComMatriz.add(`${numero}:${nomeFuncao}:${regime}`);
+          }
+        }
+      }
+
+      const treinamentoItems = treinamentoItemsRaw
+        .filter((it) => {
+          const numero = it.solicitacao?.contratoDestino?.numero;
+          const funcaoId = it.funcionario?.funcaoId;
+          const nomeFuncao = (it.funcionario?.funcao || "")
+            .trim()
+            .toLowerCase();
+          const regime = (it.funcionario?.funcaoRef?.regime || "")
+            .trim()
+            .toLowerCase();
+          const temMatrizExataPorId =
+            typeof funcaoId === "number" && !!numero
+              ? paresComMatriz.has(`${numero}:${funcaoId}`)
+              : false;
+          const temMatrizExataPorNomeRegime =
+            !!numero && !!nomeFuncao && !!regime
+              ? paresNomeRegimeComMatriz.has(
+                  `${numero}:${nomeFuncao}:${regime}`,
+                )
+              : false;
+          return !(temMatrizExataPorId || temMatrizExataPorNomeRegime);
+        })
+        .map((it) => ({
+          ...it,
+          categoria: "TREINAMENTO_00",
+        }));
       priorityItems = [...priorityItems, ...treinamentoItems];
     }
 

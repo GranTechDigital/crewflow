@@ -91,23 +91,45 @@ async function gerarTarefasTreinamento(
     }
 
     const contratoId = solicitacao.contratoDestinoId;
-    const funcaoNome = funcionario.funcao;
+    const funcionarioIdNumero =
+      typeof funcionario.id === "number" ? (funcionario.id as number) : null;
 
-    if (!funcaoNome) {
-      console.log("❌ Função do funcionário não encontrada");
+    if (!funcionarioIdNumero) {
+      console.log("❌ ID do funcionário inválido para buscar funcaoId");
       return;
     }
 
-    // Buscar a função na tabela Funcao (não Funcoes)
-    const funcao = await prisma.funcao.findFirst({
-      where: { funcao: funcaoNome },
+    const funcionarioComFuncao = await prisma.funcionario.findUnique({
+      where: { id: funcionarioIdNumero },
+      select: {
+        id: true,
+        funcaoId: true,
+        funcao: true,
+        funcaoRef: {
+          select: {
+            id: true,
+            funcao: true,
+            regime: true,
+          },
+        },
+      },
     });
 
-    console.log("Funcao encontrada:", !!funcao);
-    console.log("Funcao ID:", funcao?.id);
+    const funcaoId =
+      typeof funcionarioComFuncao?.funcaoId === "number"
+        ? funcionarioComFuncao.funcaoId
+        : null;
 
-    if (!funcao) {
-      console.log("❌ Função não encontrada na tabela Funcoes");
+    console.log("Funcao ID do funcionário:", funcaoId);
+    console.log("Funcao/Regime vinculado:", {
+      funcao: funcionarioComFuncao?.funcaoRef?.funcao ?? funcionarioComFuncao?.funcao,
+      regime: funcionarioComFuncao?.funcaoRef?.regime ?? null,
+    });
+
+    if (!funcaoId) {
+      console.log(
+        "❌ Funcionário sem funcaoId. Não é possível gerar tarefas por função/regime de forma confiável.",
+      );
       return;
     }
 
@@ -115,7 +137,7 @@ async function gerarTarefasTreinamento(
     const matrizTreinamento = await prisma.matrizTreinamento.findMany({
       where: {
         contratoId: contratoId,
-        funcaoId: funcao.id,
+        funcaoId: funcaoId,
         ativo: true,
         tipoObrigatoriedade: "AP",
       },
@@ -131,7 +153,7 @@ async function gerarTarefasTreinamento(
       console.log("❌ Nenhum treinamento encontrado na matriz");
       console.log("Parâmetros da busca:");
       console.log("- contratoId:", contratoId);
-      console.log("- funcaoId:", funcao.id);
+      console.log("- funcaoId:", funcaoId);
       console.log("- ativo: true");
       return;
     }

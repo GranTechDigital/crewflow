@@ -149,7 +149,8 @@ export default function NotificationsDropdown() {
                             item.statusTarefas === "SUBMETER RASCUNHO";
 
                           let linkUrl = "#";
-                          let actionText = "Criar/Atualizar Matriz de Treinamento";
+                          let actionText =
+                            "Criar/Atualizar Matriz de Treinamento";
 
                           const categoria = (item as any)?.categoria as
                             | "TREINAMENTO_00"
@@ -157,14 +158,21 @@ export default function NotificationsDropdown() {
                             | undefined;
 
                           if (categoria === "TREINAMENTO_00") {
+                            const funcaoIdParam =
+                              typeof item.funcionario?.funcaoId === "number"
+                                ? `&funcaoId=${encodeURIComponent(
+                                    String(item.funcionario.funcaoId),
+                                  )}`
+                                : "";
                             linkUrl = item.solicitacao?.contratoDestino?.id
                               ? `/matriz-treinamento/contratos/${
                                   item.solicitacao.contratoDestino.id
                                 }?search=${encodeURIComponent(
                                   item.funcionario?.funcao || "",
-                                )}`
+                                )}${funcaoIdParam}`
                               : "/matriz-treinamento";
-                            actionText = "Criar/Atualizar Matriz de Treinamento";
+                            actionText =
+                              "Criar/Atualizar Matriz de Treinamento";
                           } else if (categoria === "LOGISTICA") {
                             if (isAprovar) {
                               linkUrl = `/prestserv/funcionarios?status=${encodeURIComponent(
@@ -185,15 +193,22 @@ export default function NotificationsDropdown() {
                               actionText = "Gerenciar Solicitação";
                             }
                           } else {
+                            const funcaoIdParam =
+                              typeof item.funcionario?.funcaoId === "number"
+                                ? `&funcaoId=${encodeURIComponent(
+                                    String(item.funcionario.funcaoId),
+                                  )}`
+                                : "";
                             // Fallback seguro: direcionar Treinamento 0/0
                             linkUrl = item.solicitacao?.contratoDestino?.id
                               ? `/matriz-treinamento/contratos/${
                                   item.solicitacao.contratoDestino.id
                                 }?search=${encodeURIComponent(
                                   item.funcionario?.funcao || "",
-                                )}`
+                                )}${funcaoIdParam}`
                               : "/matriz-treinamento";
-                            actionText = "Criar/Atualizar Matriz de Treinamento";
+                            actionText =
+                              "Criar/Atualizar Matriz de Treinamento";
                           }
 
                           return (
@@ -223,6 +238,13 @@ export default function NotificationsDropdown() {
                                           Função:
                                         </span>{" "}
                                         {item.funcionario?.funcao || "N/A"}
+                                      </p>
+                                      <p className="text-xs text-gray-700 mt-0.5">
+                                        <span className="font-semibold">
+                                          Regime:
+                                        </span>{" "}
+                                        {item.funcionario?.funcaoRef?.regime ||
+                                          "N/A"}
                                       </p>
                                       <p className="text-xs text-red-600 font-bold mt-1 uppercase">
                                         {actionText}

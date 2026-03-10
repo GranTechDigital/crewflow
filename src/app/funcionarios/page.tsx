@@ -12,6 +12,7 @@ type Pessoa = {
   cpf: string;
   nome: string;
   funcao: string | null;
+  regime: string | null;
   rg: string | null;
   orgaoEmissor: string | null;
   uf: string | null;
@@ -722,6 +723,25 @@ export default function Home() {
                   <th
                     scope="col"
                     className="px-0.5 py-0.5 text-left text-[10px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 group"
+                    onClick={() => handleSort("regime")}
+                  >
+                    <div className="flex items-center">
+                      Regime
+                      {sortConfig.key === "regime" && (
+                        <span className="ml-1">
+                          {sortConfig.direction === "asc" ? "↑" : "↓"}
+                        </span>
+                      )}
+                      {sortConfig.key !== "regime" && (
+                        <span className="ml-1 opacity-0 group-hover:opacity-30">
+                          ↕
+                        </span>
+                      )}
+                    </div>
+                  </th>
+                  <th
+                    scope="col"
+                    className="px-0.5 py-0.5 text-left text-[10px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 group"
                     onClick={() => handleSort("departamento")}
                   >
                     <div className="flex items-center">
@@ -795,6 +815,9 @@ export default function Home() {
                     </td>
                     <td className="px-2 py-1.5 whitespace-nowrap text-xs text-gray-900">
                       {pessoa.funcao}
+                    </td>
+                    <td className="px-2 py-1.5 whitespace-nowrap text-xs text-gray-900">
+                      {pessoa.regime || "-"}
                     </td>
                     <td className="px-2 py-1.5 whitespace-nowrap text-xs text-gray-900">
                       {pessoa.departamento}
