@@ -295,6 +295,12 @@ export default function TarefasPage() {
   const [itensPorPaginaFuncionarios, setItensPorPaginaFuncionarios] =
     useState(5);
   const [focoRemKey, setFocoRemKey] = useState<string | null>(null);
+  const [tarefasSelecionadasLoteRh, setTarefasSelecionadasLoteRh] = useState<
+    Record<string, string[]>
+  >({});
+  const [aprovandoLoteRh, setAprovandoLoteRh] = useState<
+    Record<string, boolean>
+  >({});
   const ordemBaseRef = useRef<string[]>([]);
   const scrollYRef = useRef<number>(0);
   const docScrollYRef = useRef<number>(0);
@@ -1129,6 +1135,12 @@ export default function TarefasPage() {
     if (isExpanded) {
       novoExpandido.delete(chaveGrupo);
       if (focoRemKey === chaveGrupo) setFocoRemKey(null);
+      setTarefasSelecionadasLoteRh((prev) => {
+        if (!prev[chaveGrupo]) return prev;
+        const next = { ...prev };
+        delete next[chaveGrupo];
+        return next;
+      });
     } else {
       novoExpandido.add(chaveGrupo);
       // Carregar contagem de observações apenas ao expandir
@@ -1136,6 +1148,128 @@ export default function TarefasPage() {
       setFocusRem(chaveGrupo);
     }
     setFuncionariosExpandidos(novoExpandido);
+  };
+
+  const isTarefaConcluida = (status: string) =>
+    status === "CONCLUIDO" || status === "CONCLUIDA";
+
+  const toggleSelecionarTarefaRh = (
+    chaveGrupo: string,
+    tarefaId: string,
+    checked: boolean,
+  ) => {
+    setTarefasSelecionadasLoteRh((prev) => {
+      const atuais = prev[chaveGrupo] || [];
+      const proximas = checked
+        ? Array.from(new Set([...atuais, tarefaId]))
+        : atuais.filter((id) => id !== tarefaId);
+      return {
+        ...prev,
+        [chaveGrupo]: proximas,
+      };
+    });
+  };
+
+  const toggleSelecionarTodasRh = (
+    chaveGrupo: string,
+    tarefasGrupo: TarefaRemanejamento[],
+    checked: boolean,
+  ) => {
+    const idsRhPendentes = tarefasGrupo
+      .filter(
+        (tarefa) =>
+          tarefa.responsavel === "RH" && !isTarefaConcluida(tarefa.status),
+      )
+      .map((tarefa) => tarefa.id)
+      .filter(Boolean) as string[];
+
+    setTarefasSelecionadasLoteRh((prev) => ({
+      ...prev,
+      [chaveGrupo]: checked ? idsRhPendentes : [],
+    }));
+  };
+
+  const aprovarTarefasEmLoteRh = async (
+    chaveGrupo: string,
+    tarefasGrupo: TarefaRemanejamento[],
+  ) => {
+    if (setorAtual !== "RH") return;
+
+    const idsRhPendentes = tarefasGrupo
+      .filter(
+        (tarefa) =>
+          tarefa.responsavel === "RH" && !isTarefaConcluida(tarefa.status),
+      )
+      .map((tarefa) => tarefa.id)
+      .filter(Boolean) as string[];
+    const selecionadas = (tarefasSelecionadasLoteRh[chaveGrupo] || []).filter(
+      (id) => idsRhPendentes.includes(id),
+    );
+
+    if (selecionadas.length === 0) {
+      toast.error("Selecione pelo menos uma tarefa pendente do RH.");
+      return;
+    }
+
+    saveAnchorPos(chaveGrupo);
+    setFocusRem(chaveGrupo);
+    setAprovandoLoteRh((prev) => ({ ...prev, [chaveGrupo]: true }));
+
+    try {
+      const resultados = await Promise.all(
+        selecionadas.map(async (tarefaId) => {
+          const response = await fetch(
+            `/api/logistica/tarefas/${tarefaId}/concluir`,
+            {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                dataVencimento: null,
+              }),
+            },
+          );
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => null);
+            return {
+              id: tarefaId,
+              ok: false,
+              error: errorData?.error || "Erro ao concluir tarefa",
+            };
+          }
+
+          return { id: tarefaId, ok: true, error: "" };
+        }),
+      );
+
+      const concluidas = resultados.filter((r) => r.ok).map((r) => r.id);
+      const falhas = resultados.filter((r) => !r.ok);
+
+      if (concluidas.length > 0) {
+        const cacheKey = filtroSetorServidor || "ALL";
+        tarefasCacheRef.current.delete(cacheKey);
+        await fetchTodasTarefas();
+      }
+
+      setTarefasSelecionadasLoteRh((prev) => ({
+        ...prev,
+        [chaveGrupo]: falhas.map((f) => f.id),
+      }));
+
+      if (falhas.length === 0) {
+        toast.success(`${concluidas.length} tarefa(s) aprovada(s) em lote.`);
+      } else {
+        toast.error(
+          `${concluidas.length} aprovada(s) e ${falhas.length} com erro.`,
+        );
+      }
+    } catch (error) {
+      console.error("Erro ao aprovar tarefas em lote do RH:", error);
+      toast.error("Erro ao aprovar tarefas em lote do RH.");
+    } finally {
+      setAprovandoLoteRh((prev) => ({ ...prev, [chaveGrupo]: false }));
+      restoreAnchorPos();
+    }
   };
 
   // Função para obter remanejamentos com suas tarefas para a visão por funcionários
@@ -2939,6 +3073,20 @@ export default function TarefasPage() {
                           )
                         : 0;
                     const expandido = funcionariosExpandidos.has(chaveGrupo);
+                    const tarefasRhPendentes = tarefas.filter(
+                      (tarefa) =>
+                        tarefa.responsavel === "RH" &&
+                        !isTarefaConcluida(tarefa.status),
+                    );
+                    const selecionadasGrupo = (
+                      tarefasSelecionadasLoteRh[chaveGrupo] || []
+                    ).filter((id) =>
+                      tarefasRhPendentes.some((tarefa) => tarefa.id === id),
+                    );
+                    const todasRhPendentesSelecionadas =
+                      tarefasRhPendentes.length > 0 &&
+                      selecionadasGrupo.length === tarefasRhPendentes.length;
+                    const aprovandoGrupo = !!aprovandoLoteRh[chaveGrupo];
 
                     const dataAdmissaoRaw =
                       (funcionario as any)?.dataAdmissao || null;
@@ -3322,6 +3470,32 @@ export default function TarefasPage() {
                                     <table className="min-w-full divide-y divide-gray-200">
                                       <thead className="bg-gray-100">
                                         <tr>
+                                          {setorAtual === "RH" && (
+                                            <th
+                                              scope="col"
+                                              className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider"
+                                            >
+                                              <input
+                                                type="checkbox"
+                                                checked={
+                                                  todasRhPendentesSelecionadas
+                                                }
+                                                onChange={(e) =>
+                                                  toggleSelecionarTodasRh(
+                                                    chaveGrupo,
+                                                    tarefas,
+                                                    e.target.checked,
+                                                  )
+                                                }
+                                                disabled={
+                                                  tarefasRhPendentes.length ===
+                                                    0 || aprovandoGrupo
+                                                }
+                                                className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                                                title="Selecionar todas as tarefas pendentes do RH"
+                                              />
+                                            </th>
+                                          )}
                                           <th
                                             scope="col"
                                             className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider"
@@ -3395,7 +3569,29 @@ export default function TarefasPage() {
                                             scope="col"
                                             className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider"
                                           >
-                                            Ações
+                                            <div className="inline-flex items-center gap-3">
+                                              <span>Ações</span>
+                                              {setorAtual === "RH" && (
+                                                <button
+                                                  type="button"
+                                                  onClick={() =>
+                                                    aprovarTarefasEmLoteRh(
+                                                      chaveGrupo,
+                                                      tarefas,
+                                                    )
+                                                  }
+                                                  disabled={
+                                                    selecionadasGrupo.length ===
+                                                      0 || aprovandoGrupo
+                                                  }
+                                                  className="inline-flex items-center px-2 py-1 rounded-md text-[10px] font-medium bg-purple-600 text-white hover:bg-purple-700 disabled:bg-purple-300"
+                                                >
+                                                  {aprovandoGrupo
+                                                    ? "Aprovando..."
+                                                    : `Aprovar selecionadas (${selecionadasGrupo.length})`}
+                                                </button>
+                                              )}
+                                            </div>
                                           </th>
                                         </tr>
                                       </thead>
@@ -3514,6 +3710,33 @@ export default function TarefasPage() {
                                               key={tarefaKey}
                                               className="hover:bg-gray-50"
                                             >
+                                              {setorAtual === "RH" && (
+                                                <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-500">
+                                                  {!isTarefaConcluida(
+                                                    tarefa.status,
+                                                  ) ? (
+                                                    <input
+                                                      type="checkbox"
+                                                      checked={selecionadasGrupo.includes(
+                                                        tarefa.id,
+                                                      )}
+                                                      onChange={(e) =>
+                                                        toggleSelecionarTarefaRh(
+                                                          chaveGrupo,
+                                                          tarefa.id,
+                                                          e.target.checked,
+                                                        )
+                                                      }
+                                                      disabled={aprovandoGrupo}
+                                                      className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                                                    />
+                                                  ) : (
+                                                    <span className="text-gray-300">
+                                                      -
+                                                    </span>
+                                                  )}
+                                                </td>
+                                              )}
                                               <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-500">
                                                 {tarefa.tipo}
                                               </td>
