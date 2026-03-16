@@ -821,13 +821,61 @@ export default function TarefasPage() {
     const remanejamentosFiltrados = getRemanejamentosFiltrados();
 
     // Extrair todas as tarefas dos remanejamentos filtrados
-    const todasTarefas: (TarefaRemanejamento & { funcionario?: any })[] = [];
+    const todasTarefas: (TarefaRemanejamento & {
+      funcionario?: any;
+      solicitacao?: SolicitacaoRemanejamento;
+      tipoSolicitacaoExport?: string;
+      contratoOrigemNumeroExport?: string;
+      contratoDestinoNumeroExport?: string;
+      regimeExport?: string;
+    })[] = [];
     remanejamentosFiltrados.forEach((remanejamento) => {
       if (remanejamento.tarefas) {
         // Add funcionario data to each tarefa
+        const solicitacao = (
+          remanejamento as RemanejamentoFuncionario & {
+            solicitacao?: SolicitacaoRemanejamento;
+          }
+        ).solicitacao;
+        const tipoSolicitacao = (
+          solicitacao?.tipo || "REMANEJAMENTO"
+        ).toUpperCase();
+        const contratoFuncionarioNumero =
+          remanejamento.funcionario?.contrato?.numero || null;
+        const contratoOrigemNumero =
+          tipoSolicitacao === "ALOCACAO"
+            ? "N/A"
+            : solicitacao?.contratoOrigem?.numero ||
+              (solicitacao?.contratoOrigemId
+                ? `ID ${solicitacao.contratoOrigemId}`
+                : contratoFuncionarioNumero
+                  ? contratoFuncionarioNumero
+                  : "N/A");
+        const contratoDestinoNumero =
+          solicitacao?.contratoDestino?.numero ||
+          (solicitacao?.contratoDestinoId
+            ? `ID ${solicitacao.contratoDestinoId}`
+            : tipoSolicitacao === "DESLIGAMENTO"
+              ? "SEM DESTINO"
+              : "N/A");
+        const regimeCalculado = (() => {
+          const regimeFuncao = remanejamento.funcionario?.funcaoRef?.regime;
+          const regimeBase =
+            regimeFuncao || remanejamento.funcionario?.regimeTratado || "";
+          const regime = regimeBase.toString().trim();
+          const regimeUpper = regime.toUpperCase();
+          if (regimeUpper.includes("OFF")) return "OFFSHORE";
+          if (regimeUpper.includes("ON")) return "ONSHORE";
+          return regime || "N/A";
+        })();
         const tarefasComFuncionario = remanejamento.tarefas.map((tarefa) => ({
           ...tarefa,
           funcionario: remanejamento.funcionario,
+          solicitacao,
+          tipoSolicitacaoExport: tipoSolicitacao,
+          contratoOrigemNumeroExport: contratoOrigemNumero,
+          contratoDestinoNumeroExport: contratoDestinoNumero,
+          regimeExport: regimeCalculado,
         }));
         todasTarefas.push(...tarefasComFuncionario);
       }
@@ -1019,6 +1067,17 @@ export default function TarefasPage() {
     }
 
     const dadosExcel = tarefasFiltradas.map((tarefa) => ({
+      "Tipo Solicitação": (() => {
+        const tipo = (
+          tarefa.tipoSolicitacaoExport || "REMANEJAMENTO"
+        ).toUpperCase();
+        if (tipo === "ALOCACAO") return "ALOCACAO";
+        if (tipo === "DESLIGAMENTO") return "DESLIGAMENTO";
+        return "REMANEJAMENTO";
+      })(),
+      "Contrato Origem": tarefa.contratoOrigemNumeroExport || "N/A",
+      "Contrato Destino": tarefa.contratoDestinoNumeroExport || "N/A",
+      Regime: tarefa.regimeExport || "N/A",
       ID: tarefa.id,
       Tipo: tarefa.tipo,
       Descrição: tarefa.descricao,
@@ -1043,6 +1102,10 @@ export default function TarefasPage() {
     const ws = wb.addWorksheet("Tarefas");
 
     const headers = [
+      "Tipo Solicitação",
+      "Contrato Origem",
+      "Contrato Destino",
+      "Regime",
       "ID",
       "Tipo",
       "Descrição",
@@ -1058,32 +1121,33 @@ export default function TarefasPage() {
       "Última Observação",
     ];
 
-    ws.addRow(headers);
-    dadosExcel.forEach((row) => {
-      ws.addRow(headers.map((h) => String((row as any)[h] ?? "")));
+    ws.addTable({
+      name: "TabelaTarefas",
+      ref: "A1",
+      headerRow: true,
+      totalsRow: false,
+      style: {
+        theme: "TableStyleMedium2",
+        showRowStripes: true,
+        showColumnStripes: false,
+      },
+      columns: headers.map((h) => ({
+        name: h,
+        filterButton: true,
+      })),
+      rows: dadosExcel.map((row) =>
+        headers.map((h) => String((row as any)[h] ?? "")),
+      ),
     });
 
-    // Estilo simples do header
-    const headerRow = ws.getRow(1);
-    headerRow.font = { bold: true };
-    headerRow.alignment = { vertical: "middle", horizontal: "left" } as any;
+    ws.views = [{ state: "frozen", ySplit: 1 }];
 
-    // Auto largura baseado no maior conteúdo de cada coluna
     for (let colIndex = 1; colIndex <= headers.length; colIndex++) {
       let maxLen = String(headers[colIndex - 1] || "").length;
-      ws.eachRow({ includeEmpty: false }, (row, rowNumber) => {
-        const cell = row.getCell(colIndex);
-        const v = cell.value as
-          | string
-          | number
-          | boolean
-          | Date
-          | null
-          | undefined;
-        const text =
-          v instanceof Date ? v.toLocaleDateString("pt-BR") : String(v ?? "");
+      for (const row of dadosExcel) {
+        const text = String((row as any)[headers[colIndex - 1]] ?? "");
         if (text.length > maxLen) maxLen = text.length;
-      });
+      }
       ws.getColumn(colIndex).width = Math.min(60, maxLen + 2);
     }
 

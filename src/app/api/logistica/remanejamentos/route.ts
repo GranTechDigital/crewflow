@@ -35,12 +35,25 @@ type PrismaFuncionario = {
   matricula: string;
   funcao: string | null;
   centroCusto: string | null;
+  contratoId: number | null;
+  funcaoId: number | null;
   dataAdmissao: Date | null;
   status: string | null;
   emMigracao: boolean;
   statusPrestserv: string | null;
   sispat: string | null;
   regimeTratado?: string | null;
+  contrato?: {
+    id: number;
+    numero: string;
+    nome: string;
+    cliente: string;
+  } | null;
+  funcaoRef?: {
+    id: number;
+    funcao: string;
+    regime: string;
+  } | null;
   uptimeSheets: PrismaUptimeSheet[];
 };
 
@@ -127,12 +140,25 @@ interface FuncionarioSelect {
   matricula: string;
   funcao: string | null;
   centroCusto: string | null;
+  contratoId: number | null;
+  funcaoId: number | null;
   dataAdmissao: Date | null;
   status: string | null;
   emMigracao: boolean;
   statusPrestserv: string | null;
   sispat: string | null;
   regimeTratado?: string | null;
+  contrato?: {
+    id: number;
+    numero: string;
+    nome: string;
+    cliente: string;
+  } | null;
+  funcaoRef?: {
+    id: number;
+    funcao: string;
+    regime: string;
+  } | null;
   uptimeSheets: UptimeSheetData[];
 }
 
@@ -465,11 +491,28 @@ async function buscarRemanejamentos(
     matricula: true,
     funcao: true,
     centroCusto: true,
+    contratoId: true,
+    funcaoId: true,
     status: true,
     emMigracao: true,
     statusPrestserv: true,
     sispat: true,
     dataAdmissao: true,
+    contrato: {
+      select: {
+        id: true,
+        numero: true,
+        nome: true,
+        cliente: true,
+      },
+    },
+    funcaoRef: {
+      select: {
+        id: true,
+        funcao: true,
+        regime: true,
+      },
+    },
     uptimeSheets: true,
   };
 
@@ -596,11 +639,15 @@ async function buscarRemanejamentos(
     solicitacoes.forEach((s) =>
       s.funcionarios?.forEach((rf) => {
         const info = infoPorMatricula.get(rf.funcionario?.matricula);
+        const regimeFuncao =
+          rf.funcionario?.funcaoRef?.regime?.trim()?.toUpperCase() || null;
         if (info) {
           if (!rf.funcionario.dataAdmissao && info.dataAdmissao) {
             (rf.funcionario as any).dataAdmissao = info.dataAdmissao;
           }
-          (rf.funcionario as any).regimeTratado = info.regime;
+          (rf.funcionario as any).regimeTratado = info.regime || regimeFuncao;
+        } else if (regimeFuncao) {
+          (rf.funcionario as any).regimeTratado = regimeFuncao;
         }
       }),
     );
@@ -659,6 +706,14 @@ async function buscarRemanejamentos(
   } catch (e) {
     console.warn("Falha ao calcular badge de função alterada recentemente:", e);
   }
+
+  solicitacoes.forEach((s: any) => {
+    const tipoNormalizado = (s?.tipo || "").toUpperCase();
+    if (tipoNormalizado.includes("ALOC")) {
+      s.contratoOrigemId = null;
+      s.contratoOrigem = null;
+    }
+  });
 
   // Filtrar solicitações que não têm funcionários (após a filtragem)
   let solicitacoesFiltradas: SolicitacaoRemanejamentoComplete[] =

@@ -28,6 +28,20 @@ export interface RemanejamentoFuncionario {
     matricula: string;
     funcao: string | null;
     centroCusto: string | null;
+    contratoId?: number | null;
+    funcaoId?: number | null;
+    regimeTratado?: string | null;
+    contrato?: {
+      id: number;
+      numero: string;
+      nome: string;
+      cliente?: string;
+    } | null;
+    funcaoRef?: {
+      id: number;
+      funcao: string;
+      regime: string;
+    } | null;
   };
   tarefas?: TarefaRemanejamento[];
 }
