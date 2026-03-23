@@ -854,12 +854,74 @@ export async function POST(request: NextRequest) {
       funcionarioIds,
       contratoOrigemId,
       contratoDestinoId,
+      contratoDesvinculoIds,
+      contratosDesvinculoPorFuncionario,
       justificativa,
       prioridade = "Normal",
     } = body;
+    const tipoRecebido = String(tipo || "")
+      .trim()
+      .toUpperCase();
+    const tipoSolicitacao: NovasolicitacaoRemanejamento["tipo"] =
+      tipoRecebido === "ALOCACAO" ||
+      tipoRecebido === "REMANEJAMENTO" ||
+      tipoRecebido === "DESLIGAMENTO" ||
+      tipoRecebido === "VINCULO_ADICIONAL" ||
+      tipoRecebido === "DESVINCULO_ADICIONAL"
+        ? (tipoRecebido as NovasolicitacaoRemanejamento["tipo"])
+        : (contratoDesvinculoIds && contratoDesvinculoIds.length > 0) ||
+            (contratosDesvinculoPorFuncionario &&
+              Object.keys(contratosDesvinculoPorFuncionario).length > 0)
+          ? "DESVINCULO_ADICIONAL"
+          : "REMANEJAMENTO";
+    const funcionarioIdsNormalizados = Array.from(
+      new Set(
+        (funcionarioIds || [])
+          .map((id) => Number(id))
+          .filter((id) => Number.isInteger(id) && id > 0),
+      ),
+    );
+
+    const contratoDesvinculoIdsNormalizados = Array.from(
+      new Set(
+        (contratoDesvinculoIds || [])
+          .map((id) => Number(id))
+          .filter((id) => Number.isInteger(id) && id > 0),
+      ),
+    );
+    const contratosDesvinculoPorFuncionarioNormalizados = Object.entries(
+      contratosDesvinculoPorFuncionario || {},
+    ).reduce(
+      (acc, [funcionarioIdStr, contratoIds]) => {
+        const funcionarioId = Number(funcionarioIdStr);
+        if (!Number.isInteger(funcionarioId) || funcionarioId <= 0) {
+          return acc;
+        }
+        const contratosIdsNormalizados = Array.from(
+          new Set(
+            (Array.isArray(contratoIds) ? contratoIds : [])
+              .map((id) => Number(id))
+              .filter((id) => Number.isInteger(id) && id > 0),
+          ),
+        );
+        if (contratosIdsNormalizados.length > 0) {
+          acc[funcionarioId] = contratosIdsNormalizados;
+        }
+        return acc;
+      },
+      {} as Record<number, number[]>,
+    );
+    let funcionarioIdsProcessados = [...funcionarioIdsNormalizados];
+    let funcionariosIgnoradosDesvinculo: Array<{
+      id: number;
+      nome: string;
+      matricula: string;
+    }> = [];
+    let contratosDesvinculoPorFuncionarioProcessados: Record<number, number[]> =
+      {};
 
     // Validações básicas
-    if (!funcionarioIds || funcionarioIds.length === 0) {
+    if (funcionarioIdsNormalizados.length === 0) {
       return NextResponse.json(
         { error: "Pelo menos um funcionário deve ser selecionado" },
         { status: 400 },
@@ -869,54 +931,313 @@ export async function POST(request: NextRequest) {
     // solicitadoPor agora é preenchido via usuário autenticado (id)
 
     // Validações específicas por tipo
-    if (tipo === "DESLIGAMENTO") {
-      // Para desligamento, não precisa de contrato destino
+    if (tipoSolicitacao === "DESLIGAMENTO") {
       if (contratoDestinoId) {
         return NextResponse.json(
           { error: "Desligamento não deve ter contrato de destino" },
           { status: 400 },
         );
       }
+      if (contratoOrigemId) {
+        return NextResponse.json(
+          {
+            error:
+              "Desligamento não deve informar contrato de origem. O desligamento remove o vínculo principal e todos os adicionais.",
+          },
+          { status: 400 },
+        );
+      }
+    } else if (tipoSolicitacao === "DESVINCULO_ADICIONAL") {
+      if (contratoOrigemId || contratoDestinoId) {
+        return NextResponse.json(
+          {
+            error:
+              "Desvínculo adicional não deve informar contrato de origem/destino",
+          },
+          { status: 400 },
+        );
+      }
+      const possuiMapaDesvinculo =
+        Object.keys(contratosDesvinculoPorFuncionarioNormalizados).length > 0;
+      if (
+        contratoDesvinculoIdsNormalizados.length === 0 &&
+        !possuiMapaDesvinculo
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              "Selecione pelo menos um contrato adicional para desvincular",
+          },
+          { status: 400 },
+        );
+      }
     } else {
-      // Para alocação e remanejamento, contrato destino é obrigatório
       if (!contratoDestinoId) {
         return NextResponse.json(
           {
             error:
-              "Contrato de destino é obrigatório para alocação e remanejamento",
+              "Contrato de destino é obrigatório para alocação, remanejamento e vínculo adicional",
           },
           { status: 400 },
         );
       }
     }
 
-    // Verificar se os funcionários existem
-    const funcionarios = await prisma.funcionario.findMany({
-      where: {
-        id: {
-          in: funcionarioIds,
-        },
-      },
-    });
+    type FuncionarioValidacao = {
+      id: number;
+      nome: string;
+      matricula: string;
+      contratoId: number | null;
+      contrato: { id: number } | null;
+      contratosVinculo: Array<{ contratoId: number }>;
+    };
 
-    if (funcionarios.length !== funcionarioIds.length) {
+    let funcionarios: FuncionarioValidacao[] = [];
+    try {
+      const funcionariosComVinculos = await prisma.funcionario.findMany({
+        where: {
+          id: {
+            in: funcionarioIdsNormalizados,
+          },
+        },
+        select: {
+          id: true,
+          nome: true,
+          matricula: true,
+          contratoId: true,
+          contrato: {
+            select: {
+              id: true,
+            },
+          },
+          contratosVinculo: {
+            where: { ativo: true },
+            select: {
+              contratoId: true,
+            },
+          },
+        },
+      });
+      funcionarios = funcionariosComVinculos as FuncionarioValidacao[];
+    } catch (erroConsultaVinculos) {
+      console.error(
+        "Falha ao consultar vínculos adicionais. Aplicando fallback:",
+        erroConsultaVinculos,
+      );
+      const funcionariosSemVinculos = await prisma.funcionario.findMany({
+        where: {
+          id: {
+            in: funcionarioIdsNormalizados,
+          },
+        },
+        select: {
+          id: true,
+          nome: true,
+          matricula: true,
+          contratoId: true,
+          contrato: {
+            select: {
+              id: true,
+            },
+          },
+        },
+      });
+      const prismaAny = prisma as any;
+      let vinculosPorFuncionario = new Map<
+        number,
+        Array<{ contratoId: number }>
+      >();
+      if (
+        !!prismaAny.funcionarioContratoVinculo &&
+        typeof prismaAny.funcionarioContratoVinculo.findMany === "function"
+      ) {
+        const vinculos = (await prismaAny.funcionarioContratoVinculo.findMany({
+          where: {
+            ativo: true,
+            funcionarioId: {
+              in: funcionariosSemVinculos.map((funcionario) => funcionario.id),
+            },
+          },
+          select: {
+            funcionarioId: true,
+            contratoId: true,
+          },
+        })) as Array<{ funcionarioId: number; contratoId: number }>;
+
+        vinculosPorFuncionario = vinculos.reduce(
+          (acc: Map<number, Array<{ contratoId: number }>>, vinculo) => {
+            const lista = acc.get(vinculo.funcionarioId) || [];
+            lista.push({ contratoId: vinculo.contratoId });
+            acc.set(vinculo.funcionarioId, lista);
+            return acc;
+          },
+          new Map<number, Array<{ contratoId: number }>>(),
+        );
+      } else if (funcionariosSemVinculos.length > 0) {
+        try {
+          const vinculosRaw = (await prisma.$queryRawUnsafe(
+            `SELECT "funcionarioId", "contratoId"
+             FROM "FuncionarioContratoVinculo"
+             WHERE "ativo" = true
+               AND "funcionarioId" = ANY($1::int[])`,
+            funcionariosSemVinculos.map((funcionario) => funcionario.id),
+          )) as Array<{ funcionarioId: number; contratoId: number }>;
+
+          vinculosPorFuncionario = vinculosRaw.reduce(
+            (acc: Map<number, Array<{ contratoId: number }>>, vinculo) => {
+              const lista = acc.get(vinculo.funcionarioId) || [];
+              lista.push({ contratoId: vinculo.contratoId });
+              acc.set(vinculo.funcionarioId, lista);
+              return acc;
+            },
+            new Map<number, Array<{ contratoId: number }>>(),
+          );
+        } catch {
+          vinculosPorFuncionario = new Map<
+            number,
+            Array<{ contratoId: number }>
+          >();
+        }
+      }
+
+      funcionarios = funcionariosSemVinculos.map((funcionario) => ({
+        ...funcionario,
+        contratosVinculo: vinculosPorFuncionario.get(funcionario.id) || [],
+      }));
+    }
+
+    if (funcionarios.length !== funcionarioIdsNormalizados.length) {
       return NextResponse.json(
         { error: "Um ou mais funcionários não foram encontrados" },
         { status: 400 },
       );
     }
 
+    if (tipoSolicitacao === "VINCULO_ADICIONAL" && contratoDestinoId) {
+      const funcionariosComVinculo = funcionarios.filter((funcionario) => {
+        if (funcionario.contratoId === contratoDestinoId) {
+          return true;
+        }
+        return funcionario.contratosVinculo.some(
+          (vinculo) => vinculo.contratoId === contratoDestinoId,
+        );
+      });
+
+      if (funcionariosComVinculo.length > 0) {
+        return NextResponse.json(
+          {
+            error: `Funcionários já vinculados ao contrato de destino: ${funcionariosComVinculo
+              .map((funcionario) => funcionario.nome)
+              .join(", ")}`,
+          },
+          { status: 400 },
+        );
+      }
+    }
+
+    if (tipoSolicitacao === "DESLIGAMENTO" && contratoOrigemId) {
+      const funcionariosSemVinculo = funcionarios.filter((funcionario) => {
+        if (funcionario.contratoId === contratoOrigemId) {
+          return false;
+        }
+        return !funcionario.contratosVinculo.some(
+          (vinculo) => vinculo.contratoId === contratoOrigemId,
+        );
+      });
+
+      if (funcionariosSemVinculo.length > 0) {
+        return NextResponse.json(
+          {
+            error: `Funcionários sem vínculo no contrato selecionado: ${funcionariosSemVinculo
+              .map((funcionario) => funcionario.nome)
+              .join(", ")}`,
+          },
+          { status: 400 },
+        );
+      }
+    }
+
+    if (tipoSolicitacao === "DESVINCULO_ADICIONAL") {
+      const resolverContratosAlvoPorFuncionario = (funcionarioId: number) => {
+        const contratosEspecificos =
+          contratosDesvinculoPorFuncionarioNormalizados[funcionarioId] || [];
+        if (contratosEspecificos.length > 0) {
+          return contratosEspecificos;
+        }
+        return contratoDesvinculoIdsNormalizados;
+      };
+      const processamentoDesvinculo = funcionarios.map((funcionario) => {
+        const contratosAlvo = resolverContratosAlvoPorFuncionario(
+          funcionario.id,
+        );
+        const contratosExistentes = new Set(
+          funcionario.contratosVinculo.map((vinculo) => vinculo.contratoId),
+        );
+        const contratosValidos = Array.from(new Set(contratosAlvo)).filter(
+          (contratoId) => contratosExistentes.has(contratoId),
+        );
+        return {
+          funcionario,
+          contratosValidos,
+        };
+      });
+      const funcionariosComContratosSelecionados = processamentoDesvinculo
+        .filter((item) => item.contratosValidos.length > 0)
+        .map((item) => item.funcionario);
+      funcionariosIgnoradosDesvinculo = processamentoDesvinculo
+        .filter((item) => item.contratosValidos.length === 0)
+        .map((item) => ({
+          id: item.funcionario.id,
+          nome: item.funcionario.nome,
+          matricula: item.funcionario.matricula,
+        }));
+
+      if (funcionariosComContratosSelecionados.length === 0) {
+        return NextResponse.json(
+          {
+            error:
+              "Nenhum vínculo adicional foi encontrado para os contratos selecionados",
+          },
+          { status: 400 },
+        );
+      }
+
+      funcionarioIdsProcessados = Array.from(
+        new Set(
+          funcionariosComContratosSelecionados.map(
+            (funcionario) => funcionario.id,
+          ),
+        ),
+      );
+      contratosDesvinculoPorFuncionarioProcessados =
+        processamentoDesvinculo.reduce(
+          (acc, item) => {
+            if (item.contratosValidos.length > 0) {
+              acc[item.funcionario.id] = item.contratosValidos;
+            }
+            return acc;
+          },
+          {} as Record<number, number[]>,
+        );
+    }
+
     // Criar a solicitação de remanejamento
     const solicitacao = await prisma.solicitacaoRemanejamento.create({
       data: {
-        tipo,
+        tipo: tipoSolicitacao,
         contratoOrigemId: contratoOrigemId ?? null,
         contratoDestinoId: contratoDestinoId ?? null,
         justificativa,
         prioridade,
+        observacoes:
+          tipoSolicitacao === "DESVINCULO_ADICIONAL"
+            ? `DESVINCULO_MAP:${JSON.stringify(
+                contratosDesvinculoPorFuncionarioProcessados,
+              )}`
+            : undefined,
         solicitadoPorId: usuarioId ?? null,
         funcionarios: {
-          create: funcionarioIds.map((funcionarioId) => ({
+          create: funcionarioIdsProcessados.map((funcionarioId) => ({
             funcionarioId,
             statusTarefas: "APROVAR SOLICITAÇÃO",
             statusPrestserv: "PENDENTE",
@@ -947,7 +1268,7 @@ export async function POST(request: NextRequest) {
     await prisma.funcionario.updateMany({
       where: {
         id: {
-          in: funcionarioIds,
+          in: funcionarioIdsProcessados,
         },
       },
       data: {
@@ -967,7 +1288,7 @@ export async function POST(request: NextRequest) {
                 remanejamentoFuncionarioId: funcionarioRem.id,
                 tipoAcao: "CRIACAO",
                 entidade: "SOLICITACAO",
-                descricaoAcao: `Solicitação de ${tipo.toLowerCase()} criada para ${
+                descricaoAcao: `Solicitação de ${tipoSolicitacao.toLowerCase()} criada para ${
                   funcionarioRem.funcionario.nome
                 } (${funcionarioRem.funcionario.matricula})`,
                 usuarioResponsavel: usuarioNome,
@@ -987,7 +1308,14 @@ export async function POST(request: NextRequest) {
       // Não falha a criação da solicitação se o histórico falhar
     }
 
-    return NextResponse.json(solicitacao, { status: 201 });
+    return NextResponse.json(
+      {
+        ...solicitacao,
+        funcionariosProcessados: funcionarioIdsProcessados,
+        funcionariosIgnoradosDesvinculo,
+      },
+      { status: 201 },
+    );
   } catch (error) {
     console.error("Erro ao criar remanejamento:", error);
     return NextResponse.json(
@@ -1069,7 +1397,14 @@ export async function DELETE(request: NextRequest) {
     const funcionarioId = remanejamentoFuncionario.funcionario.id;
     const existeOutroRemanejamento =
       await prisma.remanejamentoFuncionario.findFirst({
-        where: { funcionarioId },
+        where: {
+          funcionarioId,
+          NOT: {
+            statusPrestserv: {
+              in: ["VALIDADO", "INVALIDADO", "CANCELADO"],
+            },
+          },
+        },
       });
     if (!existeOutroRemanejamento) {
       await prisma.funcionario.update({

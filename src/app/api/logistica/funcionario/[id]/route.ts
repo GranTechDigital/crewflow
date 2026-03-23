@@ -72,6 +72,333 @@ export async function GET(
   }
 }
 
+async function aplicarVinculosAoValidar(params: {
+  funcionarioId: number;
+  solicitacao?: {
+    tipo?: string | null;
+    contratoOrigemId?: number | null;
+    contratoDestinoId?: number | null;
+    observacoes?: string | null;
+  } | null;
+  sispat?: string;
+}) {
+  const { funcionarioId, solicitacao, sispat } = params;
+  const tipo = solicitacao?.tipo || null;
+  const contratoOrigemId = solicitacao?.contratoOrigemId ?? null;
+  const contratoDestinoId = solicitacao?.contratoDestinoId ?? null;
+  const observacoesSolicitacao = solicitacao?.observacoes ?? null;
+  const prismaAny = prisma as any;
+  const possuiDelegateVinculoFindMany =
+    !!prismaAny.funcionarioContratoVinculo &&
+    typeof prismaAny.funcionarioContratoVinculo.findMany === "function";
+  const possuiDelegateVinculoCreate =
+    possuiDelegateVinculoFindMany &&
+    typeof prismaAny.funcionarioContratoVinculo.create === "function";
+  const possuiDelegateVinculoDelete =
+    possuiDelegateVinculoFindMany &&
+    typeof prismaAny.funcionarioContratoVinculo.delete === "function";
+  const possuiDelegateVinculoDeleteMany =
+    possuiDelegateVinculoFindMany &&
+    typeof prismaAny.funcionarioContratoVinculo.deleteMany === "function";
+  const possuiDelegateVinculoCount =
+    possuiDelegateVinculoFindMany &&
+    typeof prismaAny.funcionarioContratoVinculo.count === "function";
+  const buscarVinculosRaw = async () => {
+    try {
+      const vinculosRaw = (await prisma.$queryRawUnsafe(
+        `SELECT "id", "contratoId" FROM "FuncionarioContratoVinculo" WHERE "funcionarioId" = $1 AND "ativo" = true ORDER BY "createdAt" ASC`,
+        funcionarioId,
+      )) as Array<{ id: number; contratoId: number }>;
+      return vinculosRaw;
+    } catch {
+      return [] as Array<{ id: number; contratoId: number }>;
+    }
+  };
+  const criarVinculoRaw = async (contratoId: number) => {
+    try {
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO "FuncionarioContratoVinculo" ("funcionarioId", "contratoId", "tipoVinculo", "ativo", "dataInicio", "createdAt", "updatedAt")
+         VALUES ($1, $2, 'ADICIONAL', true, NOW(), NOW(), NOW())
+         ON CONFLICT ("funcionarioId", "contratoId")
+         DO UPDATE SET "ativo" = true, "tipoVinculo" = 'ADICIONAL', "updatedAt" = NOW()`,
+        funcionarioId,
+        contratoId,
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  const deletarVinculoRawPorId = async (id: number) => {
+    try {
+      await prisma.$executeRawUnsafe(
+        `DELETE FROM "FuncionarioContratoVinculo" WHERE "id" = $1`,
+        id,
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  const deletarVinculosRawPorContrato = async (contratoId: number) => {
+    try {
+      await prisma.$executeRawUnsafe(
+        `DELETE FROM "FuncionarioContratoVinculo" WHERE "funcionarioId" = $1 AND "contratoId" = $2`,
+        funcionarioId,
+        contratoId,
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  const deletarTodosVinculosRaw = async () => {
+    try {
+      await prisma.$executeRawUnsafe(
+        `DELETE FROM "FuncionarioContratoVinculo" WHERE "funcionarioId" = $1`,
+        funcionarioId,
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  const contarVinculosRaw = async () => {
+    try {
+      const resultado = (await prisma.$queryRawUnsafe(
+        `SELECT COUNT(*)::int AS count FROM "FuncionarioContratoVinculo" WHERE "funcionarioId" = $1 AND "ativo" = true`,
+        funcionarioId,
+      )) as Array<{ count: number }>;
+      return resultado[0]?.count || 0;
+    } catch {
+      return 0;
+    }
+  };
+
+  let funcionarioAtual: {
+    contratoId: number | null;
+    contratosVinculo: Array<{ id: number; contratoId: number }>;
+  } | null = null;
+
+  try {
+    const funcionarioComVinculos = await prisma.funcionario.findUnique({
+      where: { id: funcionarioId },
+      select: {
+        contratoId: true,
+        contratosVinculo: {
+          where: { ativo: true },
+          orderBy: { createdAt: "asc" },
+          select: { id: true, contratoId: true },
+        },
+      },
+    });
+    funcionarioAtual = funcionarioComVinculos as typeof funcionarioAtual;
+  } catch (erroConsultaVinculos) {
+    console.error(
+      "Falha ao consultar vínculos do funcionário. Aplicando fallback:",
+      erroConsultaVinculos,
+    );
+    const funcionarioSemVinculos = await prisma.funcionario.findUnique({
+      where: { id: funcionarioId },
+      select: {
+        contratoId: true,
+      },
+    });
+    if (!funcionarioSemVinculos) {
+      funcionarioAtual = null;
+    } else {
+      const vinculosRaw = await buscarVinculosRaw();
+      funcionarioAtual = {
+        contratoId: funcionarioSemVinculos.contratoId,
+        contratosVinculo: vinculosRaw,
+      };
+    }
+  }
+
+  if (!funcionarioAtual) {
+    return;
+  }
+
+  const contratosDesvinculoIds = (() => {
+    if (!observacoesSolicitacao) {
+      return [] as number[];
+    }
+    const prefixo = "DESVINCULO_CONTRATOS:";
+    if (!observacoesSolicitacao.startsWith(prefixo)) {
+      return [] as number[];
+    }
+    return observacoesSolicitacao
+      .slice(prefixo.length)
+      .split(",")
+      .map((valor) => Number(valor.trim()))
+      .filter((valor) => Number.isInteger(valor) && valor > 0);
+  })();
+  const contratosDesvinculoPorFuncionario = (() => {
+    if (!observacoesSolicitacao) {
+      return {} as Record<number, number[]>;
+    }
+    const prefixo = "DESVINCULO_MAP:";
+    if (!observacoesSolicitacao.startsWith(prefixo)) {
+      return {} as Record<number, number[]>;
+    }
+    try {
+      const parsed = JSON.parse(observacoesSolicitacao.slice(prefixo.length));
+      if (!parsed || typeof parsed !== "object") {
+        return {} as Record<number, number[]>;
+      }
+      return Object.entries(parsed as Record<string, unknown>).reduce(
+        (acc, [funcionarioIdStr, contratoIds]) => {
+          const funcionarioIdMapa = Number(funcionarioIdStr);
+          if (!Number.isInteger(funcionarioIdMapa) || funcionarioIdMapa <= 0) {
+            return acc;
+          }
+          const idsNormalizados = Array.from(
+            new Set(
+              (Array.isArray(contratoIds) ? contratoIds : [])
+                .map((valor) => Number(valor))
+                .filter((valor) => Number.isInteger(valor) && valor > 0),
+            ),
+          );
+          if (idsNormalizados.length > 0) {
+            acc[funcionarioIdMapa] = idsNormalizados;
+          }
+          return acc;
+        },
+        {} as Record<number, number[]>,
+      );
+    } catch {
+      return {} as Record<number, number[]>;
+    }
+  })();
+
+  if (tipo === "VINCULO_ADICIONAL") {
+    if (
+      contratoDestinoId &&
+      funcionarioAtual.contratoId !== contratoDestinoId &&
+      !funcionarioAtual.contratosVinculo.some(
+        (vinculo) => vinculo.contratoId === contratoDestinoId,
+      )
+    ) {
+      if (possuiDelegateVinculoCreate) {
+        await prisma.funcionarioContratoVinculo.create({
+          data: {
+            funcionarioId,
+            contratoId: contratoDestinoId,
+            tipoVinculo: "ADICIONAL",
+            ativo: true,
+          },
+        });
+      } else {
+        const vinculoCriado = await criarVinculoRaw(contratoDestinoId);
+        if (!vinculoCriado) {
+          throw new Error(
+            `Não foi possível criar vínculo adicional para funcionário ${funcionarioId} no contrato ${contratoDestinoId}`,
+          );
+        }
+      }
+    }
+
+    await prisma.funcionario.update({
+      where: { id: funcionarioId },
+      data: {
+        statusPrestserv: "ATIVO",
+        emMigracao: false,
+        ...(sispat ? { sispat } : {}),
+      },
+    });
+    return;
+  }
+
+  if (tipo === "DESLIGAMENTO") {
+    if (possuiDelegateVinculoDeleteMany) {
+      await prisma.funcionarioContratoVinculo.deleteMany({
+        where: {
+          funcionarioId,
+        },
+      });
+    } else {
+      await deletarTodosVinculosRaw();
+    }
+    await prisma.funcionario.update({
+      where: { id: funcionarioId },
+      data: {
+        contratoId: null,
+        statusPrestserv: "INATIVO",
+        emMigracao: false,
+        ...(sispat ? { sispat } : {}),
+      },
+    });
+    return;
+  }
+
+  if (tipo === "DESVINCULO_ADICIONAL") {
+    const contratoIdsPorFuncionario =
+      contratosDesvinculoPorFuncionario[funcionarioId] || [];
+    const contratoIdsAlvo =
+      contratoIdsPorFuncionario.length > 0
+        ? contratoIdsPorFuncionario
+        : contratosDesvinculoIds.length > 0
+          ? contratosDesvinculoIds
+          : contratoDestinoId
+            ? [contratoDestinoId]
+            : [];
+
+    if (contratoIdsAlvo.length > 0) {
+      if (possuiDelegateVinculoDeleteMany) {
+        await prisma.funcionarioContratoVinculo.deleteMany({
+          where: {
+            funcionarioId,
+            contratoId: {
+              in: contratoIdsAlvo,
+            },
+          },
+        });
+      } else {
+        await Promise.all(
+          contratoIdsAlvo.map((contratoId) =>
+            deletarVinculosRawPorContrato(contratoId),
+          ),
+        );
+      }
+    }
+
+    const adicionaisAtivos = possuiDelegateVinculoCount
+      ? await prisma.funcionarioContratoVinculo.count({
+          where: { funcionarioId, ativo: true },
+        })
+      : await contarVinculosRaw();
+    const possuiAlgumVinculo =
+      funcionarioAtual.contratoId !== null || adicionaisAtivos > 0;
+
+    await prisma.funcionario.update({
+      where: { id: funcionarioId },
+      data: {
+        statusPrestserv: possuiAlgumVinculo ? "ATIVO" : "INATIVO",
+        emMigracao: false,
+        ...(sispat ? { sispat } : {}),
+      },
+    });
+    return;
+  }
+
+  const data: Record<string, unknown> = {
+    statusPrestserv: "ATIVO",
+    emMigracao: false,
+  };
+
+  if (contratoDestinoId) {
+    data.contratoId = contratoDestinoId;
+  }
+  if (sispat) {
+    data.sispat = sispat;
+  }
+
+  await prisma.funcionario.update({
+    where: { id: funcionarioId },
+    data,
+  });
+}
+
 // PUT - Atualizar status do Prestserv
 export async function PUT(
   request: NextRequest,
@@ -463,84 +790,19 @@ export async function PUT(
       }
     }
 
-    // Lógica especial para status VALIDADO
     if (isValidado) {
-      console.log("🔍 Status VALIDADO detectado no PUT");
-      console.log(
-        "📋 Dados da solicitação:",
-        funcionarioAtualizado.solicitacao,
-      );
-
-      const funcionarioMainUpdateData: Record<string, unknown> = {
-        emMigracao: false,
-      };
-
-      // Adicionar SISPAT se fornecido
-      if (sispat) {
-        funcionarioMainUpdateData.sispat = sispat;
-        console.log("📋 Adicionando SISPAT:", sispat);
-      }
-
-      if (funcionarioAtualizado.solicitacao?.tipo === "DESLIGAMENTO") {
-        funcionarioMainUpdateData.statusPrestserv = "INATIVO";
-        funcionarioMainUpdateData.contratoId = null;
-        console.log(
-          "❌ Tipo DESLIGAMENTO - definindo status como INATIVO e removendo vínculo com contrato",
-        );
-      } else {
-        funcionarioMainUpdateData.statusPrestserv = "ATIVO";
-        console.log("✅ Tipo não é DESLIGAMENTO - definindo status como ATIVO");
-
-        // Atrelar funcionário ao contrato de destino
-        if (funcionarioAtualizado.solicitacao?.contratoDestinoId) {
-          funcionarioMainUpdateData.contratoId =
-            funcionarioAtualizado.solicitacao.contratoDestinoId;
-          console.log(
-            "🔗 Vinculando funcionário ao contrato:",
-            funcionarioAtualizado.solicitacao.contratoDestinoId,
-          );
-        } else {
-          console.log("⚠️ contratoDestinoId não encontrado na solicitação");
-        }
-      }
-
-      console.log(
-        "💾 Dados para atualização do funcionário:",
-        funcionarioMainUpdateData,
-      );
-
-      await prisma.funcionario.update({
-        where: {
-          id: funcionarioAtualizado.funcionarioId,
+      await aplicarVinculosAoValidar({
+        funcionarioId: funcionarioAtualizado.funcionarioId,
+        solicitacao: {
+          tipo: funcionarioAtualizado.solicitacao?.tipo,
+          contratoOrigemId:
+            funcionarioAtualizado.solicitacao?.contratoOrigemId ?? null,
+          contratoDestinoId:
+            funcionarioAtualizado.solicitacao?.contratoDestinoId ?? null,
+          observacoes: funcionarioAtualizado.solicitacao?.observacoes ?? null,
         },
-        data: funcionarioMainUpdateData,
+        sispat,
       });
-
-      console.log("✅ Funcionário atualizado com sucesso");
-    }
-
-    // Se o Prestserv foi validado, mover o funcionário para o contrato de destino e atualizar statusPrestserv
-    if (isValidado) {
-      // Buscar informações da solicitação para obter o contrato de destino
-      const solicitacao = await prisma.solicitacaoRemanejamento.findUnique({
-        where: { id: funcionarioAtualizado.solicitacaoId },
-        select: { contratoDestinoId: true },
-      });
-
-      if (solicitacao?.contratoDestinoId) {
-        // Atualizar o contrato do funcionário e desmarcar como em migração
-        await prisma.funcionario.update({
-          where: { id: funcionarioAtualizado.funcionarioId },
-          data: {
-            contratoId: solicitacao.contratoDestinoId,
-            emMigracao: false,
-          },
-        });
-
-        console.log(
-          `Funcionário ${funcionarioAtualizado.funcionarioId} movido para contrato ${solicitacao.contratoDestinoId} e status atualizado para ATIVO`,
-        );
-      }
     }
 
     // Se o Prestserv foi invalidado ou cancelado, desmarcar como em migração
@@ -880,7 +1142,9 @@ export async function PATCH(
           select: {
             id: true,
             tipo: true,
+            contratoOrigemId: true,
             contratoDestinoId: true,
+            observacoes: true,
           },
         },
       },
@@ -983,106 +1247,35 @@ export async function PATCH(
       });
     }
 
-    // Lógica especial para status VALIDADO
     if (statusPrestservCanonical === "VALIDADO") {
-      console.log("🔍 Status VALIDADO detectado");
-      console.log(
-        "📋 Dados da solicitação:",
-        funcionarioAtualizado.solicitacao,
-      );
-
-      const funcionarioMainUpdateData: Record<string, unknown> = {
-        emMigracao: false,
-      };
-
-      // Adicionar SISPAT se fornecido
-      if (sispat) {
-        funcionarioMainUpdateData.sispat = sispat;
-        console.log("📋 Adicionando SISPAT:", sispat);
-      }
-
-      if (funcionarioAtualizado.solicitacao?.tipo === "DESLIGAMENTO") {
-        funcionarioMainUpdateData.statusPrestserv = "INATIVO";
-        funcionarioMainUpdateData.contratoId = null;
-        console.log(
-          "❌ Tipo DESLIGAMENTO - definindo status como INATIVO e removendo vínculo com contrato",
-        );
-      } else {
-        funcionarioMainUpdateData.statusPrestserv = "ATIVO";
-        console.log("✅ Tipo não é DESLIGAMENTO - definindo status como ATIVO");
-
-        // Atrelar funcionário ao contrato de destino
-        if (funcionarioAtualizado.solicitacao?.contratoDestinoId) {
-          funcionarioMainUpdateData.contratoId =
-            funcionarioAtualizado.solicitacao.contratoDestinoId;
-          console.log(
-            "🔗 Vinculando funcionário ao contrato:",
-            funcionarioAtualizado.solicitacao.contratoDestinoId,
-          );
-        } else {
-          console.log("⚠️ contratoDestinoId não encontrado na solicitação");
-        }
-      }
-
-      console.log(
-        "💾 Dados para atualização do funcionário:",
-        funcionarioMainUpdateData,
-      );
-
-      await prisma.funcionario.update({
-        where: {
-          id: funcionarioAtualizado.funcionarioId,
+      await aplicarVinculosAoValidar({
+        funcionarioId: funcionarioAtualizado.funcionarioId,
+        solicitacao: {
+          tipo: funcionarioAtualizado.solicitacao?.tipo,
+          contratoOrigemId:
+            funcionarioAtualizado.solicitacao?.contratoOrigemId ?? null,
+          contratoDestinoId:
+            funcionarioAtualizado.solicitacao?.contratoDestinoId ?? null,
+          observacoes: funcionarioAtualizado.solicitacao?.observacoes ?? null,
         },
-        data: funcionarioMainUpdateData,
-      });
-
-      console.log("✅ Funcionário atualizado com sucesso");
-    }
-
-    // Lógica especial para status INVALIDADO
-    // Se for INVALIDADO, não altera emMigracao - funcionário continua em migração
-    // até que seja validado
-
-    // Se for desligamento e o status prestserv foi alterado para CONCLUIDO, atualizar status do funcionário para INATIVO
-    if (
-      funcionarioAtualizado.solicitacao?.tipo === "DESLIGAMENTO" &&
-      statusPrestserv === "CONCLUIDO"
-    ) {
-      await prisma.funcionario.update({
-        where: {
-          id: funcionarioAtualizado.funcionarioId,
-        },
-        data: {
-          statusPrestserv: "INATIVO",
-          atualizadoEm: new Date(),
-        },
-      });
-    }
-
-    // Para solicitações de desligamento que foram concluídas, atualizar status do funcionário
-    if (
-      funcionarioAtualizado.solicitacao?.tipo === "DESLIGAMENTO" &&
-      statusPrestserv === "CONCLUIDO"
-    ) {
-      await prisma.funcionario.update({
-        where: { id: funcionarioAtualizado.funcionarioId },
-        data: {
-          statusPrestserv: "INATIVO",
-          emMigracao: false,
-        },
+        sispat,
       });
     }
 
     // Para outros tipos de solicitação, desmarcar como em migração quando finalizado
     if (funcionarioAtualizado.solicitacao?.tipo !== "DESLIGAMENTO") {
-      if (["VALIDADO", "INVALIDADO", "CANCELADO"].includes(statusPrestserv)) {
+      if (
+        ["VALIDADO", "INVALIDADO", "CANCELADO"].includes(
+          statusPrestservCanonical || "",
+        )
+      ) {
         await prisma.funcionario.update({
           where: { id: funcionarioAtualizado.funcionarioId },
           data: { emMigracao: false },
         });
 
         console.log(
-          `Funcionário ${funcionarioAtualizado.funcionarioId} desmarcado como em migração após ${statusPrestserv}`,
+          `Funcionário ${funcionarioAtualizado.funcionarioId} desmarcado como em migração após ${statusPrestservCanonical}`,
         );
       }
     }

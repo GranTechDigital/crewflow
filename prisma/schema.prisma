@@ -21,6 +21,7 @@ model Contrato {
   funcionarios          Funcionario[]
   remanejamentosDestino SolicitacaoRemanejamento[] @relation("ContratoDestino")
   remanejamentosOrigem  SolicitacaoRemanejamento[] @relation("ContratoOrigem")
+  funcionariosVinculo   FuncionarioContratoVinculo[]
   matrizTreinamento     MatrizTreinamento[]
 }
 
@@ -72,6 +73,7 @@ model Funcionario {
   sispat                    String?
   contrato                  Contrato?                  @relation(fields: [contratoId], references: [id])
   funcaoRef                 Funcao?                    @relation(name: "FuncionarioToFuncao", fields: [funcaoId], references: [id], onDelete: SetNull)
+  contratosVinculo          FuncionarioContratoVinculo[]
   periodoUploads            PeriodoUpload[]
   remanejamentosFuncionario RemanejamentoFuncionario[]
   uptimeSheets              UptimeSheet[]
@@ -80,6 +82,25 @@ model Funcionario {
   capacitacoes              FuncionarioCapacitacao[]
 
   @@index([funcaoId])
+}
+
+model FuncionarioContratoVinculo {
+  id            Int         @id @default(autoincrement())
+  funcionarioId Int
+  contratoId    Int
+  tipoVinculo   String      @default("ADICIONAL")
+  ativo         Boolean     @default(true)
+  dataInicio    DateTime    @default(now())
+  dataFim       DateTime?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  contrato      Contrato    @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  funcionario   Funcionario @relation(fields: [funcionarioId], references: [id], onDelete: Cascade)
+
+  @@unique([funcionarioId, contratoId])
+  @@index([funcionarioId])
+  @@index([contratoId])
+  @@index([ativo])
 }
 
 model UptimeSheet {

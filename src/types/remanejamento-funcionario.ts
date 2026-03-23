@@ -137,7 +137,12 @@ export type StatusSetor =
   | "SUBMETER RASCUNHO"
   | "CANCELADO";
 
-export type TipoSolicitacao = "ALOCACAO" | "REMANEJAMENTO" | "DESLIGAMENTO";
+export type TipoSolicitacao =
+  | "ALOCACAO"
+  | "REMANEJAMENTO"
+  | "DESLIGAMENTO"
+  | "VINCULO_ADICIONAL"
+  | "DESVINCULO_ADICIONAL";
 
 // Interfaces para criação
 export interface NovasolicitacaoRemanejamento {
@@ -145,6 +150,8 @@ export interface NovasolicitacaoRemanejamento {
   funcionarioIds: number[];
   contratoOrigemId?: number;
   contratoDestinoId?: number;
+  contratoDesvinculoIds?: number[];
+  contratosDesvinculoPorFuncionario?: Record<string, number[]>;
   justificativa?: string;
   prioridade?: string;
   solicitadoPor: string;

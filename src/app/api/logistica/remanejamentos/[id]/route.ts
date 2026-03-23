@@ -76,7 +76,14 @@ export async function DELETE(
     // Após exclusão, se não houver mais remanejamentos para o funcionário, redefinir emMigracao
     const funcionarioId = remanejamentoFuncionario.funcionario.id;
     const existeOutroRemanejamento = await prisma.remanejamentoFuncionario.findFirst({
-      where: { funcionarioId },
+      where: {
+        funcionarioId,
+        NOT: {
+          statusPrestserv: {
+            in: ["VALIDADO", "INVALIDADO", "CANCELADO"],
+          },
+        },
+      },
     });
     if (!existeOutroRemanejamento) {
       await prisma.funcionario.update({
