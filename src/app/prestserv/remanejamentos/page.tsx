@@ -72,19 +72,19 @@ function FuncionariosPageContent() {
   const [filtroStatus, setFiltroStatus] = useState<string>("TODOS");
   const [filtroNome, setFiltroNome] = useState("");
   const [filtroContratoOrigem, setFiltroContratoOrigem] = useState<string[]>(
-    [],
+    []
   );
   const [dropdownContratoOrigemOpen, setDropdownContratoOrigemOpen] =
     useState(false);
   const [filtroContratoDestino, setFiltroContratoDestino] = useState<string[]>(
-    [],
+    []
   );
   const [dropdownContratoDestinoOpen, setDropdownContratoDestinoOpen] =
     useState(false);
   const [filtroStatusGeral, setFiltroStatusGeral] = useState<string[]>([]);
   const [filtroAcaoNecessaria, setFiltroAcaoNecessaria] = useState<string>("");
   const [filtroTipoSolicitacao, setFiltroTipoSolicitacao] = useState<string[]>(
-    [],
+    []
   );
   const [filtroNumeroSolicitacao, setFiltroNumeroSolicitacao] = useState<
     string[]
@@ -123,7 +123,7 @@ function FuncionariosPageContent() {
   const [rejectingStatus, setRejectingStatus] = useState(false);
   const [approvingStatus, setApprovingStatus] = useState(false);
   const [activeTab, setActiveTab] = useState<"nominal" | "solicitacao">(
-    "nominal",
+    "nominal"
   );
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [isInitialized, setIsInitialized] = useState(false);
@@ -146,7 +146,7 @@ function FuncionariosPageContent() {
     }
 
     const savedFiltersVisible = localStorage.getItem(
-      "funcionarios-filtros-visiveis",
+      "funcionarios-filtros-visiveis"
     );
     if (savedFiltersVisible !== null) {
       setFiltrosVisiveis(JSON.parse(savedFiltersVisible));
@@ -169,7 +169,7 @@ function FuncionariosPageContent() {
         setPaginaAtual(filters.paginaAtual || 1);
         setItensPorPagina(filters.itensPorPagina || 10);
         setOrdenacao(
-          filters.ordenacao || { campo: "solicitacaoId", direcao: "asc" },
+          filters.ordenacao || { campo: "solicitacaoId", direcao: "asc" }
         );
       } catch (error) {
         console.error("Erro ao carregar filtros salvos:", error);
@@ -178,7 +178,7 @@ function FuncionariosPageContent() {
 
     setIsInitialized(true);
     fetchFuncionarios();
-  }, [searchParams]);
+  }, [searchParams, fetchFuncionarios]);
 
   // Fechar dropdowns quando clicar fora
   useEffect(() => {
@@ -206,7 +206,7 @@ function FuncionariosPageContent() {
     if (isInitialized) {
       localStorage.setItem(
         "funcionarios-filtros-visiveis",
-        JSON.stringify(filtrosVisiveis),
+        JSON.stringify(filtrosVisiveis)
       );
     }
   }, [filtrosVisiveis, isInitialized]);
@@ -270,12 +270,12 @@ function FuncionariosPageContent() {
     const interval = setInterval(checkForUpdates, 2000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchFuncionarios]);
 
   // Funções existentes
   const updatePrestservStatus = async (
     funcionarioId: string,
-    novoStatus: string,
+    novoStatus: string
   ) => {
     try {
       setUpdatingStatus(funcionarioId);
@@ -325,7 +325,7 @@ function FuncionariosPageContent() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify(updateData),
-        },
+        }
       );
 
       if (!response.ok) {
@@ -357,8 +357,8 @@ function FuncionariosPageContent() {
                 }),
                 // Não alterar statusFuncionario quando invalidado - o setor deve corrigir e o ciclo se repete
               }
-            : func,
-        ),
+            : func
+        )
       );
 
       const statusMessages = {
@@ -383,7 +383,7 @@ function FuncionariosPageContent() {
           statusMessages[novoStatus as keyof typeof statusMessages] ||
           "Status atualizado"
         }`,
-        "success",
+        "success"
       );
     } catch (error) {
       showToast("Erro ao atualizar status", "error");
@@ -495,7 +495,7 @@ function FuncionariosPageContent() {
   };
 
   const getValidStatusOptions = (
-    funcionario: FuncionarioTableData,
+    funcionario: FuncionarioTableData
   ): string[] => {
     const prestservStatus = funcionario.statusPrestserv;
     const statusTarefas = funcionario.statusTarefas;
@@ -517,13 +517,13 @@ function FuncionariosPageContent() {
     return [...new Set(options)]; // Remove duplicatas
   };
 
-  async function fetchFuncionarios() {
+  const fetchFuncionarios = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
 
       const response = await fetch(
-        "/api/logistica/remanejamentos?filtrarProcesso=false",
+        "/api/logistica/remanejamentos?filtrarProcesso=false"
       );
 
       if (!response.ok) {
@@ -539,76 +539,73 @@ function FuncionariosPageContent() {
       console.log("Dados da API:", data);
       const funcionariosTransformados: FuncionarioTableData[] = data.flatMap(
         (solicitacao: any) =>
-          solicitacao.funcionarios.map((rf: any) => {
-            const tarefasAtivas = (rf.tarefas || []).filter(
-              (t: any) => t.status !== "CANCELADO",
-            );
-            const statusConcluido = new Set(["CONCLUIDO", "CONCLUIDA"]);
-            return {
-              id: rf.id,
-              remanejamentoId: rf.id,
-              nome: rf.funcionario.nome,
-              matricula: rf.funcionario.matricula,
-              funcao: rf.funcionario.funcao,
-              statusTarefas: rf.statusTarefas || "ATENDER TAREFAS",
-              statusPrestserv: rf.statusPrestserv || "PENDENTE",
-              solicitacaoId: solicitacao.id,
-              tipoSolicitacao: solicitacao.tipo || "REMANEJAMENTO",
-              contratoOrigem: solicitacao.contratoOrigem?.numero || "N/A",
-              contratoDestino: solicitacao.contratoDestino?.numero || "N/A",
-              totalTarefas: tarefasAtivas.length,
-              tarefasConcluidas: tarefasAtivas.filter((t: any) =>
-                statusConcluido.has(t.status),
-              ).length,
-              dataSolicitacao: solicitacao.dataSolicitacao,
-              createdAt: solicitacao.createdAt,
-              updatedAt: solicitacao.updatedAt,
-              statusFuncionario: rf.statusFuncionario,
-              progressoPorSetor: [
-                {
-                  setor: "RH",
-                  total: tarefasAtivas.filter(
-                    (t: any) => t.responsavel === "RH",
-                  ).length,
-                  concluidas: tarefasAtivas.filter(
+          solicitacao.funcionarios.map((rf: any) => ({
+            id: rf.id,
+            remanejamentoId: rf.id,
+            nome: rf.funcionario.nome,
+            matricula: rf.funcionario.matricula,
+            funcao: rf.funcionario.funcao,
+            statusTarefas: rf.statusTarefas || "ATENDER TAREFAS",
+            statusPrestserv: rf.statusPrestserv || "PENDENTE",
+            solicitacaoId: solicitacao.id,
+            tipoSolicitacao: solicitacao.tipo || "REMANEJAMENTO",
+            contratoOrigem: solicitacao.contratoOrigem?.numero || "N/A",
+            contratoDestino: solicitacao.contratoDestino?.numero || "N/A",
+            totalTarefas: rf.tarefas?.length || 0,
+            tarefasConcluidas:
+              rf.tarefas?.filter((t: any) => t.status === "CONCLUIDO").length ||
+              0,
+            dataSolicitacao: solicitacao.dataSolicitacao,
+            createdAt: solicitacao.createdAt,
+            updatedAt: solicitacao.updatedAt,
+            statusFuncionario: rf.statusFuncionario,
+            progressoPorSetor: [
+              {
+                setor: "RH",
+                total:
+                  rf.tarefas?.filter((t: any) => t.responsavel === "RH")
+                    .length || 0,
+                concluidas:
+                  rf.tarefas?.filter(
                     (t: any) =>
-                      t.responsavel === "RH" && statusConcluido.has(t.status),
-                  ).length,
-                  percentual: 0,
-                },
-                {
-                  setor: "MEDICINA",
-                  total: tarefasAtivas.filter(
-                    (t: any) => t.responsavel === "MEDICINA",
-                  ).length,
-                  concluidas: tarefasAtivas.filter(
+                      t.responsavel === "RH" && t.status === "CONCLUIDO"
+                  ).length || 0,
+                percentual: 0,
+              },
+              {
+                setor: "MEDICINA",
+                total:
+                  rf.tarefas?.filter((t: any) => t.responsavel === "MEDICINA")
+                    .length || 0,
+                concluidas:
+                  rf.tarefas?.filter(
                     (t: any) =>
-                      t.responsavel === "MEDICINA" &&
-                      statusConcluido.has(t.status),
-                  ).length,
-                  percentual: 0,
-                },
-                {
-                  setor: "TREINAMENTO",
-                  total: tarefasAtivas.filter(
-                    (t: any) => t.responsavel === "TREINAMENTO",
-                  ).length,
-                  concluidas: tarefasAtivas.filter(
+                      t.responsavel === "MEDICINA" && t.status === "CONCLUIDO"
+                  ).length || 0,
+                percentual: 0,
+              },
+              {
+                setor: "TREINAMENTO",
+                total:
+                  rf.tarefas?.filter(
+                    (t: any) => t.responsavel === "TREINAMENTO"
+                  ).length || 0,
+                concluidas:
+                  rf.tarefas?.filter(
                     (t: any) =>
                       t.responsavel === "TREINAMENTO" &&
-                      statusConcluido.has(t.status),
-                  ).length,
-                  percentual: 0,
-                },
-              ].map((progresso) => ({
-                ...progresso,
-                percentual:
-                  progresso.total > 0
-                    ? Math.round((progresso.concluidas / progresso.total) * 100)
-                    : 0,
-              })),
-            };
-          }),
+                      t.status === "CONCLUIDO"
+                  ).length || 0,
+                percentual: 0,
+              },
+            ].map((progresso) => ({
+              ...progresso,
+              percentual:
+                progresso.total > 0
+                  ? Math.round((progresso.concluidas / progresso.total) * 100)
+                  : 0,
+            })),
+          }))
       );
 
       setFuncionarios(funcionariosTransformados);
@@ -617,22 +614,19 @@ function FuncionariosPageContent() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   const estatisticasPorSetor = () => {
-    const estatisticas = funcionarios.reduce(
-      (acc, funcionario) => {
-        funcionario.progressoPorSetor?.forEach((progresso) => {
-          if (!acc[progresso.setor]) {
-            acc[progresso.setor] = { total: 0, concluidas: 0 };
-          }
-          acc[progresso.setor].total += progresso.total;
-          acc[progresso.setor].concluidas += progresso.concluidas;
-        });
-        return acc;
-      },
-      {} as Record<string, { total: number; concluidas: number }>,
-    );
+    const estatisticas = funcionarios.reduce((acc, funcionario) => {
+      funcionario.progressoPorSetor?.forEach((progresso) => {
+        if (!acc[progresso.setor]) {
+          acc[progresso.setor] = { total: 0, concluidas: 0 };
+        }
+        acc[progresso.setor].total += progresso.total;
+        acc[progresso.setor].concluidas += progresso.concluidas;
+      });
+      return acc;
+    }, {} as Record<string, { total: number; concluidas: number }>);
 
     return Object.entries(estatisticas).map(([setor, dados]) => ({
       setor,
@@ -710,7 +704,7 @@ function FuncionariosPageContent() {
           const setoresPendentes = pendingTasks.map((p) => p.setor).join(", ");
           const totalTarefasPendentes = pendingTasks.reduce(
             (acc, p) => acc + (p.total - p.concluidas),
-            0,
+            0
           );
           baseMessage = `🔄 2. Criado - ATENDER TAREFAS ${setoresPendentes} concluir ${totalTarefasPendentes} ${
             totalTarefasPendentes === 1
@@ -875,7 +869,7 @@ function FuncionariosPageContent() {
       // Função para determinar status do setor
       const getStatusSetor = (setor: string) => {
         const progressoSetor = funcionario.progressoPorSetor.find(
-          (p) => p.setor === setor,
+          (p) => p.setor === setor
         );
         if (!progressoSetor || progressoSetor.total === 0) {
           return "Sem Tarefas";
@@ -898,13 +892,13 @@ function FuncionariosPageContent() {
         MEDICINA: getStatusSetor("MEDICINA"),
         TREINAMENTO: getStatusSetor("TREINAMENTO"),
         "Data Solicitação": new Date(
-          funcionario.dataSolicitacao,
+          funcionario.dataSolicitacao
         ).toLocaleDateString("pt-BR"),
         "Data Criação": new Date(funcionario.createdAt).toLocaleDateString(
-          "pt-BR",
+          "pt-BR"
         ),
         "Data Atualização": new Date(funcionario.updatedAt).toLocaleDateString(
-          "pt-BR",
+          "pt-BR"
         ),
       };
     });
@@ -932,7 +926,7 @@ function FuncionariosPageContent() {
   // Funções para gerenciar tags de filtros ativos
   const removerFiltroStatusGeral = (statusParaRemover: string) => {
     setFiltroStatusGeral((prev) =>
-      prev.filter((status) => status !== statusParaRemover),
+      prev.filter((status) => status !== statusParaRemover)
     );
   };
 
@@ -947,7 +941,7 @@ function FuncionariosPageContent() {
       case "contratoOrigem":
         if (valor) {
           setFiltroContratoOrigem((prev) =>
-            prev.filter((contrato) => contrato !== valor),
+            prev.filter((contrato) => contrato !== valor)
           );
         } else {
           setFiltroContratoOrigem([]);
@@ -956,7 +950,7 @@ function FuncionariosPageContent() {
       case "contratoDestino":
         if (valor) {
           setFiltroContratoDestino((prev) =>
-            prev.filter((contrato) => contrato !== valor),
+            prev.filter((contrato) => contrato !== valor)
           );
         } else {
           setFiltroContratoDestino([]);
@@ -971,7 +965,7 @@ function FuncionariosPageContent() {
       case "tipoSolicitacao":
         if (valor) {
           setFiltroTipoSolicitacao((prev) =>
-            prev.filter((tipo) => tipo !== valor),
+            prev.filter((tipo) => tipo !== valor)
           );
         } else {
           setFiltroTipoSolicitacao([]);
@@ -980,7 +974,7 @@ function FuncionariosPageContent() {
       case "numeroSolicitacao":
         if (valor) {
           setFiltroNumeroSolicitacao((prev) =>
-            prev.filter((numero) => numero !== valor),
+            prev.filter((numero) => numero !== valor)
           );
         } else {
           setFiltroNumeroSolicitacao([]);
@@ -989,7 +983,7 @@ function FuncionariosPageContent() {
       case "responsavel":
         if (valor) {
           setFiltroResponsavel((prev) =>
-            prev.filter((responsavel) => responsavel !== valor),
+            prev.filter((responsavel) => responsavel !== valor)
           );
         } else {
           setFiltroResponsavel([]);
@@ -998,7 +992,7 @@ function FuncionariosPageContent() {
       case "pendenciasPorSetor":
         if (valor) {
           setFiltroPendenciasPorSetor((prev) =>
-            prev.filter((setor) => setor !== valor),
+            prev.filter((setor) => setor !== valor)
           );
         } else {
           setFiltroPendenciasPorSetor([]);
@@ -1116,7 +1110,7 @@ function FuncionariosPageContent() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({ statusTarefas: "REJEITADO" }),
-        },
+        }
       );
 
       if (!response.ok) {
@@ -1129,13 +1123,13 @@ function FuncionariosPageContent() {
         prev.map((func) =>
           func.id === selectedFuncionario.id
             ? { ...func, statusTarefas: "SOLICITAÇÃO REJEITADA" }
-            : func,
-        ),
+            : func
+        )
       );
 
       showToast(
         `Solicitação de ${selectedFuncionario.nome} foi reprovada`,
-        "success",
+        "success"
       );
       cancelarAprovacao();
     } catch (error) {
@@ -1143,7 +1137,7 @@ function FuncionariosPageContent() {
         error instanceof Error
           ? error.message
           : "Erro ao reprovar a solicitação",
-        "error",
+        "error"
       );
     } finally {
       setRejectingStatus(false);
@@ -1163,7 +1157,7 @@ function FuncionariosPageContent() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({ statusTarefas: "REPROVAR TAREFAS" }),
-        },
+        }
       );
 
       if (!response.ok) {
@@ -1176,13 +1170,13 @@ function FuncionariosPageContent() {
         prev.map((func) =>
           func.id === selectedFuncionario.id
             ? { ...func, statusTarefas: "REPROVAR TAREFAS" }
-            : func,
-        ),
+            : func
+        )
       );
 
       showToast(
         `Solicitação de ${selectedFuncionario.nome} foi aprovada`,
-        "success",
+        "success"
       );
 
       // Perguntar se quer gerar tarefas
@@ -1190,7 +1184,7 @@ function FuncionariosPageContent() {
     } catch (error) {
       showToast(
         error instanceof Error ? error.message : "Erro ao aprovar solicitação",
-        "error",
+        "error"
       );
     } finally {
       setApprovingStatus(false);
@@ -1207,7 +1201,7 @@ function FuncionariosPageContent() {
 
   const toggleSetor = (setor: string) => {
     setSelectedSetores((prev) =>
-      prev.includes(setor) ? prev.filter((s) => s !== setor) : [...prev, setor],
+      prev.includes(setor) ? prev.filter((s) => s !== setor) : [...prev, setor]
     );
   };
 
@@ -1233,7 +1227,7 @@ function FuncionariosPageContent() {
         const errorData = await response.json();
         showToast(
           errorData.error || "Erro ao reprovar tarefas padrão",
-          "error",
+          "error"
         );
         return;
       }
@@ -1241,7 +1235,7 @@ function FuncionariosPageContent() {
       const result = await response.json();
       showToast(
         `Tarefas padrão criadas com sucesso para ${selectedFuncionario.nome}!`,
-        "success",
+        "success"
       );
       fetchFuncionarios();
       setShowTarefasModal(false);
@@ -1282,10 +1276,10 @@ function FuncionariosPageContent() {
     const pendentes = funcionarios.filter(
       (f) =>
         f.statusTarefas === "TAREFAS PENDENTES" ||
-        f.statusTarefas === "ATENDER TAREFAS",
+        f.statusTarefas === "ATENDER TAREFAS"
     ).length;
     const concluidos = funcionarios.filter(
-      (f) => f.statusTarefas === "SUBMETER RASCUNHO",
+      (f) => f.statusTarefas === "SUBMETER RASCUNHO"
     ).length;
     return { pendentes, concluidos, total: funcionarios.length };
   };
@@ -1373,7 +1367,7 @@ function FuncionariosPageContent() {
         (progresso) =>
           filtroPendenciasPorSetor.includes(progresso.setor) &&
           progresso.total > 0 &&
-          progresso.concluidas < progresso.total,
+          progresso.concluidas < progresso.total
       );
 
     return (
@@ -1430,7 +1424,7 @@ function FuncionariosPageContent() {
   const indiceFim = indiceInicio + itensPorPagina;
   const funcionariosPaginados = funcionariosOrdenados.slice(
     indiceInicio,
-    indiceFim,
+    indiceFim
   );
 
   // Resetar página atual quando filtros mudarem
@@ -1465,7 +1459,7 @@ function FuncionariosPageContent() {
       acc[solicitacaoId].funcionarios.push(funcionario);
       return acc;
     },
-    {} as Record<string, any>,
+    {} as Record<string, any>
   );
 
   const solicitacoesFiltradas = Object.values(funcionariosAgrupados);
@@ -1599,8 +1593,8 @@ function FuncionariosPageContent() {
                     {filtroContratoOrigem.length === 0
                       ? "Todos"
                       : filtroContratoOrigem.length === 1
-                        ? filtroContratoOrigem[0]
-                        : `${filtroContratoOrigem.length} selecionados`}
+                      ? filtroContratoOrigem[0]
+                      : `${filtroContratoOrigem.length} selecionados`}
                   </span>
                   <svg
                     className={`w-4 h-4 transition-transform ${
@@ -1638,8 +1632,8 @@ function FuncionariosPageContent() {
                               } else {
                                 setFiltroContratoOrigem(
                                   filtroContratoOrigem.filter(
-                                    (c) => c !== contrato,
-                                  ),
+                                    (c) => c !== contrato
+                                  )
                                 );
                               }
                             }}
@@ -1673,8 +1667,8 @@ function FuncionariosPageContent() {
                     {filtroContratoDestino.length === 0
                       ? "Todos"
                       : filtroContratoDestino.length === 1
-                        ? filtroContratoDestino[0]
-                        : `${filtroContratoDestino.length} selecionados`}
+                      ? filtroContratoDestino[0]
+                      : `${filtroContratoDestino.length} selecionados`}
                   </span>
                   <svg
                     className={`w-4 h-4 transition-transform ${
@@ -1712,8 +1706,8 @@ function FuncionariosPageContent() {
                               } else {
                                 setFiltroContratoDestino(
                                   filtroContratoDestino.filter(
-                                    (c) => c !== contrato,
-                                  ),
+                                    (c) => c !== contrato
+                                  )
                                 );
                               }
                             }}
@@ -1782,7 +1776,7 @@ function FuncionariosPageContent() {
                                 ]);
                               } else {
                                 setFiltroStatusGeral(
-                                  filtroStatusGeral.filter((s) => s !== status),
+                                  filtroStatusGeral.filter((s) => s !== status)
                                 );
                               }
                             }}
@@ -1816,8 +1810,8 @@ function FuncionariosPageContent() {
                     {filtroTipoSolicitacao.length === 0
                       ? "Todos"
                       : filtroTipoSolicitacao.length === 1
-                        ? filtroTipoSolicitacao[0]
-                        : `${filtroTipoSolicitacao.length} selecionados`}
+                      ? filtroTipoSolicitacao[0]
+                      : `${filtroTipoSolicitacao.length} selecionados`}
                   </span>
                   <svg
                     className={`w-4 h-4 transition-transform ${
@@ -1855,8 +1849,8 @@ function FuncionariosPageContent() {
                               } else {
                                 setFiltroTipoSolicitacao(
                                   filtroTipoSolicitacao.filter(
-                                    (t) => t !== tipo,
-                                  ),
+                                    (t) => t !== tipo
+                                  )
                                 );
                               }
                             }}
@@ -1882,7 +1876,7 @@ function FuncionariosPageContent() {
                   type="button"
                   onClick={() =>
                     setDropdownNumeroSolicitacaoOpen(
-                      !dropdownNumeroSolicitacaoOpen,
+                      !dropdownNumeroSolicitacaoOpen
                     )
                   }
                   className="w-full pl-8 pr-8 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400 bg-white text-left flex items-center justify-between"
@@ -1891,8 +1885,8 @@ function FuncionariosPageContent() {
                     {filtroNumeroSolicitacao.length === 0
                       ? "Todos"
                       : filtroNumeroSolicitacao.length === 1
-                        ? filtroNumeroSolicitacao[0]
-                        : `${filtroNumeroSolicitacao.length} selecionados`}
+                      ? filtroNumeroSolicitacao[0]
+                      : `${filtroNumeroSolicitacao.length} selecionados`}
                   </span>
                   <ChevronDownIcon className="h-4 w-4 text-gray-400" />
                 </button>
@@ -1914,7 +1908,7 @@ function FuncionariosPageContent() {
                               ]);
                             } else {
                               setFiltroNumeroSolicitacao((prev) =>
-                                prev.filter((n) => n !== numero),
+                                prev.filter((n) => n !== numero)
                               );
                             }
                           }}
@@ -1945,8 +1939,8 @@ function FuncionariosPageContent() {
                     {filtroResponsavel.length === 0
                       ? "Todos"
                       : filtroResponsavel.length === 1
-                        ? filtroResponsavel[0]
-                        : `${filtroResponsavel.length} selecionados`}
+                      ? filtroResponsavel[0]
+                      : `${filtroResponsavel.length} selecionados`}
                   </span>
                   <ChevronDownIcon className="h-4 w-4 text-gray-400" />
                 </button>
@@ -1968,7 +1962,7 @@ function FuncionariosPageContent() {
                               ]);
                             } else {
                               setFiltroResponsavel((prev) =>
-                                prev.filter((r) => r !== responsavel),
+                                prev.filter((r) => r !== responsavel)
                               );
                             }
                           }}
@@ -2001,8 +1995,8 @@ function FuncionariosPageContent() {
                     {filtroPendenciasPorSetor.length === 0
                       ? "Todos"
                       : filtroPendenciasPorSetor.length === 1
-                        ? filtroPendenciasPorSetor[0]
-                        : `${filtroPendenciasPorSetor.length} selecionados`}
+                      ? filtroPendenciasPorSetor[0]
+                      : `${filtroPendenciasPorSetor.length} selecionados`}
                   </span>
                   <ChevronDownIcon className="h-4 w-4 text-gray-400" />
                 </button>
@@ -2024,7 +2018,7 @@ function FuncionariosPageContent() {
                               ]);
                             } else {
                               setFiltroPendenciasPorSetor((prev) =>
-                                prev.filter((s) => s !== setor),
+                                prev.filter((s) => s !== setor)
                               );
                             }
                           }}
@@ -2158,7 +2152,7 @@ function FuncionariosPageContent() {
                                 year: "numeric",
                                 hour: "2-digit",
                                 minute: "2-digit",
-                              },
+                              }
                             )}
                           </div>
                           <div>
@@ -2171,7 +2165,7 @@ function FuncionariosPageContent() {
                                 year: "numeric",
                                 hour: "2-digit",
                                 minute: "2-digit",
-                              },
+                              }
                             )}
                           </div>
                         </div>
@@ -2206,7 +2200,7 @@ function FuncionariosPageContent() {
                         <div>
                           <span
                             className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${getStatusColor(
-                              funcionario.statusFuncionario ?? "NÃO INFORMADO",
+                              funcionario.statusFuncionario ?? "NÃO INFORMADO"
                             )}`}
                           >
                             {funcionario.statusFuncionario || "NÃO INFORMADO"}
@@ -2217,7 +2211,7 @@ function FuncionariosPageContent() {
                     <td className="px-3 py-2 text-xs text-gray-700">
                       <span
                         className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${getStatusColor(
-                          funcionario.statusTarefas,
+                          funcionario.statusTarefas
                         )}`}
                       >
                         {getStatusGeralLabel(funcionario.statusTarefas)}
@@ -2227,7 +2221,7 @@ function FuncionariosPageContent() {
                     <td className="px-3 py-2 text-xs text-gray-700 text-center">
                       <span
                         className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${getResponsavelColor(
-                          getResponsavelAtual(funcionario),
+                          getResponsavelAtual(funcionario)
                         )}`}
                       >
                         {getResponsavelAtual(funcionario)}
@@ -2239,15 +2233,15 @@ function FuncionariosPageContent() {
                       <div className="space-y-1">
                         {["RH", "MEDICINA", "TREINAMENTO"].map((setor) => {
                           const progresso = funcionario.progressoPorSetor?.find(
-                            (p) => p.setor === setor,
+                            (p) => p.setor === setor
                           );
                           const hasData = progresso && progresso.total > 0;
                           const nomeSetor =
                             setor === "RH"
                               ? "Recursos Humanos"
                               : setor === "MEDICINA"
-                                ? "Medicina"
-                                : "Treinamento";
+                              ? "Medicina"
+                              : "Treinamento";
                           return (
                             <div
                               key={setor}
@@ -2277,7 +2271,7 @@ function FuncionariosPageContent() {
                                     hasData
                                       ? getProgressColor(
                                           progresso.concluidas,
-                                          progresso.total,
+                                          progresso.total
                                         )
                                       : "text-gray-300"
                                   }`}
@@ -2285,7 +2279,7 @@ function FuncionariosPageContent() {
                                   {hasData
                                     ? getProgressIcon(
                                         progresso.concluidas,
-                                        progresso.total,
+                                        progresso.total
                                       )
                                     : "●"}
                                 </span>
@@ -2307,7 +2301,7 @@ function FuncionariosPageContent() {
                           }}
                           disabled={updatingStatus === funcionario.id}
                           className={`w-full text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 ${getStatusColor(
-                            funcionario.statusPrestserv,
+                            funcionario.statusPrestserv
                           )} font-medium`}
                         >
                           <option value={funcionario.statusPrestserv}>
@@ -2315,8 +2309,7 @@ function FuncionariosPageContent() {
                           </option>
                           {getValidStatusOptions(funcionario)
                             .filter(
-                              (status) =>
-                                status !== funcionario.statusPrestserv,
+                              (status) => status !== funcionario.statusPrestserv
                             )
                             .map((status) => (
                               <option key={status} value={status}>
@@ -2356,7 +2349,7 @@ function FuncionariosPageContent() {
                             <button
                               onClick={() =>
                                 router.push(
-                                  `/prestserv/remanejamentos/${funcionario.id}`,
+                                  `/prestserv/remanejamentos/${funcionario.id}`
                                 )
                               }
                               className="inline-flex items-center px-2 py-1 text-xs font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded hover:bg-gray-100 transition-colors focus:outline-none focus:ring-1 focus:ring-gray-500"
@@ -2458,7 +2451,7 @@ function FuncionariosPageContent() {
                       {/* Números das páginas */}
                       {Array.from(
                         { length: totalPaginas },
-                        (_, i) => i + 1,
+                        (_, i) => i + 1
                       ).map((numeroPagina) => (
                         <button
                           key={numeroPagina}
@@ -2476,7 +2469,7 @@ function FuncionariosPageContent() {
                       <button
                         onClick={() =>
                           setPaginaAtual(
-                            Math.min(totalPaginas, paginaAtual + 1),
+                            Math.min(totalPaginas, paginaAtual + 1)
                           )
                         }
                         disabled={paginaAtual === totalPaginas}
@@ -2547,10 +2540,10 @@ function FuncionariosPageContent() {
                   {solicitacoesFiltradas.map(
                     (solicitacao: any, index: number) => {
                       const resumo = getFuncionariosResumo(
-                        solicitacao.funcionarios,
+                        solicitacao.funcionarios
                       );
                       const isExpanded = expandedRows.has(
-                        solicitacao.solicitacaoId,
+                        solicitacao.solicitacaoId
                       );
 
                       return (
@@ -2586,7 +2579,7 @@ function FuncionariosPageContent() {
                                     <div>
                                       Criado:{" "}
                                       {new Date(
-                                        solicitacao.funcionarios[0]?.createdAt,
+                                        solicitacao.funcionarios[0]?.createdAt
                                       ).toLocaleDateString("pt-BR", {
                                         day: "2-digit",
                                         month: "2-digit",
@@ -2598,7 +2591,7 @@ function FuncionariosPageContent() {
                                     <div>
                                       Atualizado:{" "}
                                       {new Date(
-                                        solicitacao.funcionarios[0]?.updatedAt,
+                                        solicitacao.funcionarios[0]?.updatedAt
                                       ).toLocaleDateString("pt-BR", {
                                         day: "2-digit",
                                         month: "2-digit",
@@ -2629,7 +2622,7 @@ function FuncionariosPageContent() {
                                   className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(
                                     resumo.pendentes > 0
                                       ? "TAREFAS PENDENTES"
-                                      : "SUBMETER RASCUNHO",
+                                      : "SUBMETER RASCUNHO"
                                   )}`}
                                 >
                                   {resumo.pendentes > 0
@@ -2670,7 +2663,7 @@ function FuncionariosPageContent() {
                             solicitacao.funcionarios.map(
                               (
                                 funcionario: FuncionarioTableData,
-                                funcIndex: number,
+                                funcIndex: number
                               ) => (
                                 <tr
                                   key={`${solicitacao.solicitacaoId}-${funcionario.id}`}
@@ -2692,7 +2685,7 @@ function FuncionariosPageContent() {
                                   <td className="px-4 py-3 text-xs text-gray-600">
                                     <span
                                       className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(
-                                        funcionario.statusTarefas,
+                                        funcionario.statusTarefas
                                       )}`}
                                     >
                                       {funcionario.statusTarefas}
@@ -2705,7 +2698,7 @@ function FuncionariosPageContent() {
                                   <td className="px-4 py-3 text-xs text-gray-600">
                                     <span
                                       className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(
-                                        funcionario.statusPrestserv,
+                                        funcionario.statusPrestserv
                                       )}`}
                                     >
                                       {funcionario.statusPrestserv}
@@ -2734,7 +2727,7 @@ function FuncionariosPageContent() {
                                         <button
                                           onClick={() =>
                                             router.push(
-                                              `/prestserv/funcionario/${funcionario.id}/tarefas`,
+                                              `/prestserv/funcionario/${funcionario.id}/tarefas`
                                             )
                                           }
                                           className="inline-flex items-center px-2 py-1 text-xs font-medium text-blue-600 bg-blue-50 border border-blue-300 rounded hover:bg-blue-100 transition-colors"
@@ -2753,11 +2746,11 @@ function FuncionariosPageContent() {
                                     </div>
                                   </td>
                                 </tr>
-                              ),
+                              )
                             )}
                         </React.Fragment>
                       );
-                    },
+                    }
                   )}
                 </tbody>
               </table>
