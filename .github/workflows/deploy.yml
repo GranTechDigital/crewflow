@@ -280,6 +280,7 @@ jobs:
 
             # Subir serviços via compose com env-file (atualiza apenas o que mudou)
             # Remover contêiner(es) potencialmente conflitantes e limpar órfãos
+            docker rm -f crewflow-app-production || true
             docker rm -f pgadmin-production || true
             docker rm -f pgadmin-staging || true
             docker rm -f postgres-staging || true
