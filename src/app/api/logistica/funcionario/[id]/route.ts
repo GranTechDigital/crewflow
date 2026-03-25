@@ -2,6 +2,71 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { AtualizarStatusPrestserv } from "@/types/remanejamento-funcionario";
 
+const keyTexto = (s: string | null | undefined) =>
+  String(s || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[_-]/g, " ")
+    .trim()
+    .toUpperCase();
+
+const keyNumeroContrato = (s: string | null | undefined) =>
+  String(s || "").replace(/\D/g, "");
+
+const keySlug = (s: string | null | undefined) =>
+  String(s || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^A-Za-z0-9]+/g, "")
+    .toUpperCase();
+
+const ehNr26OuNr33 = (s: string | null | undefined) => {
+  const k = keySlug(s);
+  return k.includes("NR26") || k.includes("NR33");
+};
+
+const detectSetorLocal = (resp: string) => {
+  const r = String(resp || "").toUpperCase();
+  if (r.includes("RH") || r.includes("RECURSOS HUMANOS")) return "RH";
+  if (r.includes("MED") || r.includes("SAUDE") || r.includes("SAÚDE"))
+    return "MEDICINA";
+  if (r.includes("TREIN") || r.includes("CAPACIT")) return "TREINAMENTO";
+  return "OUTROS";
+};
+
+function ehCasoEspecialSantos51Para10(params: {
+  tipoSolicitacao: string | null | undefined;
+  contratoOrigemNumero: string | null;
+  contratoDestinoNumero: string | null;
+  contratoFuncionarioNumero: string | null;
+}) {
+  const {
+    tipoSolicitacao,
+    contratoOrigemNumero,
+    contratoDestinoNumero,
+    contratoFuncionarioNumero,
+  } = params;
+  return (
+    keyTexto(tipoSolicitacao) === "VINCULO ADICIONAL" &&
+    (keyNumeroContrato(contratoOrigemNumero) === "4600679351" ||
+      keyNumeroContrato(contratoFuncionarioNumero) === "4600679351") &&
+    keyNumeroContrato(contratoDestinoNumero) === "4600684010"
+  );
+}
+
+async function getNumeroContratoFuncionario(funcionarioId: number) {
+  const funcionario = await prisma.funcionario.findUnique({
+    where: { id: funcionarioId },
+    select: { contratoId: true },
+  });
+  if (!funcionario?.contratoId) return null;
+  const contrato = await prisma.contrato.findUnique({
+    where: { id: funcionario.contratoId },
+    select: { numero: true },
+  });
+  return contrato?.numero || null;
+}
+
 // GET - Buscar detalhes de um funcionário em remanejamento
 export async function GET(
   request: NextRequest,
@@ -181,17 +246,19 @@ async function aplicarVinculosAoValidar(params: {
   } | null = null;
 
   try {
-    const funcionarioComVinculos = await prisma.funcionario.findUnique({
-      where: { id: funcionarioId },
-      select: {
-        contratoId: true,
-        contratosVinculo: {
-          where: { ativo: true },
-          orderBy: { createdAt: "asc" },
-          select: { id: true, contratoId: true },
+    const funcionarioComVinculos = await (prisma as any).funcionario.findUnique(
+      {
+        where: { id: funcionarioId },
+        select: {
+          contratoId: true,
+          contratosVinculo: {
+            where: { ativo: true },
+            orderBy: { createdAt: "asc" },
+            select: { id: true, contratoId: true },
+          },
         },
       },
-    });
+    );
     funcionarioAtual = funcionarioComVinculos as typeof funcionarioAtual;
   } catch (erroConsultaVinculos) {
     console.error(
@@ -280,7 +347,7 @@ async function aplicarVinculosAoValidar(params: {
       )
     ) {
       if (possuiDelegateVinculoCreate) {
-        await prisma.funcionarioContratoVinculo.create({
+        await prismaAny.funcionarioContratoVinculo.create({
           data: {
             funcionarioId,
             contratoId: contratoDestinoId,
@@ -311,7 +378,7 @@ async function aplicarVinculosAoValidar(params: {
 
   if (tipo === "DESLIGAMENTO") {
     if (possuiDelegateVinculoDeleteMany) {
-      await prisma.funcionarioContratoVinculo.deleteMany({
+      await prismaAny.funcionarioContratoVinculo.deleteMany({
         where: {
           funcionarioId,
         },
@@ -345,7 +412,7 @@ async function aplicarVinculosAoValidar(params: {
 
     if (contratoIdsAlvo.length > 0) {
       if (possuiDelegateVinculoDeleteMany) {
-        await prisma.funcionarioContratoVinculo.deleteMany({
+        await prismaAny.funcionarioContratoVinculo.deleteMany({
           where: {
             funcionarioId,
             contratoId: {
@@ -363,7 +430,7 @@ async function aplicarVinculosAoValidar(params: {
     }
 
     const adicionaisAtivos = possuiDelegateVinculoCount
-      ? await prisma.funcionarioContratoVinculo.count({
+      ? await prismaAny.funcionarioContratoVinculo.count({
           where: { funcionarioId, ativo: true },
         })
       : await contarVinculosRaw();
@@ -484,6 +551,16 @@ export async function PUT(
           solicitacao: {
             select: {
               tipo: true,
+              contratoOrigem: {
+                select: {
+                  numero: true,
+                },
+              },
+              contratoDestino: {
+                select: {
+                  numero: true,
+                },
+              },
             },
           },
           funcionario: {
@@ -491,6 +568,7 @@ export async function PUT(
               id: true,
               nome: true,
               matricula: true,
+              contratoId: true,
             },
           },
         },
@@ -504,12 +582,27 @@ export async function PUT(
     }
 
     // Validação: só pode submeter se todas as tarefas estiverem concluídas, desconsiderando canceladas
+    const contratoOrigemNumero =
+      remanejamentoFuncionario.solicitacao?.contratoOrigem?.numero || null;
+    const contratoDestinoNumero =
+      remanejamentoFuncionario.solicitacao?.contratoDestino?.numero || null;
+    const contratoFuncionarioNumero = await getNumeroContratoFuncionario(
+      remanejamentoFuncionario.funcionarioId,
+    );
+    const casoEspecialSantos51Para10 = ehCasoEspecialSantos51Para10({
+      tipoSolicitacao: remanejamentoFuncionario.solicitacao?.tipo,
+      contratoOrigemNumero,
+      contratoDestinoNumero,
+      contratoFuncionarioNumero,
+    });
+
     if (statusPrestserv === "EM VALIDAÇÃO") {
       const tarefasPendentes = remanejamentoFuncionario.tarefas.filter(
         (tarefa) =>
           tarefa.status !== "CONCLUIDO" &&
           tarefa.status !== "CONCLUIDA" &&
-          tarefa.status !== "CANCELADO",
+          tarefa.status !== "CANCELADO" &&
+          (!casoEspecialSantos51Para10 || !ehNr26OuNr33(tarefa.tipo)),
       );
 
       if (tarefasPendentes.length > 0) {
@@ -521,25 +614,42 @@ export async function PUT(
           { status: 400 },
         );
       }
+
+      const tipoSolicitacao = remanejamentoFuncionario.solicitacao?.tipo;
+      if (tipoSolicitacao !== "DESLIGAMENTO" && !casoEspecialSantos51Para10) {
+        const setoresObrigatorios = ["RH", "MEDICINA", "TREINAMENTO"];
+        const setoresFaltantes: string[] = [];
+        const tarefasAtivas = remanejamentoFuncionario.tarefas.filter(
+          (t) => t.status !== "CANCELADO",
+        );
+        for (const setor of setoresObrigatorios) {
+          const temTarefa = tarefasAtivas.some(
+            (t) => detectSetorLocal(t.responsavel) === setor,
+          );
+          if (!temTarefa) {
+            setoresFaltantes.push(setor);
+          }
+        }
+        if (setoresFaltantes.length > 0) {
+          return NextResponse.json(
+            {
+              error: `Não é possível submeter. Não existem tarefas ativas para os setores: ${setoresFaltantes.join(", ")}.`,
+              details:
+                "Para Alocação e Remanejamento, é obrigatório ter tarefas (não canceladas) em RH, Medicina e Treinamento.",
+            },
+            { status: 400 },
+          );
+        }
+      }
     }
 
     // Validação: para validar (exceto DESLIGAMENTO), deve haver tarefas ativas em todos os setores (RH, Med, Trein)
     if (statusPrestservCanonical === "VALIDADO") {
       const tipoSolicitacao = remanejamentoFuncionario.solicitacao?.tipo;
 
-      if (tipoSolicitacao !== "DESLIGAMENTO") {
+      if (tipoSolicitacao !== "DESLIGAMENTO" && !casoEspecialSantos51Para10) {
         const setoresObrigatorios = ["RH", "MEDICINA", "TREINAMENTO"];
         const setoresFaltantes: string[] = [];
-
-        const detectSetorLocal = (resp: string) => {
-          const r = resp.toUpperCase();
-          if (r.includes("RH") || r.includes("RECURSOS HUMANOS")) return "RH";
-          if (r.includes("MED") || r.includes("SAUDE") || r.includes("SAÚDE"))
-            return "MEDICINA";
-          if (r.includes("TREIN") || r.includes("CAPACIT"))
-            return "TREINAMENTO";
-          return "OUTROS";
-        };
 
         const tarefasAtivas = remanejamentoFuncionario.tarefas.filter(
           (t) => t.status !== "CANCELADO",
@@ -972,6 +1082,21 @@ export async function PATCH(
           solicitacao: {
             select: {
               tipo: true,
+              contratoOrigem: {
+                select: {
+                  numero: true,
+                },
+              },
+              contratoDestino: {
+                select: {
+                  numero: true,
+                },
+              },
+            },
+          },
+          funcionario: {
+            select: {
+              id: true,
             },
           },
         },
@@ -985,13 +1110,28 @@ export async function PATCH(
     }
 
     // Validação: só pode submeter se todas as tarefas estiverem concluídas, desconsiderando canceladas
+    const contratoOrigemNumero =
+      remanejamentoFuncionario.solicitacao?.contratoOrigem?.numero || null;
+    const contratoDestinoNumero =
+      remanejamentoFuncionario.solicitacao?.contratoDestino?.numero || null;
+    const contratoFuncionarioNumero = await getNumeroContratoFuncionario(
+      remanejamentoFuncionario.funcionarioId,
+    );
+    const casoEspecialSantos51Para10 = ehCasoEspecialSantos51Para10({
+      tipoSolicitacao: remanejamentoFuncionario.solicitacao?.tipo,
+      contratoOrigemNumero,
+      contratoDestinoNumero,
+      contratoFuncionarioNumero,
+    });
+
     if (statusPrestserv === "EM VALIDAÇÃO") {
       // Considerar tarefa concluída tanto "CONCLUIDO" quanto "CONCLUIDA" e ignorar "CANCELADO"
       const tarefasPendentes = remanejamentoFuncionario.tarefas.filter(
         (tarefa) =>
           tarefa.status !== "CONCLUIDO" &&
           tarefa.status !== "CONCLUIDA" &&
-          tarefa.status !== "CANCELADO",
+          tarefa.status !== "CANCELADO" &&
+          (!casoEspecialSantos51Para10 || !ehNr26OuNr33(tarefa.tipo)),
       );
       if (tarefasPendentes.length > 0) {
         return NextResponse.json(
@@ -1002,25 +1142,42 @@ export async function PATCH(
           { status: 400 },
         );
       }
+
+      const tipoSolicitacao = remanejamentoFuncionario.solicitacao?.tipo;
+      if (tipoSolicitacao !== "DESLIGAMENTO" && !casoEspecialSantos51Para10) {
+        const setoresObrigatorios = ["RH", "MEDICINA", "TREINAMENTO"];
+        const setoresFaltantes: string[] = [];
+        const tarefasAtivas = remanejamentoFuncionario.tarefas.filter(
+          (t) => t.status !== "CANCELADO",
+        );
+        for (const setor of setoresObrigatorios) {
+          const temTarefa = tarefasAtivas.some(
+            (t) => detectSetorLocal(t.responsavel) === setor,
+          );
+          if (!temTarefa) {
+            setoresFaltantes.push(setor);
+          }
+        }
+        if (setoresFaltantes.length > 0) {
+          return NextResponse.json(
+            {
+              error: `Não é possível submeter. Não existem tarefas ativas para os setores: ${setoresFaltantes.join(", ")}.`,
+              details:
+                "Para Alocação e Remanejamento, é obrigatório ter tarefas (não canceladas) em RH, Medicina e Treinamento.",
+            },
+            { status: 400 },
+          );
+        }
+      }
     }
 
     // Validação: para validar (exceto DESLIGAMENTO), deve haver tarefas ativas em todos os setores (RH, Med, Trein)
     if (statusPrestservCanonical === "VALIDADO") {
       const tipoSolicitacao = remanejamentoFuncionario.solicitacao?.tipo;
 
-      if (tipoSolicitacao !== "DESLIGAMENTO") {
+      if (tipoSolicitacao !== "DESLIGAMENTO" && !casoEspecialSantos51Para10) {
         const setoresObrigatorios = ["RH", "MEDICINA", "TREINAMENTO"];
         const setoresFaltantes: string[] = [];
-
-        const detectSetorLocal = (resp: string) => {
-          const r = resp.toUpperCase();
-          if (r.includes("RH") || r.includes("RECURSOS HUMANOS")) return "RH";
-          if (r.includes("MED") || r.includes("SAUDE") || r.includes("SAÚDE"))
-            return "MEDICINA";
-          if (r.includes("TREIN") || r.includes("CAPACIT"))
-            return "TREINAMENTO";
-          return "OUTROS";
-        };
 
         const tarefasAtivas = remanejamentoFuncionario.tarefas.filter(
           (t) => t.status !== "CANCELADO",
