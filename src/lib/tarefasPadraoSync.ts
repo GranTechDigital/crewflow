@@ -24,6 +24,36 @@ const keyNumeroContrato = (s: string | null | undefined) =>
     .replace(/\D/g, "")
     .replace(/^0+/, "");
 
+const keySlug = (s: string | null | undefined) =>
+  keyTexto(s)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+function ehNr26OuNr33(tipo: string) {
+  const v = keyTexto(tipo).replace(/[^A-Z0-9]/g, "");
+  return v.includes("NR26") || v.includes("NR33");
+}
+
+function ehCasoEspecialSantos51Para10({
+  tipoSolicitacao,
+  contratoOrigemNumero,
+  contratoDestinoNumero,
+  contratoFuncionarioNumero,
+}: {
+  tipoSolicitacao: string | null | undefined;
+  contratoOrigemNumero: string | null;
+  contratoDestinoNumero: string | null;
+  contratoFuncionarioNumero: string | null;
+}) {
+  return (
+    keyTexto(tipoSolicitacao) === "VINCULO ADICIONAL" &&
+    (keyNumeroContrato(contratoOrigemNumero) === "4600679351" ||
+      keyNumeroContrato(contratoFuncionarioNumero) === "4600679351") &&
+    keyNumeroContrato(contratoDestinoNumero) === "4600684010"
+  );
+}
+
 function deveCriarTarefaPadraoParaContrato({
   setor,
   tipo,
@@ -128,12 +158,14 @@ async function criarObservacaoRemanejamentoSeNaoExistir({
   texto: string;
   autor: string;
 }) {
-  const existente = await prisma.observacaoRemanejamentoFuncionario.findFirst({
+  const obsRem = (prisma as any).observacaoRemanejamentoFuncionario;
+  if (!obsRem?.findFirst || !obsRem?.create) return false;
+  const existente = await obsRem.findFirst({
     where: { remanejamentoFuncionarioId, texto },
     select: { id: true },
   });
   if (existente) return false;
-  await prisma.observacaoRemanejamentoFuncionario.create({
+  await obsRem.create({
     data: {
       remanejamentoFuncionarioId,
       texto,
@@ -282,12 +314,14 @@ export async function sincronizarTarefasPadrao({
           nome: true,
           matricula: true,
           funcao: true,
+          contratoId: true,
         },
       },
       solicitacao: {
         select: {
           id: true,
           contratoDestinoId: true,
+          contratoOrigemId: true,
           prioridade: true,
           tipo: true,
         },
@@ -320,6 +354,19 @@ export async function sincronizarTarefasPadrao({
   let totalReativadas = 0;
   const detalhes: SincronizarResultadoItem[] = [];
   const contratoNumeroCache = new Map<number, string | null>();
+  const getNumeroContratoPorId = async (id: number | null | undefined) => {
+    if (typeof id !== "number") return null;
+    if (contratoNumeroCache.has(id)) {
+      return contratoNumeroCache.get(id) ?? null;
+    }
+    const c = await prisma.contrato.findUnique({
+      where: { id },
+      select: { numero: true },
+    });
+    const numero = c?.numero ?? null;
+    contratoNumeroCache.set(id, numero);
+    return numero;
+  };
 
   for (const rem of rems) {
     // Segurança adicional: não alterar tarefas quando o Prestserv está em validação ou validado
@@ -375,20 +422,45 @@ export async function sincronizarTarefasPadrao({
     }[] = [];
 
     // Helpers estão no escopo do módulo: detectSetor, findEquipeIdBySetor
-    const contratoDestinoNumero = await (async () => {
-      const contratoId = rem.solicitacao?.contratoDestinoId ?? null;
-      if (contratoId == null) return null;
-      if (contratoNumeroCache.has(contratoId)) {
-        return contratoNumeroCache.get(contratoId) ?? null;
+    const contratoDestinoNumero = await getNumeroContratoPorId(
+      rem.solicitacao?.contratoDestinoId ?? null,
+    );
+    const contratoOrigemNumero = await getNumeroContratoPorId(
+      rem.solicitacao?.contratoOrigemId ?? null,
+    );
+    const contratoFuncionarioNumero = await getNumeroContratoPorId(
+      rem.funcionario?.contratoId ?? null,
+    );
+    const casoEspecialSantos51Para10 = ehCasoEspecialSantos51Para10({
+      tipoSolicitacao: rem.solicitacao?.tipo,
+      contratoOrigemNumero,
+      contratoDestinoNumero,
+      contratoFuncionarioNumero,
+    });
+    if (casoEspecialSantos51Para10) {
+      for (const t of rem.tarefas) {
+        if (ehNr26OuNr33(String(t.tipo || ""))) continue;
+        if (
+          t.status === "CANCELADO" ||
+          t.status === "CONCLUIDO" ||
+          t.status === "CONCLUIDA"
+        ) {
+          continue;
+        }
+        const setorDet = detectSetor(t.responsavel);
+        const setorCancel: SetorValido =
+          setorDet === "TREINAMENTO" ||
+          setorDet === "MEDICINA" ||
+          setorDet === "RH"
+            ? (setorDet as SetorValido)
+            : "RH";
+        tarefasParaCancelar.push({
+          id: t.id,
+          statusAnterior: t.status,
+          responsavel: setorCancel,
+        });
       }
-      const c = await prisma.contrato.findUnique({
-        where: { id: contratoId },
-        select: { numero: true },
-      });
-      const numero = c?.numero ?? null;
-      contratoNumeroCache.set(contratoId, numero);
-      return numero;
-    })();
+    }
 
     const gruposAll = new Map<string, Array<(typeof rem.tarefas)[number]>>();
     for (const t of rem.tarefas) {
@@ -416,7 +488,11 @@ export async function sincronizarTarefasPadrao({
           )[0];
       for (const t of arr) {
         if (t.id === manter.id) continue;
-        if (t.status !== "CANCELADO") {
+        if (
+          t.status !== "CANCELADO" &&
+          t.status !== "CONCLUIDO" &&
+          t.status !== "CONCLUIDA"
+        ) {
           const setorDet = detectSetor(t.responsavel);
           const setorCancel =
             setorDet === "TREINAMENTO" ||
@@ -451,16 +527,28 @@ export async function sincronizarTarefasPadrao({
       }
       // Buscar possíveis IDs de função para cobrir casos com múltiplos regimes/duplicidades
       const funcaoIds: number[] = [];
-      if (rem.funcionario?.id) {
-        const f = await prisma.funcionario.findUnique({
-          where: { id: rem.funcionario.id },
-          select: { funcaoId: true },
+      const funcaoNome = String(rem.funcionario?.funcao || "").trim();
+      const funcaoSlug = keySlug(funcaoNome);
+      if (funcaoSlug) {
+        const funcoes = await prisma.funcao.findMany({
+          where: {
+            ativo: true,
+            OR: [
+              { funcao_slug: funcaoSlug },
+              { funcao: { equals: funcaoNome, mode: "insensitive" } },
+            ],
+          },
+          select: { id: true },
         });
-        if (typeof f?.funcaoId === "number") funcaoIds.push(f.funcaoId);
+        for (const f of funcoes) {
+          if (typeof f.id === "number" && !funcaoIds.includes(f.id)) {
+            funcaoIds.push(f.id);
+          }
+        }
       }
       if (contratoIds.length > 0 && funcaoIds.length > 0) {
         // Buscar somente treinamentos obrigatórios ativos para criação
-        const matrizObrigatoria = await prisma.matrizTreinamento.findMany({
+        const matrizObrigatoriaBruta = await prisma.matrizTreinamento.findMany({
           where: {
             contratoId: { in: contratoIds },
             funcaoId: { in: funcaoIds },
@@ -468,6 +556,11 @@ export async function sincronizarTarefasPadrao({
           },
           include: { treinamento: true, contrato: true },
         });
+        const matrizObrigatoria = casoEspecialSantos51Para10
+          ? matrizObrigatoriaBruta.filter((m) =>
+              ehNr26OuNr33(String(m.treinamento?.treinamento || "")),
+            )
+          : matrizObrigatoriaBruta;
 
         const mandatariosIdSet = new Set<number>(
           matrizObrigatoria
@@ -550,7 +643,11 @@ export async function sincronizarTarefasPadrao({
                     )[0];
                 for (const t of grupoNome) {
                   if (t.id === manter.id) continue;
-                  if (t.status !== "CANCELADO") {
+                  if (
+                    t.status !== "CANCELADO" &&
+                    t.status !== "CONCLUIDO" &&
+                    t.status !== "CONCLUIDA"
+                  ) {
                     tarefasParaCancelar.push({
                       id: t.id,
                       statusAnterior: t.status,
@@ -705,7 +802,9 @@ export async function sincronizarTarefasPadrao({
             (typeof tidT === "number" && mandatariosIdSet.has(tidT)) ||
             mandatariosChaveSet.has(chave);
           const podeCancelar =
-            t.status !== "CANCELADO" && t.status !== "CONCLUIDO"; // preservar conclusões
+            t.status !== "CANCELADO" &&
+            t.status !== "CONCLUIDO" &&
+            t.status !== "CONCLUIDA";
           if (!deveManter && podeCancelar) {
             tarefasParaCancelar.push({
               id: t.id,
@@ -751,7 +850,11 @@ export async function sincronizarTarefasPadrao({
               )[0];
           for (const t of arr) {
             if (t.id === manter.id) continue;
-            if (t.status !== "CANCELADO") {
+            if (
+              t.status !== "CANCELADO" &&
+              t.status !== "CONCLUIDO" &&
+              t.status !== "CONCLUIDA"
+            ) {
               tarefasParaCancelar.push({
                 id: t.id,
                 statusAnterior: t.status,
@@ -783,13 +886,18 @@ export async function sincronizarTarefasPadrao({
         where: { setor, ativo: true },
         select: { tipo: true, descricao: true },
       });
-      const tarefasPadraoFiltradas = tarefasPadrao.filter((t) =>
+      let tarefasPadraoFiltradas = tarefasPadrao.filter((t) =>
         deveCriarTarefaPadraoParaContrato({
           setor,
           tipo: t.tipo,
           contratoDestinoNumero,
         }),
       );
+      if (casoEspecialSantos51Para10) {
+        tarefasPadraoFiltradas = tarefasPadraoFiltradas.filter((t) =>
+          ehNr26OuNr33(t.tipo),
+        );
+      }
 
       // Criar faltantes
       for (const t of tarefasPadraoFiltradas) {
@@ -861,7 +969,9 @@ export async function sincronizarTarefasPadrao({
         const chave = chaveTarefa(t.tipo, t.responsavel);
         const deveManter = mandatariosPadraoSet.has(chave);
         const podeCancelar =
-          t.status !== "CANCELADO" && t.status !== "CONCLUIDO";
+          t.status !== "CANCELADO" &&
+          t.status !== "CONCLUIDO" &&
+          t.status !== "CONCLUIDA";
         if (!deveManter && podeCancelar) {
           tarefasParaCancelar.push({
             id: t.id,
@@ -916,8 +1026,11 @@ export async function sincronizarTarefasPadrao({
 
     // Aplicar cancelamentos (TREINAMENTO, RH e MEDICINA)
     let canceladasCount = 0;
-    if (tarefasParaCancelar.length > 0) {
-      for (const tc of tarefasParaCancelar) {
+    const tarefasParaCancelarUnicas = Array.from(
+      new Map(tarefasParaCancelar.map((tc) => [tc.id, tc])).values(),
+    );
+    if (tarefasParaCancelarUnicas.length > 0) {
+      for (const tc of tarefasParaCancelarUnicas) {
         try {
           await prisma.tarefaRemanejamento.update({
             where: { id: tc.id },
@@ -1104,14 +1217,16 @@ export async function sincronizarTarefasPadrao({
           "Devolvido para TREINAMENTO automaticamente: Nenhuma tarefa de treinamento gerada (Matriz inexistente ou vazia). Necessário criar matriz.";
         let deveRegistrarDevolucao = true;
         try {
-          const totalObsExistentes =
-            await prisma.observacaoRemanejamentoFuncionario.count({
+          const obsRem = (prisma as any).observacaoRemanejamentoFuncionario;
+          if (obsRem?.count) {
+            const totalObsExistentes = await obsRem.count({
               where: {
                 remanejamentoFuncionarioId: rem.id,
                 texto: { contains: textoDevolucao },
               },
             });
-          if (totalObsExistentes > 0) deveRegistrarDevolucao = false;
+            if (totalObsExistentes > 0) deveRegistrarDevolucao = false;
+          }
         } catch {}
 
         if (deveRegistrarDevolucao) {

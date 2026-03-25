@@ -20,6 +20,18 @@ function normalizarNumeroContrato(valor: unknown) {
     .replace(/^0+/, "");
 }
 
+function slugFuncao(valor: unknown) {
+  return normalizarTexto(valor)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function ehNr26OuNr33(tipo: string) {
+  const v = normalizarTexto(tipo).replace(/[^A-Z0-9]/g, "");
+  return v.includes("NR26") || v.includes("NR33");
+}
+
 function deveCriarTarefaPadraoParaContrato({
   setor,
   tipo,
@@ -91,44 +103,33 @@ async function gerarTarefasTreinamento(
     }
 
     const contratoId = solicitacao.contratoDestinoId;
-    const funcionarioIdNumero =
-      typeof funcionario.id === "number" ? (funcionario.id as number) : null;
-
-    if (!funcionarioIdNumero) {
-      console.log("❌ ID do funcionário inválido para buscar funcaoId");
+    const funcaoNome = String(funcionario.funcao || "").trim();
+    if (!funcaoNome) {
+      console.log("❌ Funcionário sem função. Não é possível mapear a matriz.");
       return;
     }
 
-    const funcionarioComFuncao = await prisma.funcionario.findUnique({
-      where: { id: funcionarioIdNumero },
-      select: {
-        id: true,
-        funcaoId: true,
-        funcao: true,
-        funcaoRef: {
-          select: {
-            id: true,
-            funcao: true,
-            regime: true,
-          },
-        },
+    const funcoesCompativeis = await prisma.funcao.findMany({
+      where: {
+        ativo: true,
+        OR: [
+          { funcao_slug: slugFuncao(funcaoNome) },
+          { funcao: { equals: funcaoNome, mode: "insensitive" } },
+        ],
       },
+      select: { id: true, funcao: true, regime: true },
     });
 
-    const funcaoId =
-      typeof funcionarioComFuncao?.funcaoId === "number"
-        ? funcionarioComFuncao.funcaoId
-        : null;
+    const funcaoIds = funcoesCompativeis
+      .map((f) => f.id)
+      .filter((id) => typeof id === "number");
 
-    console.log("Funcao ID do funcionário:", funcaoId);
-    console.log("Funcao/Regime vinculado:", {
-      funcao: funcionarioComFuncao?.funcaoRef?.funcao ?? funcionarioComFuncao?.funcao,
-      regime: funcionarioComFuncao?.funcaoRef?.regime ?? null,
-    });
+    console.log("Função do funcionário:", funcaoNome);
+    console.log("Funções compatíveis na tabela de funções:", funcaoIds.length);
 
-    if (!funcaoId) {
+    if (funcaoIds.length === 0) {
       console.log(
-        "❌ Funcionário sem funcaoId. Não é possível gerar tarefas por função/regime de forma confiável.",
+        "❌ Nenhuma função compatível encontrada para o funcionário na tabela de funções.",
       );
       return;
     }
@@ -137,7 +138,7 @@ async function gerarTarefasTreinamento(
     const matrizTreinamento = await prisma.matrizTreinamento.findMany({
       where: {
         contratoId: contratoId,
-        funcaoId: funcaoId,
+        funcaoId: { in: funcaoIds },
         ativo: true,
         tipoObrigatoriedade: "AP",
       },
@@ -153,7 +154,7 @@ async function gerarTarefasTreinamento(
       console.log("❌ Nenhum treinamento encontrado na matriz");
       console.log("Parâmetros da busca:");
       console.log("- contratoId:", contratoId);
-      console.log("- funcaoId:", funcaoId);
+      console.log("- funcaoIds:", funcaoIds);
       console.log("- ativo: true");
       return;
     }
@@ -453,21 +454,69 @@ export async function POST(request: NextRequest) {
     );
     const novosTreinoIds = new Set<number>();
     const novosChaves = new Set<string>();
-    const contratoDestinoNumero =
-      remanejamentoFuncionario.solicitacao?.contratoDestinoId != null
-        ? ((
-            await prisma.contrato.findUnique({
+    const [contratoOrigem, contratoDestino, contratoAtualFuncionario] =
+      await Promise.all([
+        remanejamentoFuncionario.solicitacao?.contratoOrigemId != null
+          ? prisma.contrato.findUnique({
+              where: {
+                id: remanejamentoFuncionario.solicitacao.contratoOrigemId,
+              },
+              select: { numero: true, nome: true },
+            })
+          : Promise.resolve(null),
+        remanejamentoFuncionario.solicitacao?.contratoDestinoId != null
+          ? prisma.contrato.findUnique({
               where: {
                 id: remanejamentoFuncionario.solicitacao.contratoDestinoId,
               },
+              select: { numero: true, nome: true },
+            })
+          : Promise.resolve(null),
+        typeof funcionario?.contratoId === "number"
+          ? prisma.contrato.findUnique({
+              where: { id: funcionario.contratoId },
               select: { numero: true },
             })
-          )?.numero ?? null)
-        : null;
+          : Promise.resolve(null),
+      ]);
+    const contratoOrigemNumero = contratoOrigem?.numero ?? null;
+    const contratoDestinoNumero = contratoDestino?.numero ?? null;
+    const contratoFuncionarioNumero = contratoAtualFuncionario?.numero ?? null;
+    const tipoSolicitacaoAtual = normalizarTexto(
+      remanejamentoFuncionario.solicitacao?.tipo,
+    );
+    const ehCasoEspecialSantos51Para10 =
+      tipoSolicitacaoAtual === "VINCULO_ADICIONAL" &&
+      (normalizarNumeroContrato(contratoOrigemNumero) === "4600679351" ||
+        normalizarNumeroContrato(contratoFuncionarioNumero) === "4600679351") &&
+      normalizarNumeroContrato(contratoDestinoNumero) === "4600684010";
+    if (ehCasoEspecialSantos51Para10) {
+      for (const t of tarefasExistentes) {
+        if (ehNr26OuNr33(String(t.tipo || ""))) continue;
+        if (
+          t.status === "CANCELADO" ||
+          t.status === "CONCLUIDO" ||
+          t.status === "CONCLUIDA"
+        ) {
+          continue;
+        }
+        try {
+          await prisma.tarefaRemanejamento.update({
+            where: { id: t.id },
+            data: { status: "CANCELADO" },
+          });
+        } catch (e) {
+          console.error(
+            "Falha ao cancelar pendência no caso especial:",
+            t.id,
+            e,
+          );
+        }
+      }
+    }
 
     for (const setor of setoresValidos) {
       if (setor === "TREINAMENTO") {
-        // Para o setor TREINAMENTO, usar a matriz de treinamento
         await gerarTarefasTreinamento(
           remanejamentoFuncionario,
           funcionario,
@@ -478,8 +527,15 @@ export async function POST(request: NextRequest) {
           novosTreinoIds,
           novosChaves,
         );
+        if (ehCasoEspecialSantos51Para10) {
+          for (let i = tarefasParaCriar.length - 1; i >= 0; i -= 1) {
+            const tarefa = tarefasParaCriar[i] as { tipo?: string };
+            if (!ehNr26OuNr33(String(tarefa.tipo || ""))) {
+              tarefasParaCriar.splice(i, 1);
+            }
+          }
+        }
       } else {
-        // Para RH e MEDICINA, usar tarefas padrão como antes
         const tarefasSetor = await prisma.tarefaPadrao.findMany({
           where: {
             setor,
@@ -492,13 +548,18 @@ export async function POST(request: NextRequest) {
           },
         });
 
-        const tarefasSetorFiltradas = tarefasSetor.filter((t) =>
+        let tarefasSetorFiltradas = tarefasSetor.filter((t) =>
           deveCriarTarefaPadraoParaContrato({
             setor,
             tipo: t.tipo,
             contratoDestinoNumero,
           }),
         );
+        if (ehCasoEspecialSantos51Para10) {
+          tarefasSetorFiltradas = tarefasSetorFiltradas.filter((t) =>
+            ehNr26OuNr33(t.tipo),
+          );
+        }
 
         if (!tarefasSetorFiltradas || tarefasSetorFiltradas.length === 0) {
           console.warn(`Setor ${setor} não possui tarefas padrões definidas`);
@@ -541,15 +602,18 @@ export async function POST(request: NextRequest) {
       const incluiTreinamento = setoresValidos.includes("TREINAMENTO");
       if (incluiTreinamento && remanejamentoFuncionario) {
         try {
-          await prisma.observacaoRemanejamentoFuncionario.create({
-            data: {
-              remanejamentoFuncionarioId: remanejamentoFuncionario.id,
-              texto:
-                "Nenhuma tarefa de TREINAMENTO foi gerada automaticamente para este funcionário. Matriz de treinamento inexistente ou sem treinamentos obrigatórios para o contrato/função. Necessário setor de TREINAMENTO criar ou atualizar a matriz.",
-              criadoPor: (criadoPor as string) || "Sistema",
-              modificadoPor: (criadoPor as string) || "Sistema",
-            },
-          });
+          const obsRem = (prisma as any).observacaoRemanejamentoFuncionario;
+          if (obsRem?.create) {
+            await obsRem.create({
+              data: {
+                remanejamentoFuncionarioId: remanejamentoFuncionario.id,
+                texto:
+                  "Nenhuma tarefa de TREINAMENTO foi gerada automaticamente para este funcionário. Matriz de treinamento inexistente ou sem treinamentos obrigatórios para o contrato/função. Necessário setor de TREINAMENTO criar ou atualizar a matriz.",
+                criadoPor: (criadoPor as string) || "Sistema",
+                modificadoPor: (criadoPor as string) || "Sistema",
+              },
+            });
+          }
         } catch (obsErr) {
           console.error(
             "Erro ao registrar observação de matriz ausente (TREINAMENTO):",
