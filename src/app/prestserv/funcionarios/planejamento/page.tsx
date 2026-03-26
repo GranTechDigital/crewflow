@@ -1066,8 +1066,20 @@ function FuncionariosPageContent() {
   };
 
   const getContratosOrigem = () => {
+    const funcionariosComOrigemFiltravel = funcionarios.filter(
+      (f) =>
+        !ehCasoEspecialSantos51Para10({
+          tipoSolicitacao: f.tipoSolicitacao,
+          contratoOrigem: f.contratoOrigem,
+          contratoDestino: f.contratoDestino,
+        }),
+    );
     return [
-      ...new Set(funcionarios.map((f) => f.contratoOrigem).filter(Boolean)),
+      ...new Set(
+        funcionariosComOrigemFiltravel
+          .map((f) => f.contratoOrigem)
+          .filter(Boolean),
+      ),
     ];
   };
 
@@ -1682,7 +1694,12 @@ function FuncionariosPageContent() {
 
     const matchContratoOrigem =
       filtroContratoOrigem.length === 0 ||
-      filtroContratoOrigem.includes(funcionario.contratoOrigem);
+      (!ehCasoEspecialSantos51Para10({
+        tipoSolicitacao: funcionario.tipoSolicitacao,
+        contratoOrigem: funcionario.contratoOrigem,
+        contratoDestino: funcionario.contratoDestino,
+      }) &&
+        filtroContratoOrigem.includes(funcionario.contratoOrigem));
 
     const matchContratoDestino =
       filtroContratoDestino.length === 0 ||

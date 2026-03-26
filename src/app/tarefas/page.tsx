@@ -691,6 +691,17 @@ export default function TarefasPage() {
     stripAccents(s || "")
       .toUpperCase()
       .trim();
+  const normalizeContractNumber = (s: string | null | undefined) =>
+    String(s || "")
+      .replace(/\D/g, "")
+      .replace(/^0+/, "");
+  const isCasoEspecialSantos51Para10 = (solicitacao: SolicitacaoRemanejamento) =>
+    normalizePlain(String(solicitacao.tipo || "")).replace(/[^A-Z0-9]/g, "") ===
+      "VINCULOADICIONAL" &&
+    normalizeContractNumber(solicitacao.contratoOrigem?.numero) ===
+      "4600679351" &&
+    normalizeContractNumber(solicitacao.contratoDestino?.numero) ===
+      "4600684010";
 
   const getRemanejamentosFiltrados = () => {
     if (!solicitacoes.length) return [];
@@ -711,14 +722,18 @@ export default function TarefasPage() {
 
           if (!matchNome) return;
 
+          const origemSelecionada = filtroContratoList.includes(
+            solicitacao.contratoOrigemId?.toString() || "",
+          );
+          const destinoSelecionado = filtroContratoList.includes(
+            solicitacao.contratoDestinoId?.toString() || "",
+          );
+          const matchOrigem =
+            origemSelecionada && !isCasoEspecialSantos51Para10(solicitacao);
           const matchContrato =
             filtroContratoList.length === 0 ||
-            filtroContratoList.includes(
-              solicitacao.contratoOrigemId?.toString() || "",
-            ) ||
-            filtroContratoList.includes(
-              solicitacao.contratoDestinoId?.toString() || "",
-            );
+            matchOrigem ||
+            destinoSelecionado;
 
           if (!matchContrato) return;
 
