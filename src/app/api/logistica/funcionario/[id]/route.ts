@@ -2,6 +2,52 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { AtualizarStatusPrestserv } from "@/types/remanejamento-funcionario";
 
+const normalizarTexto = (valor: unknown) =>
+  String(valor || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toUpperCase();
+
+const normalizarNumeroContrato = (valor: unknown) =>
+  String(valor || "")
+    .replace(/\D/g, "")
+    .replace(/^0+/, "");
+
+const ehNr26OuNr33 = (tipo: unknown) => {
+  const v = normalizarTexto(tipo).replace(/[^A-Z0-9]/g, "");
+  return v.includes("NR26") || v.includes("NR33");
+};
+
+const ehNr26 = (tipo: unknown) =>
+  normalizarTexto(tipo)
+    .replace(/[^A-Z0-9]/g, "")
+    .includes("NR26");
+
+const ehNr33 = (tipo: unknown) =>
+  normalizarTexto(tipo)
+    .replace(/[^A-Z0-9]/g, "")
+    .includes("NR33");
+
+const tarefaConcluida = (status: string | null | undefined) =>
+  status === "CONCLUIDO" || status === "CONCLUIDA";
+
+const ehCasoEspecialSantos51Para10 = ({
+  tipoSolicitacao,
+  contratoOrigemNumero,
+  contratoDestinoNumero,
+  contratoFuncionarioNumero,
+}: {
+  tipoSolicitacao: unknown;
+  contratoOrigemNumero: unknown;
+  contratoDestinoNumero: unknown;
+  contratoFuncionarioNumero: unknown;
+}) =>
+  normalizarTexto(tipoSolicitacao) === "VINCULO_ADICIONAL" &&
+  (normalizarNumeroContrato(contratoOrigemNumero) === "4600679351" ||
+    normalizarNumeroContrato(contratoFuncionarioNumero) === "4600679351") &&
+  normalizarNumeroContrato(contratoDestinoNumero) === "4600684010";
+
 // GET - Buscar detalhes de um funcionário em remanejamento
 export async function GET(
   request: NextRequest,
@@ -484,6 +530,16 @@ export async function PUT(
           solicitacao: {
             select: {
               tipo: true,
+              contratoOrigem: {
+                select: {
+                  numero: true,
+                },
+              },
+              contratoDestino: {
+                select: {
+                  numero: true,
+                },
+              },
             },
           },
           funcionario: {
@@ -491,6 +547,11 @@ export async function PUT(
               id: true,
               nome: true,
               matricula: true,
+              contrato: {
+                select: {
+                  numero: true,
+                },
+              },
             },
           },
         },
@@ -503,23 +564,55 @@ export async function PUT(
       );
     }
 
+    const casoEspecialSantos51Para10 = ehCasoEspecialSantos51Para10({
+      tipoSolicitacao: remanejamentoFuncionario.solicitacao?.tipo,
+      contratoOrigemNumero:
+        remanejamentoFuncionario.solicitacao?.contratoOrigem?.numero,
+      contratoDestinoNumero:
+        remanejamentoFuncionario.solicitacao?.contratoDestino?.numero,
+      contratoFuncionarioNumero:
+        remanejamentoFuncionario.funcionario?.contrato?.numero,
+    });
+
     // Validação: só pode submeter se todas as tarefas estiverem concluídas, desconsiderando canceladas
     if (statusPrestserv === "EM VALIDAÇÃO") {
-      const tarefasPendentes = remanejamentoFuncionario.tarefas.filter(
-        (tarefa) =>
-          tarefa.status !== "CONCLUIDO" &&
-          tarefa.status !== "CONCLUIDA" &&
-          tarefa.status !== "CANCELADO",
-      );
-
-      if (tarefasPendentes.length > 0) {
-        return NextResponse.json(
-          {
-            error: "Não é possível submeter. Ainda existem tarefas pendentes.",
-            tarefasPendentes: tarefasPendentes.length,
-          },
-          { status: 400 },
+      if (casoEspecialSantos51Para10) {
+        const tarefasAtivas = remanejamentoFuncionario.tarefas.filter(
+          (tarefa) => tarefa.status !== "CANCELADO",
         );
+        const possuiNr26Concluida = tarefasAtivas.some(
+          (tarefa) => ehNr26(tarefa.tipo) && tarefaConcluida(tarefa.status),
+        );
+        const possuiNr33Concluida = tarefasAtivas.some(
+          (tarefa) => ehNr33(tarefa.tipo) && tarefaConcluida(tarefa.status),
+        );
+        if (!possuiNr26Concluida || !possuiNr33Concluida) {
+          return NextResponse.json(
+            {
+              error:
+                "No caso especial 51→10, só é possível submeter quando NR26 e NR33 estiverem concluídas.",
+            },
+            { status: 400 },
+          );
+        }
+      } else {
+        const tarefasPendentes = remanejamentoFuncionario.tarefas.filter(
+          (tarefa) =>
+            tarefa.status !== "CONCLUIDO" &&
+            tarefa.status !== "CONCLUIDA" &&
+            tarefa.status !== "CANCELADO",
+        );
+
+        if (tarefasPendentes.length > 0) {
+          return NextResponse.json(
+            {
+              error:
+                "Não é possível submeter. Ainda existem tarefas pendentes.",
+              tarefasPendentes: tarefasPendentes.length,
+            },
+            { status: 400 },
+          );
+        }
       }
     }
 
@@ -527,7 +620,7 @@ export async function PUT(
     if (statusPrestservCanonical === "VALIDADO") {
       const tipoSolicitacao = remanejamentoFuncionario.solicitacao?.tipo;
 
-      if (tipoSolicitacao !== "DESLIGAMENTO") {
+      if (tipoSolicitacao !== "DESLIGAMENTO" && !casoEspecialSantos51Para10) {
         const setoresObrigatorios = ["RH", "MEDICINA", "TREINAMENTO"];
         const setoresFaltantes: string[] = [];
 
@@ -560,6 +653,27 @@ export async function PUT(
               error: `Não é possível validar. Não existem tarefas ativas para os setores: ${setoresFaltantes.join(", ")}.`,
               details:
                 "Para Alocação e Remanejamento, é obrigatório ter tarefas (não canceladas) em RH, Medicina e Treinamento.",
+            },
+            { status: 400 },
+          );
+        }
+      }
+      if (tipoSolicitacao !== "DESLIGAMENTO" && casoEspecialSantos51Para10) {
+        const tarefasAtivas = remanejamentoFuncionario.tarefas.filter(
+          (tarefa) =>
+            tarefa.status !== "CANCELADO" && ehNr26OuNr33(tarefa.tipo),
+        );
+        const possuiNr26Concluida = tarefasAtivas.some(
+          (tarefa) => ehNr26(tarefa.tipo) && tarefaConcluida(tarefa.status),
+        );
+        const possuiNr33Concluida = tarefasAtivas.some(
+          (tarefa) => ehNr33(tarefa.tipo) && tarefaConcluida(tarefa.status),
+        );
+        if (!possuiNr26Concluida || !possuiNr33Concluida) {
+          return NextResponse.json(
+            {
+              error:
+                "No caso especial 51→10, só é possível validar quando NR26 e NR33 estiverem concluídas.",
             },
             { status: 400 },
           );
@@ -972,6 +1086,25 @@ export async function PATCH(
           solicitacao: {
             select: {
               tipo: true,
+              contratoOrigem: {
+                select: {
+                  numero: true,
+                },
+              },
+              contratoDestino: {
+                select: {
+                  numero: true,
+                },
+              },
+            },
+          },
+          funcionario: {
+            select: {
+              contrato: {
+                select: {
+                  numero: true,
+                },
+              },
             },
           },
         },
@@ -984,23 +1117,54 @@ export async function PATCH(
       );
     }
 
+    const casoEspecialSantos51Para10 = ehCasoEspecialSantos51Para10({
+      tipoSolicitacao: remanejamentoFuncionario.solicitacao?.tipo,
+      contratoOrigemNumero:
+        remanejamentoFuncionario.solicitacao?.contratoOrigem?.numero,
+      contratoDestinoNumero:
+        remanejamentoFuncionario.solicitacao?.contratoDestino?.numero,
+      contratoFuncionarioNumero:
+        remanejamentoFuncionario.funcionario?.contrato?.numero,
+    });
+
     // Validação: só pode submeter se todas as tarefas estiverem concluídas, desconsiderando canceladas
     if (statusPrestserv === "EM VALIDAÇÃO") {
-      // Considerar tarefa concluída tanto "CONCLUIDO" quanto "CONCLUIDA" e ignorar "CANCELADO"
-      const tarefasPendentes = remanejamentoFuncionario.tarefas.filter(
-        (tarefa) =>
-          tarefa.status !== "CONCLUIDO" &&
-          tarefa.status !== "CONCLUIDA" &&
-          tarefa.status !== "CANCELADO",
-      );
-      if (tarefasPendentes.length > 0) {
-        return NextResponse.json(
-          {
-            error: "Não é possível submeter. Ainda existem tarefas pendentes.",
-            tarefasPendentes: tarefasPendentes.length,
-          },
-          { status: 400 },
+      if (casoEspecialSantos51Para10) {
+        const tarefasAtivas = remanejamentoFuncionario.tarefas.filter(
+          (tarefa) => tarefa.status !== "CANCELADO",
         );
+        const possuiNr26Concluida = tarefasAtivas.some(
+          (tarefa) => ehNr26(tarefa.tipo) && tarefaConcluida(tarefa.status),
+        );
+        const possuiNr33Concluida = tarefasAtivas.some(
+          (tarefa) => ehNr33(tarefa.tipo) && tarefaConcluida(tarefa.status),
+        );
+        if (!possuiNr26Concluida || !possuiNr33Concluida) {
+          return NextResponse.json(
+            {
+              error:
+                "No caso especial 51→10, só é possível submeter quando NR26 e NR33 estiverem concluídas.",
+            },
+            { status: 400 },
+          );
+        }
+      } else {
+        const tarefasPendentes = remanejamentoFuncionario.tarefas.filter(
+          (tarefa) =>
+            tarefa.status !== "CONCLUIDO" &&
+            tarefa.status !== "CONCLUIDA" &&
+            tarefa.status !== "CANCELADO",
+        );
+        if (tarefasPendentes.length > 0) {
+          return NextResponse.json(
+            {
+              error:
+                "Não é possível submeter. Ainda existem tarefas pendentes.",
+              tarefasPendentes: tarefasPendentes.length,
+            },
+            { status: 400 },
+          );
+        }
       }
     }
 
@@ -1008,7 +1172,7 @@ export async function PATCH(
     if (statusPrestservCanonical === "VALIDADO") {
       const tipoSolicitacao = remanejamentoFuncionario.solicitacao?.tipo;
 
-      if (tipoSolicitacao !== "DESLIGAMENTO") {
+      if (tipoSolicitacao !== "DESLIGAMENTO" && !casoEspecialSantos51Para10) {
         const setoresObrigatorios = ["RH", "MEDICINA", "TREINAMENTO"];
         const setoresFaltantes: string[] = [];
 
@@ -1041,6 +1205,27 @@ export async function PATCH(
               error: `Não é possível validar. Não existem tarefas ativas para os setores: ${setoresFaltantes.join(", ")}.`,
               details:
                 "Para Alocação e Remanejamento, é obrigatório ter tarefas (não canceladas) em RH, Medicina e Treinamento.",
+            },
+            { status: 400 },
+          );
+        }
+      }
+      if (tipoSolicitacao !== "DESLIGAMENTO" && casoEspecialSantos51Para10) {
+        const tarefasAtivas = remanejamentoFuncionario.tarefas.filter(
+          (tarefa) =>
+            tarefa.status !== "CANCELADO" && ehNr26OuNr33(tarefa.tipo),
+        );
+        const possuiNr26Concluida = tarefasAtivas.some(
+          (tarefa) => ehNr26(tarefa.tipo) && tarefaConcluida(tarefa.status),
+        );
+        const possuiNr33Concluida = tarefasAtivas.some(
+          (tarefa) => ehNr33(tarefa.tipo) && tarefaConcluida(tarefa.status),
+        );
+        if (!possuiNr26Concluida || !possuiNr33Concluida) {
+          return NextResponse.json(
+            {
+              error:
+                "No caso especial 51→10, só é possível validar quando NR26 e NR33 estiverem concluídas.",
             },
             { status: 400 },
           );

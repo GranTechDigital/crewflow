@@ -187,6 +187,34 @@ function FuncionariosPageContent() {
     useState<string>("");
   const [dashboardPeriodoFim, setDashboardPeriodoFim] = useState<string>("");
 
+  const normalizarTexto = (valor: unknown) =>
+    String(valor || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim()
+      .toUpperCase();
+
+  const normalizarNumeroContrato = (valor: unknown) =>
+    String(valor || "")
+      .replace(/\D/g, "")
+      .replace(/^0+/, "");
+
+  const ehStatusConcluido = (status: string | null | undefined) =>
+    status === "CONCLUIDO" || status === "CONCLUIDA";
+
+  const ehCasoEspecialSantos51Para10 = ({
+    tipoSolicitacao,
+    contratoOrigem,
+    contratoDestino,
+  }: {
+    tipoSolicitacao: unknown;
+    contratoOrigem: unknown;
+    contratoDestino: unknown;
+  }) =>
+    normalizarTexto(tipoSolicitacao) === "VINCULO_ADICIONAL" &&
+    normalizarNumeroContrato(contratoOrigem) === "4600679351" &&
+    normalizarNumeroContrato(contratoDestino) === "4600684010";
+
   const criarSolicitacaoComSync = async () => {
     try {
       setSyncingFuncionarios(true);
@@ -585,80 +613,99 @@ function FuncionariosPageContent() {
 
       const funcionariosTransformados: FuncionarioTableData[] = data.flatMap(
         (solicitacao: any) =>
-          solicitacao.funcionarios.map((rf: any) => ({
-            id: rf.id,
-            remanejamentoId: rf.id,
-            nome: rf.funcionario.nome,
-            matricula: rf.funcionario.matricula,
-            sispat:
-              rf.funcionario?.sispat !== null &&
-              rf.funcionario?.sispat !== undefined
-                ? String(rf.funcionario.sispat)
-                : undefined,
-            funcao: rf.funcionario.funcao,
-            statusTarefas: rf.statusTarefas || "ATENDER TAREFAS",
-            statusPrestserv: rf.statusPrestserv || "PENDENTE",
-            solicitacaoId: solicitacao.id,
-            tipoSolicitacao: solicitacao.tipo || "REMANEJAMENTO",
-            contratoOrigem: solicitacao.contratoOrigem?.numero || "N/A",
-            contratoDestino: solicitacao.contratoDestino?.numero || "N/A",
-            totalTarefas: rf.tarefas?.length || 0,
-            tarefasConcluidas:
-              rf.tarefas?.filter((t: any) => t.status === "CONCLUIDO").length ||
-              0,
-            dataSolicitacao: solicitacao.dataSolicitacao,
-            dataConcluido: rf.dataConcluido || undefined,
-            dataResposta: rf.dataResposta || undefined,
-            createdAt: solicitacao.createdAt,
-            updatedAt: solicitacao.updatedAt,
-            statusFuncionario: rf.statusFuncionario,
-            progressoPorSetor: [
+          solicitacao.funcionarios.map((rf: any) => {
+            const tarefasAtivas = (rf.tarefas || []).filter(
+              (t: any) => t.status !== "CANCELADO"
+            );
+            const casoEspecialSantos51Para10 = ehCasoEspecialSantos51Para10({
+              tipoSolicitacao: solicitacao.tipo,
+              contratoOrigem: solicitacao.contratoOrigem?.numero,
+              contratoDestino: solicitacao.contratoDestino?.numero,
+            });
+            const progressoPorSetorBase = [
               {
                 setor: "RH",
                 total:
-                  rf.tarefas?.filter((t: any) => t.responsavel === "RH")
+                  tarefasAtivas.filter((t: any) => t.responsavel === "RH")
                     .length || 0,
                 concluidas:
-                  rf.tarefas?.filter(
+                  tarefasAtivas.filter(
                     (t: any) =>
-                      t.responsavel === "RH" && t.status === "CONCLUIDO"
+                      t.responsavel === "RH" && ehStatusConcluido(t.status)
                   ).length || 0,
                 percentual: 0,
               },
               {
                 setor: "MEDICINA",
                 total:
-                  rf.tarefas?.filter((t: any) => t.responsavel === "MEDICINA")
+                  tarefasAtivas.filter((t: any) => t.responsavel === "MEDICINA")
                     .length || 0,
                 concluidas:
-                  rf.tarefas?.filter(
+                  tarefasAtivas.filter(
                     (t: any) =>
-                      t.responsavel === "MEDICINA" && t.status === "CONCLUIDO"
+                      t.responsavel === "MEDICINA" &&
+                      ehStatusConcluido(t.status)
                   ).length || 0,
                 percentual: 0,
               },
               {
                 setor: "TREINAMENTO",
                 total:
-                  rf.tarefas?.filter(
-                    (t: any) => t.responsavel === "TREINAMENTO"
-                  ).length || 0,
+                  tarefasAtivas.filter((t: any) => t.responsavel === "TREINAMENTO")
+                    .length || 0,
                 concluidas:
-                  rf.tarefas?.filter(
+                  tarefasAtivas.filter(
                     (t: any) =>
                       t.responsavel === "TREINAMENTO" &&
-                      t.status === "CONCLUIDO"
+                      ehStatusConcluido(t.status)
                   ).length || 0,
                 percentual: 0,
               },
-            ].map((progresso) => ({
-              ...progresso,
-              percentual:
-                progresso.total > 0
-                  ? Math.round((progresso.concluidas / progresso.total) * 100)
-                  : 0,
-            })),
-          }))
+            ];
+            const progressoPorSetorAjustado = casoEspecialSantos51Para10
+              ? progressoPorSetorBase.map((progresso) =>
+                  progresso.setor === "RH" || progresso.setor === "MEDICINA"
+                    ? { ...progresso, total: 0, concluidas: 0 }
+                    : progresso
+                )
+              : progressoPorSetorBase;
+
+            return {
+              id: rf.id,
+              remanejamentoId: rf.id,
+              nome: rf.funcionario.nome,
+              matricula: rf.funcionario.matricula,
+              sispat:
+                rf.funcionario?.sispat !== null &&
+                rf.funcionario?.sispat !== undefined
+                  ? String(rf.funcionario.sispat)
+                  : undefined,
+              funcao: rf.funcionario.funcao,
+              statusTarefas: rf.statusTarefas || "ATENDER TAREFAS",
+              statusPrestserv: rf.statusPrestserv || "PENDENTE",
+              solicitacaoId: solicitacao.id,
+              tipoSolicitacao: solicitacao.tipo || "REMANEJAMENTO",
+              contratoOrigem: solicitacao.contratoOrigem?.numero || "N/A",
+              contratoDestino: solicitacao.contratoDestino?.numero || "N/A",
+              totalTarefas: tarefasAtivas.length || 0,
+              tarefasConcluidas:
+                tarefasAtivas.filter((t: any) => ehStatusConcluido(t.status))
+                  .length || 0,
+              dataSolicitacao: solicitacao.dataSolicitacao,
+              dataConcluido: rf.dataConcluido || undefined,
+              dataResposta: rf.dataResposta || undefined,
+              createdAt: solicitacao.createdAt,
+              updatedAt: solicitacao.updatedAt,
+              statusFuncionario: rf.statusFuncionario,
+              progressoPorSetor: progressoPorSetorAjustado.map((progresso) => ({
+                ...progresso,
+                percentual:
+                  progresso.total > 0
+                    ? Math.round((progresso.concluidas / progresso.total) * 100)
+                    : 0,
+              })),
+            };
+          })
       );
 
       setFuncionarios(funcionariosTransformados);
@@ -925,7 +972,9 @@ function FuncionariosPageContent() {
     const statusPrestserv = funcionario.statusPrestserv;
     const responsavel = getResponsavelAtual(funcionario);
     const pendingTasks =
-      funcionario.progressoPorSetor?.filter((p) => p.percentual < 100) || [];
+      funcionario.progressoPorSetor?.filter(
+        (p) => p.total > 0 && p.percentual < 100
+      ) || [];
 
     let baseMessage = "";
 

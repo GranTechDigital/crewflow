@@ -1146,7 +1146,7 @@ export async function sincronizarTarefasPadrao({
     try {
       const tarefasAtual = await prisma.tarefaRemanejamento.findMany({
         where: { remanejamentoFuncionarioId: rem.id },
-        select: { status: true, responsavel: true },
+        select: { status: true, responsavel: true, tipo: true },
       });
       const semPendentes =
         tarefasAtual.length === 0 ||
@@ -1157,13 +1157,37 @@ export async function sincronizarTarefasPadrao({
             t.status === "CANCELADO",
         );
 
-      let novoStatus = semPendentes ? "SUBMETER RASCUNHO" : "ATENDER TAREFAS";
+      const possuiNr26Concluida = tarefasAtual.some(
+        (t) =>
+          t.status !== "CANCELADO" &&
+          ehNr26OuNr33(String(t.tipo || "")) &&
+          keyTexto(t.tipo)
+            .replace(/[^A-Z0-9]/g, "")
+            .includes("NR26") &&
+          (t.status === "CONCLUIDO" || t.status === "CONCLUIDA"),
+      );
+      const possuiNr33Concluida = tarefasAtual.some(
+        (t) =>
+          t.status !== "CANCELADO" &&
+          ehNr26OuNr33(String(t.tipo || "")) &&
+          keyTexto(t.tipo)
+            .replace(/[^A-Z0-9]/g, "")
+            .includes("NR33") &&
+          (t.status === "CONCLUIDO" || t.status === "CONCLUIDA"),
+      );
+      let novoStatus = casoEspecialSantos51Para10
+        ? possuiNr26Concluida && possuiNr33Concluida
+          ? "SUBMETER RASCUNHO"
+          : "ATENDER TAREFAS"
+        : semPendentes
+          ? "SUBMETER RASCUNHO"
+          : "ATENDER TAREFAS";
       let aplicarDevolucaoTreinamento = false;
 
       // Lógica Especial: Se o fluxo está indo para Logística (SUBMETER RASCUNHO)
       // e não houver tarefas de Treinamento ativas (0/0), forçar permanência em Treinamento
       // (ATENDER TAREFAS) para criação/ajuste da matriz.
-      if (novoStatus === "SUBMETER RASCUNHO") {
+      if (novoStatus === "SUBMETER RASCUNHO" && !casoEspecialSantos51Para10) {
         const temTreinamentoAtivo = tarefasAtual.some(
           (t) =>
             t.status !== "CANCELADO" &&

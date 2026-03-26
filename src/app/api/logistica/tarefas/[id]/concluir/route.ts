@@ -2,6 +2,47 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { logHistorico } from "@/lib/historico";
 
+const normalizarTexto = (valor: unknown) =>
+  String(valor || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toUpperCase();
+
+const normalizarNumeroContrato = (valor: unknown) =>
+  String(valor || "")
+    .replace(/\D/g, "")
+    .replace(/^0+/, "");
+
+const ehNr26 = (tipo: unknown) =>
+  normalizarTexto(tipo)
+    .replace(/[^A-Z0-9]/g, "")
+    .includes("NR26");
+
+const ehNr33 = (tipo: unknown) =>
+  normalizarTexto(tipo)
+    .replace(/[^A-Z0-9]/g, "")
+    .includes("NR33");
+
+const tarefaConcluida = (status: string | null | undefined) =>
+  status === "CONCLUIDO" || status === "CONCLUIDA";
+
+const ehCasoEspecialSantos51Para10 = ({
+  tipoSolicitacao,
+  contratoOrigemNumero,
+  contratoDestinoNumero,
+  contratoFuncionarioNumero,
+}: {
+  tipoSolicitacao: unknown;
+  contratoOrigemNumero: unknown;
+  contratoDestinoNumero: unknown;
+  contratoFuncionarioNumero: unknown;
+}) =>
+  normalizarTexto(tipoSolicitacao) === "VINCULO_ADICIONAL" &&
+  (normalizarNumeroContrato(contratoOrigemNumero) === "4600679351" ||
+    normalizarNumeroContrato(contratoFuncionarioNumero) === "4600679351") &&
+  normalizarNumeroContrato(contratoDestinoNumero) === "4600684010";
+
 // PUT - Concluir tarefa
 export async function PUT(
   request: NextRequest,
@@ -347,7 +388,18 @@ async function atualizarStatusTarefasFuncionario(
           id: remanejamentoFuncionarioId,
         },
         include: {
-          solicitacao: true,
+          solicitacao: {
+            select: {
+              tipo: true,
+              contratoOrigem: { select: { numero: true } },
+              contratoDestino: { select: { numero: true } },
+            },
+          },
+          funcionario: {
+            select: {
+              contrato: { select: { numero: true } },
+            },
+          },
         },
       });
 
@@ -360,16 +412,45 @@ async function atualizarStatusTarefasFuncionario(
     }
 
     const statusAnterior = remanejamentoFuncionario.statusTarefas;
+    const casoEspecialSantos51Para10 = ehCasoEspecialSantos51Para10({
+      tipoSolicitacao: remanejamentoFuncionario.solicitacao?.tipo,
+      contratoOrigemNumero:
+        remanejamentoFuncionario.solicitacao?.contratoOrigem?.numero,
+      contratoDestinoNumero:
+        remanejamentoFuncionario.solicitacao?.contratoDestino?.numero,
+      contratoFuncionarioNumero:
+        remanejamentoFuncionario.funcionario?.contrato?.numero,
+    });
 
-    // Regra geral: todas concluídas => SUBMETER RASCUNHO, caso contrário ATENDER TAREFAS
-    let novoStatus: "SUBMETER RASCUNHO" | "ATENDER TAREFAS" = todasConcluidas
-      ? "SUBMETER RASCUNHO"
-      : "ATENDER TAREFAS";
+    const possuiNr26Concluida = tarefas.some(
+      (tarefa) =>
+        tarefa.status !== "CANCELADO" &&
+        ehNr26(tarefa.tipo) &&
+        tarefaConcluida(tarefa.status),
+    );
+    const possuiNr33Concluida = tarefas.some(
+      (tarefa) =>
+        tarefa.status !== "CANCELADO" &&
+        ehNr33(tarefa.tipo) &&
+        tarefaConcluida(tarefa.status),
+    );
+    let novoStatus: "SUBMETER RASCUNHO" | "ATENDER TAREFAS" =
+      casoEspecialSantos51Para10
+        ? possuiNr26Concluida && possuiNr33Concluida
+          ? "SUBMETER RASCUNHO"
+          : "ATENDER TAREFAS"
+        : todasConcluidas
+          ? "SUBMETER RASCUNHO"
+          : "ATENDER TAREFAS";
 
     // Regra especial: se fluxo está indo para Logística (SUBMETER RASCUNHO)
     // e Treinamento está 0/0, forçar permanência em Treinamento (ATENDER TAREFAS)
     let aplicarDevolucaoTreinamento = false;
-    if (novoStatus === "SUBMETER RASCUNHO" && !temTreinamentoAtivo) {
+    if (
+      novoStatus === "SUBMETER RASCUNHO" &&
+      !temTreinamentoAtivo &&
+      !casoEspecialSantos51Para10
+    ) {
       novoStatus = "ATENDER TAREFAS";
       // Só notificar se houve regressão (estava em Logística e voltou)
       if (statusAnterior === "SUBMETER RASCUNHO") {
@@ -443,7 +524,7 @@ async function atualizarStatusTarefasFuncionario(
     // Se todas as tarefas estão concluídas E o Prestserv está aprovado,
     // verificar se todos os funcionários da solicitação estão prontos
     if (
-      todasConcluidas &&
+      novoStatus === "SUBMETER RASCUNHO" &&
       remanejamentoFuncionario.statusPrestserv === "APROVADO"
     ) {
       await verificarConclusaoSolicitacao(
