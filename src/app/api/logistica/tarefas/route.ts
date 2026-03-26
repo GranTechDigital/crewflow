@@ -40,7 +40,8 @@ const ehCasoEspecialSantos51Para10 = ({
   contratoDestinoNumero: unknown;
   contratoFuncionarioNumero: unknown;
 }) =>
-  normalizarTexto(tipoSolicitacao) === "VINCULO_ADICIONAL" &&
+  normalizarTexto(tipoSolicitacao).replace(/[^A-Z0-9]/g, "") ===
+    "VINCULOADICIONAL" &&
   (normalizarNumeroContrato(contratoOrigemNumero) === "4600679351" ||
     normalizarNumeroContrato(contratoFuncionarioNumero) === "4600679351") &&
   normalizarNumeroContrato(contratoDestinoNumero) === "4600684010";
@@ -107,6 +108,7 @@ export async function GET(request: NextRequest) {
             solicitacao: {
               select: {
                 id: true,
+                tipo: true,
                 contratoOrigemId: true,
                 contratoDestinoId: true,
                 contratoOrigem: {
@@ -122,8 +124,22 @@ export async function GET(request: NextRequest) {
       },
       orderBy: { dataCriacao: "desc" },
     });
+    const tarefasFiltradas = tarefas.filter((tarefa) => {
+      const solicitacao = tarefa.remanejamentoFuncionario?.solicitacao;
+      const casoEspecialSantos51Para10 = ehCasoEspecialSantos51Para10({
+        tipoSolicitacao: solicitacao?.tipo,
+        contratoOrigemNumero: solicitacao?.contratoOrigem?.numero,
+        contratoDestinoNumero: solicitacao?.contratoDestino?.numero,
+        contratoFuncionarioNumero: null,
+      });
+      return (
+        !casoEspecialSantos51Para10 ||
+        ehNr26(tarefa.tipo) ||
+        ehNr33(tarefa.tipo)
+      );
+    });
 
-    return NextResponse.json(tarefas);
+    return NextResponse.json(tarefasFiltradas);
   } catch (error) {
     console.error("Erro ao listar tarefas:", error);
     return NextResponse.json(

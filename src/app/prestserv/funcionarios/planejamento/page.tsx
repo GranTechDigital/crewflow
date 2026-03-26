@@ -50,7 +50,7 @@ ChartJS.register(
   ArcElement,
   PointElement,
   LineElement,
-  ChartDataLabels
+  ChartDataLabels,
 );
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { ROUTE_PROTECTION, PERMISSIONS } from "@/lib/permissions";
@@ -110,17 +110,17 @@ function FuncionariosPageContent() {
   const [filtroStatus, setFiltroStatus] = useState<string>("TODOS");
   const [filtroNome, setFiltroNome] = useState("");
   const [filtroContratoOrigem, setFiltroContratoOrigem] = useState<string[]>(
-    []
+    [],
   );
   const [dropdownContratoOrigemOpen, setDropdownContratoOrigemOpen] =
     useState(false);
   const [filtroContratoDestino, setFiltroContratoDestino] = useState<string[]>(
-    []
+    [],
   );
   const [dropdownContratoDestinoOpen, setDropdownContratoDestinoOpen] =
     useState(false);
   const [filtroTipoSolicitacao, setFiltroTipoSolicitacao] = useState<string[]>(
-    []
+    [],
   );
   const [filtroNumeroSolicitacao, setFiltroNumeroSolicitacao] = useState<
     string[]
@@ -202,6 +202,11 @@ function FuncionariosPageContent() {
   const ehStatusConcluido = (status: string | null | undefined) =>
     status === "CONCLUIDO" || status === "CONCLUIDA";
 
+  const ehNr26OuNr33 = (tipo: unknown) => {
+    const v = normalizarTexto(tipo).replace(/[^A-Z0-9]/g, "");
+    return v.includes("NR26") || v.includes("NR33");
+  };
+
   const ehCasoEspecialSantos51Para10 = ({
     tipoSolicitacao,
     contratoOrigem,
@@ -211,7 +216,8 @@ function FuncionariosPageContent() {
     contratoOrigem: unknown;
     contratoDestino: unknown;
   }) =>
-    normalizarTexto(tipoSolicitacao) === "VINCULO_ADICIONAL" &&
+    normalizarTexto(tipoSolicitacao).replace(/[^A-Z0-9]/g, "") ===
+      "VINCULOADICIONAL" &&
     normalizarNumeroContrato(contratoOrigem) === "4600679351" &&
     normalizarNumeroContrato(contratoDestino) === "4600684010";
 
@@ -220,12 +226,11 @@ function FuncionariosPageContent() {
       setSyncingFuncionarios(true);
       showToast(
         "Atualizando base de funcionários antes de criar a solicitação...",
-        "info"
+        "info",
       );
 
-      const { syncWithRetry, formatSyncMessage } = await import(
-        "@/utils/syncUtils"
-      );
+      const { syncWithRetry, formatSyncMessage } =
+        await import("@/utils/syncUtils");
 
       const result = await syncWithRetry({
         maxRetries: 3,
@@ -240,18 +245,18 @@ function FuncionariosPageContent() {
         showToast(
           result.error ||
             "Não foi possível atualizar a base de funcionários. Você ainda pode prosseguir com a criação da solicitação.",
-          "error"
+          "error",
         );
       }
     } catch (error) {
       showToast(
         "Erro ao sincronizar funcionários. Você ainda pode prosseguir com a criação da solicitação.",
-        "error"
+        "error",
       );
     } finally {
       setSyncingFuncionarios(false);
       router.push(
-        "/prestserv/remanejamentos/novo?returnTo=/prestserv/funcionarios/planejamento"
+        "/prestserv/remanejamentos/novo?returnTo=/prestserv/funcionarios/planejamento",
       );
     }
   };
@@ -290,7 +295,7 @@ function FuncionariosPageContent() {
               if (
                 filtroContratoOrigem.length > 0 &&
                 !filtroContratoOrigem.includes(
-                  funcionario.solicitacao.centroCustoOrigem
+                  funcionario.solicitacao.centroCustoOrigem,
                 )
               ) {
                 return false;
@@ -299,7 +304,7 @@ function FuncionariosPageContent() {
               if (
                 filtroContratoDestino.length > 0 &&
                 !filtroContratoDestino.includes(
-                  funcionario.solicitacao.centroCustoDestino
+                  funcionario.solicitacao.centroCustoDestino,
                 )
               ) {
                 return false;
@@ -309,7 +314,7 @@ function FuncionariosPageContent() {
               if (filtroStatusRemanejamento.length > 0) {
                 const stTarefas = String(funcionario.statusTarefas || "");
                 const tarefasConcluidas = Number(
-                  funcionario.tarefasConcluidas || 0
+                  funcionario.tarefasConcluidas || 0,
                 );
                 const totalTarefas = Number(funcionario.totalTarefas || 0);
                 const dataConcluido =
@@ -322,7 +327,7 @@ function FuncionariosPageContent() {
               }
 
               return true;
-            }
+            },
           );
         }
 
@@ -335,7 +340,7 @@ function FuncionariosPageContent() {
       setDashboardData(data);
     } catch (err) {
       setDashboardError(
-        err instanceof Error ? err.message : "Erro desconhecido"
+        err instanceof Error ? err.message : "Erro desconhecido",
       );
     } finally {
       setLoadingDashboard(false);
@@ -352,7 +357,7 @@ function FuncionariosPageContent() {
   // Carregar estado dos filtros do localStorage
   useEffect(() => {
     const savedFiltersVisible = localStorage.getItem(
-      "funcionarios-filtros-visiveis"
+      "funcionarios-filtros-visiveis",
     );
     if (savedFiltersVisible !== null) {
       setFiltrosVisiveis(JSON.parse(savedFiltersVisible));
@@ -370,7 +375,7 @@ function FuncionariosPageContent() {
         setFiltroSispat(filters.filtroSispat || []);
         setFiltroStatusRemanejamento(filters.filtroStatusRemanejamento || []);
         setFiltroDataSolicitacaoInicio(
-          filters.filtroDataSolicitacaoInicio || ""
+          filters.filtroDataSolicitacaoInicio || "",
         );
         setFiltroDataSolicitacaoFim(filters.filtroDataSolicitacaoFim || "");
         setFiltroDataConclusaoInicio(filters.filtroDataConclusaoInicio || "");
@@ -379,7 +384,7 @@ function FuncionariosPageContent() {
         setPaginaAtual(filters.paginaAtual || 1);
         setItensPorPagina(filters.itensPorPagina || 10);
         setOrdenacao(
-          filters.ordenacao || { campo: "solicitacaoId", direcao: "asc" }
+          filters.ordenacao || { campo: "solicitacaoId", direcao: "asc" },
         );
       } catch (error) {
         console.error("Erro ao carregar filtros salvos:", error);
@@ -415,7 +420,7 @@ function FuncionariosPageContent() {
     if (isInitialized) {
       localStorage.setItem(
         "funcionarios-filtros-visiveis",
-        JSON.stringify(filtrosVisiveis)
+        JSON.stringify(filtrosVisiveis),
       );
     }
   }, [filtrosVisiveis, isInitialized]);
@@ -593,7 +598,7 @@ function FuncionariosPageContent() {
       setError(null);
 
       const response = await fetch(
-        "/api/logistica/remanejamentos?filtrarProcesso=false"
+        "/api/logistica/remanejamentos?filtrarProcesso=false",
       );
 
       if (!response.ok) {
@@ -615,49 +620,54 @@ function FuncionariosPageContent() {
         (solicitacao: any) =>
           solicitacao.funcionarios.map((rf: any) => {
             const tarefasAtivas = (rf.tarefas || []).filter(
-              (t: any) => t.status !== "CANCELADO"
+              (t: any) => t.status !== "CANCELADO",
             );
             const casoEspecialSantos51Para10 = ehCasoEspecialSantos51Para10({
               tipoSolicitacao: solicitacao.tipo,
               contratoOrigem: solicitacao.contratoOrigem?.numero,
               contratoDestino: solicitacao.contratoDestino?.numero,
             });
+            const tarefasVisiveis = casoEspecialSantos51Para10
+              ? tarefasAtivas.filter((t: any) => ehNr26OuNr33(t.tipo))
+              : tarefasAtivas;
             const progressoPorSetorBase = [
               {
                 setor: "RH",
                 total:
-                  tarefasAtivas.filter((t: any) => t.responsavel === "RH")
+                  tarefasVisiveis.filter((t: any) => t.responsavel === "RH")
                     .length || 0,
                 concluidas:
-                  tarefasAtivas.filter(
+                  tarefasVisiveis.filter(
                     (t: any) =>
-                      t.responsavel === "RH" && ehStatusConcluido(t.status)
+                      t.responsavel === "RH" && ehStatusConcluido(t.status),
                   ).length || 0,
                 percentual: 0,
               },
               {
                 setor: "MEDICINA",
                 total:
-                  tarefasAtivas.filter((t: any) => t.responsavel === "MEDICINA")
-                    .length || 0,
+                  tarefasVisiveis.filter(
+                    (t: any) => t.responsavel === "MEDICINA",
+                  ).length || 0,
                 concluidas:
-                  tarefasAtivas.filter(
+                  tarefasVisiveis.filter(
                     (t: any) =>
                       t.responsavel === "MEDICINA" &&
-                      ehStatusConcluido(t.status)
+                      ehStatusConcluido(t.status),
                   ).length || 0,
                 percentual: 0,
               },
               {
                 setor: "TREINAMENTO",
                 total:
-                  tarefasAtivas.filter((t: any) => t.responsavel === "TREINAMENTO")
-                    .length || 0,
+                  tarefasVisiveis.filter(
+                    (t: any) => t.responsavel === "TREINAMENTO",
+                  ).length || 0,
                 concluidas:
-                  tarefasAtivas.filter(
+                  tarefasVisiveis.filter(
                     (t: any) =>
                       t.responsavel === "TREINAMENTO" &&
-                      ehStatusConcluido(t.status)
+                      ehStatusConcluido(t.status),
                   ).length || 0,
                 percentual: 0,
               },
@@ -666,7 +676,7 @@ function FuncionariosPageContent() {
               ? progressoPorSetorBase.map((progresso) =>
                   progresso.setor === "RH" || progresso.setor === "MEDICINA"
                     ? { ...progresso, total: 0, concluidas: 0 }
-                    : progresso
+                    : progresso,
                 )
               : progressoPorSetorBase;
 
@@ -687,9 +697,9 @@ function FuncionariosPageContent() {
               tipoSolicitacao: solicitacao.tipo || "REMANEJAMENTO",
               contratoOrigem: solicitacao.contratoOrigem?.numero || "N/A",
               contratoDestino: solicitacao.contratoDestino?.numero || "N/A",
-              totalTarefas: tarefasAtivas.length || 0,
+              totalTarefas: tarefasVisiveis.length || 0,
               tarefasConcluidas:
-                tarefasAtivas.filter((t: any) => ehStatusConcluido(t.status))
+                tarefasVisiveis.filter((t: any) => ehStatusConcluido(t.status))
                   .length || 0,
               dataSolicitacao: solicitacao.dataSolicitacao,
               dataConcluido: rf.dataConcluido || undefined,
@@ -705,7 +715,7 @@ function FuncionariosPageContent() {
                     : 0,
               })),
             };
-          })
+          }),
       );
 
       setFuncionarios(funcionariosTransformados);
@@ -717,16 +727,19 @@ function FuncionariosPageContent() {
   };
 
   const estatisticasPorSetor = () => {
-    const estatisticas = funcionarios.reduce((acc, funcionario) => {
-      funcionario.progressoPorSetor?.forEach((progresso) => {
-        if (!acc[progresso.setor]) {
-          acc[progresso.setor] = { total: 0, concluidas: 0 };
-        }
-        acc[progresso.setor].total += progresso.total;
-        acc[progresso.setor].concluidas += progresso.concluidas;
-      });
-      return acc;
-    }, {} as Record<string, { total: number; concluidas: number }>);
+    const estatisticas = funcionarios.reduce(
+      (acc, funcionario) => {
+        funcionario.progressoPorSetor?.forEach((progresso) => {
+          if (!acc[progresso.setor]) {
+            acc[progresso.setor] = { total: 0, concluidas: 0 };
+          }
+          acc[progresso.setor].total += progresso.total;
+          acc[progresso.setor].concluidas += progresso.concluidas;
+        });
+        return acc;
+      },
+      {} as Record<string, { total: number; concluidas: number }>,
+    );
 
     return Object.entries(estatisticas).map(([setor, dados]) => ({
       setor,
@@ -801,7 +814,7 @@ function FuncionariosPageContent() {
       if (funcionario.tarefasConcluidas > 0) return "Em andamento";
       return "Pendente";
     },
-    []
+    [],
   );
 
   const getRemanejamentoStatusColor = (status: string) => {
@@ -839,7 +852,7 @@ function FuncionariosPageContent() {
 
       return hasSispat && (prestservConcl || funcAtivo) && remConcluido;
     },
-    []
+    [],
   );
 
   const formatDateOrDash = (value?: string) => {
@@ -873,7 +886,7 @@ function FuncionariosPageContent() {
       }
       return undefined;
     },
-    []
+    [],
   );
 
   const getSolicitacaoStatusFromFuncionarios = React.useCallback(
@@ -884,12 +897,12 @@ function FuncionariosPageContent() {
       });
       if (todosEncerradosOuCancelados) return "Concluído";
       const algumEmAndamento = lista.some(
-        (f) => getRemanejamentoStatus(f) === "Em andamento"
+        (f) => getRemanejamentoStatus(f) === "Em andamento",
       );
       if (algumEmAndamento) return "Em andamento";
       return "Pendente";
     },
-    [getRemanejamentoStatus]
+    [getRemanejamentoStatus],
   );
 
   const getSolicitacaoDataConclusao = React.useCallback(
@@ -901,7 +914,7 @@ function FuncionariosPageContent() {
       if (datas.length === 0) return undefined;
       return new Date(Math.max(...datas));
     },
-    [getDataEncerramento]
+    [getDataEncerramento],
   );
 
   const funcionariosPorStatusRemanejamento = React.useMemo(() => {
@@ -973,7 +986,7 @@ function FuncionariosPageContent() {
     const responsavel = getResponsavelAtual(funcionario);
     const pendingTasks =
       funcionario.progressoPorSetor?.filter(
-        (p) => p.total > 0 && p.percentual < 100
+        (p) => p.total > 0 && p.percentual < 100,
       ) || [];
 
     let baseMessage = "";
@@ -985,7 +998,7 @@ function FuncionariosPageContent() {
           const setoresPendentes = pendingTasks.map((p) => p.setor).join(", ");
           const totalTarefasPendentes = pendingTasks.reduce(
             (acc, p) => acc + (p.total - p.concluidas),
-            0
+            0,
           );
           baseMessage = `🔄 2. Criado - ATENDER TAREFAS ${setoresPendentes} concluir ${totalTarefasPendentes} ${
             totalTarefasPendentes === 1
@@ -1110,7 +1123,7 @@ function FuncionariosPageContent() {
       // Função para determinar status do setor
       const getStatusSetor = (setor: string) => {
         const progressoSetor = funcionario.progressoPorSetor.find(
-          (p) => p.setor === setor
+          (p) => p.setor === setor,
         );
         if (!progressoSetor || progressoSetor.total === 0) {
           return "Sem Tarefas";
@@ -1133,13 +1146,13 @@ function FuncionariosPageContent() {
         MEDICINA: getStatusSetor("MEDICINA"),
         TREINAMENTO: getStatusSetor("TREINAMENTO"),
         "Data Solicitação": new Date(
-          funcionario.dataSolicitacao
+          funcionario.dataSolicitacao,
         ).toLocaleDateString("pt-BR"),
         "Data Criação": new Date(funcionario.createdAt).toLocaleDateString(
-          "pt-BR"
+          "pt-BR",
         ),
         "Data Atualização": new Date(funcionario.updatedAt).toLocaleDateString(
-          "pt-BR"
+          "pt-BR",
         ),
       };
     });
@@ -1177,7 +1190,7 @@ function FuncionariosPageContent() {
       case "contratoOrigem":
         if (valor) {
           setFiltroContratoOrigem((prev) =>
-            prev.filter((contrato) => contrato !== valor)
+            prev.filter((contrato) => contrato !== valor),
           );
         } else {
           setFiltroContratoOrigem([]);
@@ -1186,7 +1199,7 @@ function FuncionariosPageContent() {
       case "contratoDestino":
         if (valor) {
           setFiltroContratoDestino((prev) =>
-            prev.filter((contrato) => contrato !== valor)
+            prev.filter((contrato) => contrato !== valor),
           );
         } else {
           setFiltroContratoDestino([]);
@@ -1195,7 +1208,7 @@ function FuncionariosPageContent() {
       case "tipoSolicitacao":
         if (valor) {
           setFiltroTipoSolicitacao((prev) =>
-            prev.filter((tipo) => tipo !== valor)
+            prev.filter((tipo) => tipo !== valor),
           );
         } else {
           setFiltroTipoSolicitacao([]);
@@ -1204,7 +1217,7 @@ function FuncionariosPageContent() {
       case "numeroSolicitacao":
         if (valor) {
           setFiltroNumeroSolicitacao((prev) =>
-            prev.filter((numero) => numero !== valor)
+            prev.filter((numero) => numero !== valor),
           );
         } else {
           setFiltroNumeroSolicitacao([]);
@@ -1220,7 +1233,7 @@ function FuncionariosPageContent() {
       case "statusRemanejamento":
         if (valor) {
           setFiltroStatusRemanejamento((prev) =>
-            prev.filter((v) => v !== valor)
+            prev.filter((v) => v !== valor),
           );
         } else {
           setFiltroStatusRemanejamento([]);
@@ -1355,7 +1368,7 @@ function FuncionariosPageContent() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({ statusTarefas: "REJEITADO" }),
-        }
+        },
       );
 
       if (!response.ok) {
@@ -1368,8 +1381,8 @@ function FuncionariosPageContent() {
         prev.map((func) =>
           func.id === selectedFuncionario.id
             ? { ...func, statusTarefas: "SOLICITAÇÃO REJEITADA" }
-            : func
-        )
+            : func,
+        ),
       );
 
       // Atualizar o dashboard após rejeitar a solicitação
@@ -1379,7 +1392,7 @@ function FuncionariosPageContent() {
 
       showToast(
         `Solicitação de ${selectedFuncionario.nome} foi reprovada`,
-        "success"
+        "success",
       );
       cancelarAprovacao();
     } catch (error) {
@@ -1387,7 +1400,7 @@ function FuncionariosPageContent() {
         error instanceof Error
           ? error.message
           : "Erro ao reprovar a solicitação",
-        "error"
+        "error",
       );
     } finally {
       setRejectingStatus(false);
@@ -1407,7 +1420,7 @@ function FuncionariosPageContent() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({ statusTarefas: "REPROVAR TAREFAS" }),
-        }
+        },
       );
 
       if (!response.ok) {
@@ -1420,13 +1433,13 @@ function FuncionariosPageContent() {
         prev.map((func) =>
           func.id === selectedFuncionario.id
             ? { ...func, statusTarefas: "REPROVAR TAREFAS" }
-            : func
-        )
+            : func,
+        ),
       );
 
       showToast(
         `Solicitação de ${selectedFuncionario.nome} foi aprovada`,
-        "success"
+        "success",
       );
 
       // Atualizar o dashboard após aprovar a solicitação
@@ -1439,7 +1452,7 @@ function FuncionariosPageContent() {
     } catch (error) {
       showToast(
         error instanceof Error ? error.message : "Erro ao aprovar solicitação",
-        "error"
+        "error",
       );
     } finally {
       setApprovingStatus(false);
@@ -1456,7 +1469,7 @@ function FuncionariosPageContent() {
 
   const toggleSetor = (setor: string) => {
     setSelectedSetores((prev) =>
-      prev.includes(setor) ? prev.filter((s) => s !== setor) : [...prev, setor]
+      prev.includes(setor) ? prev.filter((s) => s !== setor) : [...prev, setor],
     );
   };
 
@@ -1482,7 +1495,7 @@ function FuncionariosPageContent() {
         const errorData = await response.json();
         showToast(
           errorData.error || "Erro ao reprovar tarefas padrão",
-          "error"
+          "error",
         );
         return;
       }
@@ -1490,7 +1503,7 @@ function FuncionariosPageContent() {
       const result = await response.json();
       showToast(
         `Tarefas padrão criadas com sucesso para ${selectedFuncionario.nome}!`,
-        "success"
+        "success",
       );
       fetchFuncionarios();
 
@@ -1512,7 +1525,7 @@ function FuncionariosPageContent() {
   // Função para abrir o modal de lista de tarefas
   const abrirListaTarefas = (
     funcionario: FuncionarioTableData,
-    statusAtualizado?: string
+    statusAtualizado?: string,
   ) => {
     // Se um status atualizado for fornecido, usar ele; caso contrário, usar o status atual do funcionário
     const funcionarioParaModal = statusAtualizado
@@ -1591,17 +1604,17 @@ function FuncionariosPageContent() {
   const getFuncionariosResumo = (funcionarios: FuncionarioTableData[]) => {
     // Pendentes com base no status de remanejamento
     const pendentes = funcionarios.filter(
-      (f) => getRemanejamentoStatus(f) === "Pendente"
+      (f) => getRemanejamentoStatus(f) === "Pendente",
     ).length;
 
     // Em andamento com base no status de remanejamento
     const emAndamento = funcionarios.filter(
-      (f) => getRemanejamentoStatus(f) === "Em andamento"
+      (f) => getRemanejamentoStatus(f) === "Em andamento",
     ).length;
 
     // Concluídos definitivos: somente quem já tem sispat e está ATIVO no Prestserv
     const concluidos = funcionarios.filter((f) =>
-      isConclusaoDefinitiva(f)
+      isConclusaoDefinitiva(f),
     ).length;
 
     return { pendentes, emAndamento, concluidos, total: funcionarios.length };
@@ -1779,7 +1792,7 @@ function FuncionariosPageContent() {
   const indiceFim = indiceInicio + itensPorPagina;
   const funcionariosPaginados = funcionariosOrdenados.slice(
     indiceInicio,
-    indiceFim
+    indiceFim,
   );
 
   // Resetar página atual quando filtros mudarem
@@ -1824,7 +1837,7 @@ function FuncionariosPageContent() {
       // Atualizar datas agregadas
       try {
         const curCreated = new Date(
-          acc[solicitacaoId].createdAtGroup
+          acc[solicitacaoId].createdAtGroup,
         ).getTime();
         const fCreated = new Date(funcionario.createdAt).getTime();
         if (!curCreated || (fCreated && fCreated < curCreated)) {
@@ -1833,7 +1846,7 @@ function FuncionariosPageContent() {
       } catch {}
       try {
         const curUpdated = new Date(
-          acc[solicitacaoId].updatedAtGroup
+          acc[solicitacaoId].updatedAtGroup,
         ).getTime();
         const fUpdated = new Date(funcionario.updatedAt).getTime();
         if (!curUpdated || (fUpdated && fUpdated > curUpdated)) {
@@ -1842,7 +1855,7 @@ function FuncionariosPageContent() {
       } catch {}
       return acc;
     },
-    {} as Record<string, any>
+    {} as Record<string, any>,
   );
   const todasSolicitacoes = Object.values(funcionariosAgrupados);
   const todasSolicitacoesOrdenadas = [...todasSolicitacoes].sort(
@@ -1874,7 +1887,7 @@ function FuncionariosPageContent() {
       if (valorA < valorB) return direcao === "asc" ? -1 : 1;
       if (valorA > valorB) return direcao === "asc" ? 1 : -1;
       return 0;
-    }
+    },
   );
 
   const totalSolicitacoesAgrupadas = todasSolicitacoesOrdenadas.length;
@@ -1883,7 +1896,7 @@ function FuncionariosPageContent() {
       ? todasSolicitacoesOrdenadas.slice(
           (paginaAtualSolicitacoes - 1) * itensPorPaginaSolicitacoes,
           (paginaAtualSolicitacoes - 1) * itensPorPaginaSolicitacoes +
-            itensPorPaginaSolicitacoes
+            itensPorPaginaSolicitacoes,
         )
       : todasSolicitacoesOrdenadas;
 
@@ -1942,7 +1955,7 @@ function FuncionariosPageContent() {
       ...concludedMap.keys(),
     ]);
     const keysSorted = Array.from(keysSet).sort(
-      (a, b) => parseMonthKey(a).getTime() - parseMonthKey(b).getTime()
+      (a, b) => parseMonthKey(a).getTime() - parseMonthKey(b).getTime(),
     );
     const labels = keysSorted.map((k) => formatMonthLabel(parseMonthKey(k)));
     const createdSeries = keysSorted.map((k) => createdMap.get(k) || 0);
@@ -2231,7 +2244,7 @@ function FuncionariosPageContent() {
                         <Doughnut
                           data={{
                             labels: funcionariosPorStatusRemanejamento.map(
-                              (item: any) => item.status
+                              (item: any) => item.status,
                             ),
                             datasets: [
                               {
@@ -2239,7 +2252,7 @@ function FuncionariosPageContent() {
                                   (item: any) =>
                                     typeof item.count === "number"
                                       ? item.count
-                                      : Number(item.count) || 0
+                                      : Number(item.count) || 0,
                                 ),
                                 backgroundColor: [
                                   "#94A3B8", // slate-400
@@ -2292,7 +2305,7 @@ function FuncionariosPageContent() {
                                     const total = context.dataset.data.reduce(
                                       (a: number, b: any) =>
                                         a + (typeof b === "number" ? b : 0),
-                                      0
+                                      0,
                                     );
                                     const percentage =
                                       total > 0
@@ -2310,7 +2323,7 @@ function FuncionariosPageContent() {
                                   const total = ctx.dataset.data.reduce(
                                     (a: number, b: any) =>
                                       a + (typeof b === "number" ? b : 0),
-                                    0
+                                    0,
                                   );
                                   const percentage =
                                     total > 0
@@ -2357,7 +2370,7 @@ function FuncionariosPageContent() {
                         <Bar
                           data={{
                             labels: solicitacoesStatusDistribuicao.map(
-                              (item: any) => item.status
+                              (item: any) => item.status,
                             ),
                             datasets: [
                               {
@@ -2366,7 +2379,7 @@ function FuncionariosPageContent() {
                                   (item: any) =>
                                     typeof item.count === "number"
                                       ? item.count
-                                      : Number(item.count) || 0
+                                      : Number(item.count) || 0,
                                 ),
                                 backgroundColor: [
                                   "rgba(14, 165, 233, 0.7)", // sky-500
@@ -2871,8 +2884,8 @@ function FuncionariosPageContent() {
                     {filtroContratoOrigem.length === 0
                       ? "Todos"
                       : filtroContratoOrigem.length === 1
-                      ? filtroContratoOrigem[0]
-                      : `${filtroContratoOrigem.length} selecionados`}
+                        ? filtroContratoOrigem[0]
+                        : `${filtroContratoOrigem.length} selecionados`}
                   </span>
                   <svg
                     className={`w-4 h-4 transition-transform ${
@@ -2910,8 +2923,8 @@ function FuncionariosPageContent() {
                               } else {
                                 setFiltroContratoOrigem(
                                   filtroContratoOrigem.filter(
-                                    (c) => c !== contrato
-                                  )
+                                    (c) => c !== contrato,
+                                  ),
                                 );
                               }
                             }}
@@ -2945,8 +2958,8 @@ function FuncionariosPageContent() {
                     {filtroContratoDestino.length === 0
                       ? "Todos"
                       : filtroContratoDestino.length === 1
-                      ? filtroContratoDestino[0]
-                      : `${filtroContratoDestino.length} selecionados`}
+                        ? filtroContratoDestino[0]
+                        : `${filtroContratoDestino.length} selecionados`}
                   </span>
                   <svg
                     className={`w-4 h-4 transition-transform ${
@@ -2984,8 +2997,8 @@ function FuncionariosPageContent() {
                               } else {
                                 setFiltroContratoDestino(
                                   filtroContratoDestino.filter(
-                                    (c) => c !== contrato
-                                  )
+                                    (c) => c !== contrato,
+                                  ),
                                 );
                               }
                             }}
@@ -3017,10 +3030,10 @@ function FuncionariosPageContent() {
                     {filtroSispat.length === 0
                       ? "Todos"
                       : filtroSispat.length === 1
-                      ? filtroSispat[0] === "COM"
-                        ? "Com"
-                        : "Sem"
-                      : `${filtroSispat.length} selecionados`}
+                        ? filtroSispat[0] === "COM"
+                          ? "Com"
+                          : "Sem"
+                        : `${filtroSispat.length} selecionados`}
                   </span>
                   <svg
                     className={`w-4 h-4 transition-transform ${
@@ -3054,7 +3067,7 @@ function FuncionariosPageContent() {
                                 setFiltroSispat([...filtroSispat, opt]);
                               } else {
                                 setFiltroSispat(
-                                  filtroSispat.filter((s) => s !== opt)
+                                  filtroSispat.filter((s) => s !== opt),
                                 );
                               }
                             }}
@@ -3080,7 +3093,7 @@ function FuncionariosPageContent() {
                 <button
                   onClick={() =>
                     setDropdownStatusRemanejamentoOpen(
-                      !dropdownStatusRemanejamentoOpen
+                      !dropdownStatusRemanejamentoOpen,
                     )
                   }
                   className="w-full pl-8 pr-8 py-2 text-sm border-slate-800 bg-slate-100 text-slate-500 rounded-md shadow-sm focus:border-slate-300 focus:ring-slate-300 text-left flex items-center justify-between"
@@ -3127,8 +3140,8 @@ function FuncionariosPageContent() {
                               } else {
                                 setFiltroStatusRemanejamento(
                                   filtroStatusRemanejamento.filter(
-                                    (s) => s !== status
-                                  )
+                                    (s) => s !== status,
+                                  ),
                                 );
                               }
                             }}
@@ -3162,8 +3175,8 @@ function FuncionariosPageContent() {
                     {filtroTipoSolicitacao.length === 0
                       ? "Todos"
                       : filtroTipoSolicitacao.length === 1
-                      ? filtroTipoSolicitacao[0]
-                      : `${filtroTipoSolicitacao.length} selecionados`}
+                        ? filtroTipoSolicitacao[0]
+                        : `${filtroTipoSolicitacao.length} selecionados`}
                   </span>
                   <svg
                     className={`w-4 h-4 transition-transform ${
@@ -3201,8 +3214,8 @@ function FuncionariosPageContent() {
                               } else {
                                 setFiltroTipoSolicitacao(
                                   filtroTipoSolicitacao.filter(
-                                    (t) => t !== tipo
-                                  )
+                                    (t) => t !== tipo,
+                                  ),
                                 );
                               }
                             }}
@@ -3228,7 +3241,7 @@ function FuncionariosPageContent() {
                   type="button"
                   onClick={() =>
                     setDropdownNumeroSolicitacaoOpen(
-                      !dropdownNumeroSolicitacaoOpen
+                      !dropdownNumeroSolicitacaoOpen,
                     )
                   }
                   className="w-full pl-8 pr-8 py-2 text-sm border-slate-800 bg-slate-100 text-slate-500 rounded-md shadow-sm focus:border-slate-300 focus:ring-slate-300 text-left flex items-center justify-between"
@@ -3237,8 +3250,8 @@ function FuncionariosPageContent() {
                     {filtroNumeroSolicitacao.length === 0
                       ? "Todos"
                       : filtroNumeroSolicitacao.length === 1
-                      ? filtroNumeroSolicitacao[0]
-                      : `${filtroNumeroSolicitacao.length} selecionados`}
+                        ? filtroNumeroSolicitacao[0]
+                        : `${filtroNumeroSolicitacao.length} selecionados`}
                   </span>
                   <ChevronDownIcon className="h-4 w-4 text-gray-400" />
                 </button>
@@ -3260,7 +3273,7 @@ function FuncionariosPageContent() {
                               ]);
                             } else {
                               setFiltroNumeroSolicitacao((prev) =>
-                                prev.filter((n) => n !== numero)
+                                prev.filter((n) => n !== numero),
                               );
                             }
                           }}
@@ -3463,7 +3476,7 @@ function FuncionariosPageContent() {
                     <td className="px-3 py-2 text-xs text-gray-700">
                       <span
                         className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${getRemanejamentoStatusColor(
-                          getRemanejamentoStatus(funcionario)
+                          getRemanejamentoStatus(funcionario),
                         )}`}
                       >
                         {getRemanejamentoStatus(funcionario)}
@@ -3478,7 +3491,7 @@ function FuncionariosPageContent() {
                     <td className="px-3 py-2 text-xs text-gray-700">
                       <span
                         className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${getStatusColor(
-                          funcionario.statusTarefas
+                          funcionario.statusTarefas,
                         )}`}
                       >
                         {getStatusGeralLabel(funcionario.statusTarefas)}
@@ -3487,7 +3500,7 @@ function FuncionariosPageContent() {
                     <td className="px-3 py-2 text-xs text-gray-700 text-center">
                       <span
                         className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${getResponsavelColor(
-                          getResponsavelAtual(funcionario)
+                          getResponsavelAtual(funcionario),
                         )}`}
                       >
                         {getResponsavelAtual(funcionario)}
@@ -3497,15 +3510,15 @@ function FuncionariosPageContent() {
                       <div className="space-y-1">
                         {["RH", "MEDICINA", "TREINAMENTO"].map((setor) => {
                           const progresso = funcionario.progressoPorSetor?.find(
-                            (p) => p.setor === setor
+                            (p) => p.setor === setor,
                           );
                           const hasData = !!progresso && progresso.total > 0;
                           const nomeSetor =
                             setor === "RH"
                               ? "Recursos Humanos"
                               : setor === "MEDICINA"
-                              ? "Medicina"
-                              : "Treinamento";
+                                ? "Medicina"
+                                : "Treinamento";
                           return (
                             <div
                               key={setor}
@@ -3541,7 +3554,7 @@ function FuncionariosPageContent() {
                                     hasData
                                       ? getProgressColor(
                                           progresso!.concluidas,
-                                          progresso!.total
+                                          progresso!.total,
                                         )
                                       : "text-gray-300"
                                   }`}
@@ -3549,7 +3562,7 @@ function FuncionariosPageContent() {
                                   {hasData
                                     ? getProgressIcon(
                                         progresso!.concluidas,
-                                        progresso!.total
+                                        progresso!.total,
                                       )
                                     : "●"}
                                 </span>
@@ -3579,7 +3592,7 @@ function FuncionariosPageContent() {
                         <button
                           onClick={() =>
                             router.push(
-                              `/prestserv/remanejamentos/${funcionario.id}`
+                              `/prestserv/remanejamentos/${funcionario.id}`,
                             )
                           }
                           className="px-2 py-1 text-[11px] bg-blue-600 text-white rounded hover:bg-blue-700"
@@ -3727,13 +3740,13 @@ function FuncionariosPageContent() {
                           >
                             {item}
                           </button>
-                        )
+                        ),
                       )}
 
                       <button
                         onClick={() =>
                           setPaginaAtual(
-                            Math.min(totalPaginas, paginaAtual + 1)
+                            Math.min(totalPaginas, paginaAtual + 1),
                           )
                         }
                         disabled={paginaAtual === totalPaginas}
@@ -3846,14 +3859,14 @@ function FuncionariosPageContent() {
                   {solicitacoesFiltradas.map(
                     (solicitacao: any, index: number) => {
                       const resumo = getFuncionariosResumo(
-                        solicitacao.funcionarios
+                        solicitacao.funcionarios,
                       );
                       const statusSolicitacao =
                         getSolicitacaoStatusFromFuncionarios(
-                          solicitacao.funcionarios
+                          solicitacao.funcionarios,
                         );
                       const isExpanded = expandedRows.has(
-                        solicitacao.solicitacaoId
+                        solicitacao.solicitacaoId,
                       );
 
                       return (
@@ -3889,7 +3902,7 @@ function FuncionariosPageContent() {
                                     <div>
                                       Criado:{" "}
                                       {new Date(
-                                        solicitacao.funcionarios[0]?.createdAt
+                                        solicitacao.funcionarios[0]?.createdAt,
                                       ).toLocaleDateString("pt-BR", {
                                         day: "2-digit",
                                         month: "2-digit",
@@ -3901,7 +3914,7 @@ function FuncionariosPageContent() {
                                     <div>
                                       Atualizado:{" "}
                                       {new Date(
-                                        solicitacao.funcionarios[0]?.updatedAt
+                                        solicitacao.funcionarios[0]?.updatedAt,
                                       ).toLocaleDateString("pt-BR", {
                                         day: "2-digit",
                                         month: "2-digit",
@@ -3930,7 +3943,7 @@ function FuncionariosPageContent() {
                               <div className="space-y-1">
                                 <span
                                   className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(
-                                    statusSolicitacao
+                                    statusSolicitacao,
                                   )}`}
                                 >
                                   {statusSolicitacao}
@@ -3942,7 +3955,7 @@ function FuncionariosPageContent() {
                                       onClick={() =>
                                         handleChipClick(
                                           solicitacao.solicitacaoId,
-                                          "Pendente"
+                                          "Pendente",
                                         )
                                       }
                                       title={`Pendentes: ${resumo.pendentes} (${
@@ -3950,7 +3963,7 @@ function FuncionariosPageContent() {
                                           ? Math.round(
                                               (resumo.pendentes /
                                                 resumo.total) *
-                                                100
+                                                100,
                                             )
                                           : 0
                                       }%)`}
@@ -3963,7 +3976,7 @@ function FuncionariosPageContent() {
                                       onClick={() =>
                                         handleChipClick(
                                           solicitacao.solicitacaoId,
-                                          "Em andamento"
+                                          "Em andamento",
                                         )
                                       }
                                       title={`Em andamento: ${
@@ -3973,7 +3986,7 @@ function FuncionariosPageContent() {
                                           ? Math.round(
                                               (resumo.emAndamento /
                                                 resumo.total) *
-                                                100
+                                                100,
                                             )
                                           : 0
                                       }%)`}
@@ -3986,7 +3999,7 @@ function FuncionariosPageContent() {
                                       onClick={() =>
                                         handleChipClick(
                                           solicitacao.solicitacaoId,
-                                          "Concluído"
+                                          "Concluído",
                                         )
                                       }
                                       title={`Concluídos: ${
@@ -3996,7 +4009,7 @@ function FuncionariosPageContent() {
                                           ? Math.round(
                                               (resumo.concluidos /
                                                 resumo.total) *
-                                                100
+                                                100,
                                             )
                                           : 0
                                       }%)`}
@@ -4034,13 +4047,13 @@ function FuncionariosPageContent() {
                                     if (filtro === "Concluído")
                                       return isConclusaoDefinitiva(f);
                                     return getRemanejamentoStatus(f) === filtro;
-                                  }
+                                  },
                                 )
                               : solicitacao.funcionarios
                             ).map(
                               (
                                 funcionario: FuncionarioTableData,
-                                funcIndex: number
+                                funcIndex: number,
                               ) => (
                                 <tr
                                   key={`${solicitacao.solicitacaoId}-${funcionario.id}`}
@@ -4082,7 +4095,7 @@ function FuncionariosPageContent() {
                                   <td className="px-4 py-3 text-xs text-gray-700">
                                     <span
                                       className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${getRemanejamentoStatusColor(
-                                        getRemanejamentoStatus(funcionario)
+                                        getRemanejamentoStatus(funcionario),
                                       )}`}
                                     >
                                       {getRemanejamentoStatus(funcionario)}
@@ -4093,13 +4106,13 @@ function FuncionariosPageContent() {
                                       <div className="text-[11px]">
                                         Solicitação:{" "}
                                         {formatDateOrDash(
-                                          funcionario.dataSolicitacao
+                                          funcionario.dataSolicitacao,
                                         )}
                                       </div>
                                       <div className="text-[11px]">
                                         Conclusão:{" "}
                                         {formatDateOrDash(
-                                          getDataEncerramento(funcionario)
+                                          getDataEncerramento(funcionario),
                                         )}
                                       </div>
                                     </div>
@@ -4114,7 +4127,7 @@ function FuncionariosPageContent() {
                                           className="h-2 bg-blue-500"
                                           style={{
                                             width: `${getProgressoDisplay(
-                                              funcionario
+                                              funcionario,
                                             )}%`,
                                           }}
                                         ></div>
@@ -4122,11 +4135,11 @@ function FuncionariosPageContent() {
                                     </div>
                                   </td>
                                 </tr>
-                              )
+                              ),
                             )}
                         </React.Fragment>
                       );
-                    }
+                    },
                   )}
                 </tbody>
               </table>
@@ -4144,14 +4157,14 @@ function FuncionariosPageContent() {
                           (paginaAtualSolicitacoes - 1) *
                             itensPorPaginaSolicitacoes +
                             1,
-                          totalSolicitacoesAgrupadas
+                          totalSolicitacoesAgrupadas,
                         )}
                       </span>{" "}
                       até{" "}
                       <span className="font-medium">
                         {Math.min(
                           paginaAtualSolicitacoes * itensPorPaginaSolicitacoes,
-                          totalSolicitacoesAgrupadas
+                          totalSolicitacoesAgrupadas,
                         )}
                       </span>{" "}
                       de{" "}
@@ -4168,7 +4181,7 @@ function FuncionariosPageContent() {
                     <button
                       onClick={() =>
                         setPaginaAtualSolicitacoes((prev) =>
-                          Math.max(prev - 1, 1)
+                          Math.max(prev - 1, 1),
                         )
                       }
                       disabled={paginaAtualSolicitacoes === 1}
@@ -4181,13 +4194,13 @@ function FuncionariosPageContent() {
                       {
                         length: Math.ceil(
                           totalSolicitacoesAgrupadas /
-                            itensPorPaginaSolicitacoes
+                            itensPorPaginaSolicitacoes,
                         ),
                       },
-                      (_, i) => i + 1
+                      (_, i) => i + 1,
                     ).map((numeroPagina) => {
                       const totalPaginas = Math.ceil(
-                        totalSolicitacoesAgrupadas / itensPorPaginaSolicitacoes
+                        totalSolicitacoesAgrupadas / itensPorPaginaSolicitacoes,
                       );
                       if (
                         numeroPagina === 1 ||
@@ -4232,16 +4245,16 @@ function FuncionariosPageContent() {
                             prev + 1,
                             Math.ceil(
                               totalSolicitacoesAgrupadas /
-                                itensPorPaginaSolicitacoes
-                            )
-                          )
+                                itensPorPaginaSolicitacoes,
+                            ),
+                          ),
                         )
                       }
                       disabled={
                         paginaAtualSolicitacoes >=
                         Math.ceil(
                           totalSolicitacoesAgrupadas /
-                            itensPorPaginaSolicitacoes
+                            itensPorPaginaSolicitacoes,
                         )
                       }
                       className="relative inline-flex items-center px-2 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-r-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"

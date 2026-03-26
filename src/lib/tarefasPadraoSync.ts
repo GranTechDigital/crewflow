@@ -46,8 +46,9 @@ function ehCasoEspecialSantos51Para10({
   contratoDestinoNumero: string | null;
   contratoFuncionarioNumero: string | null;
 }) {
+  const tipoNormalizado = keyTexto(tipoSolicitacao).replace(/[^A-Z0-9]/g, "");
   return (
-    keyTexto(tipoSolicitacao) === "VINCULO ADICIONAL" &&
+    tipoNormalizado === "VINCULOADICIONAL" &&
     (keyNumeroContrato(contratoOrigemNumero) === "4600679351" ||
       keyNumeroContrato(contratoFuncionarioNumero) === "4600679351") &&
     keyNumeroContrato(contratoDestinoNumero) === "4600684010"

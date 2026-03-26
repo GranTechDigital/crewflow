@@ -51,6 +51,40 @@ interface FuncionarioTableData {
   responsavelAtual?: string;
 }
 
+const normalizarTexto = (valor: unknown) =>
+  String(valor || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toUpperCase();
+
+const normalizarNumeroContrato = (valor: unknown) =>
+  String(valor || "")
+    .replace(/\D/g, "")
+    .replace(/^0+/, "");
+
+const ehStatusConcluido = (status: string | null | undefined) =>
+  status === "CONCLUIDO" || status === "CONCLUIDA";
+
+const ehNr26OuNr33 = (tipo: unknown) => {
+  const v = normalizarTexto(tipo).replace(/[^A-Z0-9]/g, "");
+  return v.includes("NR26") || v.includes("NR33");
+};
+
+const ehCasoEspecialSantos51Para10 = ({
+  tipoSolicitacao,
+  contratoOrigem,
+  contratoDestino,
+}: {
+  tipoSolicitacao: unknown;
+  contratoOrigem: unknown;
+  contratoDestino: unknown;
+}) =>
+  normalizarTexto(tipoSolicitacao).replace(/[^A-Z0-9]/g, "") ===
+    "VINCULOADICIONAL" &&
+  normalizarNumeroContrato(contratoOrigem) === "4600679351" &&
+  normalizarNumeroContrato(contratoDestino) === "4600684010";
+
 export default function FuncionariosPage() {
   return (
     <ProtectedRoute
@@ -127,34 +161,6 @@ function FuncionariosPageContent() {
   );
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [isInitialized, setIsInitialized] = useState(false);
-
-  const normalizarTexto = (valor: unknown) =>
-    String(valor || "")
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .trim()
-      .toUpperCase();
-
-  const normalizarNumeroContrato = (valor: unknown) =>
-    String(valor || "")
-      .replace(/\D/g, "")
-      .replace(/^0+/, "");
-
-  const ehStatusConcluido = (status: string | null | undefined) =>
-    status === "CONCLUIDO" || status === "CONCLUIDA";
-
-  const ehCasoEspecialSantos51Para10 = ({
-    tipoSolicitacao,
-    contratoOrigem,
-    contratoDestino,
-  }: {
-    tipoSolicitacao: unknown;
-    contratoOrigem: unknown;
-    contratoDestino: unknown;
-  }) =>
-    normalizarTexto(tipoSolicitacao) === "VINCULO_ADICIONAL" &&
-    normalizarNumeroContrato(contratoOrigem) === "4600679351" &&
-    normalizarNumeroContrato(contratoDestino) === "4600684010";
 
   // Carregar estado dos filtros do localStorage ou URL
   useEffect(() => {
@@ -576,14 +582,17 @@ function FuncionariosPageContent() {
               contratoOrigem: solicitacao.contratoOrigem?.numero,
               contratoDestino: solicitacao.contratoDestino?.numero,
             });
+            const tarefasVisiveis = casoEspecialSantos51Para10
+              ? tarefasAtivas.filter((t: any) => ehNr26OuNr33(t.tipo))
+              : tarefasAtivas;
             const progressoPorSetorBase = [
               {
                 setor: "RH",
                 total:
-                  tarefasAtivas.filter((t: any) => t.responsavel === "RH")
+                  tarefasVisiveis.filter((t: any) => t.responsavel === "RH")
                     .length || 0,
                 concluidas:
-                  tarefasAtivas.filter(
+                  tarefasVisiveis.filter(
                     (t: any) =>
                       t.responsavel === "RH" && ehStatusConcluido(t.status),
                   ).length || 0,
@@ -592,10 +601,11 @@ function FuncionariosPageContent() {
               {
                 setor: "MEDICINA",
                 total:
-                  tarefasAtivas.filter((t: any) => t.responsavel === "MEDICINA")
-                    .length || 0,
+                  tarefasVisiveis.filter(
+                    (t: any) => t.responsavel === "MEDICINA",
+                  ).length || 0,
                 concluidas:
-                  tarefasAtivas.filter(
+                  tarefasVisiveis.filter(
                     (t: any) =>
                       t.responsavel === "MEDICINA" &&
                       ehStatusConcluido(t.status),
@@ -605,11 +615,11 @@ function FuncionariosPageContent() {
               {
                 setor: "TREINAMENTO",
                 total:
-                  tarefasAtivas.filter(
+                  tarefasVisiveis.filter(
                     (t: any) => t.responsavel === "TREINAMENTO",
                   ).length || 0,
                 concluidas:
-                  tarefasAtivas.filter(
+                  tarefasVisiveis.filter(
                     (t: any) =>
                       t.responsavel === "TREINAMENTO" &&
                       ehStatusConcluido(t.status),
@@ -637,9 +647,9 @@ function FuncionariosPageContent() {
               tipoSolicitacao: solicitacao.tipo || "REMANEJAMENTO",
               contratoOrigem: solicitacao.contratoOrigem?.numero || "N/A",
               contratoDestino: solicitacao.contratoDestino?.numero || "N/A",
-              totalTarefas: tarefasAtivas.length || 0,
+              totalTarefas: tarefasVisiveis.length || 0,
               tarefasConcluidas:
-                tarefasAtivas.filter((t: any) => ehStatusConcluido(t.status))
+                tarefasVisiveis.filter((t: any) => ehStatusConcluido(t.status))
                   .length || 0,
               dataSolicitacao: solicitacao.dataSolicitacao,
               createdAt: solicitacao.createdAt,

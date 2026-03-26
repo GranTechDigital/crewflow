@@ -38,7 +38,8 @@ const ehCasoEspecialSantos51Para10 = ({
   contratoDestinoNumero: unknown;
   contratoFuncionarioNumero: unknown;
 }) =>
-  normalizarTexto(tipoSolicitacao) === "VINCULO_ADICIONAL" &&
+  normalizarTexto(tipoSolicitacao).replace(/[^A-Z0-9]/g, "") ===
+    "VINCULOADICIONAL" &&
   (normalizarNumeroContrato(contratoOrigemNumero) === "4600679351" ||
     normalizarNumeroContrato(contratoFuncionarioNumero) === "4600679351") &&
   normalizarNumeroContrato(contratoDestinoNumero) === "4600684010";
