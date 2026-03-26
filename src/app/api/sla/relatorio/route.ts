@@ -191,7 +191,19 @@ export async function GET(request: NextRequest) {
       remanejamentos = await prisma.remanejamentoFuncionario.findMany({
         where: whereBase,
         include: {
-          solicitacao: true,
+          solicitacao: {
+            select: {
+              id: true,
+              dataSolicitacao: true,
+              contratoDestino: {
+                select: {
+                  id: true,
+                  nome: true,
+                  numero: true,
+                },
+              },
+            },
+          },
           funcionario: { select: { id: true, nome: true, matricula: true } },
         },
       });
@@ -251,7 +263,19 @@ export async function GET(request: NextRequest) {
       remanejamentos = await prisma.remanejamentoFuncionario.findMany({
         where: whereFallback,
         include: {
-          solicitacao: true,
+          solicitacao: {
+            select: {
+              id: true,
+              dataSolicitacao: true,
+              contratoDestino: {
+                select: {
+                  id: true,
+                  nome: true,
+                  numero: true,
+                },
+              },
+            },
+          },
           funcionario: { select: { id: true, nome: true, matricula: true } },
         },
       });
@@ -1781,6 +1805,13 @@ export async function GET(request: NextRequest) {
           remanejamentoId: rf.id,
           solicitacaoId: rf.solicitacaoId,
           funcionario: rf.funcionario,
+          contratoDestino: rf.solicitacao?.contratoDestino
+            ? {
+                id: rf.solicitacao.contratoDestino.id,
+                nome: rf.solicitacao.contratoDestino.nome,
+                numero: rf.solicitacao.contratoDestino.numero,
+              }
+            : null,
           totalDurMs: totalDuracaoMs,
           temposMediosPorSetor: temposMediosPorSetorAug,
           periodosPorSetor: Object.entries(intervalosPorSetor).map(

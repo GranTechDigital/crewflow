@@ -54,6 +54,11 @@ type KPISet = {
     remanejamentoId: string | number;
     solicitacaoId: number;
     funcionario: { id: number; nome: string; matricula: string } | null;
+    contratoDestino?: {
+      id?: number | null;
+      nome?: string | null;
+      numero?: string | null;
+    } | null;
     totalDurMs: number;
     temposMediosPorSetor: { setor: string; tempoMedioMs: number }[];
     periodosPorSetor?: { setor: string; inicio: string; fim: string }[];
@@ -1793,6 +1798,11 @@ export default function RelatorioSLA() {
       let diagReprovCount = 0;
       let diagSetorEventosCount = 0;
       let diagLogisticaEventosCount = 0;
+      const contratoDestino = r.contratoDestino?.nome
+        ? r.contratoDestino.numero
+          ? `${r.contratoDestino.numero} - ${r.contratoDestino.nome}`
+          : r.contratoDestino.nome
+        : "";
 
       const segments = buildRelatorioSegments(r, setoresDisponiveis);
       let segIdx = 0;
@@ -1821,6 +1831,7 @@ export default function RelatorioSLA() {
           Remanejamento: String(r.remanejamentoId),
           Funcionario: r.funcionario?.nome || "",
           Matricula: r.funcionario?.matricula || "",
+          ContratoDestino: contratoDestino,
           InicioRemanejamentoData: partsIniRem.data,
           InicioRemanejamentoHora: partsIniRem.hora,
           FimRemanejamentoData: partsFimRem.data,
@@ -1902,6 +1913,7 @@ export default function RelatorioSLA() {
         Remanejamento: String(r.remanejamentoId),
         Funcionario: r.funcionario?.nome || "",
         Matricula: r.funcionario?.matricula || "",
+        ContratoDestino: contratoDestino,
         RH: durBySetor["RH"] ? fmtMs(durBySetor["RH"]) : "",
         MEDICINA: durBySetor["MEDICINA"] ? fmtMs(durBySetor["MEDICINA"]) : "",
         TREINAMENTO: durBySetor["TREINAMENTO"]
@@ -1962,6 +1974,7 @@ export default function RelatorioSLA() {
             Remanejamento: String(r.remanejamentoId),
             Funcionario: r.funcionario?.nome || "",
             Matricula: r.funcionario?.matricula || "",
+            ContratoDestino: contratoDestino,
             Ciclo: typeof seg.ciclo === "number" ? seg.ciclo : "",
             Responsavel: seg.responsavel,
             Tipo: seg.tipo || "",
@@ -2008,6 +2021,7 @@ export default function RelatorioSLA() {
                 Remanejamento: String(r.remanejamentoId),
                 Funcionario: r.funcionario?.nome || "",
                 Matricula: r.funcionario?.matricula || "",
+                ContratoDestino: contratoDestino,
                 Ciclo: typeof seg.ciclo === "number" ? seg.ciclo : "",
                 Responsavel: setor,
                 Tipo: "SETOR",
@@ -2042,6 +2056,7 @@ export default function RelatorioSLA() {
             Remanejamento: String(r.remanejamentoId),
             Funcionario: r.funcionario?.nome || "",
             Matricula: r.funcionario?.matricula || "",
+            ContratoDestino: contratoDestino,
             Ciclo: "",
             Responsavel: ev.setor,
             Tipo: "REPROVACAO",
@@ -2059,6 +2074,7 @@ export default function RelatorioSLA() {
 
       rowsDiag.push({
         Remanejamento: String(r.remanejamentoId),
+        ContratoDestino: contratoDestino,
         TeveReprovacao: r.teveReprovacao ? "SIM" : "NAO",
         ReprovEventsAPI: (r.reprovEvents || []).length,
         ReprovEventsExport: diagReprovCount,
@@ -2148,6 +2164,7 @@ export default function RelatorioSLA() {
             Remanejamento: String(r.remanejamentoId),
             Funcionario: r.funcionario?.nome || "",
             Matricula: r.funcionario?.matricula || "",
+            ContratoDestino: contratoDestino,
             Ciclo: ci,
             InicioData: partsInicio.data,
             InicioHora: partsInicio.hora,
