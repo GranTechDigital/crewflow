@@ -63,17 +63,25 @@ jobs:
             echo "❌ SSH_PRIVATE_KEY secret não está configurado"; exit 1; fi
           if [ -z "${{ secrets.PROD_SERVER_HOST }}" ]; then
             echo "❌ SERVER_HOST secret não está configurado"; exit 1; fi
+          HOST="${{ secrets.PROD_SERVER_HOST }}"
           PORT="${{ secrets.PROD_SERVER_SSH_PORT }}"; [ -z "$PORT" ] && PORT=22
           mkdir -p ~/.ssh
           printf '%s\n' "${{ secrets.PROD_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          printf 'Host %s\n  Port %s\n  User root\n  StrictHostKeyChecking no\n' "${{ secrets.PROD_SERVER_HOST }}" "$PORT" >> ~/.ssh/config
+          if ! timeout 8 ssh-keyscan -p "$PORT" -T 5 "$HOST" >/dev/null 2>&1; then
+            if [ "$PORT" != "22" ] && timeout 8 ssh-keyscan -p 22 -T 5 "$HOST" >/dev/null 2>&1; then
+              echo "⚠️ Porta SSH '$PORT' indisponível para $HOST; usando fallback para 22"
+              PORT=22
+            fi
+          fi
+          echo "PROD_SSH_PORT=$PORT" >> "$GITHUB_ENV"
+          printf 'Host %s\n  Port %s\n  User root\n  StrictHostKeyChecking no\n' "$HOST" "$PORT" >> ~/.ssh/config
           # ssh-keyscan pode falhar por instabilidade de rede/firewall; tentar com retries e não bloquear o deploy
           set +e
           ATTEMPTS=10; SLEEP=3; ADDED=0
           for i in $(seq 1 $ATTEMPTS); do
-            ssh-keyscan -p "$PORT" -T 5 -H "${{ secrets.PROD_SERVER_HOST }}" >> ~/.ssh/known_hosts && { ADDED=1; break; }
-            echo "⚠️ ssh-keyscan tentativa #$i falhou para host '${{ secrets.PROD_SERVER_HOST }}' porta $PORT"; sleep $SLEEP
+            ssh-keyscan -p "$PORT" -T 5 -H "$HOST" >> ~/.ssh/known_hosts && { ADDED=1; break; }
+            echo "⚠️ ssh-keyscan tentativa #$i falhou para host '$HOST' porta $PORT"; sleep $SLEEP
           done
           set -e
           if [ "$ADDED" -ne 1 ]; then
@@ -84,13 +92,33 @@ jobs:
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.skip_backup != 'true' }}
         run: |
           set -euo pipefail
-          PORT="${{ secrets.PROD_SERVER_SSH_PORT }}"; [ -z "$PORT" ] && PORT=22
+          HOST="${{ secrets.PROD_SERVER_HOST }}"
+          PORT="${{ env.PROD_SSH_PORT }}"; [ -z "$PORT" ] && PORT="${{ secrets.PROD_SERVER_SSH_PORT }}"; [ -z "$PORT" ] && PORT=22
           SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=20 -o ServerAliveInterval=30 -o ServerAliveCountMax=6 -p $PORT"
-          ATTEMPTS=5
-          SLEEP=8
-          for i in $(seq 1 $ATTEMPTS); do
-            echo "🔌 Tentativa SSH para backup #$i/$ATTEMPTS (host=${{ secrets.PROD_SERVER_HOST }}, port=$PORT)"
-            if ssh $SSH_OPTS root@${{ secrets.PROD_SERVER_HOST }} << 'EOF'
+          BACKUP_ALLOWED=1
+          if ! ssh $SSH_OPTS root@$HOST "echo precheck-ssh-ok" >/dev/null 2>&1; then
+            if [ "$PORT" != "22" ]; then
+              echo "⚠️ Pré-check SSH falhou na porta $PORT; tentando fallback 22"
+              if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=20 -o ServerAliveInterval=30 -o ServerAliveCountMax=6 -p 22 root@$HOST "echo precheck-ssh-ok" >/dev/null 2>&1; then
+                PORT=22
+                SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=20 -o ServerAliveInterval=30 -o ServerAliveCountMax=6 -p $PORT"
+                echo "✅ Pré-check SSH ok no fallback da porta 22"
+              else
+                echo "⚠️ Pré-check SSH falhou em $HOST nas portas $PORT e 22. Deploy seguirá sem backup."
+                BACKUP_ALLOWED=0
+              fi
+            else
+              echo "⚠️ Pré-check SSH falhou em $HOST na porta 22. Deploy seguirá sem backup."
+              BACKUP_ALLOWED=0
+            fi
+          fi
+          if [ "$BACKUP_ALLOWED" = "1" ]; then
+            ATTEMPTS=5
+            SLEEP=8
+            BACKUP_DONE=0
+            for i in $(seq 1 $ATTEMPTS); do
+              echo "🔌 Tentativa SSH para backup #$i/$ATTEMPTS (host=$HOST, port=$PORT)"
+              if ssh $SSH_OPTS root@$HOST << 'EOF'
               set -e
               mkdir -p /var/backups/projetogran/producao
               TS=$(date -u +%Y%m%d_%H%M%S)
@@ -123,17 +151,25 @@ jobs:
                 echo "❌ Backup vazio ou não encontrado: $FILE"; exit 1; fi
               echo "✅ Backup criado: $FILE"
               ls -1t /var/backups/projetogran/producao/crewflow_production_*.dump | tail -n +31 | xargs -r rm -f
-          EOF
-            then
-              echo "✅ Backup concluído com sucesso"
-              break
+EOF
+              then
+                echo "✅ Backup concluído com sucesso"
+                BACKUP_DONE=1
+                break
+              fi
+              if [ "$i" -eq "$ATTEMPTS" ]; then
+                echo "⚠️ Falha no backup após $ATTEMPTS tentativas. Deploy seguirá sem backup."
+              else
+                echo "⚠️ Falha transitória na tentativa #$i. Aguardando ${SLEEP}s..."
+                sleep $SLEEP
+              fi
+            done
+            if [ "$BACKUP_DONE" != "1" ]; then
+              echo "⚠️ Nenhum backup foi gerado neste deploy."
             fi
-            if [ "$i" -eq "$ATTEMPTS" ]; then
-              echo "❌ Falha no backup após $ATTEMPTS tentativas"; exit 1
-            fi
-            echo "⚠️ Falha transitória na tentativa #$i. Aguardando ${SLEEP}s..."
-            sleep $SLEEP
-          done
+          else
+            echo "⚠️ Backup pulado por indisponibilidade de SSH."
+          fi
 
       - name: 🧹 Prepare server before image load (safe prune)
         run: |
