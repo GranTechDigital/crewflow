@@ -454,41 +454,32 @@ export async function POST(request: NextRequest) {
     );
     const novosTreinoIds = new Set<number>();
     const novosChaves = new Set<string>();
-    const [contratoOrigem, contratoDestino, contratoAtualFuncionario] =
-      await Promise.all([
-        remanejamentoFuncionario.solicitacao?.contratoOrigemId != null
-          ? prisma.contrato.findUnique({
-              where: {
-                id: remanejamentoFuncionario.solicitacao.contratoOrigemId,
-              },
-              select: { numero: true, nome: true },
-            })
-          : Promise.resolve(null),
-        remanejamentoFuncionario.solicitacao?.contratoDestinoId != null
-          ? prisma.contrato.findUnique({
-              where: {
-                id: remanejamentoFuncionario.solicitacao.contratoDestinoId,
-              },
-              select: { numero: true, nome: true },
-            })
-          : Promise.resolve(null),
-        typeof funcionario?.contratoId === "number"
-          ? prisma.contrato.findUnique({
-              where: { id: funcionario.contratoId },
-              select: { numero: true },
-            })
-          : Promise.resolve(null),
-      ]);
+    const [contratoOrigem, contratoDestino] = await Promise.all([
+      remanejamentoFuncionario.solicitacao?.contratoOrigemId != null
+        ? prisma.contrato.findUnique({
+            where: {
+              id: remanejamentoFuncionario.solicitacao.contratoOrigemId,
+            },
+            select: { numero: true, nome: true },
+          })
+        : Promise.resolve(null),
+      remanejamentoFuncionario.solicitacao?.contratoDestinoId != null
+        ? prisma.contrato.findUnique({
+            where: {
+              id: remanejamentoFuncionario.solicitacao.contratoDestinoId,
+            },
+            select: { numero: true, nome: true },
+          })
+        : Promise.resolve(null),
+    ]);
     const contratoOrigemNumero = contratoOrigem?.numero ?? null;
     const contratoDestinoNumero = contratoDestino?.numero ?? null;
-    const contratoFuncionarioNumero = contratoAtualFuncionario?.numero ?? null;
     const tipoSolicitacaoAtual = normalizarTexto(
       remanejamentoFuncionario.solicitacao?.tipo,
     );
     const ehCasoEspecialSantos51Para10 =
       tipoSolicitacaoAtual === "VINCULO_ADICIONAL" &&
-      (normalizarNumeroContrato(contratoOrigemNumero) === "4600679351" ||
-        normalizarNumeroContrato(contratoFuncionarioNumero) === "4600679351") &&
+      normalizarNumeroContrato(contratoOrigemNumero) === "4600679351" &&
       normalizarNumeroContrato(contratoDestinoNumero) === "4600684010";
     if (ehCasoEspecialSantos51Para10) {
       for (const t of tarefasExistentes) {
