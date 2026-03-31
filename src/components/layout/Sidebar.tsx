@@ -161,6 +161,14 @@ export default function Sidebar() {
           // },
           { label: "Tarefas dos Setores", href: "/logistica/tarefas" },
           {
+            label: "Desempenho Setores",
+            href: "/logistica/desempenho-setores",
+          },
+          {
+            label: "Desempenho Logística",
+            href: "/logistica/desempenho-logistica",
+          },
+          {
             label: "Lista de Funcionários",
             href: "/prestserv/funcionarios-por-contrato",
           },
@@ -367,7 +375,9 @@ export default function Sidebar() {
               )
             );
           default:
-            return permissions.hasPermission(section.permission);
+            return section.permission
+              ? permissions.hasPermission(section.permission)
+              : false;
         }
       });
 

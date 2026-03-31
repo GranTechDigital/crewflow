@@ -5140,6 +5140,12 @@ export default function TarefasPage() {
             </svg>
             <span>Dashboard</span>
           </button>
+          <button
+            onClick={() => router.push("/logistica/desempenho-logistica")}
+            className="text-white py-2 px-1 border-b-2 font-medium text-xs flex items-center space-x-2 border-transparent text-gray-500 hover:text-white-700 hover:border-white-300"
+          >
+            <span>Desempenho Logística</span>
+          </button>
         </nav>
       </div>
 

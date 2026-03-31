@@ -123,6 +123,14 @@ const setores: SetorCard[] = [
         href: "/prestserv/funcionarios",
       },
       { label: "Tarefas dos Setores", href: "/logistica/tarefas" },
+      {
+        label: "Desempenho Setores",
+        href: "/logistica/desempenho-setores",
+      },
+      {
+        label: "Desempenho Logística",
+        href: "/logistica/desempenho-logistica",
+      },
       // { label: "Funcionários em Processo", href: "/prestserv/funcionarios" },
       // {
       //   label: "Funcionários por Centro de Custo",
@@ -158,7 +166,6 @@ const setores: SetorCard[] = [
       "Medicina (Visualizador)",
       "Liderança (Visualizador)",
     ], // Administração e Medicina
-    links: [{ label: "Minhas Tarefas", href: "/tarefas?setor=medicina" }],
     links: [
       { label: "Minhas Tarefas", href: "/tarefas?setor=medicina" },
       { label: "Usuários da Equipe", href: "/medicina/usuarios" },
@@ -180,7 +187,6 @@ const setores: SetorCard[] = [
       "RH (Visualizador)",
       "Liderança (Visualizador)",
     ], // Administração e RH
-    links: [{ label: "Minhas Tarefas", href: "/tarefas?setor=rh" }],
     links: [
       { label: "Minhas Tarefas", href: "/tarefas?setor=rh" },
       { label: "Usuários da Equipe", href: "/rh/usuarios" },
