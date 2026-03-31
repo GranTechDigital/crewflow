@@ -695,7 +695,9 @@ export default function TarefasPage() {
     String(s || "")
       .replace(/\D/g, "")
       .replace(/^0+/, "");
-  const isCasoEspecialSantos51Para10 = (solicitacao: SolicitacaoRemanejamento) =>
+  const isCasoEspecialSantos51Para10 = (
+    solicitacao: SolicitacaoRemanejamento,
+  ) =>
     normalizePlain(String(solicitacao.tipo || "")).replace(/[^A-Z0-9]/g, "") ===
       "VINCULOADICIONAL" &&
     normalizeContractNumber(solicitacao.contratoOrigem?.numero) ===
@@ -785,19 +787,14 @@ export default function TarefasPage() {
   };
 
   const getProgressoGeral = (): ProgressoGeral => {
-    const remanejamentosFiltrados = getRemanejamentosFiltrados();
-
-    // Extrair todas as tarefas dos remanejamentos filtrados
-    const todasTarefas: TarefaRemanejamento[] = [];
-    remanejamentosFiltrados.forEach((remanejamento) => {
-      if (remanejamento.tarefas) {
-        todasTarefas.push(...remanejamento.tarefas);
-      }
-    });
+    const todasTarefas = getTarefasFiltradas();
 
     const total = todasTarefas.length;
     const pendentes = todasTarefas.filter(
-      (t) => t.status === "PENDENTE",
+      (t) =>
+        t.status === "PENDENTE" ||
+        t.status === "EM_ANDAMENTO" ||
+        t.status === "REPROVADO",
     ).length;
     const emAndamento = todasTarefas.filter(
       (t) => t.status === "EM_ANDAMENTO",
@@ -818,12 +815,11 @@ export default function TarefasPage() {
     hoje.setHours(0, 0, 0, 0); // Normalizar para início do dia
 
     const atrasadas = todasTarefas.filter((tarefa) => {
-      if (
-        tarefa.status === "CONCLUIDO" ||
-        tarefa.status === "CONCLUIDA" ||
-        !tarefa.dataLimite
-      )
-        return false;
+      const statusEmAberto =
+        tarefa.status === "PENDENTE" ||
+        tarefa.status === "EM_ANDAMENTO" ||
+        tarefa.status === "REPROVADO";
+      if (!statusEmAberto || !tarefa.dataLimite) return false;
       const dataLimite = new Date(tarefa.dataLimite);
       dataLimite.setHours(0, 0, 0, 0); // Normalizar para início do dia
       return dataLimite < hoje;
@@ -883,7 +879,115 @@ export default function TarefasPage() {
           if (regimeUpper.includes("ON")) return "ONSHORE";
           return regime || "N/A";
         })();
-        const tarefasComFuncionario = remanejamento.tarefas.map((tarefa) => ({
+        const tarefasFiltradas = remanejamento.tarefas.filter(
+          (tarefa: TarefaRemanejamento) => {
+            const matchSetor = setorAtual
+              ? normalizePlain(tarefa.responsavel) ===
+                normalizePlain(setorAtual)
+              : filtroSetorList.length === 0 ||
+                filtroSetorList
+                  .map((s) => normalizePlain(s))
+                  .includes(normalizePlain(tarefa.responsavel));
+
+            let matchStatus = true;
+            if (filtroStatusList.length > 0) {
+              const statusNorm = normalizeStatus(tarefa.status || "");
+              matchStatus = filtroStatusList.some((sel) => {
+                if (sel === "CONCLUIDO") {
+                  return (
+                    statusNorm === "CONCLUIDO" || statusNorm === "CONCLUIDA"
+                  );
+                }
+                if (sel === "PENDENTE") {
+                  return (
+                    statusNorm === "PENDENTE" || statusNorm === "EM_ANDAMENTO"
+                  );
+                }
+                if (sel === "REPROVADO") {
+                  return statusNorm === "REPROVADO";
+                }
+                return false;
+              });
+            }
+
+            const matchPrioridade =
+              filtroPrioridadeList.length === 0 ||
+              filtroPrioridadeList.includes(tarefa.prioridade);
+
+            const matchTipo =
+              filtroTipoList.length === 0 ||
+              filtroTipoList.includes(tarefa.tipo || "");
+
+            let matchDataCategoria = true;
+            if (filtroDataCategoria) {
+              if (filtroDataCategoria === "NOVO") {
+                const criadoMs = tarefa.dataCriacao
+                  ? new Date(tarefa.dataCriacao).getTime()
+                  : 0;
+                const nowMs = Date.now();
+                matchDataCategoria =
+                  !!tarefa.dataCriacao &&
+                  criadoMs <= nowMs &&
+                  nowMs - criadoMs <= 48 * 60 * 60 * 1000;
+              } else {
+                const hoje = new Date();
+                hoje.setHours(0, 0, 0, 0);
+                const dataLimiteDate = tarefa.dataLimite
+                  ? new Date(tarefa.dataLimite)
+                  : null;
+                const notConcluida =
+                  tarefa.status !== "CONCLUIDO" &&
+                  tarefa.status !== "CONCLUIDA";
+
+                if (filtroDataCategoria === "SEM_DATA") {
+                  matchDataCategoria = notConcluida && !dataLimiteDate;
+                } else if (!dataLimiteDate) {
+                  matchDataCategoria = false;
+                } else {
+                  const diffDias = Math.floor(
+                    (dataLimiteDate.getTime() - hoje.getTime()) / 86400000,
+                  );
+                  const limiteA_Vencer = 7;
+                  if (filtroDataCategoria === "VENCIDOS") {
+                    matchDataCategoria = notConcluida && dataLimiteDate < hoje;
+                  } else if (filtroDataCategoria === "A_VENCER") {
+                    matchDataCategoria =
+                      notConcluida &&
+                      diffDias >= 0 &&
+                      diffDias <= limiteA_Vencer;
+                  } else if (filtroDataCategoria === "NO_PRAZO") {
+                    matchDataCategoria =
+                      notConcluida && diffDias > limiteA_Vencer;
+                  }
+                }
+              }
+            }
+
+            let matchDataExata = true;
+            if (filtroDataExata) {
+              if (!tarefa.dataLimite) {
+                matchDataExata = false;
+              } else {
+                const d = new Date(tarefa.dataLimite);
+                const y = d.getUTCFullYear();
+                const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+                const day = String(d.getUTCDate()).padStart(2, "0");
+                const dataSomenteDia = `${y}-${m}-${day}`;
+                matchDataExata = dataSomenteDia === filtroDataExata;
+              }
+            }
+
+            return (
+              matchSetor &&
+              matchStatus &&
+              matchPrioridade &&
+              matchTipo &&
+              matchDataCategoria &&
+              matchDataExata
+            );
+          },
+        );
+        const tarefasComFuncionario = tarefasFiltradas.map((tarefa) => ({
           ...tarefa,
           funcionario: remanejamento.funcionario,
           solicitacao,
