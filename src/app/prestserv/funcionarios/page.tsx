@@ -1364,24 +1364,33 @@ function FuncionariosPageContent() {
               {
                 setor: "RH",
                 total:
-                  rf.tarefas?.filter((t: any) => t.responsavel === "RH")
-                    .length || 0,
+                  rf.tarefas?.filter(
+                    (t: any) =>
+                      t.responsavel === "RH" && t.status !== "CANCELADO",
+                  ).length || 0,
                 concluidas:
                   rf.tarefas?.filter(
                     (t: any) =>
-                      t.responsavel === "RH" && t.status === "CONCLUIDO",
+                      t.responsavel === "RH" &&
+                      t.status === "CONCLUIDO" &&
+                      t.status !== "CANCELADO",
                   ).length || 0,
                 percentual: 0,
               },
               {
                 setor: "MEDICINA",
                 total:
-                  rf.tarefas?.filter((t: any) => t.responsavel === "MEDICINA")
-                    .length || 0,
+                  rf.tarefas?.filter(
+                    (t: any) =>
+                      t.responsavel === "MEDICINA" &&
+                      t.status !== "CANCELADO",
+                  ).length || 0,
                 concluidas:
                   rf.tarefas?.filter(
                     (t: any) =>
-                      t.responsavel === "MEDICINA" && t.status === "CONCLUIDO",
+                      t.responsavel === "MEDICINA" &&
+                      t.status === "CONCLUIDO" &&
+                      t.status !== "CANCELADO",
                   ).length || 0,
                 percentual: 0,
               },
@@ -1478,24 +1487,33 @@ function FuncionariosPageContent() {
               {
                 setor: "RH",
                 total:
-                  rf.tarefas?.filter((t: any) => t.responsavel === "RH")
-                    .length || 0,
+                  rf.tarefas?.filter(
+                    (t: any) =>
+                      t.responsavel === "RH" && t.status !== "CANCELADO",
+                  ).length || 0,
                 concluidas:
                   rf.tarefas?.filter(
                     (t: any) =>
-                      t.responsavel === "RH" && t.status === "CONCLUIDO",
+                      t.responsavel === "RH" &&
+                      t.status === "CONCLUIDO" &&
+                      t.status !== "CANCELADO",
                   ).length || 0,
                 percentual: 0,
               },
               {
                 setor: "MEDICINA",
                 total:
-                  rf.tarefas?.filter((t: any) => t.responsavel === "MEDICINA")
-                    .length || 0,
+                  rf.tarefas?.filter(
+                    (t: any) =>
+                      t.responsavel === "MEDICINA" &&
+                      t.status !== "CANCELADO",
+                  ).length || 0,
                 concluidas:
                   rf.tarefas?.filter(
                     (t: any) =>
-                      t.responsavel === "MEDICINA" && t.status === "CONCLUIDO",
+                      t.responsavel === "MEDICINA" &&
+                      t.status === "CONCLUIDO" &&
+                      t.status !== "CANCELADO",
                   ).length || 0,
                 percentual: 0,
               },
