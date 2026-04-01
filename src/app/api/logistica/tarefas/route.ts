@@ -33,14 +33,17 @@ const ehCasoEspecialSantos51Para10 = ({
   tipoSolicitacao,
   contratoOrigemNumero,
   contratoDestinoNumero,
+  contratoFuncionarioNumero,
 }: {
   tipoSolicitacao: unknown;
   contratoOrigemNumero: unknown;
   contratoDestinoNumero: unknown;
+  contratoFuncionarioNumero: unknown;
 }) =>
+  (normalizarNumeroContrato(contratoFuncionarioNumero) ||
+    normalizarNumeroContrato(contratoOrigemNumero)) === "4600679351" &&
   normalizarTexto(tipoSolicitacao).replace(/[^A-Z0-9]/g, "") ===
     "VINCULOADICIONAL" &&
-  normalizarNumeroContrato(contratoOrigemNumero) === "4600679351" &&
   normalizarNumeroContrato(contratoDestinoNumero) === "4600684010";
 
 // GET - Listar tarefas de remanejamento
@@ -100,6 +103,7 @@ export async function GET(request: NextRequest) {
                 status: true,
                 statusPrestserv: true,
                 emMigracao: true,
+                contrato: { select: { numero: true } },
               },
             },
             solicitacao: {
@@ -127,6 +131,8 @@ export async function GET(request: NextRequest) {
         tipoSolicitacao: solicitacao?.tipo,
         contratoOrigemNumero: solicitacao?.contratoOrigem?.numero,
         contratoDestinoNumero: solicitacao?.contratoDestino?.numero,
+        contratoFuncionarioNumero:
+          tarefa.remanejamentoFuncionario?.funcionario?.contrato?.numero,
       });
       return (
         !casoEspecialSantos51Para10 ||
@@ -456,6 +462,8 @@ async function atualizarStatusTarefasFuncionario(
         remanejamentoFuncionario.solicitacao?.contratoOrigem?.numero,
       contratoDestinoNumero:
         remanejamentoFuncionario.solicitacao?.contratoDestino?.numero,
+      contratoFuncionarioNumero:
+        remanejamentoFuncionario.funcionario?.contrato?.numero,
     });
 
     const possuiNr26Concluida = tarefas.some(

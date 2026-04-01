@@ -39,15 +39,20 @@ function ehCasoEspecialSantos51Para10({
   tipoSolicitacao,
   contratoOrigemNumero,
   contratoDestinoNumero,
+  contratoFuncionarioNumero,
 }: {
   tipoSolicitacao: string | null | undefined;
   contratoOrigemNumero: string | null;
   contratoDestinoNumero: string | null;
+  contratoFuncionarioNumero: string | null;
 }) {
   const tipoNormalizado = keyTexto(tipoSolicitacao).replace(/[^A-Z0-9]/g, "");
+  const contratoOrigemEfetivo =
+    keyNumeroContrato(contratoFuncionarioNumero) ||
+    keyNumeroContrato(contratoOrigemNumero);
   return (
     tipoNormalizado === "VINCULOADICIONAL" &&
-    keyNumeroContrato(contratoOrigemNumero) === "4600679351" &&
+    contratoOrigemEfetivo === "4600679351" &&
     keyNumeroContrato(contratoDestinoNumero) === "4600684010"
   );
 }
@@ -426,10 +431,14 @@ export async function sincronizarTarefasPadrao({
     const contratoOrigemNumero = await getNumeroContratoPorId(
       rem.solicitacao?.contratoOrigemId ?? null,
     );
+    const contratoFuncionarioNumero = await getNumeroContratoPorId(
+      rem.funcionario?.contratoId ?? null,
+    );
     const casoEspecialSantos51Para10 = ehCasoEspecialSantos51Para10({
       tipoSolicitacao: rem.solicitacao?.tipo,
       contratoOrigemNumero,
       contratoDestinoNumero,
+      contratoFuncionarioNumero,
     });
     if (casoEspecialSantos51Para10) {
       for (const t of rem.tarefas) {

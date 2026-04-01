@@ -32,6 +32,27 @@ function ehNr26OuNr33(tipo: string) {
   return v.includes("NR26") || v.includes("NR33");
 }
 
+function ehCasoEspecialSantos51Para10({
+  tipoSolicitacao,
+  contratoOrigemNumero,
+  contratoDestinoNumero,
+  contratoFuncionarioNumero,
+}: {
+  tipoSolicitacao: string | null | undefined;
+  contratoOrigemNumero: string | null;
+  contratoDestinoNumero: string | null;
+  contratoFuncionarioNumero: string | null;
+}) {
+  const contratoOrigemEfetivo =
+    normalizarNumeroContrato(contratoFuncionarioNumero) ||
+    normalizarNumeroContrato(contratoOrigemNumero);
+  return (
+    normalizarTexto(tipoSolicitacao) === "VINCULO_ADICIONAL" &&
+    contratoOrigemEfetivo === "4600679351" &&
+    normalizarNumeroContrato(contratoDestinoNumero) === "4600684010"
+  );
+}
+
 function deveCriarTarefaPadraoParaContrato({
   setor,
   tipo,
@@ -454,7 +475,8 @@ export async function POST(request: NextRequest) {
     );
     const novosTreinoIds = new Set<number>();
     const novosChaves = new Set<string>();
-    const [contratoOrigem, contratoDestino] = await Promise.all([
+    const [contratoOrigem, contratoDestino, contratoAtualFuncionario] =
+      await Promise.all([
       remanejamentoFuncionario.solicitacao?.contratoOrigemId != null
         ? prisma.contrato.findUnique({
             where: {
@@ -471,17 +493,26 @@ export async function POST(request: NextRequest) {
             select: { numero: true, nome: true },
           })
         : Promise.resolve(null),
+      typeof funcionario?.contratoId === "number"
+        ? prisma.contrato.findUnique({
+            where: { id: funcionario.contratoId },
+            select: { numero: true },
+          })
+        : Promise.resolve(null),
     ]);
     const contratoOrigemNumero = contratoOrigem?.numero ?? null;
     const contratoDestinoNumero = contratoDestino?.numero ?? null;
+    const contratoFuncionarioNumero = contratoAtualFuncionario?.numero ?? null;
     const tipoSolicitacaoAtual = normalizarTexto(
       remanejamentoFuncionario.solicitacao?.tipo,
     );
-    const ehCasoEspecialSantos51Para10 =
-      tipoSolicitacaoAtual === "VINCULO_ADICIONAL" &&
-      normalizarNumeroContrato(contratoOrigemNumero) === "4600679351" &&
-      normalizarNumeroContrato(contratoDestinoNumero) === "4600684010";
-    if (ehCasoEspecialSantos51Para10) {
+    const ehCasoEspecialSantos51Para10Flag = ehCasoEspecialSantos51Para10({
+      tipoSolicitacao: remanejamentoFuncionario.solicitacao?.tipo,
+      contratoOrigemNumero,
+      contratoDestinoNumero,
+      contratoFuncionarioNumero,
+    });
+    if (ehCasoEspecialSantos51Para10Flag) {
       for (const t of tarefasExistentes) {
         if (ehNr26OuNr33(String(t.tipo || ""))) continue;
         if (
@@ -518,7 +549,7 @@ export async function POST(request: NextRequest) {
           novosTreinoIds,
           novosChaves,
         );
-        if (ehCasoEspecialSantos51Para10) {
+        if (ehCasoEspecialSantos51Para10Flag) {
           for (let i = tarefasParaCriar.length - 1; i >= 0; i -= 1) {
             const tarefa = tarefasParaCriar[i] as { tipo?: string };
             if (!ehNr26OuNr33(String(tarefa.tipo || ""))) {
@@ -546,7 +577,7 @@ export async function POST(request: NextRequest) {
             contratoDestinoNumero,
           }),
         );
-        if (ehCasoEspecialSantos51Para10) {
+        if (ehCasoEspecialSantos51Para10Flag) {
           tarefasSetorFiltradas = tarefasSetorFiltradas.filter((t) =>
             ehNr26OuNr33(t.tipo),
           );

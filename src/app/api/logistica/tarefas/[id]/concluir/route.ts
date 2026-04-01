@@ -31,14 +31,17 @@ const ehCasoEspecialSantos51Para10 = ({
   tipoSolicitacao,
   contratoOrigemNumero,
   contratoDestinoNumero,
+  contratoFuncionarioNumero,
 }: {
   tipoSolicitacao: unknown;
   contratoOrigemNumero: unknown;
   contratoDestinoNumero: unknown;
+  contratoFuncionarioNumero: unknown;
 }) =>
+  (normalizarNumeroContrato(contratoFuncionarioNumero) ||
+    normalizarNumeroContrato(contratoOrigemNumero)) === "4600679351" &&
   normalizarTexto(tipoSolicitacao).replace(/[^A-Z0-9]/g, "") ===
     "VINCULOADICIONAL" &&
-  normalizarNumeroContrato(contratoOrigemNumero) === "4600679351" &&
   normalizarNumeroContrato(contratoDestinoNumero) === "4600684010";
 
 // PUT - Concluir tarefa
@@ -416,6 +419,8 @@ async function atualizarStatusTarefasFuncionario(
         remanejamentoFuncionario.solicitacao?.contratoOrigem?.numero,
       contratoDestinoNumero:
         remanejamentoFuncionario.solicitacao?.contratoDestino?.numero,
+      contratoFuncionarioNumero:
+        remanejamentoFuncionario.funcionario?.contrato?.numero,
     });
 
     const possuiNr26Concluida = tarefas.some(
