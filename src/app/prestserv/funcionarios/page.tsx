@@ -1318,6 +1318,23 @@ function FuncionariosPageContent() {
       const funcionariosTransformados: FuncionarioTableData[] =
         solicitacoes.flatMap((solicitacao: any) =>
           solicitacao.funcionarios.map((rf: any) => ({
+            // Em vínculo adicional, a origem correta é sempre o contrato principal
+            // do funcionário (rf.funcionario.contrato), não o contrato de origem da solicitação.
+            ...(() => {
+              const isVinculoAdicional =
+                String(solicitacao.tipo || "").toUpperCase() ===
+                "VINCULO_ADICIONAL";
+              const origemPrincipalNumero = rf.funcionario?.contrato?.numero;
+              const origemPrincipalNome = rf.funcionario?.contrato?.nome;
+              return {
+                contratoOrigem: isVinculoAdicional
+                  ? origemPrincipalNumero || "N/A"
+                  : solicitacao.contratoOrigem?.numero || "N/A",
+                contratoOrigemNome: isVinculoAdicional
+                  ? origemPrincipalNome || "N/A"
+                  : solicitacao.contratoOrigem?.nome || "N/A",
+              };
+            })(),
             id: rf.id,
             remanejamentoId: rf.id,
             nome: rf.funcionario.nome,
@@ -1341,9 +1358,7 @@ function FuncionariosPageContent() {
                   : "LOGÍSTICA",
             solicitacaoId: solicitacao.id,
             tipoSolicitacao: solicitacao.tipo || "REMANEJAMENTO",
-            contratoOrigem: solicitacao.contratoOrigem?.numero || "N/A",
             contratoDestino: solicitacao.contratoDestino?.numero || "N/A",
-            contratoOrigemNome: solicitacao.contratoOrigem?.nome || "N/A",
             contratoDestinoNome: solicitacao.contratoDestino?.nome || "N/A",
             totalTarefas: rf.tarefas?.length || 0,
             tarefasConcluidas:
@@ -1452,6 +1467,21 @@ function FuncionariosPageContent() {
       const baseTransformada: FuncionarioTableData[] = solicitacoes.flatMap(
         (solicitacao: any) =>
           solicitacao.funcionarios.map((rf: any) => ({
+            ...(() => {
+              const isVinculoAdicional =
+                String(solicitacao.tipo || "").toUpperCase() ===
+                "VINCULO_ADICIONAL";
+              const origemPrincipalNumero = rf.funcionario?.contrato?.numero;
+              const origemPrincipalNome = rf.funcionario?.contrato?.nome;
+              return {
+                contratoOrigem: isVinculoAdicional
+                  ? origemPrincipalNumero || "N/A"
+                  : solicitacao.contratoOrigem?.numero || "N/A",
+                contratoOrigemNome: isVinculoAdicional
+                  ? origemPrincipalNome || "N/A"
+                  : solicitacao.contratoOrigem?.nome || "N/A",
+              };
+            })(),
             id: rf.id,
             remanejamentoId: rf.id,
             nome: rf.funcionario.nome,
@@ -1464,9 +1494,7 @@ function FuncionariosPageContent() {
             statusPrestserv: rf.statusPrestserv || "PENDENTE",
             solicitacaoId: solicitacao.id,
             tipoSolicitacao: solicitacao.tipo || "REMANEJAMENTO",
-            contratoOrigem: solicitacao.contratoOrigem?.numero || "N/A",
             contratoDestino: solicitacao.contratoDestino?.numero || "N/A",
-            contratoOrigemNome: solicitacao.contratoOrigem?.nome || "N/A",
             contratoDestinoNome: solicitacao.contratoDestino?.nome || "N/A",
             totalTarefas: rf.tarefas?.length || 0,
             tarefasConcluidas:
@@ -1871,8 +1899,11 @@ function FuncionariosPageContent() {
       return {
         ID: funcionario.remanejamentoId,
         "ID GRUPO": funcionario.solicitacaoId,
+        Tipo: funcionario.tipoSolicitacao || "N/A",
         "Contrato Origem": funcionario.contratoOrigem,
+        "Contrato Origem Nome": funcionario.contratoOrigemNome || "N/A",
         "Contrato Destino": funcionario.contratoDestino,
+        "Contrato Destino Nome": funcionario.contratoDestinoNome || "N/A",
         Matrícula: funcionario.matricula,
         Nome: funcionario.nome,
         Função: funcionario.funcao,
