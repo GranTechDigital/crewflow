@@ -29,6 +29,27 @@ const ehNr33 = (tipo: unknown) =>
 const tarefaConcluida = (status: string | null | undefined) =>
   status === "CONCLUIDO" || status === "CONCLUIDA";
 
+const casoEspecialNr26Nr33Concluido = (
+  tarefas: Array<{ tipo: unknown; status: string | null | undefined }>,
+) => {
+  const tarefasAtivas = tarefas.filter((tarefa) => tarefa.status !== "CANCELADO");
+  const tarefasNr26 = tarefasAtivas.filter((tarefa) => ehNr26(tarefa.tipo));
+  const tarefasNr33 = tarefasAtivas.filter((tarefa) => ehNr33(tarefa.tipo));
+
+  if (tarefasNr26.length === 0 || tarefasNr33.length === 0) {
+    return false;
+  }
+
+  const nr26Concluidas = tarefasNr26.every((tarefa) =>
+    tarefaConcluida(tarefa.status),
+  );
+  const nr33Concluidas = tarefasNr33.every((tarefa) =>
+    tarefaConcluida(tarefa.status),
+  );
+
+  return nr26Concluidas && nr33Concluidas;
+};
+
 const ehCasoEspecialSantos51Para10 = ({
   tipoSolicitacao,
   contratoOrigemNumero,
@@ -466,21 +487,10 @@ async function atualizarStatusTarefasFuncionario(
         remanejamentoFuncionario.funcionario?.contrato?.numero,
     });
 
-    const possuiNr26Concluida = tarefas.some(
-      (tarefa) =>
-        tarefa.status !== "CANCELADO" &&
-        ehNr26(tarefa.tipo) &&
-        tarefaConcluida(tarefa.status),
-    );
-    const possuiNr33Concluida = tarefas.some(
-      (tarefa) =>
-        tarefa.status !== "CANCELADO" &&
-        ehNr33(tarefa.tipo) &&
-        tarefaConcluida(tarefa.status),
-    );
+    const casoEspecialConcluido = casoEspecialNr26Nr33Concluido(tarefas);
     let novoStatus: "SUBMETER RASCUNHO" | "ATENDER TAREFAS" =
       casoEspecialSantos51Para10
-        ? possuiNr26Concluida && possuiNr33Concluida
+        ? casoEspecialConcluido
           ? "SUBMETER RASCUNHO"
           : "ATENDER TAREFAS"
         : todasConcluidas

@@ -160,6 +160,7 @@ export default function Sidebar() {
           //   href: "/prestserv/funcionarios-por-contrato",
           // },
           { label: "Tarefas dos Setores", href: "/logistica/tarefas" },
+          { label: "Tarefas V2 (Beta)", href: "/tarefas-v2" },
           {
             label: "Desempenho Setores",
             href: "/logistica/desempenho-setores",
@@ -222,6 +223,7 @@ export default function Sidebar() {
         icon: Users,
         items: [
           { label: "Minhas Tarefas", href: "/tarefas?setor=rh" },
+          { label: "Minhas Tarefas V2 (Beta)", href: "/tarefas-v2?setor=rh" },
           {
             label: "Usuários da Equipe",
             href: "/rh/usuarios",
@@ -240,6 +242,10 @@ export default function Sidebar() {
         icon: GraduationCap,
         items: [
           { label: "Minhas Tarefas", href: "/tarefas?setor=treinamento" },
+          {
+            label: "Minhas Tarefas V2 (Beta)",
+            href: "/tarefas-v2?setor=treinamento",
+          },
           {
             label: "Matriz de Treinamento",
             href: "/matriz-treinamento/contratos",
@@ -269,6 +275,10 @@ export default function Sidebar() {
           // { label: "Geral", href: "/medicina/geral" },
           // { label: "Segurança", href: "/medicina/seguranca" },
           { label: "Minhas Tarefas", href: "/tarefas?setor=medicina" },
+          {
+            label: "Minhas Tarefas V2 (Beta)",
+            href: "/tarefas-v2?setor=medicina",
+          },
           {
             label: "Usuários da Equipe",
             href: "/medicina/usuarios",

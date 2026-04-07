@@ -58,3 +58,15 @@ body {
   min-width: 0;
   overflow-x: auto;
 }
+
+/* UX: mostrar cursor de ação na página Tarefas V2 */
+.tarefas-v2-root button:not(:disabled),
+.tarefas-v2-root summary,
+.tarefas-v2-root [role="button"]:not([aria-disabled="true"]) {
+  cursor: pointer;
+}
+
+.tarefas-v2-root button:disabled,
+.tarefas-v2-root [role="button"][aria-disabled="true"] {
+  cursor: not-allowed;
+}

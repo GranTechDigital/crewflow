@@ -1,6 +1,12 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, Suspense } from "react";
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  Suspense,
+  useRef,
+} from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useToast } from "@/components/Toast";
 import {
@@ -236,6 +242,7 @@ function FuncionariosPageContent() {
   const [obsTexto, setObsTexto] = useState("");
   const [syncingFuncionarios, setSyncingFuncionarios] = useState(false);
   const [obsTitulo, setObsTitulo] = useState("");
+  const funcionariosRequestEmAndamentoRef = useRef(false);
 
   // Estados para aprovação em lote
   const [funcionariosSelecionados, setFuncionariosSelecionados] = useState<
@@ -763,7 +770,7 @@ function FuncionariosPageContent() {
     isInitialized,
   ]);
 
-  // Verificar se houve atualização de tarefas padrão
+  // Verificar se houve atualização de tarefas padrão sem polling contínuo
   useEffect(() => {
     const checkForUpdates = () => {
       const lastUpdate = localStorage.getItem("tarefasPadraoAtualizadas");
@@ -772,19 +779,27 @@ function FuncionariosPageContent() {
         const now = Date.now();
         // Se a atualização foi nos últimos 5 segundos, recarregar dados
         if (now - updateTime < 5000) {
-          fetchFuncionarios();
+          fetchFuncionarios({ showLoader: false });
           localStorage.removeItem("tarefasPadraoAtualizadas");
         }
       }
     };
 
-    // Verificar imediatamente
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === "tarefasPadraoAtualizadas") {
+        checkForUpdates();
+      }
+    };
+
+    // Verificar imediatamente (mesma aba)
     checkForUpdates();
 
-    // Verificar a cada 2 segundos
-    const interval = setInterval(checkForUpdates, 2000);
+    // Escutar mudanças vindas de outras abas
+    window.addEventListener("storage", handleStorage);
 
-    return () => clearInterval(interval);
+    return () => {
+      window.removeEventListener("storage", handleStorage);
+    };
   }, []);
 
   // Função para aprovar todas as tarefas de um funcionário (para teste)
@@ -1228,9 +1243,17 @@ function FuncionariosPageContent() {
     return [...new Set(options)]; // Remove duplicatas
   };
 
-  const fetchFuncionarios = async () => {
+  const fetchFuncionarios = async (options?: { showLoader?: boolean }) => {
+    const showLoader = options?.showLoader ?? true;
+    if (funcionariosRequestEmAndamentoRef.current) {
+      return;
+    }
+
+    funcionariosRequestEmAndamentoRef.current = true;
     try {
-      setLoading(true);
+      if (showLoader) {
+        setLoading(true);
+      }
       setError(null);
 
       // Construir URL baseado na aba ativa
@@ -1287,7 +1310,16 @@ function FuncionariosPageContent() {
         params.append("filtrarProcesso", "false");
       }
 
-      const response = await fetch(`/api/logistica/remanejamentos?${params}`);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
+      let response: Response;
+      try {
+        response = await fetch(`/api/logistica/remanejamentos?${params}`, {
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
 
       if (!response.ok) {
         throw new Error("Erro ao carregar remanejamentos");
@@ -1449,7 +1481,10 @@ function FuncionariosPageContent() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro desconhecido");
     } finally {
-      setLoading(false);
+      if (showLoader) {
+        setLoading(false);
+      }
+      funcionariosRequestEmAndamentoRef.current = false;
     }
   };
 

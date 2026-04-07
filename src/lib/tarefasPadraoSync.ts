@@ -35,6 +35,35 @@ function ehNr26OuNr33(tipo: string) {
   return v.includes("NR26") || v.includes("NR33");
 }
 
+function casoEspecialNr26Nr33Concluido(
+  tarefas: Array<{ tipo: string | null; status: string | null }>,
+) {
+  const tarefasAtivas = tarefas.filter((tarefa) => tarefa.status !== "CANCELADO");
+  const tarefasNr26 = tarefasAtivas.filter((tarefa) =>
+    keyTexto(tarefa.tipo)
+      .replace(/[^A-Z0-9]/g, "")
+      .includes("NR26"),
+  );
+  const tarefasNr33 = tarefasAtivas.filter((tarefa) =>
+    keyTexto(tarefa.tipo)
+      .replace(/[^A-Z0-9]/g, "")
+      .includes("NR33"),
+  );
+
+  if (tarefasNr26.length === 0 || tarefasNr33.length === 0) {
+    return false;
+  }
+
+  const nr26Concluidas = tarefasNr26.every(
+    (tarefa) => tarefa.status === "CONCLUIDO" || tarefa.status === "CONCLUIDA",
+  );
+  const nr33Concluidas = tarefasNr33.every(
+    (tarefa) => tarefa.status === "CONCLUIDO" || tarefa.status === "CONCLUIDA",
+  );
+
+  return nr26Concluidas && nr33Concluidas;
+}
+
 function ehCasoEspecialSantos51Para10({
   tipoSolicitacao,
   contratoOrigemNumero,
@@ -251,7 +280,94 @@ export interface SincronizarResultado {
   totalTarefasCriadas: number;
   totalTarefasCanceladas?: number;
   totalTarefasReativadas?: number;
+  totalStatusTarefasCorrigidos?: number;
   detalhes: SincronizarResultadoItem[];
+}
+
+type CorrecaoPendenciaStatus = {
+  remanejamentoId: string;
+  statusAnterior: string;
+};
+
+async function corrigirPendenciasForaAtender({
+  usuarioResponsavel,
+  usuarioResponsavelId,
+  equipeId,
+  funcionarioIds,
+  remanejamentoIds,
+}: {
+  usuarioResponsavel?: string;
+  usuarioResponsavelId?: number;
+  equipeId?: number;
+  funcionarioIds?: number[];
+  remanejamentoIds?: string[];
+}): Promise<CorrecaoPendenciaStatus[]> {
+  const whereInconsistencias: any = {
+    statusTarefas: { not: "ATENDER TAREFAS" },
+    statusPrestserv: { not: "CANCELADO" },
+    tarefas: {
+      some: {
+        status: { in: ["PENDENTE", "EM_ANDAMENTO", "REPROVADO"] },
+      },
+    },
+  };
+
+  if (Array.isArray(funcionarioIds) && funcionarioIds.length > 0) {
+    whereInconsistencias.funcionarioId = { in: funcionarioIds };
+  }
+  if (Array.isArray(remanejamentoIds) && remanejamentoIds.length > 0) {
+    whereInconsistencias.id = { in: remanejamentoIds };
+  }
+
+  const inconsistentes = await prisma.remanejamentoFuncionario.findMany({
+    where: whereInconsistencias,
+    select: {
+      id: true,
+      solicitacaoId: true,
+      statusTarefas: true,
+    },
+  });
+
+  const corrigidos: CorrecaoPendenciaStatus[] = [];
+  for (const rem of inconsistentes) {
+    try {
+      await prisma.remanejamentoFuncionario.update({
+        where: { id: rem.id },
+        data: { statusTarefas: "ATENDER TAREFAS" },
+      });
+
+      try {
+        await prisma.historicoRemanejamento.create({
+          data: {
+            solicitacaoId: rem.solicitacaoId,
+            remanejamentoFuncionarioId: rem.id,
+            tipoAcao: "ATUALIZACAO_STATUS",
+            entidade: "STATUS_TAREFAS",
+            descricaoAcao:
+              "Status geral das tarefas corrigido automaticamente para: ATENDER TAREFAS (pendências abertas detectadas na sincronização).",
+            campoAlterado: "statusTarefas",
+            valorAnterior: rem.statusTarefas,
+            valorNovo: "ATENDER TAREFAS",
+            usuarioResponsavel: usuarioResponsavel || "Sistema",
+            usuarioResponsavelId,
+            equipeId,
+          },
+        });
+      } catch {}
+
+      corrigidos.push({
+        remanejamentoId: rem.id,
+        statusAnterior: rem.statusTarefas,
+      });
+    } catch (error) {
+      console.error(
+        "Erro ao corrigir statusTarefas com pendências abertas:",
+        error,
+      );
+    }
+  }
+
+  return corrigidos;
 }
 
 // Função reutilizável para sincronização de tarefas faltantes em remanejamentos com status "ATENDER TAREFAS"
@@ -1160,26 +1276,9 @@ export async function sincronizarTarefasPadrao({
             t.status === "CANCELADO",
         );
 
-      const possuiNr26Concluida = tarefasAtual.some(
-        (t) =>
-          t.status !== "CANCELADO" &&
-          ehNr26OuNr33(String(t.tipo || "")) &&
-          keyTexto(t.tipo)
-            .replace(/[^A-Z0-9]/g, "")
-            .includes("NR26") &&
-          (t.status === "CONCLUIDO" || t.status === "CONCLUIDA"),
-      );
-      const possuiNr33Concluida = tarefasAtual.some(
-        (t) =>
-          t.status !== "CANCELADO" &&
-          ehNr26OuNr33(String(t.tipo || "")) &&
-          keyTexto(t.tipo)
-            .replace(/[^A-Z0-9]/g, "")
-            .includes("NR33") &&
-          (t.status === "CONCLUIDO" || t.status === "CONCLUIDA"),
-      );
+      const casoEspecialConcluido = casoEspecialNr26Nr33Concluido(tarefasAtual);
       let novoStatus = casoEspecialSantos51Para10
-        ? possuiNr26Concluida && possuiNr33Concluida
+        ? casoEspecialConcluido
           ? "SUBMETER RASCUNHO"
           : "ATENDER TAREFAS"
         : semPendentes
@@ -1461,15 +1560,61 @@ export async function sincronizarTarefasPadrao({
     });
   }
 
+  const statusCorrigidos = await corrigirPendenciasForaAtender({
+    usuarioResponsavel,
+    usuarioResponsavelId,
+    equipeId,
+    funcionarioIds,
+    remanejamentoIds,
+  });
+
+  if (verbose && statusCorrigidos.length > 0) {
+    const detalhePorRemId = new Map(detalhes.map((item) => [item.remanejamentoId, item]));
+    for (const item of statusCorrigidos) {
+      const existente = detalhePorRemId.get(item.remanejamentoId);
+      if (existente) {
+        if (!existente.itens) existente.itens = {};
+        if (!existente.itens.alteracoes) existente.itens.alteracoes = [];
+        existente.itens.alteracoes.push({
+          campo: "statusTarefas",
+          de: item.statusAnterior,
+          para: "ATENDER TAREFAS",
+          observacoes:
+            "Correção automática por pendências abertas detectadas após sincronização.",
+        });
+      } else {
+        detalhes.push({
+          remanejamentoId: item.remanejamentoId,
+          tarefasCriadas: 0,
+          tarefasCanceladas: 0,
+          tarefasReativadas: 0,
+          setores: setoresNormalizados,
+          itens: {
+            alteracoes: [
+              {
+                campo: "statusTarefas",
+                de: item.statusAnterior,
+                para: "ATENDER TAREFAS",
+                observacoes:
+                  "Correção automática por pendências abertas detectadas após sincronização.",
+              },
+            ],
+          },
+        });
+      }
+    }
+  }
+
   const mensagem = criarFaltantes
-    ? `Sincronização concluída: ${totalCriadas} criadas, ${totalCanceladas} canceladas, ${totalReativadas} reativadas`
-    : `Sincronização concluída: ${totalCanceladas} canceladas, ${totalReativadas} reativadas`;
+    ? `Sincronização concluída: ${totalCriadas} criadas, ${totalCanceladas} canceladas, ${totalReativadas} reativadas, ${statusCorrigidos.length} status corrigidos`
+    : `Sincronização concluída: ${totalCanceladas} canceladas, ${totalReativadas} reativadas, ${statusCorrigidos.length} status corrigidos`;
   return {
     message: mensagem,
     totalRemanejamentos: rems.length,
     totalTarefasCriadas: totalCriadas,
     totalTarefasCanceladas: totalCanceladas,
     totalTarefasReativadas: totalReativadas,
+    totalStatusTarefasCorrigidos: statusCorrigidos.length,
     detalhes,
   };
 }

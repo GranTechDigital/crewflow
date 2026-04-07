@@ -14,11 +14,6 @@ const normalizarNumeroContrato = (valor: unknown) =>
     .replace(/\D/g, "")
     .replace(/^0+/, "");
 
-const ehNr26OuNr33 = (tipo: unknown) => {
-  const v = normalizarTexto(tipo).replace(/[^A-Z0-9]/g, "");
-  return v.includes("NR26") || v.includes("NR33");
-};
-
 const ehNr26 = (tipo: unknown) =>
   normalizarTexto(tipo)
     .replace(/[^A-Z0-9]/g, "")
@@ -31,6 +26,27 @@ const ehNr33 = (tipo: unknown) =>
 
 const tarefaConcluida = (status: string | null | undefined) =>
   status === "CONCLUIDO" || status === "CONCLUIDA";
+
+const casoEspecialNr26Nr33Concluido = (
+  tarefas: Array<{ tipo: unknown; status: string | null | undefined }>,
+) => {
+  const tarefasAtivas = tarefas.filter((tarefa) => tarefa.status !== "CANCELADO");
+  const tarefasNr26 = tarefasAtivas.filter((tarefa) => ehNr26(tarefa.tipo));
+  const tarefasNr33 = tarefasAtivas.filter((tarefa) => ehNr33(tarefa.tipo));
+
+  if (tarefasNr26.length === 0 || tarefasNr33.length === 0) {
+    return false;
+  }
+
+  const nr26Concluidas = tarefasNr26.every((tarefa) =>
+    tarefaConcluida(tarefa.status),
+  );
+  const nr33Concluidas = tarefasNr33.every((tarefa) =>
+    tarefaConcluida(tarefa.status),
+  );
+
+  return nr26Concluidas && nr33Concluidas;
+};
 
 const ehCasoEspecialSantos51Para10 = ({
   tipoSolicitacao,
@@ -578,16 +594,10 @@ export async function PUT(
     // Validação: só pode submeter se todas as tarefas estiverem concluídas, desconsiderando canceladas
     if (statusPrestserv === "EM VALIDAÇÃO") {
       if (casoEspecialSantos51Para10) {
-        const tarefasAtivas = remanejamentoFuncionario.tarefas.filter(
-          (tarefa) => tarefa.status !== "CANCELADO",
+        const casoEspecialConcluido = casoEspecialNr26Nr33Concluido(
+          remanejamentoFuncionario.tarefas,
         );
-        const possuiNr26Concluida = tarefasAtivas.some(
-          (tarefa) => ehNr26(tarefa.tipo) && tarefaConcluida(tarefa.status),
-        );
-        const possuiNr33Concluida = tarefasAtivas.some(
-          (tarefa) => ehNr33(tarefa.tipo) && tarefaConcluida(tarefa.status),
-        );
-        if (!possuiNr26Concluida || !possuiNr33Concluida) {
+        if (!casoEspecialConcluido) {
           return NextResponse.json(
             {
               error:
@@ -660,17 +670,10 @@ export async function PUT(
         }
       }
       if (tipoSolicitacao !== "DESLIGAMENTO" && casoEspecialSantos51Para10) {
-        const tarefasAtivas = remanejamentoFuncionario.tarefas.filter(
-          (tarefa) =>
-            tarefa.status !== "CANCELADO" && ehNr26OuNr33(tarefa.tipo),
+        const casoEspecialConcluido = casoEspecialNr26Nr33Concluido(
+          remanejamentoFuncionario.tarefas,
         );
-        const possuiNr26Concluida = tarefasAtivas.some(
-          (tarefa) => ehNr26(tarefa.tipo) && tarefaConcluida(tarefa.status),
-        );
-        const possuiNr33Concluida = tarefasAtivas.some(
-          (tarefa) => ehNr33(tarefa.tipo) && tarefaConcluida(tarefa.status),
-        );
-        if (!possuiNr26Concluida || !possuiNr33Concluida) {
+        if (!casoEspecialConcluido) {
           return NextResponse.json(
             {
               error:
@@ -1131,16 +1134,10 @@ export async function PATCH(
     // Validação: só pode submeter se todas as tarefas estiverem concluídas, desconsiderando canceladas
     if (statusPrestserv === "EM VALIDAÇÃO") {
       if (casoEspecialSantos51Para10) {
-        const tarefasAtivas = remanejamentoFuncionario.tarefas.filter(
-          (tarefa) => tarefa.status !== "CANCELADO",
+        const casoEspecialConcluido = casoEspecialNr26Nr33Concluido(
+          remanejamentoFuncionario.tarefas,
         );
-        const possuiNr26Concluida = tarefasAtivas.some(
-          (tarefa) => ehNr26(tarefa.tipo) && tarefaConcluida(tarefa.status),
-        );
-        const possuiNr33Concluida = tarefasAtivas.some(
-          (tarefa) => ehNr33(tarefa.tipo) && tarefaConcluida(tarefa.status),
-        );
-        if (!possuiNr26Concluida || !possuiNr33Concluida) {
+        if (!casoEspecialConcluido) {
           return NextResponse.json(
             {
               error:
@@ -1212,17 +1209,10 @@ export async function PATCH(
         }
       }
       if (tipoSolicitacao !== "DESLIGAMENTO" && casoEspecialSantos51Para10) {
-        const tarefasAtivas = remanejamentoFuncionario.tarefas.filter(
-          (tarefa) =>
-            tarefa.status !== "CANCELADO" && ehNr26OuNr33(tarefa.tipo),
+        const casoEspecialConcluido = casoEspecialNr26Nr33Concluido(
+          remanejamentoFuncionario.tarefas,
         );
-        const possuiNr26Concluida = tarefasAtivas.some(
-          (tarefa) => ehNr26(tarefa.tipo) && tarefaConcluida(tarefa.status),
-        );
-        const possuiNr33Concluida = tarefasAtivas.some(
-          (tarefa) => ehNr33(tarefa.tipo) && tarefaConcluida(tarefa.status),
-        );
-        if (!possuiNr26Concluida || !possuiNr33Concluida) {
+        if (!casoEspecialConcluido) {
           return NextResponse.json(
             {
               error:

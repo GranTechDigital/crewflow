@@ -47,6 +47,8 @@ export default function ListaTarefasModal({
     TarefaRemanejamento[]
   >([]);
   const [loading, setLoading] = useState(false);
+  const [carregamentoInicialConcluido, setCarregamentoInicialConcluido] =
+    useState(false);
   const [expandedTarefaId, setExpandedTarefaId] = useState<string | null>(null);
   const [justificativa, setJustificativa] = useState("");
   const [reprovarLoading, setReprovarLoading] = useState(false);
@@ -82,6 +84,9 @@ export default function ListaTarefasModal({
 
   useEffect(() => {
     if (isOpen && funcionario) {
+      setCarregamentoInicialConcluido(false);
+      setTarefas([]);
+      setTarefasFiltradas([]);
       fetchTarefas();
     }
   }, [isOpen, funcionario]);
@@ -275,6 +280,7 @@ export default function ListaTarefasModal({
       showToast("Erro ao carregar tarefas", "error");
     } finally {
       setLoading(false);
+      setCarregamentoInicialConcluido(true);
     }
   };
 
@@ -556,7 +562,12 @@ export default function ListaTarefasModal({
 
         {/* Tabela removida (duplicada). Renderização condicional aplicada mais abaixo. */}
         {/* Lista de Tarefas */}
-        {tarefasFiltradas.length > 0 ? (
+        {loading && !carregamentoInicialConcluido ? (
+          <div className="flex items-center justify-center gap-2 py-8 text-gray-500">
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600" />
+            <span>Carregando tarefas...</span>
+          </div>
+        ) : tarefasFiltradas.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="min-w-full table-auto divide-y divide-gray-200">
               <thead className="bg-gray-50">

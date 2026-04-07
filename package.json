@@ -22,7 +22,8 @@
     "open": "powershell -Command Start-Process 'http://localhost:3000'",
     "db:backup:prod": "node scripts/prod-dump-and-fetch.cjs",
     "db:restore:dev": "node scripts/dev-restore-from-dump.cjs --file=",
-    "db:sync:prod-to-dev": "node scripts/db-sync-prod-to-dev.cjs"
+    "db:sync:prod-to-dev": "node scripts/db-sync-prod-to-dev.cjs",
+    "perf:tarefas": "node scripts/benchmark-tarefas-v1-v2.cjs"
   },
   "prisma": {
     "seed": "node prisma/seed-complete.cjs"
