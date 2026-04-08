@@ -16,29 +16,88 @@ type FalhaLote = {
   status?: number;
 };
 
+type IdempotencyCacheEntry = {
+  status: number;
+  body: unknown;
+  expiresAt: number;
+};
+
 const MAX_ITENS_LOTE = 200;
 const LOTE_CONCURRENCY = 6;
+const IDEMPOTENCY_TTL_MS = 5 * 60 * 1000;
+const IDEMPOTENCY_MAX_ITEMS = 1000;
 
 type ProcessResult =
   | { ok: true; id: string }
   | { ok: false; id: string; error: string; status?: number };
 
+function getIdempotencyCache() {
+  const globalRef = globalThis as unknown as {
+    __tarefasConcluirLoteIdempotencyCache?: Map<string, IdempotencyCacheEntry>;
+  };
+  if (!globalRef.__tarefasConcluirLoteIdempotencyCache) {
+    globalRef.__tarefasConcluirLoteIdempotencyCache = new Map();
+  }
+  return globalRef.__tarefasConcluirLoteIdempotencyCache;
+}
+
+function pruneIdempotencyCache(cache: Map<string, IdempotencyCacheEntry>) {
+  const now = Date.now();
+  for (const [key, entry] of cache.entries()) {
+    if (entry.expiresAt <= now) cache.delete(key);
+  }
+  while (cache.size > IDEMPOTENCY_MAX_ITEMS) {
+    const oldestKey = cache.keys().next().value;
+    if (!oldestKey) break;
+    cache.delete(oldestKey);
+  }
+}
+
 export async function PUT(request: NextRequest) {
   const startedAt = Date.now();
   try {
+    const idempotencyKey =
+      request.headers.get("x-idempotency-key")?.trim() || "";
+    const idempotencyCache = getIdempotencyCache();
+    pruneIdempotencyCache(idempotencyCache);
+
+    if (idempotencyKey) {
+      const cached = idempotencyCache.get(idempotencyKey);
+      if (cached && cached.expiresAt > Date.now()) {
+        return NextResponse.json(cached.body, {
+          status: cached.status,
+          headers: { "x-idempotency-replayed": "1" },
+        });
+      }
+    }
+
+    const responder = (body: unknown, status = 200) => {
+      if (idempotencyKey) {
+        idempotencyCache.set(idempotencyKey, {
+          status,
+          body,
+          expiresAt: Date.now() + IDEMPOTENCY_TTL_MS,
+        });
+      }
+      return NextResponse.json(body, {
+        status,
+        headers: idempotencyKey ? { "x-idempotency-replayed": "0" } : undefined,
+      });
+    };
+
     const body = (await request.json().catch(() => ({}))) as ConcluirLotePayload;
     const itens = Array.isArray(body?.itens) ? body.itens : [];
 
     if (itens.length === 0) {
-      return NextResponse.json(
+      return responder(
         { error: "Envie ao menos uma tarefa para conclusão em lote." },
-        { status: 400 },
+        400,
       );
     }
     if (itens.length > MAX_ITENS_LOTE) {
-      return NextResponse.json(
+      return responder(
         { error: `Limite de ${MAX_ITENS_LOTE} tarefas por lote.` },
-        { status: 400 },
+        400,
       );
     }
 
@@ -54,6 +113,9 @@ export async function PUT(request: NextRequest) {
         const internalHeaders = new Headers({ "Content-Type": "application/json" });
         if (cookie) internalHeaders.set("cookie", cookie);
         if (authorization) internalHeaders.set("authorization", authorization);
+        if (idempotencyKey) {
+          internalHeaders.set("x-idempotency-key", `${idempotencyKey}:item:${id}`);
+        }
 
         const internalReq = new NextRequest(
           new Request(new URL(request.url), {
@@ -102,7 +164,7 @@ export async function PUT(request: NextRequest) {
       .filter((r): r is Extract<ProcessResult, { ok: false }> => !r.ok)
       .map((r) => ({ id: r.id, error: r.error, status: r.status }));
 
-    return NextResponse.json(
+    return responder(
       {
         sucessoIds,
         falhas,
@@ -111,7 +173,7 @@ export async function PUT(request: NextRequest) {
         totalFalhas: falhas.length,
         durationMs: Date.now() - startedAt,
       },
-      { status: 200 },
+      200,
     );
   } catch (error) {
     console.error("Erro em concluir-lote:", error);

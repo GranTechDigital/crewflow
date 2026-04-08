@@ -173,6 +173,47 @@ type TaskBucket = {
   metrics?: { durationMs?: number; payloadBytes?: number };
 };
 
+type PendingTaskSync = {
+  remanejamentoId: string;
+  expectedStatus: "CONCLUIDO";
+  dataVencimento: string | null;
+  dataConclusao: string | null;
+  startedAt: number;
+};
+
+type SyncItemPayload = {
+  id: string;
+  dataVencimento: string | null;
+};
+
+type SyncQueueJobKind = "UNITARIO" | "LOTE";
+
+type SyncQueueJob = {
+  id: string;
+  kind: SyncQueueJobKind;
+  remanejamentoId: string;
+  itens: SyncItemPayload[];
+  snapshotById: Record<string, Tarefa>;
+};
+
+type SyncHistoryStatus = "PENDING" | "SUCCESS" | "PARTIAL" | "ERROR";
+type SyncPanelFilter = "TODOS" | "PENDENTES" | "FALHAS";
+
+type SyncHistoryItem = {
+  id: string;
+  kind: SyncQueueJobKind;
+  remanejamentoId: string;
+  total: number;
+  success: number;
+  failure: number;
+  status: SyncHistoryStatus;
+  errors: string[];
+  retryItens: SyncItemPayload[];
+  attempts: number;
+  createdAt: number;
+  updatedAt: number;
+};
+
 type AppliedFilterTag = {
   id: string;
   label: string;
@@ -208,6 +249,13 @@ const STATUS_OPTIONS: StatusFiltro[] = ["PENDENTE", "CONCLUIDO", "REPROVADO"];
 const PRIORIDADE_OPTIONS = ["ALTA", "MEDIA", "BAIXA", "Normal"] as const;
 const SETOR_OPTIONS: Setor[] = ["RH", "MEDICINA", "TREINAMENTO"];
 const LS_FILTERS_KEY = "tarefas_v2_hierarquia_filters_v1";
+const LS_SYNC_HISTORY_KEY = "tarefas_v2_sync_history_v1";
+const LS_SYNC_QUEUE_KEY = "tarefas_v2_sync_queue_v1";
+const TASK_SYNC_GRACE_MS = 15000;
+const MAX_SYNC_WORKERS = 3;
+const SYNC_HISTORY_MAX_ITEMS = 100;
+const SYNC_HISTORY_TTL_MS = 24 * 60 * 60 * 1000;
+const SYNC_RETRY_MAX_ATTEMPTS = 3;
 
 const SETOR_QUERY_MAP: Record<string, Setor | null> = {
   rh: "RH",
@@ -219,6 +267,8 @@ function parseSetorFromQuery(raw: string | null): Setor | null {
   if (!raw) return null;
   return SETOR_QUERY_MAP[raw.toLowerCase()] ?? null;
 }
+
+const waitMs = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function formatDateTime(value: string | null | undefined): string {
   if (!value) return "-";
@@ -621,10 +671,15 @@ export default function TarefasV2Page() {
 
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [tasksByRemId, setTasksByRemId] = useState<Record<string, TaskBucket>>({});
+  const [pendingTaskSyncById, setPendingTaskSyncById] = useState<
+    Record<string, PendingTaskSync>
+  >({});
+  const [syncHistory, setSyncHistory] = useState<SyncHistoryItem[]>([]);
+  const [syncPanelOpen, setSyncPanelOpen] = useState(false);
+  const [syncPanelFilter, setSyncPanelFilter] = useState<SyncPanelFilter>("PENDENTES");
   const [tarefasSelecionadasLoteRh, setTarefasSelecionadasLoteRh] = useState<
     Record<string, string[]>
   >({});
-  const [aprovandoLoteRh, setAprovandoLoteRh] = useState<Record<string, boolean>>({});
   const [falhasLotePorRemId, setFalhasLotePorRemId] = useState<Record<string, string[]>>({});
   const [dataVencimentoPorTarefa, setDataVencimentoPorTarefa] = useState<
     Record<string, string>
@@ -654,13 +709,365 @@ export default function TarefasV2Page() {
   const scrollYRef = useRef<number>(0);
   const docScrollYRef = useRef<number>(0);
   const refreshDebounceByRemRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const pendingTaskSyncTimeoutsRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const pendingTaskSyncByIdRef = useRef<Record<string, PendingTaskSync>>({});
+  const syncQueuesByRemRef = useRef<Record<string, SyncQueueJob[]>>({});
+  const activeSyncJobsByRemRef = useRef<Record<string, SyncQueueJob>>({});
+  const activeSyncWorkersRef = useRef(0);
+  const processingRemIdsRef = useRef<Set<string>>(new Set());
+  const queuedTaskIdsRef = useRef<Set<string>>(new Set());
+  const syncQueueRestoredRef = useRef(false);
   const selectedNamesRef = useRef<string[]>([]);
+  const avisoAdmissaoNotificadoRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    pendingTaskSyncByIdRef.current = pendingTaskSyncById;
+  }, [pendingTaskSyncById]);
 
   useEffect(() => {
     selectedNamesRef.current = Array.from(
       new Set([...(nomeList || []), ...(appliedFilters.nomes || [])]),
     );
   }, [nomeList, appliedFilters.nomes]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(LS_SYNC_HISTORY_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return;
+      const now = Date.now();
+      const restored = parsed
+        .filter(
+          (item) =>
+            item &&
+            typeof item.id === "string" &&
+            typeof item.updatedAt === "number" &&
+            now - item.updatedAt <= SYNC_HISTORY_TTL_MS,
+        )
+        .slice(0, SYNC_HISTORY_MAX_ITEMS)
+        .map((item) => ({
+          ...item,
+          attempts: typeof item.attempts === "number" ? item.attempts : 0,
+        })) as SyncHistoryItem[];
+      setSyncHistory(restored);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    try {
+      const now = Date.now();
+      const limited = syncHistory
+        .filter((item) => now - item.updatedAt <= SYNC_HISTORY_TTL_MS)
+        .slice(0, SYNC_HISTORY_MAX_ITEMS);
+      if (limited.length === 0) {
+        localStorage.removeItem(LS_SYNC_HISTORY_KEY);
+        return;
+      }
+      localStorage.setItem(LS_SYNC_HISTORY_KEY, JSON.stringify(limited));
+    } catch {}
+  }, [syncHistory]);
+
+  const marcarTarefasSincronizando = useCallback(
+    (
+      entries: Array<{
+        taskId: string;
+        remanejamentoId: string;
+        dataVencimento?: string | null;
+        dataConclusao?: string | null;
+      }>,
+    ) => {
+      if (!entries.length) return;
+      const now = Date.now();
+      setPendingTaskSyncById((prev) => {
+        const next = { ...prev };
+        for (const entry of entries) {
+          next[entry.taskId] = {
+            remanejamentoId: entry.remanejamentoId,
+            expectedStatus: "CONCLUIDO",
+            dataVencimento: entry.dataVencimento ?? null,
+            dataConclusao: entry.dataConclusao ?? null,
+            startedAt: now,
+          };
+        }
+        return next;
+      });
+      const timers = pendingTaskSyncTimeoutsRef.current;
+      for (const entry of entries) {
+        if (timers[entry.taskId]) {
+          clearTimeout(timers[entry.taskId]);
+        }
+        timers[entry.taskId] = setTimeout(() => {
+          setPendingTaskSyncById((prev) => {
+            if (!prev[entry.taskId]) return prev;
+            const next = { ...prev };
+            delete next[entry.taskId];
+            return next;
+          });
+          delete timers[entry.taskId];
+        }, TASK_SYNC_GRACE_MS + 5000);
+      }
+    },
+    [],
+  );
+
+  const limparTarefasSincronizando = useCallback((taskIds: string[]) => {
+    if (!taskIds.length) return;
+    setPendingTaskSyncById((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const taskId of taskIds) {
+        const timeoutId = pendingTaskSyncTimeoutsRef.current[taskId];
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          delete pendingTaskSyncTimeoutsRef.current[taskId];
+        }
+        if (next[taskId]) {
+          delete next[taskId];
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, []);
+
+  const persistirFilaSyncLocal = useCallback(() => {
+    try {
+      const ativos = Object.values(activeSyncJobsByRemRef.current);
+      const enfileirados = Object.values(syncQueuesByRemRef.current).flat();
+      const snapshot = [...ativos, ...enfileirados];
+      if (snapshot.length === 0) {
+        localStorage.removeItem(LS_SYNC_QUEUE_KEY);
+        return;
+      }
+      localStorage.setItem(LS_SYNC_QUEUE_KEY, JSON.stringify(snapshot));
+    } catch {}
+  }, []);
+
+  const atualizarSyncHistory = useCallback(
+    (id: string, updater: (current: SyncHistoryItem) => SyncHistoryItem) => {
+      setSyncHistory((prev) =>
+        prev.map((item) => (item.id === id ? updater(item) : item)),
+      );
+    },
+    [],
+  );
+
+  const fetchComRetry = useCallback(
+    async ({
+      jobId,
+      url,
+      init,
+      fallbackMessage,
+      idempotencyKey,
+    }: {
+      jobId: string;
+      url: string;
+      init: RequestInit;
+      fallbackMessage: string;
+      idempotencyKey: string;
+    }) => {
+      let lastError: Error | null = null;
+      for (let attempt = 1; attempt <= SYNC_RETRY_MAX_ATTEMPTS; attempt += 1) {
+        atualizarSyncHistory(jobId, (current) => ({
+          ...current,
+          attempts: Math.max(current.attempts || 0, attempt),
+          updatedAt: Date.now(),
+        }));
+
+        const headers = new Headers(init.headers || {});
+        headers.set("x-idempotency-key", idempotencyKey);
+
+        try {
+          const response = await fetch(url, { ...init, headers });
+          if (response.ok) return response;
+
+          if (response.status >= 500 && attempt < SYNC_RETRY_MAX_ATTEMPTS) {
+            await waitMs(300 * 2 ** (attempt - 1));
+            continue;
+          }
+
+          const message = await parseApiError(response, fallbackMessage);
+          throw new Error(message);
+        } catch (error) {
+          const asError =
+            error instanceof Error ? error : new Error(fallbackMessage);
+          lastError = asError;
+          if (attempt < SYNC_RETRY_MAX_ATTEMPTS) {
+            const texto = asError.message.toLowerCase();
+            const retryable =
+              texto.includes("fetch") ||
+              texto.includes("network") ||
+              texto.includes("timeout") ||
+              texto.includes("econn") ||
+              texto.includes("status 5");
+            if (retryable) {
+              await waitMs(300 * 2 ** (attempt - 1));
+              continue;
+            }
+          }
+          throw asError;
+        }
+      }
+      throw lastError || new Error(fallbackMessage);
+    },
+    [atualizarSyncHistory],
+  );
+
+  const registrarSyncHistory = useCallback((job: SyncQueueJob) => {
+    const now = Date.now();
+    const novo: SyncHistoryItem = {
+      id: job.id,
+      kind: job.kind,
+      remanejamentoId: job.remanejamentoId,
+      total: job.itens.length,
+      success: 0,
+      failure: 0,
+      status: "PENDING",
+      errors: [],
+      retryItens: [],
+      attempts: 0,
+      createdAt: now,
+      updatedAt: now,
+    };
+    setSyncHistory((prev) => [novo, ...prev].slice(0, SYNC_HISTORY_MAX_ITEMS));
+  }, []);
+
+  const obterSnapshotByIds = useCallback(
+    (remanejamentoId: string, ids: string[]): Record<string, Tarefa> => {
+      const bucket = tasksByRemId[remanejamentoId];
+      if (!bucket?.items?.length) return {};
+      const idsSet = new Set(ids);
+      const snapshot: Record<string, Tarefa> = {};
+      for (const task of bucket.items) {
+        if (idsSet.has(task.id)) snapshot[task.id] = task;
+      }
+      return snapshot;
+    },
+    [tasksByRemId],
+  );
+
+  const aplicarConclusaoOtimista = useCallback(
+    (
+      remanejamentoId: string,
+      itens: SyncItemPayload[],
+      dataConclusao: string,
+    ) => {
+      if (!itens.length) return;
+      const idsSet = new Set(itens.map((item) => item.id));
+      const dataById = new Map(itens.map((item) => [item.id, item.dataVencimento]));
+      let tarefasAtualizadas: Tarefa[] | null = null;
+
+      setTasksByRemId((prev) => {
+        const curr = prev[remanejamentoId];
+        if (!curr?.items?.length) return prev;
+        let changed = false;
+        const itemsAtualizados = curr.items.map((current) => {
+          if (!idsSet.has(current.id)) return current;
+          changed = true;
+          return {
+            ...current,
+            status: "CONCLUIDO",
+            dataConclusao,
+            dataVencimento: dataById.get(current.id) || current.dataVencimento,
+          };
+        });
+        if (!changed) return prev;
+        tarefasAtualizadas = itemsAtualizados;
+        return {
+          ...prev,
+          [remanejamentoId]: {
+            ...curr,
+            items: itemsAtualizados,
+          },
+        };
+      });
+
+      if (tarefasAtualizadas) {
+        setItems((prev) =>
+          prev.map((item) =>
+            item.id === remanejamentoId
+              ? {
+                  ...item,
+                  resumo: calcularResumoTarefas(
+                    tarefasAtualizadas || [],
+                    item.resumo?.ultimaAtualizacao,
+                  ),
+                }
+              : item,
+          ),
+        );
+      }
+
+      const ids = itens.map((item) => item.id);
+      setDataVencimentoPorTarefa((prev) => {
+        const next = { ...prev };
+        for (const id of ids) delete next[id];
+        return next;
+      });
+      setErroDataPorTarefa((prev) => {
+        const next = { ...prev };
+        for (const id of ids) delete next[id];
+        return next;
+      });
+      setTarefasSelecionadasLoteRh((prev) => ({
+        ...prev,
+        [remanejamentoId]: (prev[remanejamentoId] || []).filter((id) => !idsSet.has(id)),
+      }));
+    },
+    [],
+  );
+
+  const rollbackTarefas = useCallback(
+    (
+      remanejamentoId: string,
+      snapshotById: Record<string, Tarefa>,
+      ids?: string[],
+    ) => {
+      const idsSet = new Set(ids || Object.keys(snapshotById));
+      if (idsSet.size === 0) return;
+      let tarefasRollback: Tarefa[] | null = null;
+
+      setTasksByRemId((prev) => {
+        const curr = prev[remanejamentoId];
+        if (!curr?.items?.length) return prev;
+        let changed = false;
+        const itemsRollback = curr.items.map((current) => {
+          if (!idsSet.has(current.id)) return current;
+          const anterior = snapshotById[current.id];
+          if (!anterior) return current;
+          changed = true;
+          return anterior;
+        });
+        if (!changed) return prev;
+        tarefasRollback = itemsRollback;
+        return {
+          ...prev,
+          [remanejamentoId]: {
+            ...curr,
+            items: itemsRollback,
+          },
+        };
+      });
+
+      if (tarefasRollback) {
+        setItems((prev) =>
+          prev.map((item) =>
+            item.id === remanejamentoId
+              ? {
+                  ...item,
+                  resumo: calcularResumoTarefas(
+                    tarefasRollback || [],
+                    item.resumo?.ultimaAtualizacao,
+                  ),
+                }
+              : item,
+          ),
+        );
+      }
+    },
+    [],
+  );
 
   const getDefaultScrollContainer = () => {
     return (
@@ -928,6 +1335,7 @@ export default function TarefasV2Page() {
       const data: HierarquiaResponse = await response.json();
       if (currentRequest !== requestHierarchyRef.current) return;
       setItems(data.items || []);
+      avisoAdmissaoNotificadoRef.current.clear();
       setTotalItems(data.totalItems || 0);
       setTotalPages(data.totalPages || 0);
       setResumoFiltrado({
@@ -956,7 +1364,6 @@ export default function TarefasV2Page() {
       setExpandedIds(new Set());
       setTasksByRemId({});
       setTarefasSelecionadasLoteRh({});
-      setAprovandoLoteRh({});
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;
       if (currentRequest !== requestHierarchyRef.current) return;
@@ -1106,12 +1513,51 @@ export default function TarefasV2Page() {
         }
         const data: TarefasResponse = await response.json();
         const loadedItems = data.items || [];
+        const pendingSnapshot = pendingTaskSyncByIdRef.current;
+        const loadedIds = new Set(loadedItems.map((item) => item.id));
+        const now = Date.now();
+        const idsToClear: string[] = [];
+
+        const mergedItems = loadedItems.map((serverTask) => {
+          const pending = pendingSnapshot[serverTask.id];
+          if (!pending || pending.remanejamentoId !== remanejamentoId) return serverTask;
+
+          const serverStatus = (serverTask.status || "").toUpperCase();
+          if (serverStatus === pending.expectedStatus) {
+            idsToClear.push(serverTask.id);
+            return serverTask;
+          }
+
+          if (now - pending.startedAt <= TASK_SYNC_GRACE_MS) {
+            return {
+              ...serverTask,
+              status: pending.expectedStatus,
+              dataConclusao: pending.dataConclusao || serverTask.dataConclusao,
+              dataVencimento: pending.dataVencimento || serverTask.dataVencimento,
+            };
+          }
+
+          idsToClear.push(serverTask.id);
+          return serverTask;
+        });
+
+        for (const [taskId, pending] of Object.entries(pendingSnapshot)) {
+          if (pending.remanejamentoId !== remanejamentoId) continue;
+          if (!loadedIds.has(taskId)) {
+            idsToClear.push(taskId);
+          }
+        }
+
+        if (idsToClear.length > 0) {
+          limparTarefasSincronizando(Array.from(new Set(idsToClear)));
+        }
+
         setTasksByRemId((prev) => ({
           ...prev,
           [remanejamentoId]: {
             loading: false,
             error: null,
-            items: loadedItems,
+            items: mergedItems,
             metrics: data.metrics,
           },
         }));
@@ -1120,7 +1566,7 @@ export default function TarefasV2Page() {
             item.id === remanejamentoId
               ? {
                   ...item,
-                  resumo: calcularResumoTarefas(loadedItems, item.resumo?.ultimaAtualizacao),
+                  resumo: calcularResumoTarefas(mergedItems, item.resumo?.ultimaAtualizacao),
                 }
               : item,
           ),
@@ -1151,7 +1597,7 @@ export default function TarefasV2Page() {
         }));
       }
     },
-    [queryString, tasksByRemId],
+    [limparTarefasSincronizando, queryString, tasksByRemId],
   );
 
   const agendarRefreshFuncionario = useCallback(
@@ -1167,9 +1613,18 @@ export default function TarefasV2Page() {
   );
 
   useEffect(() => {
+    const refreshTimers = refreshDebounceByRemRef.current;
+    const syncTimers = pendingTaskSyncTimeoutsRef.current;
+    const processingRemIds = processingRemIdsRef.current;
+    const queuedTaskIds = queuedTaskIdsRef.current;
     return () => {
-      const timers = refreshDebounceByRemRef.current;
-      Object.values(timers).forEach((timerId) => clearTimeout(timerId));
+      Object.values(refreshTimers).forEach((timerId) => clearTimeout(timerId));
+      Object.values(syncTimers).forEach((timerId) => clearTimeout(timerId));
+      syncQueuesByRemRef.current = {};
+      activeSyncJobsByRemRef.current = {};
+      processingRemIds.clear();
+      queuedTaskIds.clear();
+      activeSyncWorkersRef.current = 0;
     };
   }, []);
 
@@ -1211,12 +1666,438 @@ export default function TarefasV2Page() {
     [getErroDataParaConclusao],
   );
 
-  const concluirTarefa = async (task: Tarefa) => {
+  const criarSyncJobId = () =>
+    `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+  const processarJobUnitario = useCallback(
+    async (job: SyncQueueJob) => {
+      const item = job.itens[0];
+      if (!item) {
+        atualizarSyncHistory(job.id, (current) => ({
+          ...current,
+          status: "ERROR",
+          failure: current.total,
+          errors: ["Job inválido: sem item para sincronizar."],
+          retryItens: [],
+          updatedAt: Date.now(),
+        }));
+        return;
+      }
+
+      try {
+        await fetchComRetry({
+          jobId: job.id,
+          url: `/api/logistica/tarefas/${item.id}/concluir`,
+          init: {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              dataVencimento: item.dataVencimento || null,
+            }),
+          },
+          fallbackMessage: "Falha ao concluir tarefa.",
+          idempotencyKey: `${job.id}:unit:${item.id}`,
+        });
+
+        atualizarSyncHistory(job.id, (current) => ({
+          ...current,
+          status: "SUCCESS",
+          success: 1,
+          failure: 0,
+          errors: [],
+          retryItens: [],
+          updatedAt: Date.now(),
+        }));
+        agendarRefreshFuncionario(job.remanejamentoId, 600);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Erro ao concluir tarefa";
+        rollbackTarefas(job.remanejamentoId, job.snapshotById, [item.id]);
+        limparTarefasSincronizando([item.id]);
+        atualizarSyncHistory(job.id, (current) => ({
+          ...current,
+          status: "ERROR",
+          success: 0,
+          failure: 1,
+          errors: [message],
+          retryItens: [item],
+          updatedAt: Date.now(),
+        }));
+        toast.error(message);
+      }
+    },
+    [
+      agendarRefreshFuncionario,
+      atualizarSyncHistory,
+      fetchComRetry,
+      limparTarefasSincronizando,
+      rollbackTarefas,
+    ],
+  );
+
+  const processarJobLote = useCallback(
+    async (job: SyncQueueJob) => {
+      if (!job.itens.length) {
+        atualizarSyncHistory(job.id, (current) => ({
+          ...current,
+          status: "ERROR",
+          failure: current.total,
+          errors: ["Job inválido: lote sem itens."],
+          retryItens: [],
+          updatedAt: Date.now(),
+        }));
+        return;
+      }
+
+      try {
+        const response = await fetchComRetry({
+          jobId: job.id,
+          url: "/api/logistica/tarefas/concluir-lote",
+          init: {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ itens: job.itens }),
+          },
+          fallbackMessage: "Falha ao concluir lote de tarefas.",
+          idempotencyKey: `${job.id}:lote`,
+        });
+
+        const result = (await response.json()) as ConcluirLoteResponse;
+        const sucessoIds = new Set(result?.sucessoIds || []);
+        const falhasApi = Array.isArray(result?.falhas) ? result.falhas : [];
+        const falhasApiIds = new Set(falhasApi.map((f) => f.id));
+
+        for (const payload of job.itens) {
+          if (!sucessoIds.has(payload.id) && !falhasApiIds.has(payload.id)) {
+            falhasApi.push({
+              id: payload.id,
+              error: "Sem confirmação de conclusão no lote.",
+            });
+            falhasApiIds.add(payload.id);
+          }
+        }
+
+        const idsFalha = falhasApi.map((f) => f.id);
+        const idsSucesso = Array.from(sucessoIds);
+
+        if (idsFalha.length > 0) {
+          rollbackTarefas(job.remanejamentoId, job.snapshotById, idsFalha);
+          limparTarefasSincronizando(idsFalha);
+          for (const falha of falhasApi) {
+            const tarefa = job.snapshotById[falha.id];
+            if (!tarefa) continue;
+            if (precisaDataVencimento(tarefa)) {
+              setErroDataPorTarefa((prev) => ({ ...prev, [falha.id]: falha.error }));
+            }
+          }
+        }
+
+        if (idsSucesso.length > 0) {
+          setErroDataPorTarefa((prev) => {
+            const next = { ...prev };
+            for (const id of idsSucesso) delete next[id];
+            return next;
+          });
+          agendarRefreshFuncionario(job.remanejamentoId, 1000);
+        }
+
+        const idsProcessados = new Set(job.itens.map((item) => item.id));
+        setTarefasSelecionadasLoteRh((prev) => ({
+          ...prev,
+          [job.remanejamentoId]: (prev[job.remanejamentoId] || []).filter(
+            (id) => !idsProcessados.has(id),
+          ),
+        }));
+
+        const falhasFormatadas = falhasApi.map((f) => {
+          const tarefa = job.snapshotById[f.id];
+          return `${tarefa?.tipo || `#${f.id}`}: ${f.error}`;
+        });
+        setFalhasLotePorRemId((prev) => ({
+          ...prev,
+          [job.remanejamentoId]: falhasFormatadas,
+        }));
+
+        const failure = falhasApi.length;
+        const success = Math.max(0, job.itens.length - failure);
+        const status: SyncHistoryStatus =
+          failure === 0 ? "SUCCESS" : success > 0 ? "PARTIAL" : "ERROR";
+
+        atualizarSyncHistory(job.id, (current) => ({
+          ...current,
+          status,
+          success,
+          failure,
+          errors: falhasFormatadas,
+          retryItens: job.itens.filter((item) => idsFalha.includes(item.id)),
+          updatedAt: Date.now(),
+        }));
+
+        if (failure > 0) {
+          toast.error(
+            `${failure} tarefa(s) falharam na sincronização do lote. Confira o painel de sincronização.`,
+          );
+          setSyncPanelOpen(true);
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Erro na aprovação em lote";
+        const idsRollback = job.itens.map((item) => item.id);
+        rollbackTarefas(job.remanejamentoId, job.snapshotById, idsRollback);
+        limparTarefasSincronizando(idsRollback);
+
+        atualizarSyncHistory(job.id, (current) => ({
+          ...current,
+          status: "ERROR",
+          success: 0,
+          failure: job.itens.length,
+          errors: [message],
+          retryItens: [...job.itens],
+          updatedAt: Date.now(),
+        }));
+        toast.error(message);
+        setSyncPanelOpen(true);
+      }
+    },
+    [
+      agendarRefreshFuncionario,
+      atualizarSyncHistory,
+      fetchComRetry,
+      limparTarefasSincronizando,
+      rollbackTarefas,
+    ],
+  );
+
+  const drenarFilaSincronizacao = useCallback(() => {
+    while (activeSyncWorkersRef.current < MAX_SYNC_WORKERS) {
+      const remId = Object.keys(syncQueuesByRemRef.current).find((id) => {
+        const fila = syncQueuesByRemRef.current[id];
+        return Boolean(fila?.length) && !processingRemIdsRef.current.has(id);
+      });
+      if (!remId) break;
+
+      const fila = syncQueuesByRemRef.current[remId];
+      if (!fila?.length) continue;
+      const job = fila.shift();
+      if (!fila.length) {
+        delete syncQueuesByRemRef.current[remId];
+      }
+      if (!job) continue;
+
+      processingRemIdsRef.current.add(remId);
+      activeSyncJobsByRemRef.current[remId] = job;
+      activeSyncWorkersRef.current += 1;
+      persistirFilaSyncLocal();
+
+      void (async () => {
+        try {
+          if (job.kind === "UNITARIO") {
+            await processarJobUnitario(job);
+          } else {
+            await processarJobLote(job);
+          }
+        } finally {
+          delete activeSyncJobsByRemRef.current[remId];
+          processingRemIdsRef.current.delete(remId);
+          activeSyncWorkersRef.current = Math.max(0, activeSyncWorkersRef.current - 1);
+          for (const item of job.itens) {
+            queuedTaskIdsRef.current.delete(item.id);
+          }
+          persistirFilaSyncLocal();
+          drenarFilaSincronizacao();
+        }
+      })();
+    }
+  }, [persistirFilaSyncLocal, processarJobLote, processarJobUnitario]);
+
+  const enfileirarJobSincronizacao = useCallback(
+    (job: SyncQueueJob) => {
+      const filaAtual = syncQueuesByRemRef.current[job.remanejamentoId] || [];
+      syncQueuesByRemRef.current[job.remanejamentoId] = [...filaAtual, job];
+      for (const item of job.itens) {
+        queuedTaskIdsRef.current.add(item.id);
+      }
+      persistirFilaSyncLocal();
+      registrarSyncHistory(job);
+      drenarFilaSincronizacao();
+    },
+    [drenarFilaSincronizacao, persistirFilaSyncLocal, registrarSyncHistory],
+  );
+
+  useEffect(() => {
+    if (syncQueueRestoredRef.current) return;
+    syncQueueRestoredRef.current = true;
+
+    try {
+      const raw = localStorage.getItem(LS_SYNC_QUEUE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed) || parsed.length === 0) return;
+
+      const grouped: Record<string, SyncQueueJob[]> = {};
+      const pendingEntries: Array<{
+        taskId: string;
+        remanejamentoId: string;
+        dataVencimento?: string | null;
+        dataConclusao?: string | null;
+      }> = [];
+
+      for (const item of parsed) {
+        if (!item || typeof item !== "object") continue;
+        const remId = String(item.remanejamentoId || "");
+        const kindRaw = String(item.kind || "");
+        const itensRaw = Array.isArray(item.itens) ? item.itens : [];
+        if (!remId || (kindRaw !== "UNITARIO" && kindRaw !== "LOTE") || itensRaw.length === 0) {
+          continue;
+        }
+
+        const itens: SyncItemPayload[] = itensRaw
+          .filter((it) => it && typeof it.id === "string")
+          .map((it) => ({
+            id: String(it.id),
+            dataVencimento:
+              typeof it.dataVencimento === "string" ? it.dataVencimento : null,
+          }));
+        if (itens.length === 0) continue;
+
+        const snapshotById =
+          item.snapshotById && typeof item.snapshotById === "object"
+            ? (item.snapshotById as Record<string, Tarefa>)
+            : {};
+
+        const job: SyncQueueJob = {
+          id:
+            typeof item.id === "string" && item.id
+              ? item.id
+              : `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          kind: kindRaw as SyncQueueJobKind,
+          remanejamentoId: remId,
+          itens,
+          snapshotById,
+        };
+
+        grouped[remId] = [...(grouped[remId] || []), job];
+        for (const payload of itens) {
+          queuedTaskIdsRef.current.add(payload.id);
+          pendingEntries.push({
+            taskId: payload.id,
+            remanejamentoId: remId,
+            dataVencimento: payload.dataVencimento,
+          });
+        }
+      }
+
+      if (Object.keys(grouped).length === 0) {
+        localStorage.removeItem(LS_SYNC_QUEUE_KEY);
+        return;
+      }
+
+      syncQueuesByRemRef.current = grouped;
+      if (pendingEntries.length > 0) {
+        marcarTarefasSincronizando(pendingEntries);
+      }
+      drenarFilaSincronizacao();
+    } catch {}
+  }, [drenarFilaSincronizacao, marcarTarefasSincronizando]);
+
+  const reenviarFalhasSincronizacao = useCallback(
+    (registroId: string) => {
+      const registro = syncHistory.find((item) => item.id === registroId);
+      if (!registro || !registro.retryItens.length) return;
+
+      const ids = registro.retryItens.map((item) => item.id);
+      const snapshotById = obterSnapshotByIds(registro.remanejamentoId, ids);
+      const itensValidos = registro.retryItens.filter((item) => snapshotById[item.id]);
+      if (!itensValidos.length) {
+        toast.error("Não foi possível reenviar: tarefas não encontradas na tela atual.");
+        return;
+      }
+
+      const dataConclusao = new Date().toISOString();
+      aplicarConclusaoOtimista(registro.remanejamentoId, itensValidos, dataConclusao);
+      marcarTarefasSincronizando(
+        itensValidos.map((item) => ({
+          taskId: item.id,
+          remanejamentoId: registro.remanejamentoId,
+          dataVencimento: item.dataVencimento,
+          dataConclusao,
+        })),
+      );
+
+      const job: SyncQueueJob = {
+        id: criarSyncJobId(),
+        kind: itensValidos.length === 1 ? "UNITARIO" : "LOTE",
+        remanejamentoId: registro.remanejamentoId,
+        itens: itensValidos,
+        snapshotById,
+      };
+      enfileirarJobSincronizacao(job);
+      toast("Reenvio adicionado à fila de sincronização.");
+    },
+    [
+      aplicarConclusaoOtimista,
+      enfileirarJobSincronizacao,
+      marcarTarefasSincronizando,
+      obterSnapshotByIds,
+      syncHistory,
+    ],
+  );
+
+  const limparHistoricoSincronizacao = useCallback(() => {
+    setSyncHistory([]);
+    try {
+      localStorage.removeItem(LS_SYNC_HISTORY_KEY);
+    } catch {}
+    toast.success("Histórico de sincronização limpo.");
+  }, []);
+
+  const abrirFuncionarioDoPainel = useCallback(
+    (remanejamentoId: string) => {
+      setSyncPanelOpen(false);
+      const existeNaPagina = items.some((item) => item.id === remanejamentoId);
+      if (!existeNaPagina) {
+        toast("Funcionário não está na página atual. Ajuste filtros/paginação.");
+        return;
+      }
+
+      setExpandedIds((prev) => {
+        const next = new Set(prev);
+        next.add(remanejamentoId);
+        return next;
+      });
+      void carregarTarefasDoFuncionario(remanejamentoId);
+
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const row = document.querySelector(
+            `[data-rem-id="${remanejamentoId}"]`,
+          ) as HTMLElement | null;
+          row?.scrollIntoView({ behavior: "smooth", block: "center" });
+        });
+      });
+    },
+    [carregarTarefasDoFuncionario, items],
+  );
+
+  const concluirTarefa = (task: Tarefa) => {
     if (isConcluidaStatus(task.status)) return;
+
+    const funcionario = items.find(
+      (item) => item.id === task.remanejamentoFuncionarioId,
+    )?.funcionario;
+    const admissaoMeta = getAdmissaoMeta(funcionario?.dataAdmissao);
+    if (
+      funcionario &&
+      (admissaoMeta.isFutura || admissaoMeta.isNovo) &&
+      !avisoAdmissaoNotificadoRef.current.has(task.remanejamentoFuncionarioId)
+    ) {
+      const aviso = admissaoMeta.isFutura
+        ? `Atenção: ${funcionario.nome} possui admissão futura (${admissaoMeta.texto}).`
+        : `Aviso: ${funcionario.nome} foi admitido recentemente (${admissaoMeta.texto}).`;
+      toast(aviso);
+      avisoAdmissaoNotificadoRef.current.add(task.remanejamentoFuncionarioId);
+    }
 
     const dataVencimentoDraft = obterDataVencimentoEfetiva(task);
     const erroData = getErroDataParaConclusao(task, dataVencimentoDraft);
-
     if (erroData) {
       setErroDataPorTarefa((prev) => ({ ...prev, [task.id]: erroData }));
       toast.error(
@@ -1227,88 +2108,34 @@ export default function TarefasV2Page() {
       return;
     }
 
-    setErroDataPorTarefa((prev) => {
-      const next = { ...prev };
-      delete next[task.id];
-      return next;
-    });
-    saveAnchorPos(task.remanejamentoFuncionarioId);
-
-    try {
-      const response = await fetch(`/api/logistica/tarefas/${task.id}/concluir`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          dataVencimento: dataVencimentoDraft || null,
-        }),
-      });
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error(err?.error || "Erro ao concluir tarefa");
-      }
-      toast.success("Tarefa concluída.");
-      setDataVencimentoPorTarefa((prev) => {
-        const next = { ...prev };
-        delete next[task.id];
-        return next;
-      });
-      setErroDataPorTarefa((prev) => {
-        const next = { ...prev };
-        delete next[task.id];
-        return next;
-      });
-      setTarefasSelecionadasLoteRh((prev) => ({
-        ...prev,
-        [task.remanejamentoFuncionarioId]: (prev[task.remanejamentoFuncionarioId] || []).filter(
-          (id) => id !== task.id,
-        ),
-      }));
-      const concluidaEm = new Date().toISOString();
-      let tarefasAtualizadas: Tarefa[] | null = null;
-      setTasksByRemId((prev) => {
-        const bucket = prev[task.remanejamentoFuncionarioId];
-        if (!bucket?.items?.length) return prev;
-        const itemsAtualizados = bucket.items.map((current) =>
-          current.id === task.id
-            ? {
-                ...current,
-                status: "CONCLUIDO",
-                dataConclusao: concluidaEm,
-                dataVencimento: dataVencimentoDraft || current.dataVencimento,
-              }
-            : current,
-        );
-        tarefasAtualizadas = itemsAtualizados;
-        return {
-          ...prev,
-          [task.remanejamentoFuncionarioId]: {
-            ...bucket,
-            items: itemsAtualizados,
-          },
-        };
-      });
-      if (tarefasAtualizadas) {
-        setItems((prev) =>
-          prev.map((item) =>
-            item.id === task.remanejamentoFuncionarioId
-              ? {
-                  ...item,
-                  resumo: calcularResumoTarefas(
-                    tarefasAtualizadas || [],
-                    item.resumo?.ultimaAtualizacao,
-                  ),
-                }
-              : item,
-          ),
-        );
-      }
-      agendarRefreshFuncionario(task.remanejamentoFuncionarioId);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Erro ao concluir tarefa";
-      toast.error(message);
-    } finally {
-      restoreAnchorPos(task.remanejamentoFuncionarioId);
+    const snapshotById = obterSnapshotByIds(task.remanejamentoFuncionarioId, [task.id]);
+    if (!snapshotById[task.id]) {
+      snapshotById[task.id] = task;
     }
+    const dataConclusao = new Date().toISOString();
+    const itemPayload: SyncItemPayload = {
+      id: task.id,
+      dataVencimento: dataVencimentoDraft || null,
+    };
+
+    saveAnchorPos(task.remanejamentoFuncionarioId);
+    aplicarConclusaoOtimista(task.remanejamentoFuncionarioId, [itemPayload], dataConclusao);
+    marcarTarefasSincronizando([
+      {
+        taskId: task.id,
+        remanejamentoId: task.remanejamentoFuncionarioId,
+        dataVencimento: itemPayload.dataVencimento,
+        dataConclusao,
+      },
+    ]);
+    enfileirarJobSincronizacao({
+      id: criarSyncJobId(),
+      kind: "UNITARIO",
+      remanejamentoId: task.remanejamentoFuncionarioId,
+      itens: [itemPayload],
+      snapshotById,
+    });
+    restoreAnchorPos(task.remanejamentoFuncionarioId);
   };
 
   const toggleSelecionarTarefaRh = (remanejamentoId: string, tarefaId: string, checked: boolean) => {
@@ -1330,7 +2157,7 @@ export default function TarefasV2Page() {
     }));
   };
 
-  const aprovarRhEmLote = async (remanejamentoId: string) => {
+  const aprovarRhEmLote = (remanejamentoId: string) => {
     if (!isAdmin) {
       toast.error("Aprovação em lote disponível apenas para Administrador.");
       return;
@@ -1351,8 +2178,6 @@ export default function TarefasV2Page() {
       toast.error("Selecione pelo menos uma tarefa pendente.");
       return;
     }
-
-    setAprovandoLoteRh((prev) => ({ ...prev, [remanejamentoId]: true }));
     setFalhasLotePorRemId((prev) => ({ ...prev, [remanejamentoId]: [] }));
     saveAnchorPos(remanejamentoId);
 
@@ -1388,223 +2213,33 @@ export default function TarefasV2Page() {
           `${falhasLocais.length} tarefa(s) não foram concluídas. Verifique os detalhes no quadro de tarefas.`,
         );
       }
-      setAprovandoLoteRh((prev) => ({ ...prev, [remanejamentoId]: false }));
       restoreAnchorPos(remanejamentoId);
       return;
     }
-
-    const idsParaLote = new Set(itensParaLote.map((item) => item.id));
-    const dataVencimentoPorId = new Map(
-      itensParaLote.map((item) => [item.id, item.dataVencimento]),
+    const snapshotById = obterSnapshotByIds(
+      remanejamentoId,
+      itensParaLote.map((item) => item.id),
     );
-    const snapshotById = new Map<string, Tarefa>();
-    for (const item of itensParaLote) {
-      const tarefa = tarefasMap.get(item.id);
-      if (tarefa) snapshotById.set(item.id, tarefa);
-    }
+    const dataConclusao = new Date().toISOString();
+    aplicarConclusaoOtimista(remanejamentoId, itensParaLote, dataConclusao);
+    marcarTarefasSincronizando(
+      itensParaLote.map((item) => ({
+        taskId: item.id,
+        remanejamentoId,
+        dataVencimento: item.dataVencimento,
+        dataConclusao,
+      })),
+    );
 
-    const concluidaEmOtimizacao = new Date().toISOString();
-    let tarefasOtimizadas: Tarefa[] | null = null;
-    setTasksByRemId((prev) => {
-      const curr = prev[remanejamentoId];
-      if (!curr?.items?.length) return prev;
-      let changed = false;
-      const itemsAtualizados = curr.items.map((current) => {
-        if (!idsParaLote.has(current.id)) return current;
-        changed = true;
-        return {
-          ...current,
-          status: "CONCLUIDO",
-          dataConclusao: concluidaEmOtimizacao,
-          dataVencimento: dataVencimentoPorId.get(current.id) || current.dataVencimento,
-        };
-      });
-      if (!changed) return prev;
-      tarefasOtimizadas = itemsAtualizados;
-      return {
-        ...prev,
-        [remanejamentoId]: {
-          ...curr,
-          items: itemsAtualizados,
-        },
-      };
+    enfileirarJobSincronizacao({
+      id: criarSyncJobId(),
+      kind: "LOTE",
+      remanejamentoId,
+      itens: itensParaLote,
+      snapshotById,
     });
-    if (tarefasOtimizadas) {
-      setItems((prev) =>
-        prev.map((item) =>
-          item.id === remanejamentoId
-            ? {
-                ...item,
-                resumo: calcularResumoTarefas(
-                  tarefasOtimizadas || [],
-                  item.resumo?.ultimaAtualizacao,
-                ),
-              }
-            : item,
-        ),
-      );
-    }
-
-    try {
-      const response = await fetch("/api/logistica/tarefas/concluir-lote", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ itens: itensParaLote }),
-      });
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error(err?.error || "Falha ao concluir lote de tarefas.");
-      }
-
-      const result = (await response.json()) as ConcluirLoteResponse;
-      const sucessoIds = new Set(result?.sucessoIds || []);
-      const falhasApi = Array.isArray(result?.falhas) ? result.falhas : [];
-      const falhasApiIds = new Set(falhasApi.map((f) => f.id));
-
-      for (const item of itensParaLote) {
-        if (!sucessoIds.has(item.id) && !falhasApiIds.has(item.id)) {
-          falhasApi.push({
-            id: item.id,
-            error: "Sem confirmação de conclusão no lote.",
-          });
-          falhasApiIds.add(item.id);
-        }
-      }
-
-      const falhasFormatadas = [
-        ...falhasLocais,
-        ...falhasApi.map((f) => {
-          const tarefa = tarefasMap.get(f.id);
-          return `${tarefa?.tipo || `#${f.id}`}: ${f.error}`;
-        }),
-      ];
-      setFalhasLotePorRemId((prev) => ({ ...prev, [remanejamentoId]: falhasFormatadas }));
-
-      if (sucessoIds.size > 0) {
-        toast.success(`${sucessoIds.size} tarefa(s) aprovada(s).`);
-        setErroDataPorTarefa((prev) => {
-          const next = { ...prev };
-          for (const id of sucessoIds) {
-            if (next[id]) delete next[id];
-          }
-          return next;
-        });
-      }
-      if (falhasFormatadas.length > 0) {
-        toast.error(
-          `${falhasFormatadas.length} tarefa(s) não foram concluídas. Verifique os detalhes no quadro de tarefas.`,
-        );
-      }
-
-      if (falhasApi.length > 0) {
-        for (const falha of falhasApi) {
-          const tarefa = tarefasMap.get(falha.id);
-          if (!tarefa) continue;
-          if (precisaDataVencimento(tarefa)) {
-            setErroDataPorTarefa((prev) => ({ ...prev, [falha.id]: falha.error }));
-          }
-        }
-      }
-
-      const idsFalhaApi = new Set(falhasApi.map((f) => f.id));
-      if (idsFalhaApi.size > 0) {
-        let tarefasRollback: Tarefa[] | null = null;
-        setTasksByRemId((prev) => {
-          const curr = prev[remanejamentoId];
-          if (!curr?.items?.length) return prev;
-          let changed = false;
-          const itemsRollback = curr.items.map((current) => {
-            if (!idsFalhaApi.has(current.id)) return current;
-            const anterior = snapshotById.get(current.id);
-            if (!anterior) return current;
-            changed = true;
-            return anterior;
-          });
-          if (!changed) return prev;
-          tarefasRollback = itemsRollback;
-          return {
-            ...prev,
-            [remanejamentoId]: {
-              ...curr,
-              items: itemsRollback,
-            },
-          };
-        });
-        if (tarefasRollback) {
-          setItems((prev) =>
-            prev.map((item) =>
-              item.id === remanejamentoId
-                ? {
-                    ...item,
-                    resumo: calcularResumoTarefas(
-                      tarefasRollback || [],
-                      item.resumo?.ultimaAtualizacao,
-                    ),
-                  }
-                : item,
-            ),
-          );
-        }
-      }
-
-      const pendentesSet = new Set(idsRhPendentes);
-      setTarefasSelecionadasLoteRh((prev) => ({
-        ...prev,
-        [remanejamentoId]: (prev[remanejamentoId] || []).filter(
-          (id) => !sucessoIds.has(id) && pendentesSet.has(id),
-        ),
-      }));
-
-      if (sucessoIds.size > 0) agendarRefreshFuncionario(remanejamentoId, 1800);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Erro na aprovação em lote";
-      toast.error(message);
-
-      // Rollback total quando o endpoint de lote falha por completo.
-      const idsRollback = new Set(itensParaLote.map((item) => item.id));
-      if (idsRollback.size > 0) {
-        let tarefasRollback: Tarefa[] | null = null;
-        setTasksByRemId((prev) => {
-          const curr = prev[remanejamentoId];
-          if (!curr?.items?.length) return prev;
-          let changed = false;
-          const itemsRollback = curr.items.map((current) => {
-            if (!idsRollback.has(current.id)) return current;
-            const anterior = snapshotById.get(current.id);
-            if (!anterior) return current;
-            changed = true;
-            return anterior;
-          });
-          if (!changed) return prev;
-          tarefasRollback = itemsRollback;
-          return {
-            ...prev,
-            [remanejamentoId]: {
-              ...curr,
-              items: itemsRollback,
-            },
-          };
-        });
-        if (tarefasRollback) {
-          setItems((prev) =>
-            prev.map((item) =>
-              item.id === remanejamentoId
-                ? {
-                    ...item,
-                    resumo: calcularResumoTarefas(
-                      tarefasRollback || [],
-                      item.resumo?.ultimaAtualizacao,
-                    ),
-                  }
-                : item,
-            ),
-          );
-        }
-      }
-    } finally {
-      setAprovandoLoteRh((prev) => ({ ...prev, [remanejamentoId]: false }));
-      restoreAnchorPos(remanejamentoId);
-    }
+    toast(`${itensParaLote.length} tarefa(s) adicionada(s) à fila de sincronização.`);
+    restoreAnchorPos(remanejamentoId);
   };
 
   const carregarObservacoes = async (task: Tarefa) => {
@@ -2181,6 +2816,36 @@ export default function TarefasV2Page() {
     );
   }, [contratosOptions, contratoSearch]);
 
+  const syncResumo = useMemo(() => {
+    let pendentes = 0;
+    let falhas = 0;
+    let sucesso = 0;
+    for (const item of syncHistory) {
+      if (item.status === "PENDING") pendentes += item.total;
+      if (item.status !== "PENDING") {
+        falhas += item.failure;
+        sucesso += item.success;
+      }
+    }
+    return { pendentes, falhas, sucesso };
+  }, [syncHistory]);
+
+  const nomeFuncionarioPorRemId = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const item of items) {
+      map[item.id] = item.funcionario.nome;
+    }
+    return map;
+  }, [items]);
+
+  const syncHistoryFiltrado = useMemo(() => {
+    if (syncPanelFilter === "TODOS") return syncHistory;
+    if (syncPanelFilter === "PENDENTES") {
+      return syncHistory.filter((item) => item.status === "PENDING");
+    }
+    return syncHistory.filter((item) => item.status === "ERROR" || item.status === "PARTIAL");
+  }, [syncHistory, syncPanelFilter]);
+
   const filterInputClass =
     "rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300 focus:border-slate-400";
   const filterSectionClass = "rounded-lg border border-slate-200 bg-slate-50/70 p-2.5";
@@ -2745,15 +3410,33 @@ export default function TarefasV2Page() {
                                 const todasRhPendentesSelecionadas =
                                   idsSelecionaveis.length > 0 &&
                                   idsSelecionaveis.every((id) => selecionadasGrupo.includes(id));
-                                const aprovandoGrupo = !!aprovandoLoteRh[item.id];
                                 const falhasLoteGrupo = falhasLotePorRemId[item.id] || [];
                                 const showSetorColumn = !setorFixo;
 
                                 return (
                                   <>
                               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2">
-                                <div className="text-sm font-semibold text-slate-800">
-                                  Tarefas de {item.funcionario.nome}
+                                <div className="flex items-center gap-2">
+                                  <div className="text-sm font-semibold text-slate-800">
+                                    Tarefas de {item.funcionario.nome}
+                                  </div>
+                                  {admissaoMeta.isFutura ? (
+                                    <span
+                                      className="inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800"
+                                      title="Admissão futura (ainda não admitido)"
+                                    >
+                                      Admissão futura
+                                    </span>
+                                  ) : (
+                                    admissaoMeta.isNovo && (
+                                      <span
+                                        className="inline-flex items-center rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-800"
+                                        title="Admitido há menos de 48h"
+                                      >
+                                        Novo
+                                      </span>
+                                    )
+                                  )}
                                 </div>
                                 <div className="flex items-center gap-2">
                                   <div className="text-xs text-slate-500">
@@ -2765,12 +3448,10 @@ export default function TarefasV2Page() {
                                     <button
                                       type="button"
                                       onClick={() => void aprovarRhEmLote(item.id)}
-                                      disabled={selecionadasGrupo.length === 0 || aprovandoGrupo}
+                                      disabled={selecionadasGrupo.length === 0}
                                       className="rounded-md bg-blue-600 text-white px-2 py-1 text-[11px] font-medium hover:bg-blue-700 disabled:opacity-50"
                                     >
-                                      {aprovandoGrupo
-                                        ? "Aprovando..."
-                                        : `Aprovar selecionados (${selecionadasGrupo.length})`}
+                                      {`Aprovar selecionados (${selecionadasGrupo.length})`}
                                     </button>
                                   )}
                                 </div>
@@ -2795,7 +3476,7 @@ export default function TarefasV2Page() {
                                             onChange={(e) =>
                                               toggleSelecionarTodasRh(item.id, bucket.items, e.target.checked)
                                             }
-                                            disabled={idsSelecionaveis.length === 0 || aprovandoGrupo}
+                                            disabled={idsSelecionaveis.length === 0}
                                             className="h-3.5 w-3.5 accent-blue-600"
                                             title="Selecionar todas as tarefas elegíveis do lote"
                                           />
@@ -2816,6 +3497,7 @@ export default function TarefasV2Page() {
                                       (() => {
                                         const vencida = isTarefaVencida(task);
                                         const concluida = isConcluidaStatus(task.status);
+                                        const sincronizando = Boolean(pendingTaskSyncById[task.id]);
                                         const exigeDataVencimento = precisaDataVencimento(task);
                                         const dataVencimentoAtual = obterDataVencimentoEfetiva(task);
                                         const dataValidaParaLote = !validarDataVencimentoMinimoD30(
@@ -2823,6 +3505,7 @@ export default function TarefasV2Page() {
                                         );
                                         const checkboxHabilitado =
                                           !concluida &&
+                                          !sincronizando &&
                                           (!exigeDataVencimento || dataValidaParaLote);
                                         return (
                                       <tr
@@ -2844,7 +3527,7 @@ export default function TarefasV2Page() {
                                                 onChange={(e) =>
                                                   toggleSelecionarTarefaRh(item.id, task.id, e.target.checked)
                                                 }
-                                                disabled={aprovandoGrupo || !checkboxHabilitado}
+                                                disabled={!checkboxHabilitado}
                                                 className="h-3.5 w-3.5 accent-blue-600"
                                                 title={
                                                   checkboxHabilitado
@@ -2861,7 +3544,17 @@ export default function TarefasV2Page() {
                                         {showSetorColumn && (
                                           <td className="px-2 py-1 align-top">{task.responsavel}</td>
                                         )}
-                                        <td className="px-2 py-1 align-top">{task.status}</td>
+                                        <td className="px-2 py-1 align-top">
+                                          <div className="flex items-center gap-1.5">
+                                            <span>{task.status}</span>
+                                            {sincronizando && (
+                                              <span className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-700">
+                                                <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-blue-500" />
+                                                Sincronizando
+                                              </span>
+                                            )}
+                                          </div>
+                                        </td>
                                         <td className="px-2 py-1 align-top text-[11px]">
                                           <span className="text-slate-700">
                                             {formatDateOnly(task.dataLimite)}
@@ -2917,10 +3610,10 @@ export default function TarefasV2Page() {
                                                     toggleSelecionarTarefaRh(item.id, task.id, true);
                                                   }
                                                 }}
-                                                readOnly={concluida}
-                                                disabled={concluida}
+                                                readOnly={concluida || sincronizando}
+                                                disabled={concluida || sincronizando}
                                                 className={`w-[150px] rounded border px-2 py-1 text-xs ${
-                                                  concluida
+                                                  concluida || sincronizando
                                                     ? "border-slate-200 bg-slate-100 text-slate-500 cursor-not-allowed"
                                                     : "border-slate-300"
                                                 }`}
@@ -2941,22 +3634,40 @@ export default function TarefasV2Page() {
                                               <button
                                                 type="button"
                                                 onClick={() => void concluirTarefa(task)}
-                                                className="inline-flex h-7 w-7 items-center justify-center rounded border border-slate-300 text-slate-700 hover:bg-slate-100"
+                                                disabled={sincronizando}
+                                                className={`inline-flex h-7 w-7 items-center justify-center rounded border border-slate-300 text-slate-700 hover:bg-slate-100 ${
+                                                  sincronizando ? "cursor-not-allowed opacity-60" : ""
+                                                }`}
                                                 title="Concluir tarefa"
                                                 aria-label="Concluir tarefa"
                                               >
-                                                <svg
-                                                  xmlns="http://www.w3.org/2000/svg"
-                                                  viewBox="0 0 24 24"
-                                                  fill="none"
-                                                  stroke="currentColor"
-                                                  strokeWidth="2"
-                                                  strokeLinecap="round"
-                                                  strokeLinejoin="round"
-                                                  className="h-4 w-4"
-                                                >
-                                                  <path d="M20 6 9 17l-5-5" />
-                                                </svg>
+                                                {sincronizando ? (
+                                                  <svg
+                                                    xmlns="http://www.w3.org/2000/svg"
+                                                    viewBox="0 0 24 24"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    strokeWidth="2"
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                    className="h-4 w-4 animate-spin"
+                                                  >
+                                                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                                                  </svg>
+                                                ) : (
+                                                  <svg
+                                                    xmlns="http://www.w3.org/2000/svg"
+                                                    viewBox="0 0 24 24"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    strokeWidth="2"
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                    className="h-4 w-4"
+                                                  >
+                                                    <path d="M20 6 9 17l-5-5" />
+                                                  </svg>
+                                                )}
                                               </button>
                                             )}
                                             <button
@@ -3055,6 +3766,209 @@ export default function TarefasV2Page() {
         </div>
       </div>
 
+      <button
+        type="button"
+        onClick={() => setSyncPanelOpen(true)}
+        className={`fixed bottom-5 right-5 z-30 inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-medium shadow-lg transition-colors ${
+          syncResumo.falhas > 0
+            ? "border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100"
+            : syncResumo.pendentes > 0
+              ? "border-blue-300 bg-blue-50 text-blue-800 hover:bg-blue-100"
+              : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+        }`}
+        aria-label="Abrir painel de sincronização"
+      >
+        <span
+          className={`inline-block h-2 w-2 rounded-full ${
+            syncResumo.falhas > 0
+              ? "bg-rose-500"
+              : syncResumo.pendentes > 0
+                ? "bg-blue-500 animate-pulse"
+                : "bg-emerald-500"
+          }`}
+        />
+        <span>Sync</span>
+        <span className="rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-semibold">
+          {syncResumo.pendentes > 0 ? `${syncResumo.pendentes} pend.` : "ok"}
+          {syncResumo.falhas > 0 ? ` • ${syncResumo.falhas} falha(s)` : ""}
+        </span>
+      </button>
+
+      {syncPanelOpen && (
+        <div className="fixed inset-0 z-40">
+          <button
+            type="button"
+            aria-label="Fechar painel de sincronização"
+            className="absolute inset-0 bg-black/10"
+            onClick={() => setSyncPanelOpen(false)}
+          />
+          <aside className="absolute right-0 top-0 h-full w-full max-w-lg border-l border-slate-200 bg-white/90 backdrop-blur-sm shadow-2xl flex flex-col">
+            <div className="sticky top-0 z-10 border-b border-slate-200 bg-white/95 backdrop-blur px-4 py-3 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900">Sincronização</h3>
+                  <p className="text-[11px] text-slate-500">
+                    Acompanhe envios, falhas e reprocessamento.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSyncPanelOpen(false)}
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                    aria-label="Fechar painel"
+                    title="Fechar painel"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="h-4 w-4"
+                    >
+                      <path d="M18 6 6 18" />
+                      <path d="m6 6 12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 text-[11px]">
+                <div className="rounded-md border border-blue-200 bg-blue-50 px-2 py-1.5">
+                  <div className="text-blue-700 font-medium">Pendentes</div>
+                  <div className="text-blue-900 font-semibold">{syncResumo.pendentes}</div>
+                </div>
+                <div className="rounded-md border border-rose-200 bg-rose-50 px-2 py-1.5">
+                  <div className="text-rose-700 font-medium">Falhas</div>
+                  <div className="text-rose-900 font-semibold">{syncResumo.falhas}</div>
+                </div>
+                <div className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1.5">
+                  <div className="text-emerald-700 font-medium">Sucesso</div>
+                  <div className="text-emerald-900 font-semibold">{syncResumo.sucesso}</div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                {(["PENDENTES", "FALHAS", "TODOS"] as SyncPanelFilter[]).map((filtro) => {
+                  const ativo = syncPanelFilter === filtro;
+                  return (
+                    <button
+                      key={filtro}
+                      type="button"
+                      onClick={() => setSyncPanelFilter(filtro)}
+                      className={`rounded-full border px-2.5 py-1 text-[11px] font-medium ${
+                        ativo
+                          ? "border-slate-500 bg-slate-700 text-white"
+                          : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                      }`}
+                    >
+                      {filtro === "PENDENTES"
+                        ? "Pendentes"
+                        : filtro === "FALHAS"
+                          ? "Falhas"
+                          : "Todos"}
+                    </button>
+                  );
+                })}
+                <button
+                  type="button"
+                  onClick={limparHistoricoSincronizacao}
+                  className="ml-auto rounded-full border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                  title="Limpar histórico do painel"
+                >
+                  Limpar histórico
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-3 space-y-2">
+              {syncHistoryFiltrado.length === 0 ? (
+                <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                  Nenhum registro para o filtro selecionado.
+                </div>
+              ) : (
+                syncHistoryFiltrado.map((registro) => {
+                  const funcionarioNome =
+                    nomeFuncionarioPorRemId[registro.remanejamentoId] || `Funcionário ${registro.remanejamentoId}`;
+                  const statusClass =
+                    registro.status === "SUCCESS"
+                      ? "bg-emerald-100 text-emerald-700 border-emerald-200"
+                      : registro.status === "PENDING"
+                        ? "bg-blue-100 text-blue-700 border-blue-200"
+                        : registro.status === "PARTIAL"
+                          ? "bg-amber-100 text-amber-700 border-amber-200"
+                          : "bg-rose-100 text-rose-700 border-rose-200";
+                  const statusLabel =
+                    registro.status === "SUCCESS"
+                      ? "Sucesso"
+                      : registro.status === "PENDING"
+                        ? "Sincronizando"
+                        : registro.status === "PARTIAL"
+                          ? "Parcial"
+                          : "Falha";
+
+                  return (
+                    <div
+                      key={registro.id}
+                      className="rounded-lg border border-slate-200 bg-white p-2.5 text-xs shadow-sm"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="font-medium text-slate-800">
+                            {registro.kind === "LOTE" ? "Lote" : "Unitária"} • {registro.total} tarefa(s)
+                          </div>
+                          <div className="mt-0.5 text-[11px] text-slate-500">{funcionarioNome}</div>
+                        </div>
+                        <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${statusClass}`}>
+                          {statusLabel}
+                        </span>
+                      </div>
+
+                      <div className="mt-2 rounded-md bg-slate-50 px-2 py-1.5 text-[11px] text-slate-700">
+                        {registro.success} ok • {registro.failure} falha(s) •{" "}
+                        {formatDateTime(new Date(registro.updatedAt).toISOString())}
+                        {` • tentativas ${registro.attempts || 0}/${SYNC_RETRY_MAX_ATTEMPTS}`}
+                      </div>
+
+                      {registro.errors.length > 0 && (
+                        <div className="mt-2 rounded border border-rose-200 bg-rose-50 px-2 py-1 text-[10px] text-rose-700">
+                          {registro.errors.slice(0, 2).join(" | ")}
+                          {registro.errors.length > 2 ? ` | +${registro.errors.length - 2}` : ""}
+                        </div>
+                      )}
+
+                      {registro.status !== "PENDING" && registro.failure > 0 && (
+                        <div className="mt-2 flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => abrirFuncionarioDoPainel(registro.remanejamentoId)}
+                            className="rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                          >
+                            Abrir funcionário
+                          </button>
+                          {registro.retryItens.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => reenviarFalhasSincronizacao(registro.id)}
+                              className="rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                            >
+                              Reenviar falhas
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </aside>
+        </div>
+      )}
+
       {funcionarioDetalhesModalOpen && funcionarioDetalhes && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
           <div className="w-full max-w-2xl rounded-xl bg-white p-4 space-y-3">
@@ -3096,6 +4010,32 @@ export default function TarefasV2Page() {
                 <div className="text-slate-800">
                   {formatDateOnly(funcionarioDetalhes.funcionario.dataAdmissao)}
                 </div>
+                {(() => {
+                  const admissaoMeta = getAdmissaoMeta(
+                    funcionarioDetalhes.funcionario.dataAdmissao,
+                  );
+                  if (admissaoMeta.isFutura) {
+                    return (
+                      <span
+                        className="mt-1 inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800"
+                        title="Admissão futura (ainda não admitido)"
+                      >
+                        Admissão futura
+                      </span>
+                    );
+                  }
+                  if (admissaoMeta.isNovo) {
+                    return (
+                      <span
+                        className="mt-1 inline-flex items-center rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-800"
+                        title="Admitido há menos de 48h"
+                      >
+                        Novo
+                      </span>
+                    );
+                  }
+                  return null;
+                })()}
               </div>
               <div>
                 <div className="text-slate-500 text-xs">Última atualização</div>

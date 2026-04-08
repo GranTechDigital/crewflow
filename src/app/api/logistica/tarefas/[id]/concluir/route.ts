@@ -2,6 +2,37 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { logHistorico } from "@/lib/historico";
 
+type IdempotencyCacheEntry = {
+  status: number;
+  body: unknown;
+  expiresAt: number;
+};
+
+const IDEMPOTENCY_TTL_MS = 5 * 60 * 1000;
+const IDEMPOTENCY_MAX_ITEMS = 2000;
+
+function getIdempotencyCache() {
+  const globalRef = globalThis as unknown as {
+    __tarefasConcluirIdempotencyCache?: Map<string, IdempotencyCacheEntry>;
+  };
+  if (!globalRef.__tarefasConcluirIdempotencyCache) {
+    globalRef.__tarefasConcluirIdempotencyCache = new Map();
+  }
+  return globalRef.__tarefasConcluirIdempotencyCache;
+}
+
+function pruneIdempotencyCache(cache: Map<string, IdempotencyCacheEntry>) {
+  const now = Date.now();
+  for (const [key, entry] of cache.entries()) {
+    if (entry.expiresAt <= now) cache.delete(key);
+  }
+  while (cache.size > IDEMPOTENCY_MAX_ITEMS) {
+    const oldestKey = cache.keys().next().value;
+    if (!oldestKey) break;
+    cache.delete(oldestKey);
+  }
+}
+
 const normalizarTexto = (valor: unknown) =>
   String(valor || "")
     .normalize("NFD")
@@ -72,6 +103,34 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
+    const idempotencyKey =
+      request.headers.get("x-idempotency-key")?.trim() || "";
+    const idempotencyCache = getIdempotencyCache();
+    pruneIdempotencyCache(idempotencyCache);
+
+    if (idempotencyKey) {
+      const cached = idempotencyCache.get(idempotencyKey);
+      if (cached && cached.expiresAt > Date.now()) {
+        return NextResponse.json(cached.body, {
+          status: cached.status,
+          headers: { "x-idempotency-replayed": "1" },
+        });
+      }
+    }
+
+    const responder = (body: unknown, status = 200) => {
+      if (idempotencyKey) {
+        idempotencyCache.set(idempotencyKey, {
+          status,
+          body,
+          expiresAt: Date.now() + IDEMPOTENCY_TTL_MS,
+        });
+      }
+      return NextResponse.json(body, {
+        status,
+        headers: idempotencyKey ? { "x-idempotency-replayed": "0" } : undefined,
+      });
+    };
 
     const { getUserFromRequest } = await import("@/utils/authUtils");
     const usuarioAutenticado = await getUserFromRequest(request);
@@ -107,9 +166,9 @@ export async function PUT(
     });
 
     if (!tarefaAtual) {
-      return NextResponse.json(
+      return responder(
         { error: "Tarefa não encontrada" },
-        { status: 404 },
+        404,
       );
     }
 
@@ -145,9 +204,9 @@ export async function PUT(
 
     // Validação: exigir data de vencimento quando aplicável
     if (exigeValidade && !dataVencimento) {
-      return NextResponse.json(
+      return responder(
         { error: "Data de vencimento é obrigatória para concluir a tarefa." },
-        { status: 400 },
+        400,
       );
     }
 
@@ -160,12 +219,33 @@ export async function PUT(
       const selected = new Date(dataVencimento);
       selected.setHours(0, 0, 0, 0);
       if (selected.getTime() < minLocal.getTime()) {
-        return NextResponse.json(
+        return responder(
           {
             error: "Data de vencimento deve ser pelo menos 30 dias após hoje.",
           },
-          { status: 400 },
+          400,
         );
+      }
+    }
+
+    // Idempotência sem chave: evita duplicar efeitos quando a tarefa já está concluída
+    // e a data de vencimento enviada é equivalente à persistida.
+    if (tarefaConcluida(tarefaAtual.status)) {
+      const toDateOnly = (value: string | Date | null | undefined) => {
+        if (!value) return "";
+        const d = new Date(value);
+        if (Number.isNaN(d.getTime())) return "";
+        const y = d.getUTCFullYear();
+        const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+        const day = String(d.getUTCDate()).padStart(2, "0");
+        return `${y}-${m}-${day}`;
+      };
+
+      const dataAtual = toDateOnly(tarefaAtual.dataVencimento);
+      const dataInformada = toDateOnly(dataVencimento || null);
+      const mesmaData = !dataInformada || dataInformada === dataAtual;
+      if (mesmaData) {
+        return responder({ ...tarefaAtual, idempotent: true });
       }
     }
 
@@ -362,7 +442,7 @@ export async function PUT(
       usuarioAutenticado?.id,
     );
 
-    return NextResponse.json(tarefaAtualizada);
+    return responder(tarefaAtualizada);
   } catch (error) {
     console.error("Erro ao concluir tarefa:", error);
     return NextResponse.json(
