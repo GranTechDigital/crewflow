@@ -5,6 +5,7 @@ import {
   useContext,
   useState,
   useEffect,
+  useCallback,
   ReactNode,
   useRef,
 } from "react";
@@ -36,6 +37,52 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
 
   const lastCheckRef = useRef<number>(0);
+  const heartbeatDisabledRef = useRef<boolean>(false);
+  const sendPresenceHeartbeat = useCallback(
+    async (
+      status: "online" | "offline" = "online",
+      options?: { fireAndForget?: boolean },
+    ) => {
+      if (typeof window === "undefined") return;
+      if (heartbeatDisabledRef.current) return;
+      try {
+        if (options?.fireAndForget && status === "offline") {
+          const payload = JSON.stringify({
+            status,
+            path: window.location.pathname,
+          });
+          const blob = new Blob([payload], { type: "application/json" });
+          if (navigator.sendBeacon) {
+            navigator.sendBeacon("/api/auth/heartbeat", blob);
+            return;
+          }
+        }
+
+        const response = await fetch("/api/auth/heartbeat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            status,
+            path: window.location.pathname,
+          }),
+          credentials: "include",
+          cache: "no-store",
+        });
+
+        if (response.status === 404) {
+          heartbeatDisabledRef.current = true;
+          if (process.env.NODE_ENV !== "production") {
+            console.warn(
+              "Heartbeat desativado: rota /api/auth/heartbeat não encontrada (404). Reinicie o servidor para carregar novas rotas.",
+            );
+          }
+        }
+      } catch {
+        // Heartbeat é best-effort; não bloquear fluxo de auth.
+      }
+    },
+    [],
+  );
   const checkAuthInternal = async (silent: boolean) => {
     try {
       if (!silent) setLoading(true);
@@ -155,6 +202,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     try {
       setLoading(true);
+      await sendPresenceHeartbeat("offline", { fireAndForget: true });
       // Debug removido: cookies antes do logout
 
       // Solução direta: limpar o cookie no cliente
@@ -222,6 +270,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
     return () => clearInterval(intervalId);
   }, [usuario]);
+
+  useEffect(() => {
+    if (!usuario) return;
+
+    const ping = () => {
+      if (document.visibilityState !== "visible") return;
+      sendPresenceHeartbeat("online");
+    };
+
+    // Marca presença imediatamente ao autenticar/abrir aba.
+    ping();
+
+    const intervalId = setInterval(ping, 60 * 1000);
+    const onFocus = () => ping();
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        ping();
+      }
+    };
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("focus", onFocus);
+      document.addEventListener("visibilitychange", onVisibility);
+    }
+
+    return () => {
+      clearInterval(intervalId);
+      if (typeof window !== "undefined") {
+        window.removeEventListener("focus", onFocus);
+        document.removeEventListener("visibilitychange", onVisibility);
+      }
+      sendPresenceHeartbeat("offline", { fireAndForget: true });
+    };
+  }, [usuario?.id, sendPresenceHeartbeat]);
   useEffect(() => {
     const onFocus = () => {
       const now = Date.now();
