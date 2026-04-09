@@ -82,7 +82,7 @@ export default function NovoRemanejamentoPage() {
       try {
         setLoading(true);
         const [funcionariosRes, contratosRes] = await Promise.all([
-          fetch("/api/funcionarios"),
+          fetch("/api/funcionarios?emMigracao=false"),
           fetch("/api/contratos"),
         ]);
 

@@ -24,15 +24,20 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const tipo = searchParams.get('tipo'); // 'alocacao', 'realocacao' ou 'desligamento'
+    const emMigracaoRaw = searchParams.get('emMigracao');
     
     const whereClause: Prisma.FuncionarioWhereInput = {
       // Excluir o administrador do sistema das listagens
       matricula: {
         not: 'ADMIN001'
-      },
-      // Excluir funcionários que estão em processo de migração
-      emMigracao: false
+      }
     };
+
+    if (emMigracaoRaw === 'true' || emMigracaoRaw === '1') {
+      whereClause.emMigracao = true;
+    } else if (emMigracaoRaw === 'false' || emMigracaoRaw === '0') {
+      whereClause.emMigracao = false;
+    }
     
     if (tipo === 'alocacao') {
       // Para alocação: funcionários com statusPrestserv SEM_CADASTRO
@@ -46,7 +51,7 @@ export async function GET(request: NextRequest) {
       // Para desligamento: apenas funcionários com statusPrestserv ATIVO
       whereClause.statusPrestserv = 'ATIVO';
     } else {
-      // Se não especificar tipo, excluir apenas funcionários em migração
+      // Se não especificar tipo, excluir registros com statusPrestserv EM_MIGRACAO
       whereClause.statusPrestserv = {
         not: 'EM_MIGRACAO'
       };

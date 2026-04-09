@@ -49,7 +49,7 @@ export default function FuncionariosPage() {
     const fetchData = async () => {
       try {
         // Fetch funcionarios
-        const funcionariosResponse = await fetch('/api/funcionarios');
+        const funcionariosResponse = await fetch('/api/funcionarios?emMigracao=false');
         if (!funcionariosResponse.ok) {
           throw new Error('Erro ao carregar funcionários');
         }
