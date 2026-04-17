@@ -27,6 +27,11 @@ export async function GET(request: NextRequest) {
               matricula: true,
               funcao: true,
               centroCusto: true,
+              funcaoRef: {
+                select: {
+                  regime: true,
+                },
+              },
             },
           },
           solicitacao: {
@@ -60,6 +65,7 @@ export async function GET(request: NextRequest) {
         nome: rf.funcionario.nome,
         matricula: rf.funcionario.matricula,
         funcao: rf.funcionario.funcao,
+        regime: rf.funcionario.funcaoRef?.regime || null,
         centroCusto: rf.funcionario.centroCusto,
         statusTarefas: rf.statusTarefas,
         statusPrestserv: rf.statusPrestserv,
@@ -76,6 +82,7 @@ export async function GET(request: NextRequest) {
       },
     };
     const andConditions: Prisma.FuncionarioWhereInput[] = [];
+    const permiteDemitido = tipo === "desligamento" || tipo === "desvinculo";
     const exigeContratoVinculado =
       tipo === "realocacao" ||
       tipo === "multialocacao" ||
@@ -116,6 +123,17 @@ export async function GET(request: NextRequest) {
             },
           },
         ],
+      });
+    }
+
+    if (!permiteDemitido) {
+      andConditions.push({
+        NOT: {
+          status: {
+            equals: "DEMITIDO",
+            mode: "insensitive",
+          },
+        },
       });
     }
 
@@ -164,9 +182,13 @@ export async function GET(request: NextRequest) {
       matricula: string;
       emMigracao: boolean;
       funcao: string | null;
+      regime: string | null;
       centroCusto: string | null;
       status: string | null;
       statusPrestserv: string | null;
+      funcaoRef?: {
+        regime: string;
+      } | null;
       contratoId: number | null;
       contrato: {
         id: number;
@@ -199,6 +221,11 @@ export async function GET(request: NextRequest) {
           matricula: true,
           emMigracao: true,
           funcao: true,
+          funcaoRef: {
+            select: {
+              regime: true,
+            },
+          },
           centroCusto: true,
           status: true,
           statusPrestserv: true,
@@ -278,6 +305,17 @@ export async function GET(request: NextRequest) {
         });
       }
 
+      if (!permiteDemitido) {
+        andFallback.push({
+          NOT: {
+            status: {
+              equals: "DEMITIDO",
+              mode: "insensitive",
+            },
+          },
+        });
+      }
+
       if (contratoIdNumber && !Number.isNaN(contratoIdNumber)) {
         andFallback.push({
           contratoId: contratoIdNumber,
@@ -304,6 +342,11 @@ export async function GET(request: NextRequest) {
           matricula: true,
           emMigracao: true,
           funcao: true,
+          funcaoRef: {
+            select: {
+              regime: true,
+            },
+          },
           centroCusto: true,
           status: true,
           statusPrestserv: true,
@@ -521,6 +564,7 @@ export async function GET(request: NextRequest) {
     }
 
     let funcionariosFormatados = funcionarios.map((funcionario) => {
+      const { funcaoRef, ...funcionarioBase } = funcionario;
       const contratosMap = new Map<
         number,
         {
@@ -573,7 +617,8 @@ export async function GET(request: NextRequest) {
       });
 
       return {
-        ...funcionario,
+        ...funcionarioBase,
+        regime: funcaoRef?.regime || null,
         contratosVinculo: Array.from(contratosVinculoMap.values()),
         contratosVinculados: Array.from(contratosMap.values()),
       };
