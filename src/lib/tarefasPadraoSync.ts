@@ -1402,7 +1402,10 @@ export async function sincronizarTarefasPadrao({
       let deveResetar = false;
 
       if (temPendentes) {
-        if (rem.statusPrestserv === "CRIADO") {
+        if (
+          rem.statusPrestserv === "CRIADO" ||
+          rem.statusPrestserv === "PENDENTE"
+        ) {
           deveResetar = false;
         } else if (estadosBloqueio.has(rem.statusPrestserv)) {
           if (houveNovasTarefas) {
