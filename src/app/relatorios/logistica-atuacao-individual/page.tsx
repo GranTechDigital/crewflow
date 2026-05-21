@@ -27,21 +27,6 @@ ChartJS.register(
   Legend,
 );
 
-const chartAreaBgPlugin = {
-  id: "chartAreaBgPlugin",
-  beforeDraw: (chart: any) => {
-    const { ctx, chartArea } = chart;
-    if (!chartArea) return;
-    const { left, top, right, bottom } = chartArea;
-    ctx.save();
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(left, top, right - left, bottom - top);
-    ctx.restore();
-  },
-};
-
-ChartJS.register(chartAreaBgPlugin);
-
 type ApiData = {
   resumo: {
     totalColaboradores: number;
@@ -290,8 +275,8 @@ function Content() {
       maintainAspectRatio: false,
       plugins: { legend: { display: false } },
       scales: {
-        x: { ticks: { color: "#334155" }, grid: { color: "#e2e8f0" } },
-        y: { ticks: { color: "#334155" }, grid: { color: "#cbd5e1" } },
+        x: { ticks: { color: "#64748b" }, grid: { display: false } },
+        y: { ticks: { color: "#64748b" }, grid: { color: "#e2e8f0" } },
       },
     }),
     [],
@@ -365,23 +350,17 @@ function Content() {
         {
           label: "Mês atual",
           data: serieMesComparativa.atual,
-          borderColor: "#0f172a",
-          backgroundColor: "#0f172a",
-          pointRadius: 2,
-          pointBackgroundColor: "#0f172a",
-          pointBorderColor: "#ffffff",
-          pointBorderWidth: 1,
+          borderColor: "#1e293b",
+          backgroundColor: "#1e293b",
+          pointRadius: 1.5,
           tension: 0.25,
         },
         {
           label: "Mês anterior",
           data: serieMesComparativa.anterior,
-          borderColor: "#2563eb",
-          backgroundColor: "#2563eb",
-          pointRadius: 2,
-          pointBackgroundColor: "#2563eb",
-          pointBorderColor: "#ffffff",
-          pointBorderWidth: 1,
+          borderColor: "#64748b",
+          backgroundColor: "#64748b",
+          pointRadius: 1.5,
           tension: 0.25,
         },
       ],
@@ -1021,7 +1000,7 @@ function Content() {
                       options={{
                         responsive: true,
                         maintainAspectRatio: false,
-                        plugins: { legend: { position: "bottom", labels: { color: "#334155" } } },
+                        plugins: { legend: { position: "bottom" } },
                       }}
                     />
                   </div>
@@ -1200,3 +1179,4 @@ function Content() {
     </div>
   );
 }
+
