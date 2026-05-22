@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { jwtVerify } from 'jose';
+import { verifyAuthToken } from '@/lib/authToken';
 import { prisma } from '@/lib/prisma';
 
 /**
@@ -23,9 +23,8 @@ export async function getUserFromRequest(request: NextRequest) {
       return null;
     }
 
-    // Verificar e decodificar o token (compatível com tokens emitidos via jose)
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret');
-    const { payload: decoded } = await jwtVerify(token, secret);
+    // Verificar e decodificar o token
+    const { payload: decoded } = await verifyAuthToken(token);
     
     // Debug para verificar o conteúdo do token
     // console.log('DEBUG - Token decodificado:', JSON.stringify(decoded, null, 2));

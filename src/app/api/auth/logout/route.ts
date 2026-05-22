@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { jwtVerify } from 'jose';
+import { verifyAuthToken } from '@/lib/authToken';
 
 export async function POST(request: NextRequest) {
   try {
@@ -35,8 +35,7 @@ export async function POST(request: NextRequest) {
 
     // Validar token (defesa adicional contra requests malformados)
     try {
-      const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret');
-      await jwtVerify(token, secret);
+      await verifyAuthToken(token);
     } catch (e) {
       // console.log('🚪 LOGOUT API - Token inválido no logout');
       return NextResponse.json(

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
-import { jwtVerify, SignJWT } from 'jose'
+import { signAuthToken, verifyAuthToken } from '@/lib/authToken'
 
 const prisma = new PrismaClient()
 
@@ -10,9 +10,7 @@ export async function GET(request: NextRequest) {
     if (!token) {
       return NextResponse.json({ error: 'Token não fornecido' }, { status: 401 })
     }
-
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret')
-    const { payload } = await jwtVerify(token, secret)
+    const { payload } = await verifyAuthToken(token)
 
     const funcionarioId = (payload as any).funcionarioId as number
     const funcionario = await prisma.funcionario.findUnique({
@@ -39,7 +37,7 @@ export async function GET(request: NextRequest) {
     }
 
     const mustAddEmailFlag = funcionario.usuario.obrigarAdicionarEmail === true || !funcionario.usuario.emailSecundario
-    const newToken = await new SignJWT({
+    const newToken = await signAuthToken({
       id: funcionario.usuario.id,
       userId: funcionario.usuario.id,
       funcionarioId: funcionario.id,
@@ -51,9 +49,6 @@ export async function GET(request: NextRequest) {
       mustAddEmail: mustAddEmailFlag,
       mustChangePassword: funcionario.usuario.obrigarTrocaSenha === true
     })
-      .setProtectedHeader({ alg: 'HS256' })
-      .setExpirationTime('8h')
-      .sign(secret)
 
     const response = NextResponse.json({
       success: true,

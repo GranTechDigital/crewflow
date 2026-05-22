@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { jwtVerify } from "jose";
 
 const publicRoutes = [
   "/login",
@@ -47,36 +46,6 @@ export async function middleware(request: NextRequest) {
 
   // Verificar se é uma rota pública
   if (publicRoutes.some((route) => pathname.startsWith(route))) {
-    // Se for a página de login, não redirecionar automaticamente para "/"
-    // para evitar loops com tokens antigos. Apenas direcionar
-    // para etapas obrigatórias se o token exigir.
-    if (pathname === "/login") {
-      const token = request.cookies.get("auth-token")?.value;
-      if (token) {
-        try {
-          const secret = new TextEncoder().encode(
-            process.env.JWT_SECRET || "fallback-secret"
-          );
-          const { payload } = await jwtVerify(token, secret);
-          const mustAddEmail = (payload as any).mustAddEmail === true;
-          const mustChangePassword =
-            (payload as any).mustChangePassword === true;
-          if (mustAddEmail) {
-            return NextResponse.redirect(
-              new URL("/conta/adicionar-email", request.url)
-            );
-          }
-          if (mustChangePassword) {
-            return NextResponse.redirect(
-              new URL("/conta/trocar-senha", request.url)
-            );
-          }
-        } catch (error) {
-          // Token inválido: permitir acesso à página de login
-        }
-      }
-    }
-
     return NextResponse.next();
   }
 
@@ -137,57 +106,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  try {
-    const secret = new TextEncoder().encode(
-      process.env.JWT_SECRET || "fallback-secret"
-    );
-    const { payload } = await jwtVerify(token, secret);
-
-    const mustAddEmail = (payload as any).mustAddEmail === true;
-    const mustChangePassword = (payload as any).mustChangePassword === true;
-
-    const isOnAddEmail =
-      pathname.startsWith("/conta/adicionar-email") ||
-      pathname.startsWith("/api/account/email");
-    const isOnChangePassword =
-      pathname.startsWith("/conta/trocar-senha") ||
-      pathname.startsWith("/api/account/password");
-
-    const isApi = pathname.startsWith("/api/");
-
-    if (mustAddEmail) {
-      if (!isApi && !isOnAddEmail) {
-        return NextResponse.redirect(
-          new URL("/conta/adicionar-email", request.url)
-        );
-      }
-      return NextResponse.next();
-    }
-
-    if (mustChangePassword) {
-      if (!isApi && !isOnChangePassword) {
-        return NextResponse.redirect(
-          new URL("/conta/trocar-senha", request.url)
-        );
-      }
-      return NextResponse.next();
-    }
-
-    return NextResponse.next();
-  } catch (error) {
-    // Token inválido
-    if (pathname.startsWith("/api/")) {
-      return NextResponse.json(
-        { error: "Token de autenticação inválido" },
-        { status: 401 }
-      );
-    }
-
-    // Redirecionar para login e limpar cookie inválido
-    const response = NextResponse.redirect(new URL("/login", request.url));
-    response.cookies.delete("auth-token");
-    return response;
-  }
+  return NextResponse.next();
 }
 
 export const config = {

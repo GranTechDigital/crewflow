@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
-import { jwtVerify } from "jose";
+import { verifyAuthToken } from "@/lib/authToken";
 import { getPermissionsByTeam, PERMISSIONS } from "@/lib/permissions";
 
 const prisma = new PrismaClient();
@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
 
     let decoded;
     try {
-      const { payload } = await jwtVerify(token, secret);
+      const { payload } = await verifyAuthToken(token);
       decoded = payload;
     } catch (e) {
       return new NextResponse("Unauthorized", { status: 401 });

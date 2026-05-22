@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import { jwtVerify } from 'jose';
+import { verifyAuthToken } from '@/lib/authToken';
 import { getPermissionsByTeam } from '@/lib/permissions';
 
 const prisma = new PrismaClient();
@@ -20,9 +20,8 @@ export async function GET(request: NextRequest) {
 
     // Debug removido: token encontrado
     
-    // Verificar e decodificar o token usando jose
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret');
-    const { payload: decoded } = await jwtVerify(token, secret);
+    // Verificar e decodificar o token
+    const { payload: decoded } = await verifyAuthToken(token);
     // Debug removido: token decodificado
     
     // Buscar dados atualizados do usuário
