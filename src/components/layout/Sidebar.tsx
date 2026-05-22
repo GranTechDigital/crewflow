@@ -134,33 +134,11 @@ export default function Sidebar() {
         icon: BarChart3,
         items: [
           {
-            label: "Atendimentos Concluídos",
+            label: "Concluídos",
             href: "/sla/relatorio?tab=dias&hideTabs=true",
           },
-          {
-            label: "Todos Atendimentos",
-            href: "/sla/relatorio?tab=dias_all&hideTabs=true",
-          },
-          {
-            label: "Desempenho da Logística",
-            href: "/logistica/desempenho-usuarios?aba=logistica&hideTabs=true&secao=desempenho",
-          },
-          {
-            label: "Desempenho dos Setores",
-            href: "/logistica/desempenho-usuarios?aba=setores&hideTabs=true&secao=desempenho",
-          },
-          {
-            label: "Pendências da Logística",
-            href: "/logistica/desempenho-usuarios?aba=logistica&hideTabs=true&secao=status-remanejamentos",
-          },
-          {
-            label: "Atuação Individual Logística",
-            href: "/relatorios/logistica-atuacao-individual",
-          },
-          {
-            label: "Funcionários com Capacitações",
-            href: "/relatorios/capacitacoes",
-          },
+          { label: "Todos", href: "/sla/relatorio?tab=dias_all&hideTabs=true" },
+          { label: "Capacitações", href: "/relatorios/capacitacoes" },
         ],
         permission: "canAccessLogistica",
       },
@@ -183,6 +161,14 @@ export default function Sidebar() {
           // },
           { label: "Tarefas dos Setores", href: "/logistica/tarefas" },
           { label: "Tarefas V2 (Beta)", href: "/tarefas-v2" },
+          {
+            label: "Desempenho Setores",
+            href: "/logistica/desempenho-setores",
+          },
+          {
+            label: "Desempenho Logística",
+            href: "/logistica/desempenho-logistica",
+          },
           {
             label: "Lista de Funcionários",
             href: "/prestserv/funcionarios-por-contrato",
