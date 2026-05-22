@@ -20,6 +20,7 @@ RUN apk add --no-cache libc6-compat
 WORKDIR /app
 ENV PORT=3001
 ENV NODE_ENV=production
+ENV NODE_OPTIONS=--jitless
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
