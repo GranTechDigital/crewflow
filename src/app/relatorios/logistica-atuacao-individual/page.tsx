@@ -12,7 +12,7 @@ import {
   Tooltip,
   Legend,
 } from "chart.js";
-import { Bar, Line } from "react-chartjs-2";
+import { Bar, Doughnut, Line } from "react-chartjs-2";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { ROUTE_PROTECTION } from "@/lib/permissions";
 
@@ -379,20 +379,24 @@ function Content() {
     [topThroughput],
   );
 
-  const mixResumo = useMemo(() => {
+  const chartMix = useMemo(() => {
     const mix: Record<string, number> = {};
     for (const c of dados?.colaboradores || []) {
       for (const [k, v] of Object.entries(c.mixTrabalho)) {
         mix[k] = (mix[k] || 0) + v;
       }
     }
-    const entries = Object.entries(mix).sort((a, b) => b[1] - a[1]).slice(0, 6);
-    const total = entries.reduce((acc, [, v]) => acc + v, 0);
-    return entries.map(([tipo, qtd]) => ({
-      tipo,
-      qtd,
-      pct: total > 0 ? Number(((qtd / total) * 100).toFixed(1)) : 0,
-    }));
+    const entries = Object.entries(mix).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    return {
+      labels: entries.map(([k]) => k),
+      datasets: [
+        {
+          data: entries.map(([, v]) => v),
+          backgroundColor: ["#1e293b", "#334155", "#475569", "#64748b", "#94a3b8"],
+          borderWidth: 0,
+        },
+      ],
+    };
   }, [dados]);
 
   const chartMesAtualVsAnterior = useMemo(
@@ -875,104 +879,81 @@ function Content() {
 
       {!loading && !erro && dados && (
         <>
-          {modoVisao === "executivo" ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7 gap-3">
+            <div>
               <KpiCard
                 title="Atendimentos totais do time"
                 value={dados.resumo.throughputTime}
                 delta={<DeltaTag value={dados.resumo.throughputTime - resumoOperacionalAnterior.throughputTotal} minAbs={1} />}
               />
+            </div>
+            <div>
               <KpiCard
                 title="Produtividade média por pessoa"
                 value={dados.resumo.throughputMedio}
                 delta={<DeltaTag value={dados.resumo.throughputMedio - resumoOperacionalAnterior.throughputMedio} minAbs={0.1} />}
               />
+            </div>
+            <div>
               <KpiCard
                 title="Cadência média (min)"
                 value={resumoOperacionalProd.cadenciaMedia}
                 delta={<DeltaTag value={resumoOperacionalProd.cadenciaMedia - resumoOperacionalAnterior.cadenciaMedia} invert minAbs={5} />}
               />
+            </div>
+            <div>
+              <KpiCard
+                title="Produtividade/hora média"
+                value={resumoOperacionalProd.prodHoraMedia}
+                delta={<DeltaTag value={resumoOperacionalProd.prodHoraMedia - resumoOperacionalAnterior.prodHoraMedia} minAbs={0.1} />}
+              />
+            </div>
+            <div>
+              <KpiCard
+                title="Colaboradores no período"
+                value={dados.resumo.totalColaboradores}
+                delta={<DeltaTag value={dados.resumo.totalColaboradores - resumoOperacionalAnterior.totalColabs} minAbs={1} />}
+              />
+            </div>
+            <div>
+              <KpiCard
+                title="Conclusão média (%)"
+                value={`${resumoOperacionalProd.conclusaoMedia}%`}
+                delta={<DeltaTag value={resumoOperacionalProd.conclusaoMedia - resumoOperacionalAnterior.conclusaoMedia} suffix="%" minAbs={1} />}
+              />
+            </div>
+            <div>
               <KpiCard
                 title="Regularidade média (%)"
                 value={`${resumoOperacionalProd.regularidadeMedia}%`}
                 delta={<DeltaTag value={resumoOperacionalProd.regularidadeMedia - resumoOperacionalAnterior.regularidadeMedia} suffix="%" minAbs={1} />}
               />
             </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7 gap-3">
-              <div>
-                <KpiCard
-                  title="Atendimentos totais do time"
-                  value={dados.resumo.throughputTime}
-                  delta={<DeltaTag value={dados.resumo.throughputTime - resumoOperacionalAnterior.throughputTotal} minAbs={1} />}
-                />
-              </div>
-              <div>
-                <KpiCard
-                  title="Produtividade média por pessoa"
-                  value={dados.resumo.throughputMedio}
-                  delta={<DeltaTag value={dados.resumo.throughputMedio - resumoOperacionalAnterior.throughputMedio} minAbs={0.1} />}
-                />
-              </div>
-              <div>
-                <KpiCard
-                  title="Cadência média (min)"
-                  value={resumoOperacionalProd.cadenciaMedia}
-                  delta={<DeltaTag value={resumoOperacionalProd.cadenciaMedia - resumoOperacionalAnterior.cadenciaMedia} invert minAbs={5} />}
-                />
-              </div>
-              <div>
-                <KpiCard
-                  title="Produtividade/hora média"
-                  value={resumoOperacionalProd.prodHoraMedia}
-                  delta={<DeltaTag value={resumoOperacionalProd.prodHoraMedia - resumoOperacionalAnterior.prodHoraMedia} minAbs={0.1} />}
-                />
-              </div>
-              <div>
-                <KpiCard
-                  title="Colaboradores no período"
-                  value={dados.resumo.totalColaboradores}
-                  delta={<DeltaTag value={dados.resumo.totalColaboradores - resumoOperacionalAnterior.totalColabs} minAbs={1} />}
-                />
-              </div>
-              <div>
-                <KpiCard
-                  title="Conclusão média (%)"
-                  value={`${resumoOperacionalProd.conclusaoMedia}%`}
-                  delta={<DeltaTag value={resumoOperacionalProd.conclusaoMedia - resumoOperacionalAnterior.conclusaoMedia} suffix="%" minAbs={1} />}
-                />
-              </div>
-              <div>
-                <KpiCard
-                  title="Regularidade média (%)"
-                  value={`${resumoOperacionalProd.regularidadeMedia}%`}
-                  delta={<DeltaTag value={resumoOperacionalProd.regularidadeMedia - resumoOperacionalAnterior.regularidadeMedia} suffix="%" minAbs={1} />}
-                />
-              </div>
-            </div>
-          )}
+          </div>
 
           {modoVisao === "executivo" && (
             <div className="space-y-2">
-              <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-semibold text-slate-700">Comparativos Executivos</p>
-                  <span className="text-[11px] text-slate-500">Atual vs anterior equivalente</span>
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                  {[
-                    { titulo: "Mensal", atual: comparativos.mensalAtual, delta: comparativos.mensalPct },
-                    { titulo: "Trimestral", atual: comparativos.triAtual, delta: comparativos.triPct },
-                    { titulo: "Semestral", atual: comparativos.semAtual, delta: comparativos.semPct },
-                    { titulo: "Anual", atual: comparativos.anualAtual, delta: comparativos.anualPct },
-                  ].map((item) => (
-                    <div key={item.titulo} className="rounded-lg border border-slate-200 bg-slate-50 p-2.5">
-                      <p className="text-[11px] text-slate-500">{item.titulo}</p>
-                      <p className="text-lg font-semibold text-slate-900 leading-6">{formatNumberBr(item.atual)}</p>
-                      <DeltaTag value={item.delta} suffix="%" minAbs={0.1} />
-                    </div>
-                  ))}
-                </div>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <KpiCard
+                  title="Mensal"
+                  value={formatNumberBr(comparativos.mensalAtual)}
+                  delta={<DeltaTag value={comparativos.mensalPct} suffix="%" minAbs={0.1} />}
+                />
+                <KpiCard
+                  title="Trimestral"
+                  value={formatNumberBr(comparativos.triAtual)}
+                  delta={<DeltaTag value={comparativos.triPct} suffix="%" minAbs={0.1} />}
+                />
+                <KpiCard
+                  title="Semestral"
+                  value={formatNumberBr(comparativos.semAtual)}
+                  delta={<DeltaTag value={comparativos.semPct} suffix="%" minAbs={0.1} />}
+                />
+                <KpiCard
+                  title="Anual"
+                  value={formatNumberBr(comparativos.anualAtual)}
+                  delta={<DeltaTag value={comparativos.anualPct} suffix="%" minAbs={0.1} />}
+                />
               </div>
             </div>
           )}
@@ -1045,8 +1026,7 @@ function Content() {
           </div>
 
           {modoVisao === "executivo" && (
-              <div className="space-y-3">
-                <div className="grid grid-cols-1 xl:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 xl:grid-cols-4 gap-3">
                 <div className="bg-white border border-slate-200 rounded-xl p-2.5 shadow-sm">
                   <p className="text-xs text-slate-500 mb-2 inline-flex items-center">
                     Produtividade (Top 8)
@@ -1058,8 +1038,8 @@ function Content() {
                 </div>
                 <div className="bg-white border border-slate-200 rounded-xl p-2.5 shadow-sm">
                   <p className="text-xs text-slate-500 mb-2 inline-flex items-center">
-                    Cadência média (Top 8)
-                    <InfoTip text="Tempo médio entre atuações por colaborador (minutos)." />
+                    Cadência média (min)
+                    <InfoTip text="Tempo médio entre uma atuação e outra dos colaboradores (Top 8)." />
                   </p>
                   <div className="h-32">
                     <Bar data={chartCadencia} options={chartOptionsBarCompact} />
@@ -1067,49 +1047,43 @@ function Content() {
                 </div>
                 <div className="bg-white border border-slate-200 rounded-xl p-2.5 shadow-sm">
                   <p className="text-xs text-slate-500 mb-2 inline-flex items-center">
+                    Mix de trabalho (time)
+                    <InfoTip text="Distribuição dos tipos de solicitação atendidos pelo time no período." />
+                  </p>
+                  <div className="h-32">
+                    <Doughnut
+                      data={chartMix}
+                      options={{
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { position: "bottom" } },
+                      }}
+                    />
+                  </div>
+                </div>
+                <div className="bg-white border border-slate-200 rounded-xl p-2.5 shadow-sm">
+                  <p className="text-xs text-slate-500 mb-2 inline-flex items-center">
                     Regularidade (Top 8)
-                    <InfoTip text="Percentual de dias úteis com atuação por colaborador." />
+                    <InfoTip text="Percentual de dias úteis com atuação por colaborador (Top 8)." />
                   </p>
                   <div className="h-32">
                     <Bar data={chartRegularidade} options={chartOptionsBarCompact} />
                   </div>
                 </div>
-                </div>
-
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-                <div className="bg-white border border-slate-200 rounded-xl p-2.5 shadow-sm">
-                  <p className="text-xs text-slate-500 mb-2 inline-flex items-center">
-                    Distribuição por tipo de trabalho
-                    <InfoTip text="Participação de cada tipo no volume do período." />
-                  </p>
-                  <div className="space-y-2">
-                    {mixResumo.map((item) => (
-                      <div key={item.tipo}>
-                        <div className="flex items-center justify-between text-[11px] text-slate-600">
-                          <span className="truncate mr-2">{item.tipo}</span>
-                          <span className="font-medium text-slate-800">
-                            {item.qtd} ({item.pct}%)
-                          </span>
-                        </div>
-                        <div className="mt-1 h-1.5 w-full rounded-full bg-slate-200">
-                          <div className="h-1.5 rounded-full bg-slate-700" style={{ width: `${Math.min(100, Math.max(4, item.pct))}%` }} />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div className="bg-white border border-slate-200 rounded-xl p-2.5 shadow-sm">
-                  <p className="text-xs text-slate-500 mb-2 inline-flex items-center">
-                    Mês atual x mês anterior
-                    <InfoTip text="Comparativo diário de volume entre o mês de referência e o mês anterior." />
-                  </p>
-                  <div className="h-36">
-                    <Line data={chartMesAtualVsAnterior} options={{ ...chartOptionsCompact, plugins: { legend: { display: true } } }} />
-                  </div>
-                </div>
-                </div>
               </div>
             )}
+
+          {modoVisao === "executivo" && (
+            <div className="bg-white border border-slate-200 rounded-xl p-2.5 shadow-sm">
+              <p className="text-xs text-slate-500 mb-2 inline-flex items-center">
+                Mês atual x mês anterior
+                <InfoTip text="Comparativo diário de volume entre o mês de referência e o mês anterior." />
+              </p>
+              <div className="h-36">
+                <Line data={chartMesAtualVsAnterior} options={{ ...chartOptionsCompact, plugins: { legend: { display: true } } }} />
+              </div>
+            </div>
+          )}
 
           {modoVisao === "operacional" && (
           <div className="bg-white border border-slate-200 rounded-xl p-3 overflow-x-auto shadow-sm">
