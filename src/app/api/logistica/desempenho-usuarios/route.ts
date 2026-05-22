@@ -34,39 +34,6 @@ type EventoPerformance = {
   setorTarefa: string;
   tipoSolicitacao: TipoSolicitacaoKey | null;
   tempoHoras: number | null;
-  contratoOrigem?: string | null;
-  contratoDestino?: string | null;
-  remanejamentoId?: string | null;
-  solicitacaoId?: number | null;
-  statusPrestserv?: string | null;
-  statusTarefas?: string | null;
-  dataUltimaAcao?: Date | null;
-};
-
-type MetricasRemanejamentoLogistica = {
-  pendenteLogistica: number;
-  pendenteDependenteOutros: number;
-  concluido: number;
-  total: number;
-};
-
-type ItemRemanejamentoDashboard = {
-  id: string;
-  solicitacaoId: number;
-  funcionarioNome: string;
-  funcionarioMatricula: string;
-  tipoSolicitacao: string;
-  statusPrestserv: string;
-  statusTarefas: string;
-  contratoOrigem: string;
-  contratoDestino: string;
-  dataCriacao: string;
-  dataAtualizacao: string;
-  observacoesRemanejamentoCount: number;
-  categoriaPrincipal:
-    | "PENDENTE_LOGISTICA"
-    | "PENDENTE_DEPENDENTE_OUTROS"
-    | "CONCLUIDO";
 };
 
 function normalizeText(value?: string | null) {
@@ -128,144 +95,6 @@ function getTipoKey(value?: string | null): TipoSolicitacaoKey | null {
   return TIPOS_SOLICITACAO.includes(normalized) ? normalized : null;
 }
 
-function isStatus(normalized: string, ...statuses: string[]) {
-  return statuses.some((s) => normalized === normalizeText(s));
-}
-
-function isStatusDependenteOutros(
-  statusPrestservRaw?: string | null,
-  statusTarefasRaw?: string | null,
-) {
-  const prestserv = normalizeText(statusPrestservRaw);
-  const tarefas = normalizeText(statusTarefasRaw);
-  const isById =
-    prestserv === "6" ||
-    prestserv === "12" ||
-    tarefas === "6" ||
-    tarefas === "12";
-  const isByText =
-    prestserv.includes("EM VALIDACAO") ||
-    prestserv.includes("DESLIGAMENTO SOLICITADO") ||
-    prestserv.includes("SISPAT BLOQUEADO") ||
-    tarefas.includes("EM VALIDACAO") ||
-    tarefas.includes("DESLIGAMENTO SOLICITADO") ||
-    tarefas.includes("SISPAT BLOQUEADO");
-
-  return isById || isByText;
-}
-
-function getCategoriaPrincipalLogistica(
-  statusTarefasRaw?: string | null,
-  statusPrestservRaw?: string | null,
-): ItemRemanejamentoDashboard["categoriaPrincipal"] {
-  const statusTarefas = normalizeText(statusTarefasRaw);
-  const statusPrestserv = normalizeText(statusPrestservRaw);
-
-  if (
-    isStatus(statusPrestserv, "VALIDADO") ||
-    statusTarefas.includes("CONCLUID")
-  ) {
-    return "CONCLUIDO";
-  }
-
-  // Dependente de outros: status IDs de exceção (6/11/12) e equivalentes textuais.
-  if (isStatusDependenteOutros(statusPrestservRaw, statusTarefasRaw)) {
-    return "PENDENTE_DEPENDENTE_OUTROS";
-  }
-
-  return "PENDENTE_LOGISTICA";
-}
-
-async function carregarMetricasRemanejamentoLogistica({
-  startDate,
-  endDate,
-}: {
-  startDate?: Date;
-  endDate?: Date;
-}): Promise<{
-  metricas: MetricasRemanejamentoLogistica;
-  listaRemanejamentos: ItemRemanejamentoDashboard[];
-}> {
-  const whereCreatedAt: { gte?: Date; lte?: Date } = {};
-  if (startDate) whereCreatedAt.gte = startDate;
-  if (endDate) whereCreatedAt.lte = endDate;
-
-  const remanejamentos = await prisma.remanejamentoFuncionario.findMany({
-    where: {
-      ...(startDate || endDate ? { createdAt: whereCreatedAt } : {}),
-      statusPrestserv: { not: "CANCELADO" },
-      statusTarefas: { notIn: ["CANCELADO", "ATENDER TAREFAS"] },
-    },
-    select: {
-      id: true,
-      solicitacaoId: true,
-      statusTarefas: true,
-      statusPrestserv: true,
-      createdAt: true,
-      updatedAt: true,
-      _count: {
-        select: {
-          observacoesRemanejamento: true,
-        },
-      },
-      funcionario: {
-        select: {
-          nome: true,
-          matricula: true,
-        },
-      },
-      solicitacao: {
-        select: {
-          tipo: true,
-          contratoOrigem: { select: { numero: true } },
-          contratoDestino: { select: { numero: true } },
-        },
-      },
-    },
-    orderBy: { createdAt: "desc" },
-  });
-
-  const metricas: MetricasRemanejamentoLogistica = {
-    pendenteLogistica: 0,
-    pendenteDependenteOutros: 0,
-    concluido: 0,
-    total: 0,
-  };
-
-  const listaRemanejamentos: ItemRemanejamentoDashboard[] = [];
-
-  for (const item of remanejamentos) {
-    const categoriaPrincipal = getCategoriaPrincipalLogistica(
-      item.statusTarefas,
-      item.statusPrestserv,
-    );
-
-    if (categoriaPrincipal === "PENDENTE_LOGISTICA") metricas.pendenteLogistica += 1;
-    else if (categoriaPrincipal === "PENDENTE_DEPENDENTE_OUTROS")
-      metricas.pendenteDependenteOutros += 1;
-    else if (categoriaPrincipal === "CONCLUIDO") metricas.concluido += 1;
-    metricas.total += 1;
-
-    listaRemanejamentos.push({
-      id: item.id,
-      solicitacaoId: item.solicitacaoId,
-      funcionarioNome: item.funcionario?.nome || "N/A",
-      funcionarioMatricula: item.funcionario?.matricula || "-",
-      tipoSolicitacao: item.solicitacao?.tipo || "N/A",
-      statusPrestserv: item.statusPrestserv || "N/A",
-      statusTarefas: item.statusTarefas || "N/A",
-      contratoOrigem: item.solicitacao?.contratoOrigem?.numero || "N/A",
-      contratoDestino: item.solicitacao?.contratoDestino?.numero || "N/A",
-      dataCriacao: item.createdAt.toISOString(),
-      dataAtualizacao: item.updatedAt.toISOString(),
-      observacoesRemanejamentoCount: item._count?.observacoesRemanejamento || 0,
-      categoriaPrincipal,
-    });
-  }
-
-  return { metricas, listaRemanejamentos };
-}
-
 function buildResponse({
   eventos,
   startDate,
@@ -273,9 +102,6 @@ function buildResponse({
   setorFiltro,
   filtroSetores,
   filtroTodos,
-  metricasRemanejamento,
-  listaRemanejamentos,
-  slaHoras,
 }: {
   eventos: EventoPerformance[];
   startDate?: Date;
@@ -283,9 +109,6 @@ function buildResponse({
   setorFiltro: string | null;
   filtroSetores: boolean;
   filtroTodos: boolean;
-  metricasRemanejamento: MetricasRemanejamentoLogistica | null;
-  listaRemanejamentos: ItemRemanejamentoDashboard[];
-  slaHoras: number;
 }) {
   type Aggregate = {
     usuarioId: number;
@@ -305,21 +128,6 @@ function buildResponse({
     matricula: string;
     totalAtuacoes: number;
     temposHoras: number[];
-    contratos: Set<string>;
-    contratosOrigem: Set<string>;
-    contratosDestino: Set<string>;
-    detalhesAtuacoes: {
-      remanejamentoId: string | null;
-      solicitacaoId: number | null;
-      statusPrestserv: string;
-      statusTarefas: string;
-      dataInicio: string;
-      dataFim: string | null;
-      tempoHoras: number;
-      contratoOrigem: string;
-      contratoDestino: string;
-      tipoSolicitacao: string;
-    }[];
   };
 
   const tabelaMap = new Map<string, Aggregate>();
@@ -378,30 +186,9 @@ function buildResponse({
       matricula: evento.matricula,
       totalAtuacoes: 0,
       temposHoras: [],
-      contratos: new Set<string>(),
-      contratosOrigem: new Set<string>(),
-      contratosDestino: new Set<string>(),
-      detalhesAtuacoes: [],
     };
     itemUsuario.totalAtuacoes += 1;
     if (evento.tempoHoras !== null) itemUsuario.temposHoras.push(evento.tempoHoras);
-    if (evento.contratoOrigem) itemUsuario.contratosOrigem.add(evento.contratoOrigem);
-    if (evento.contratoDestino) itemUsuario.contratosDestino.add(evento.contratoDestino);
-    if (evento.contratoOrigem || evento.contratoDestino) {
-      itemUsuario.contratos.add(`${evento.contratoOrigem || "-"}->${evento.contratoDestino || "-"}`);
-    }
-    itemUsuario.detalhesAtuacoes.push({
-      remanejamentoId: evento.remanejamentoId || null,
-      solicitacaoId: evento.solicitacaoId || null,
-      statusPrestserv: evento.statusPrestserv || "N/A",
-      statusTarefas: evento.statusTarefas || "N/A",
-      dataInicio: evento.dataEvento.toISOString(),
-      dataFim: evento.dataUltimaAcao ? evento.dataUltimaAcao.toISOString() : null,
-      tempoHoras: Number((evento.tempoHoras || 0).toFixed(2)),
-      contratoOrigem: evento.contratoOrigem || "-",
-      contratoDestino: evento.contratoDestino || "-",
-      tipoSolicitacao: evento.tipoSolicitacao || "N/A",
-    });
     usuarioMap.set(evento.usuarioId, itemUsuario);
 
     const dia = evento.dataEvento.toISOString().slice(0, 10);
@@ -475,48 +262,6 @@ function buildResponse({
     ? tempoGeralValores.reduce((acc, h) => acc + h, 0) / tempoGeralValores.length
     : 0;
 
-  const colaboradores = Array.from(usuarioMap.values())
-    .map((item) => {
-      const somaTempo = item.temposHoras.reduce((acc, h) => acc + h, 0);
-      const mediaHoras = item.temposHoras.length ? somaTempo / item.temposHoras.length : 0;
-      const dentroSla = item.temposHoras.filter((h) => h <= slaHoras).length;
-      const produtividade = mediaHoras > 0 ? item.totalAtuacoes / mediaHoras : item.totalAtuacoes;
-      let destaque: "ALTA_PRODUTIVIDADE" | "TEMPO_MEDIO_ALTO" | "VOLUME_BAIXO" | "SATISFATORIO" =
-        "SATISFATORIO";
-      if (mediaHoras > slaHoras) destaque = "TEMPO_MEDIO_ALTO";
-      else if (item.totalAtuacoes < 5) destaque = "VOLUME_BAIXO";
-      else if (produtividade >= 1.2 && dentroSla / Math.max(item.temposHoras.length, 1) >= 0.7) {
-        destaque = "ALTA_PRODUTIVIDADE";
-      }
-
-      return {
-        usuarioId: item.usuarioId,
-        usuario: item.usuario,
-        matricula: item.matricula,
-        totalAtuacoes: item.totalAtuacoes,
-        mediaTempoHoras: Number(mediaHoras.toFixed(2)),
-        produtividade: Number(produtividade.toFixed(2)),
-        percentualDentroSla: Number(
-          ((dentroSla / Math.max(item.temposHoras.length, 1)) * 100).toFixed(1),
-        ),
-        contratosAtuados: Array.from(item.contratos).sort(),
-        contratosOrigem: Array.from(item.contratosOrigem).sort(),
-        contratosDestino: Array.from(item.contratosDestino).sort(),
-        acoesOutrosContratos: Math.max(0, item.contratos.size - 1),
-        detalhesAtuacoes: item.detalhesAtuacoes.sort(
-          (a, b) => new Date(b.dataInicio).getTime() - new Date(a.dataInicio).getTime(),
-        ),
-        destaque,
-      };
-    })
-    .sort((a, b) => b.produtividade - a.produtividade);
-
-  const totalTempos = Array.from(usuarioMap.values()).flatMap((u) => u.temposHoras);
-  const totalDentroSla = totalTempos.filter((h) => h <= slaHoras).length;
-  const percentualDentroSlaGeral = totalTempos.length
-    ? Number(((totalDentroSla / totalTempos.length) * 100).toFixed(1))
-    : 0;
-
   return {
     periodo: {
       inicio: startDate?.toISOString() || null,
@@ -531,8 +276,6 @@ function buildResponse({
       totalUsuarios: new Set(tabela.map((item) => item.usuarioId)).size,
       totalSetores: new Set(tabela.map((item) => item.setorTarefa)).size,
       tempoMedioHorasGeral: Number(tempoMedioHorasGeral.toFixed(2)),
-      slaHoras,
-      percentualDentroSla: percentualDentroSlaGeral,
     },
     opcoes: {
       setores: Array.from(opcoesSetor).sort((a, b) => a.localeCompare(b)),
@@ -544,9 +287,6 @@ function buildResponse({
       atuacoesPorSetor,
       serieDiaria,
     },
-    metricasRemanejamento,
-    listaRemanejamentos,
-    colaboradores,
     tabela,
   };
 }
@@ -738,16 +478,7 @@ async function carregarEventosLogistica({
         where: { id: { in: remanejamentoIds } },
         select: {
           id: true,
-          solicitacaoId: true,
-          statusPrestserv: true,
-          statusTarefas: true,
-          solicitacao: {
-            select: {
-              tipo: true,
-              contratoOrigem: { select: { numero: true } },
-              contratoDestino: { select: { numero: true } },
-            },
-          },
+          solicitacao: { select: { tipo: true } },
         },
       })
     : [];
@@ -762,9 +493,6 @@ async function carregarEventosLogistica({
       matricula: string;
       primeiraAcao: Date;
       ultimaAcao: Date;
-      statusPrestserv: string;
-      statusTarefas: string;
-      solicitacaoId: number | null;
     }
   >();
 
@@ -788,9 +516,6 @@ async function carregarEventosLogistica({
         matricula: historico.usuario?.funcionario?.matricula || "-",
         primeiraAcao: dataAtual,
         ultimaAcao: dataAtual,
-        statusPrestserv: remanejamento.statusPrestserv || "N/A",
-        statusTarefas: remanejamento.statusTarefas || "N/A",
-        solicitacaoId: remanejamento.solicitacaoId || null,
       });
       continue;
     }
@@ -814,13 +539,6 @@ async function carregarEventosLogistica({
       setorTarefa: "LOGISTICA",
       tipoSolicitacao: getTipoKey(remanejamento?.solicitacao?.tipo),
       tempoHoras,
-      remanejamentoId: item.remId,
-      solicitacaoId: item.solicitacaoId,
-      statusPrestserv: item.statusPrestserv,
-      statusTarefas: item.statusTarefas,
-      dataUltimaAcao: item.ultimaAcao,
-      contratoOrigem: remanejamento?.solicitacao?.contratoOrigem?.numero || null,
-      contratoDestino: remanejamento?.solicitacao?.contratoDestino?.numero || null,
     };
   });
 }
@@ -830,8 +548,6 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const { startDate, endDate } = getDateRange(searchParams);
     const setorParam = normalizeText(searchParams.get("setor"));
-    const slaHorasParam = Number(searchParams.get("slaHoras") || "4");
-    const slaHoras = Number.isFinite(slaHorasParam) && slaHorasParam > 0 ? slaHorasParam : 4;
     const filtroSetores = setorParam === "SETORES";
     const filtroTodos = setorParam === "TODOS";
     const setorFiltro = !setorParam ? "LOGISTICA" : filtroSetores || filtroTodos ? null : setorParam;
@@ -845,12 +561,6 @@ export async function GET(request: NextRequest) {
             setorFiltro,
             filtroSetores,
           });
-    const metricasERemanejamentos =
-      setorFiltro === "LOGISTICA"
-        ? await carregarMetricasRemanejamentoLogistica({ startDate, endDate })
-        : null;
-    const metricasRemanejamento = metricasERemanejamentos?.metricas || null;
-    const listaRemanejamentos = metricasERemanejamentos?.listaRemanejamentos || [];
 
     return NextResponse.json(
       buildResponse({
@@ -860,9 +570,6 @@ export async function GET(request: NextRequest) {
         setorFiltro,
         filtroSetores,
         filtroTodos,
-        metricasRemanejamento,
-        listaRemanejamentos,
-        slaHoras,
       }),
     );
   } catch (error) {
