@@ -68,13 +68,6 @@ function endOfMonth(year: number, monthIndex: number) {
 function formatNumberBr(value: number) {
   return value.toLocaleString("pt-BR");
 }
-function shortUserLabel(name: string) {
-  const parts = (name || "").trim().split(/\s+/).filter(Boolean);
-  if (parts.length <= 1) return name;
-  const first = parts[0];
-  const second = parts[1];
-  return `${first} ${second[0]}.`;
-}
 function formatDateBr(date: Date) {
   const d = String(date.getDate()).padStart(2, "0");
   const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -280,30 +273,10 @@ function Content() {
     () => ({
       responsive: true,
       maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        // evita poluição visual com valores sobrepostos em barras/rosca
-        datalabels: { display: false },
-      },
+      plugins: { legend: { display: false } },
       scales: {
-        x: {
-          ticks: {
-            color: "#475569",
-            maxRotation: 15,
-            minRotation: 15,
-            autoSkip: true,
-            font: { size: 11 },
-          },
-          grid: { display: false },
-        },
-        y: {
-          ticks: {
-            color: "#475569",
-            font: { size: 11 },
-            callback: (value: number | string) => Number(value).toLocaleString("pt-BR"),
-          },
-          grid: { color: "#e2e8f0" },
-        },
+        x: { ticks: { color: "#64748b" }, grid: { display: false } },
+        y: { ticks: { color: "#64748b" }, grid: { color: "#e2e8f0" } },
       },
     }),
     [],
@@ -312,7 +285,7 @@ function Content() {
   const topThroughput = useMemo(() => (dados?.colaboradores || []).slice(0, 8), [dados]);
   const chartThroughput = useMemo(
     () => ({
-      labels: topThroughput.map((c) => shortUserLabel(c.usuario)),
+      labels: topThroughput.map((c) => c.usuario.split(" ").slice(0, 2).join(" ")),
       datasets: [
         {
           data: topThroughput.map((c) => c.throughputPeriodo),
@@ -325,7 +298,7 @@ function Content() {
   );
   const chartCadencia = useMemo(
     () => ({
-      labels: topThroughput.map((c) => shortUserLabel(c.usuario)),
+      labels: topThroughput.map((c) => c.usuario.split(" ").slice(0, 2).join(" ")),
       datasets: [
         {
           data: topThroughput.map((c) => c.cadenciaMediaMin),
@@ -338,7 +311,7 @@ function Content() {
   );
   const chartRegularidade = useMemo(
     () => ({
-      labels: topThroughput.map((c) => shortUserLabel(c.usuario)),
+      labels: topThroughput.map((c) => c.usuario.split(" ").slice(0, 2).join(" ")),
       datasets: [
         {
           data: topThroughput.map((c) => c.regularidadePct),
@@ -1206,3 +1179,4 @@ function Content() {
     </div>
   );
 }
+
