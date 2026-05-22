@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
-import { jwtVerify, SignJWT } from 'jose'
+import { signAuthToken, verifyAuthToken } from '@/lib/authToken'
 import bcrypt from 'bcryptjs'
 
 const prisma = new PrismaClient()
@@ -18,8 +18,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (!token) {
       return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
     }
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret')
-    const { payload } = await jwtVerify(token, secret)
+    const { payload } = await verifyAuthToken(token)
     const userId = (payload as any).userId as number
     if (!userId || userId !== id) {
       return NextResponse.json({ error: 'Sem autorização' }, { status: 403 })
@@ -52,7 +51,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     })
 
     const baseClaims = payload as any
-    const newToken = await new SignJWT({
+    const newToken = await signAuthToken({
       id: updated.id,
       userId: updated.id,
       funcionarioId: baseClaims.funcionarioId,
@@ -64,9 +63,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       mustAddEmail: baseClaims.mustAddEmail === true,
       mustChangePassword: false
     })
-      .setProtectedHeader({ alg: 'HS256' })
-      .setExpirationTime('8h')
-      .sign(secret)
 
     const response = NextResponse.json({ success: true })
     const isSecure = (process.env.NEXTAUTH_URL || '').startsWith('https')

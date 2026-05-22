@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import jwt from 'jsonwebtoken';
 import { PrismaClient } from '@prisma/client';
+import { verifyAuthToken } from '@/lib/authToken';
 
 const prisma = new PrismaClient();
 
@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Verificar e decodificar o token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret') as any;
+    const { payload: decoded } = await verifyAuthToken(token);
 
     // Buscar dados atualizados do usuário
     const usuario = await prisma.usuario.findUnique({

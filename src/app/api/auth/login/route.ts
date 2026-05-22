@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
-import { SignJWT } from 'jose';
-// Remover: import jwt from 'jsonwebtoken';
+import { isSecureRequest, signAuthToken } from '@/lib/authToken';
 
 const prisma = new PrismaClient();
 
@@ -96,9 +95,7 @@ export async function POST(request: NextRequest) {
 
       const equipeNome = usuario.equipe?.nome ?? 'Sem equipe';
       const equipeId = usuario.equipeId ?? null;
-
-      const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret');
-      const token = await new SignJWT({
+      const token = await signAuthToken({
         id: usuario.id,
         userId: usuario.id,
         funcionarioId: usuario.funcionario.id,
@@ -111,10 +108,7 @@ export async function POST(request: NextRequest) {
           ? true
           : ((usuario as any).obrigarAdicionarEmail === true || !(usuario as any).emailSecundario),
         mustChangePassword: isPrimeiroAcesso ? true : (usuario as any).obrigarTrocaSenha || false
-      })
-        .setProtectedHeader({ alg: 'HS256' })
-        .setExpirationTime('8h')
-        .sign(secret);
+      });
 
       const response = NextResponse.json({
         success: true,
@@ -191,9 +185,7 @@ export async function POST(request: NextRequest) {
 
     const equipeNome = funcionario.usuario.equipe?.nome ?? 'Sem equipe';
     const equipeId = funcionario.usuario.equipeId ?? null;
-
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret');
-    const token = await new SignJWT({
+    const token = await signAuthToken({
       id: funcionario.usuario.id,
       userId: funcionario.usuario.id,
       funcionarioId: funcionario.id,
@@ -206,10 +198,7 @@ export async function POST(request: NextRequest) {
         ? true
         : ((funcionario.usuario as any).obrigarAdicionarEmail === true || !(funcionario.usuario as any).emailSecundario),
       mustChangePassword: isPrimeiroAcesso ? true : (funcionario.usuario as any).obrigarTrocaSenha || false
-    })
-      .setProtectedHeader({ alg: 'HS256' })
-      .setExpirationTime('8h')
-      .sign(secret);
+    });
 
     const response = NextResponse.json({
       success: true,
