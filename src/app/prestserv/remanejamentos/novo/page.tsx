@@ -40,7 +40,6 @@ interface Funcionario {
   nome: string;
   centroCusto: string;
   funcao?: string;
-  regime?: string;
   status?: string;
   dataAdmissao?: string;
   contratoId?: number;
@@ -58,7 +57,6 @@ interface FuncionarioSelecionado {
   nome: string;
   matricula: string;
   funcao: string | null;
-  regime: string | null;
   centroCusto: string | null;
   status: string | null;
   selecionado: boolean;
@@ -147,7 +145,6 @@ function NovoRemanejamentoContent() {
   const [filtroFuncao, setFiltroFuncao] = useState("");
   const [filtroCentroCusto, setFiltroCentroCusto] = useState("");
   const [filtroStatus, setFiltroStatus] = useState("");
-  const [filtroRegime, setFiltroRegime] = useState("");
 
   // Funções para manipular seleção de funcionários
 
@@ -188,7 +185,6 @@ function NovoRemanejamentoContent() {
       setFiltroFuncao("");
       setFiltroCentroCusto("");
       setFiltroStatus("");
-      setFiltroRegime("");
 
       // Para alocação, limpar contrato origem pois não é necessário
       if (tipoRemanejamento === "funcionarios_novos") {
@@ -285,8 +281,6 @@ function NovoRemanejamentoContent() {
           !filtroCentroCusto || funcionario.centroCusto === filtroCentroCusto;
         const statusMatch =
           !filtroStatus || funcionario.status === filtroStatus;
-        const regimeMatch =
-          !filtroRegime || funcionario.regime === filtroRegime;
         const naoSelecionado = !funcionariosSelecionados.some(
           (sel) => sel.id === parseInt(funcionario.id),
         );
@@ -296,7 +290,6 @@ function NovoRemanejamentoContent() {
           funcaoMatch &&
           centroCustoMatch &&
           statusMatch &&
-          regimeMatch &&
           naoSelecionado
         );
       })
@@ -305,7 +298,6 @@ function NovoRemanejamentoContent() {
         nome: funcionario.nome,
         matricula: funcionario.id,
         funcao: funcionario.funcao || null,
-        regime: funcionario.regime || null,
         centroCusto: funcionario.centroCusto || null,
         status: funcionario.status || null,
         selecionado: false,
@@ -320,7 +312,6 @@ function NovoRemanejamentoContent() {
     filtroFuncao,
     filtroCentroCusto,
     filtroStatus,
-    filtroRegime,
     funcionariosSelecionados,
   ]);
 
@@ -466,12 +457,6 @@ function NovoRemanejamentoContent() {
     const status = new Set<string>();
     funcionariosDisponiveis.forEach((f) => f.status && status.add(f.status));
     return Array.from(status).sort();
-  }, [funcionariosDisponiveis]);
-
-  const regimesDisponiveis = useMemo(() => {
-    const regimes = new Set<string>();
-    funcionariosDisponiveis.forEach((f) => f.regime && regimes.add(f.regime));
-    return Array.from(regimes).sort();
   }, [funcionariosDisponiveis]);
 
   // Estado para controlar o loading ao selecionar funcionário
@@ -1208,7 +1193,7 @@ function NovoRemanejamentoContent() {
                 )}
 
                 {/* Filtros */}
-                <div className="mb-6 grid grid-cols-1 md:grid-cols-5 gap-4">
+                <div className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Buscar por nome
@@ -1274,24 +1259,6 @@ function NovoRemanejamentoContent() {
                       {statusDisponiveis.map((status) => (
                         <option key={status} value={status}>
                           {status}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Regime
-                    </label>
-                    <select
-                      value={filtroRegime}
-                      onChange={(e) => setFiltroRegime(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent"
-                    >
-                      <option value="">Todos os regimes</option>
-                      {regimesDisponiveis.map((regime) => (
-                        <option key={regime} value={regime}>
-                          {regime}
                         </option>
                       ))}
                     </select>
@@ -1402,9 +1369,6 @@ function NovoRemanejamentoContent() {
                                     {funcionario.status && (
                                       <span>Status: {funcionario.status}</span>
                                     )}
-                                    {funcionario.regime && (
-                                      <span>Regime: {funcionario.regime}</span>
-                                    )}
                                   </div>
                                 </div>
                               </div>
@@ -1464,9 +1428,6 @@ function NovoRemanejamentoContent() {
                                     )}
                                     {funcionario.status && (
                                       <span>Status: {funcionario.status}</span>
-                                    )}
-                                    {funcionario.regime && (
-                                      <span>Regime: {funcionario.regime}</span>
                                     )}
                                   </div>
                                 </div>
