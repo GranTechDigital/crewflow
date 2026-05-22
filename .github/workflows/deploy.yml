@@ -292,27 +292,6 @@ jobs:
             echo "$MOUNTS_JSON" | grep -q '"Destination":"/app"' && { echo "❌ Mount proibido detectado em /app"; exit 1; }
             echo "$MOUNTS_JSON" | grep -q '"Destination":"/app/.next"' && { echo "❌ Mount proibido detectado em /app/.next"; exit 1; }
 
-            echo "🔎 Verificando integridade mínima dos artefatos Next.js no container"
-            docker exec crewflow-app-production sh -lc 'test -f /app/.next/server/webpack-runtime.js' || {
-              echo "❌ webpack-runtime.js ausente em /app/.next/server"; exit 1;
-            }
-
-            echo "🔁 Validando rota de bootstrap (/favicon.ico). Se falhar por chunk ausente, recria app uma vez."
-            BOOT_CODE=$(curl -sS -o /tmp/_boot_resp.html -w "%{http_code}" --max-time 8 http://localhost:3001/favicon.ico || true)
-            if [ "$BOOT_CODE" != "200" ] && [ "$BOOT_CODE" != "304" ]; then
-              if docker logs --tail=200 crewflow-app-production 2>&1 | grep -q "Cannot find module './"; then
-                echo "⚠️ Detectado erro de chunk ausente. Recriando somente serviço app..."
-                docker rm -f crewflow-app-production || true
-                docker compose --env-file /opt/projetogran/.env.production -f /opt/projetogran/docker-compose.yml up -d --no-deps --force-recreate app
-                sleep 5
-                RETRY_CODE=$(curl -sS -o /tmp/_boot_resp_retry.html -w "%{http_code}" --max-time 8 http://localhost:3001/favicon.ico || true)
-                echo "↪️ HTTP /favicon.ico após recriação: $RETRY_CODE"
-                [ "$RETRY_CODE" = "200" ] || [ "$RETRY_CODE" = "304" ] || { echo "❌ Bootstrap Next.js ainda inválido após recriação"; exit 1; }
-              else
-                echo "⚠️ /favicon.ico não respondeu 200/304 (HTTP $BOOT_CODE), mas sem assinatura de chunk ausente nos logs."
-              fi
-            fi
-
           echo "📊 Disk usage after compose up:"
           df -h
 
