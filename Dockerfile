@@ -1,6 +1,5 @@
 # Use a imagem oficial do Node.js (no-op para acionar workflow de produção)
-FROM node:18-alpine AS builder
-RUN apk add --no-cache libc6-compat
+FROM node:18-bullseye-slim AS builder
 WORKDIR /app
 # Garantir que devDependencies sejam instaladas no estágio de build
 ENV NODE_ENV=production
@@ -15,12 +14,10 @@ COPY . .
 RUN npm run build
 RUN rm -rf .next/cache || true
 
-FROM node:18-alpine AS runner
-RUN apk add --no-cache libc6-compat
+FROM node:18-bullseye-slim AS runner
 WORKDIR /app
 ENV PORT=3001
 ENV NODE_ENV=production
-ENV NODE_OPTIONS=--jitless
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
