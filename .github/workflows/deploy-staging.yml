@@ -64,25 +64,7 @@ jobs:
             TS=$(date -u +%Y%m%d_%H%M%S)
             FILE="/var/backups/projetogran/staging/projetogran_${TS}.dump"
             echo "🔎 Sanity-check container e DB antes do dump..."
-            if ! docker ps --format '{{.Names}}' | grep -q '^postgres-staging$'; then
-              echo "⚠️ Container postgres-staging não está em execução. Tentando subir via compose..."
-              docker network create projetogran_crewflow-network 2>/dev/null || true
-              if docker compose version >/dev/null 2>&1; then
-                docker compose --env-file /opt/projetogran/.env.staging -f /opt/projetogran/docker-compose.staging-postgres.yml up -d postgres-staging
-              else
-                echo "❌ Docker Compose v2 não disponível no servidor para subir postgres-staging automaticamente."
-                exit 1
-              fi
-              # aguardar postgres subir
-              for i in {1..20}; do
-                if docker ps --format '{{.Names}}' | grep -q '^postgres-staging$'; then
-                  break
-                fi
-                sleep 3
-              done
-              docker ps --format '{{.Names}}' | grep -q '^postgres-staging$' || { echo '❌ postgres-staging não subiu; abortando backup/deploy para evitar risco'; exit 1; }
-              echo "✅ postgres-staging iniciado com sucesso."
-            fi
+            docker ps --format '{{.Names}}' | grep -q '^postgres-staging$' || { echo '❌ Container postgres-staging não está em execução'; exit 1; }
             # Descobrir usuário/senha primeiro; evitar defaults inseguros (ex.: 'root')
             DB_USER=$(docker exec postgres-staging bash -lc 'echo -n "${POSTGRES_USER:-postgres}"')
             DB_PASS=$(docker exec postgres-staging bash -lc 'echo -n "${POSTGRES_PASSWORD:-}"')
