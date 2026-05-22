@@ -26,30 +26,6 @@ ChartJS.register(
   Tooltip,
   Legend,
 );
-const barValueLabelsPlugin = {
-  id: "barValueLabelsPlugin",
-  afterDatasetsDraw: (chart: any) => {
-    if (chart.config.type !== "bar") return;
-    const { ctx } = chart;
-    const dataset = chart.data.datasets?.[0];
-    if (!dataset) return;
-    const meta = chart.getDatasetMeta(0);
-    ctx.save();
-    ctx.fillStyle = "#334155";
-    ctx.font = "600 11px sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "bottom";
-    meta.data.forEach((bar: any, i: number) => {
-      const raw = dataset.data[i];
-      const value = typeof raw === "number" ? raw : Number(raw);
-      if (!Number.isFinite(value)) return;
-      const label = value.toLocaleString("pt-BR", { maximumFractionDigits: 1 });
-      ctx.fillText(label, bar.x, bar.y - 4);
-    });
-    ctx.restore();
-  },
-};
-ChartJS.register(barValueLabelsPlugin);
 
 type ApiData = {
   resumo: {
@@ -306,6 +282,8 @@ function Content() {
       maintainAspectRatio: false,
       plugins: {
         legend: { display: false },
+        // evita poluição visual com valores sobrepostos em barras/rosca
+        datalabels: { display: false },
       },
       scales: {
         x: {
@@ -329,13 +307,6 @@ function Content() {
       },
     }),
     [],
-  );
-  const chartOptionsBarCompact = useMemo(
-    () => ({
-      ...chartOptionsCompact,
-      layout: { padding: { top: 20 } },
-    }),
-    [chartOptionsCompact],
   );
 
   const topThroughput = useMemo(() => (dados?.colaboradores || []).slice(0, 8), [dados]);
@@ -1033,7 +1004,7 @@ function Content() {
                     <InfoTip text="Ranking dos 8 colaboradores com maior volume de atuações no período." />
                   </p>
                   <div className="h-32">
-                    <Bar data={chartThroughput} options={chartOptionsBarCompact} />
+                    <Bar data={chartThroughput} options={chartOptionsCompact} />
                   </div>
                 </div>
                 <div className="bg-white border border-slate-200 rounded-xl p-2.5 shadow-sm">
@@ -1042,7 +1013,7 @@ function Content() {
                     <InfoTip text="Tempo médio entre uma atuação e outra dos colaboradores (Top 8)." />
                   </p>
                   <div className="h-32">
-                    <Bar data={chartCadencia} options={chartOptionsBarCompact} />
+                    <Bar data={chartCadencia} options={chartOptionsCompact} />
                   </div>
                 </div>
                 <div className="bg-white border border-slate-200 rounded-xl p-2.5 shadow-sm">
@@ -1067,7 +1038,7 @@ function Content() {
                     <InfoTip text="Percentual de dias úteis com atuação por colaborador (Top 8)." />
                   </p>
                   <div className="h-32">
-                    <Bar data={chartRegularidade} options={chartOptionsBarCompact} />
+                    <Bar data={chartRegularidade} options={chartOptionsCompact} />
                   </div>
                 </div>
               </div>
