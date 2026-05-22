@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    if (!usuario || !usuario.ativo || !usuario.funcionario) {
+    if (!usuario || !usuario.ativo) {
       return NextResponse.json(
         { error: 'Usuário não encontrado ou inativo' },
         { status: 401 }
@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
         matricula: usuario.funcionario.matricula,
         nome: usuario.funcionario.nome,
         email: usuario.funcionario.email,
-        equipe: usuario.equipe?.nome ?? 'Sem equipe',
+        equipe: usuario.equipe.nome,
         equipeId: usuario.equipeId,
         ultimoLogin: usuario.ultimoLogin
       }
@@ -55,4 +55,3 @@ export async function GET(request: NextRequest) {
     );
   }
 }
-

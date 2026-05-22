@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Obter permissões baseadas na equipe usando o sistema centralizado
-    const nomeEquipe = funcionario.usuario.equipe?.nome ?? 'Sem equipe';
+    const nomeEquipe = funcionario.usuario.equipe.nome;
     let permissoes: string[] = [];
     
     // Verificar se é admin por matrícula (fallback)
@@ -69,8 +69,8 @@ export async function GET(request: NextRequest) {
         emailSecundario: (funcionario.usuario as any).emailSecundario ?? null,
         obrigarAdicionarEmail: (funcionario.usuario as any).obrigarAdicionarEmail === true,
         obrigarTrocaSenha: (funcionario.usuario as any).obrigarTrocaSenha === true,
-        equipe: nomeEquipe,
-        equipeId: funcionario.usuario.equipeId ?? null,
+        equipe: funcionario.usuario.equipe.nome,
+        equipeId: funcionario.usuario.equipe.id,
         matricula: funcionario.matricula,
         funcionarioId: funcionario.id,
         permissoes: permissoes
