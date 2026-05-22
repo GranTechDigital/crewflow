@@ -1,7 +1,6 @@
 "use client";
 
 import { ReactNode, useCallback, useEffect, useMemo, useState } from "react";
-import { Listbox } from "@headlessui/react";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -30,50 +29,24 @@ ChartJS.register(
 const barValueLabelsPlugin = {
   id: "barValueLabelsPlugin",
   afterDatasetsDraw: (chart: any) => {
+    if (chart.config.type !== "bar") return;
     const { ctx } = chart;
-    if (chart.config.type === "bar") {
-      const dataset = chart.data.datasets?.[0];
-      if (!dataset) return;
-      const meta = chart.getDatasetMeta(0);
-      ctx.save();
-      ctx.fillStyle = "#334155";
-      ctx.font = "600 11px sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "bottom";
-      meta.data.forEach((bar: any, i: number) => {
-        const raw = dataset.data[i];
-        const value = typeof raw === "number" ? raw : Number(raw);
-        if (!Number.isFinite(value)) return;
-        const label = value.toLocaleString("pt-BR", { maximumFractionDigits: 1 });
-        ctx.fillText(label, bar.x, bar.y - 4);
-      });
-      ctx.restore();
-      return;
-    }
-
-    if (chart.config.type === "line") {
-      const datasets = chart.data.datasets || [];
-      ctx.save();
-      ctx.font = "600 10px sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "bottom";
-      datasets.forEach((dataset: any, dsIndex: number) => {
-        const meta = chart.getDatasetMeta(dsIndex);
-        if (!meta?.data?.length) return;
-        ctx.fillStyle = dsIndex === 0 ? "#0f172a" : "#475569";
-        const lastIndex = meta.data.length - 1;
-        meta.data.forEach((point: any, i: number) => {
-          const raw = dataset.data?.[i];
-          const value = typeof raw === "number" ? raw : Number(raw);
-          if (!Number.isFinite(value) || value <= 0) return;
-          const shouldDraw = i === lastIndex || i % 5 === 0;
-          if (!shouldDraw) return;
-          const label = value.toLocaleString("pt-BR");
-          ctx.fillText(label, point.x, point.y - 6);
-        });
-      });
-      ctx.restore();
-    }
+    const dataset = chart.data.datasets?.[0];
+    if (!dataset) return;
+    const meta = chart.getDatasetMeta(0);
+    ctx.save();
+    ctx.fillStyle = "#334155";
+    ctx.font = "600 11px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "bottom";
+    meta.data.forEach((bar: any, i: number) => {
+      const raw = dataset.data[i];
+      const value = typeof raw === "number" ? raw : Number(raw);
+      if (!Number.isFinite(value)) return;
+      const label = value.toLocaleString("pt-BR", { maximumFractionDigits: 1 });
+      ctx.fillText(label, bar.x, bar.y - 4);
+    });
+    ctx.restore();
   },
 };
 ChartJS.register(barValueLabelsPlugin);
@@ -239,48 +212,6 @@ function InfoTip({ text }: { text: string }) {
         {text}
       </span>
     </span>
-  );
-}
-
-function SelectorListbox<T extends string | number>({
-  label,
-  value,
-  onChange,
-  options,
-}: {
-  label: string;
-  value: T;
-  onChange: (val: T) => void;
-  options: { value: T; label: string }[];
-}) {
-  const selected = options.find((o) => o.value === value) || options[0];
-  return (
-    <div>
-      <label className="block text-xs font-medium text-slate-600 mb-1">{label}</label>
-      <Listbox value={value} onChange={onChange}>
-        <div className="relative">
-          <Listbox.Button className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-left text-sm text-slate-800">
-            <span>{selected?.label}</span>
-            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400">▾</span>
-          </Listbox.Button>
-          <Listbox.Options className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-md border border-slate-200 bg-white p-1 shadow-lg text-sm">
-            {options.map((opt) => (
-              <Listbox.Option key={String(opt.value)} value={opt.value}>
-                {({ active, selected }) => (
-                  <div
-                    className={`cursor-pointer rounded px-2 py-1.5 ${
-                      active ? "bg-slate-100 text-slate-900" : "text-slate-700"
-                    } ${selected ? "font-semibold" : ""}`}
-                  >
-                    {opt.label}
-                  </div>
-                )}
-              </Listbox.Option>
-            ))}
-          </Listbox.Options>
-        </div>
-      </Listbox>
-    </div>
   );
 }
 
@@ -782,26 +713,42 @@ function Content() {
         ) : (
           <>
             <div>
-              <SelectorListbox
-                label="Mês de referência"
-                value={mesExecutivo}
-                onChange={setMesExecutivo}
-                options={Array.from({ length: 12 }, (_, i) => ({
-                  value: i + 1,
-                  label: MONTH_LABELS_PT_BR[i],
-                }))}
-              />
+              <label className="block text-xs font-medium text-slate-600 mb-1">Mês de referência</label>
+              <div className="grid grid-cols-6 gap-1.5">
+                {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setMesExecutivo(m)}
+                    className={`rounded-md border px-2 py-1 text-xs ${
+                      mesExecutivo === m
+                        ? "bg-slate-900 text-white border-slate-900"
+                        : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
+                    }`}
+                  >
+                    {MONTH_LABELS_PT_BR[m - 1]}
+                  </button>
+                ))}
+              </div>
             </div>
             <div>
-              <SelectorListbox
-                label="Ano de referência"
-                value={anoExecutivo}
-                onChange={setAnoExecutivo}
-                options={Array.from({ length: 6 }, (_, i) => {
-                  const ano = today.getFullYear() - i;
-                  return { value: ano, label: String(ano) };
-                })}
-              />
+              <label className="block text-xs font-medium text-slate-600 mb-1">Ano de referência</label>
+              <div className="flex flex-wrap gap-1.5">
+                {Array.from({ length: 6 }, (_, i) => today.getFullYear() - i).map((ano) => (
+                  <button
+                    key={ano}
+                    type="button"
+                    onClick={() => setAnoExecutivo(ano)}
+                    className={`rounded-md border px-2.5 py-1 text-xs ${
+                      anoExecutivo === ano
+                        ? "bg-slate-900 text-white border-slate-900"
+                        : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
+                    }`}
+                  >
+                    {ano}
+                  </button>
+                ))}
+              </div>
             </div>
           </>
         )}
@@ -1001,6 +948,31 @@ function Content() {
                   value={`${resumoOperacionalProd.regularidadeMedia}%`}
                   delta={<DeltaTag value={resumoOperacionalProd.regularidadeMedia - resumoOperacionalAnterior.regularidadeMedia} suffix="%" minAbs={1} />}
                 />
+              </div>
+            </div>
+          )}
+
+          {modoVisao === "executivo" && (
+            <div className="space-y-2">
+              <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-semibold text-slate-700">Comparativos Executivos</p>
+                  <span className="text-[11px] text-slate-500">Atual vs anterior equivalente</span>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  {[
+                    { titulo: "Mensal", atual: comparativos.mensalAtual, delta: comparativos.mensalPct },
+                    { titulo: "Trimestral", atual: comparativos.triAtual, delta: comparativos.triPct },
+                    { titulo: "Semestral", atual: comparativos.semAtual, delta: comparativos.semPct },
+                    { titulo: "Anual", atual: comparativos.anualAtual, delta: comparativos.anualPct },
+                  ].map((item) => (
+                    <div key={item.titulo} className="rounded-lg border border-slate-200 bg-slate-50 p-2.5">
+                      <p className="text-[11px] text-slate-500">{item.titulo}</p>
+                      <p className="text-lg font-semibold text-slate-900 leading-6">{formatNumberBr(item.atual)}</p>
+                      <DeltaTag value={item.delta} suffix="%" minAbs={0.1} />
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           )}
