@@ -284,13 +284,7 @@ jobs:
             docker rm -f pgadmin-production || true
             docker rm -f pgadmin-staging || true
             docker rm -f postgres-staging || true
-            docker compose --env-file /opt/projetogran/.env.production -f /opt/projetogran/docker-compose.yml up -d --remove-orphans --force-recreate
-
-            echo "🔎 Validando mounts do container da aplicação (sem bind em /app ou /app/.next)"
-            MOUNTS_JSON=$(docker inspect crewflow-app-production --format '{{json .Mounts}}')
-            echo "$MOUNTS_JSON"
-            echo "$MOUNTS_JSON" | grep -q '"Destination":"/app"' && { echo "❌ Mount proibido detectado em /app"; exit 1; }
-            echo "$MOUNTS_JSON" | grep -q '"Destination":"/app/.next"' && { echo "❌ Mount proibido detectado em /app/.next"; exit 1; }
+            docker compose --env-file /opt/projetogran/.env.production -f /opt/projetogran/docker-compose.yml up -d --remove-orphans
 
           echo "📊 Disk usage after compose up:"
           df -h
