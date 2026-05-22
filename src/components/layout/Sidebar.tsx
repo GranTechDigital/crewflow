@@ -306,7 +306,6 @@ export default function Sidebar() {
         icon: Shield,
         items: [
           { label: "Gerenciar Usuários", href: "/admin/usuarios" },
-          { label: "Usuários Online", href: "/admin/usuarios-online" },
           { label: "Gerenciar Equipes", href: "/admin/equipes" },
           { label: "Gerenciar Tarefas Padrão", href: "/admin/tarefas-padrao" },
           { label: "Sincronizar Lista de Funcionários", href: "/funcionarios" },
