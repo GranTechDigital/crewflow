@@ -129,8 +129,7 @@ export async function POST(request: NextRequest) {
         }
       });
 
-      const forwardedProto = request.headers.get('x-forwarded-proto') || '';
-      const isSecure = request.nextUrl.protocol === 'https:' || forwardedProto.toLowerCase().includes('https');
+      const isSecure = (process.env.NEXTAUTH_URL || '').startsWith('https');
       response.cookies.set('auth-token', token, {
         httpOnly: true,
         secure: isSecure,
@@ -225,8 +224,7 @@ export async function POST(request: NextRequest) {
       }
     });
 
-      const forwardedProto2 = request.headers.get('x-forwarded-proto') || '';
-      const isSecure2 = request.nextUrl.protocol === 'https:' || forwardedProto2.toLowerCase().includes('https');
+      const isSecure2 = (process.env.NEXTAUTH_URL || '').startsWith('https');
       response.cookies.set('auth-token', token, {
         httpOnly: true,
         secure: isSecure2,
