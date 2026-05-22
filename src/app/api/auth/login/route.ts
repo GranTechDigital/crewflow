@@ -34,19 +34,18 @@ export async function POST(request: NextRequest) {
       );
     }
     const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier);
-    const normalizedIdentifier = isEmail ? identifier.toLowerCase() : identifier;
 
     if (isEmail) {
       // Primeiro, tentar pelo emailSecundario do usuário
       let usuario = await prisma.usuario.findFirst({
-        where: { emailSecundario: { equals: normalizedIdentifier, mode: 'insensitive' } },
+        where: { emailSecundario: identifier },
         include: { equipe: true, funcionario: true }
       });
 
       // Fallback: se não encontrado, tentar pelo email do funcionário
       if (!usuario) {
         const funcByEmail = await prisma.funcionario.findFirst({
-          where: { email: { equals: normalizedIdentifier, mode: 'insensitive' } },
+          where: { email: identifier },
           include: { usuario: { include: { equipe: true } } }
         });
         if (funcByEmail && funcByEmail.usuario) {
@@ -130,8 +129,7 @@ export async function POST(request: NextRequest) {
         }
       });
 
-      const forwardedProto = request.headers.get('x-forwarded-proto') || '';
-      const isSecure = request.nextUrl.protocol === 'https:' || forwardedProto.toLowerCase().includes('https');
+      const isSecure = (process.env.NEXTAUTH_URL || '').startsWith('https');
       response.cookies.set('auth-token', token, {
         httpOnly: true,
         secure: isSecure,
@@ -143,8 +141,8 @@ export async function POST(request: NextRequest) {
       return response;
     }
 
-    const funcionario = await prisma.funcionario.findFirst({
-      where: { matricula: { equals: normalizedIdentifier, mode: 'insensitive' } },
+    const funcionario = await prisma.funcionario.findUnique({
+      where: { matricula: identifier },
       include: {
         usuario: {
           include: {
@@ -226,8 +224,7 @@ export async function POST(request: NextRequest) {
       }
     });
 
-      const forwardedProto2 = request.headers.get('x-forwarded-proto') || '';
-      const isSecure2 = request.nextUrl.protocol === 'https:' || forwardedProto2.toLowerCase().includes('https');
+      const isSecure2 = (process.env.NEXTAUTH_URL || '').startsWith('https');
       response.cookies.set('auth-token', token, {
         httpOnly: true,
         secure: isSecure2,
