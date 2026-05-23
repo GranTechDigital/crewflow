@@ -24,7 +24,7 @@ const StatusTimeline: React.FC<StatusTimelineProps> = ({
     setIsVisible(true);
   }, []);
   // Definir a ordem dos status para a timeline
-  const statusOrder: StatusPrestserv[] = ['PENDENTE', 'CRIADO', 'EM VALIDAÇÃO', 'VALIDADO'];
+  const statusOrder: StatusPrestserv[] = ['PENDENTE', 'CRIADO', 'EM VALIDAÇÃO', 'ANÁLISE DE EXPERIÊNCIA', 'VALIDADO'];
   
   // Verificar se o status atual está rejeitado
   const isRejected = currentStatus === 'INVALIDADO';
@@ -90,6 +90,7 @@ const StatusTimeline: React.FC<StatusTimelineProps> = ({
       case 'PENDENTE': return 'Pendente';
       case 'CRIADO': return 'Rascunho';
       case 'EM VALIDAÇÃO': return isRejected ? 'Rejeitado' : 'Em Validação';
+      case 'ANÁLISE DE EXPERIÊNCIA': return 'Análise de Experiência';
       case 'VALIDADO': return 'Validado';
       default: return step.replace('_', ' ');
     }

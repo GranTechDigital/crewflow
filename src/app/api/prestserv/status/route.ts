@@ -10,6 +10,7 @@ export async function GET(request: NextRequest) {
       "CRIADO",
       "SUBMETIDO",
       "EM VALIDAÇÃO",
+      "ANÁLISE DE EXPERIÊNCIA",
       "VALIDADO",
       "INVALIDADO",
       "CANCELADO",

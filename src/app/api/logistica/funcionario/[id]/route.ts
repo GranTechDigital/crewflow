@@ -125,6 +125,21 @@ export async function GET(
       );
     }
 
+    // Status VALIDADO é terminal: não permite regressão para outros status
+    if (
+      remanejamentoFuncionario.statusPrestserv === "VALIDADO" &&
+      statusPrestservCanonical &&
+      statusPrestservCanonical !== "VALIDADO"
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Não é permitido alterar um Prestserv já VALIDADO para outro status.",
+        },
+        { status: 400 },
+      );
+    }
+
     return NextResponse.json(remanejamentoFuncionario);
   } catch (error) {
     console.error("Erro ao buscar funcionário:", error);
@@ -581,6 +596,21 @@ export async function PUT(
       );
     }
 
+    // Status VALIDADO é terminal: não permite regressão para outros status
+    if (
+      remanejamentoFuncionario.statusPrestserv === "VALIDADO" &&
+      statusPrestservCanonical &&
+      statusPrestservCanonical !== "VALIDADO"
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Não é permitido alterar um Prestserv já VALIDADO para outro status.",
+        },
+        { status: 400 },
+      );
+    }
+
     const casoEspecialSantos51Para10 = ehCasoEspecialSantos51Para10({
       tipoSolicitacao: remanejamentoFuncionario.solicitacao?.tipo,
       contratoOrigemNumero:
@@ -885,6 +915,10 @@ export async function PUT(
       }
     }
 
+    const usuarioNomePut = usuarioAutenticado?.funcionario?.nome || "Sistema";
+    const usuarioIdPut = usuarioAutenticado?.id;
+    const equipeIdPut = (usuarioAutenticado as any)?.equipeId;
+
     // Registrar no histórico se o status mudou
     if (statusAnterior !== statusPrestserv) {
       try {
@@ -898,7 +932,9 @@ export async function PUT(
             campoAlterado: "statusPrestserv",
             valorAnterior: statusAnterior,
             valorNovo: statusPrestserv,
-            usuarioResponsavel: "Sistema", // Pode ser melhorado para capturar o usuário real
+            usuarioResponsavel: usuarioNomePut,
+            usuarioResponsavelId: usuarioIdPut ?? undefined,
+            equipeId: equipeIdPut ?? undefined,
             observacoes: observacoesPrestserv || undefined,
           },
         });
@@ -950,7 +986,9 @@ export async function PUT(
             entidade: "STATUS_TAREFAS",
             descricaoAcao:
               "Todas as tarefas foram canceladas devido ao cancelamento do Prestserv.",
-            usuarioResponsavel: "Sistema",
+            usuarioResponsavel: usuarioNomePut,
+            usuarioResponsavelId: usuarioIdPut ?? undefined,
+            equipeId: equipeIdPut ?? undefined,
             campoAlterado: "status",
             valorNovo: "CANCELADO",
           },

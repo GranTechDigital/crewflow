@@ -62,12 +62,20 @@ type ItemRemanejamentoDashboard = {
   contratoDestino: string;
   dataCriacao: string;
   dataAtualizacao: string;
+  diasSemAndamento: number;
   observacoesRemanejamentoCount: number;
   categoriaPrincipal:
     | "PENDENTE_LOGISTICA"
     | "PENDENTE_DEPENDENTE_OUTROS"
     | "CONCLUIDO";
 };
+
+function calcularDiasSemAndamento(dataAtualizacao: Date) {
+  const agora = new Date();
+  const diffMs = agora.getTime() - dataAtualizacao.getTime();
+  if (diffMs <= 0) return 0;
+  return Math.floor(diffMs / (1000 * 60 * 60 * 24));
+}
 
 function normalizeText(value?: string | null) {
   return (value || "")
@@ -140,14 +148,18 @@ function isStatusDependenteOutros(
   const tarefas = normalizeText(statusTarefasRaw);
   const isById =
     prestserv === "6" ||
+    prestserv === "13" ||
     prestserv === "12" ||
     tarefas === "6" ||
+    tarefas === "13" ||
     tarefas === "12";
   const isByText =
     prestserv.includes("EM VALIDACAO") ||
+    prestserv.includes("ANALISE DE EXPERIENCIA") ||
     prestserv.includes("DESLIGAMENTO SOLICITADO") ||
     prestserv.includes("SISPAT BLOQUEADO") ||
     tarefas.includes("EM VALIDACAO") ||
+    tarefas.includes("ANALISE DE EXPERIENCIA") ||
     tarefas.includes("DESLIGAMENTO SOLICITADO") ||
     tarefas.includes("SISPAT BLOQUEADO");
 
@@ -258,6 +270,7 @@ async function carregarMetricasRemanejamentoLogistica({
       contratoDestino: item.solicitacao?.contratoDestino?.numero || "N/A",
       dataCriacao: item.createdAt.toISOString(),
       dataAtualizacao: item.updatedAt.toISOString(),
+      diasSemAndamento: calcularDiasSemAndamento(item.updatedAt),
       observacoesRemanejamentoCount: item._count?.observacoesRemanejamento || 0,
       categoriaPrincipal,
     });

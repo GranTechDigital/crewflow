@@ -94,8 +94,25 @@ export const formatSyncMessage = (data: any): string => {
   if (data.adicionados) parts.push(`${data.adicionados} funcionários adicionados`);
   if (data.atualizados) parts.push(`${data.atualizados} funcionários atualizados`);
   if (data.demitidos) parts.push(`${data.demitidos} funcionários demitidos`);
+  if (typeof data.funcoesCriadas === 'number') {
+    parts.push(`${data.funcoesCriadas} funções criadas`);
+  }
   
   return parts.length > 0 
     ? `Sincronização concluída: ${parts.join(', ')}.`
     : 'Sincronização concluída sem alterações.';
+};
+
+export const formatSyncToastMessages = (
+  data: any,
+): { funcionarios: string; funcoes: string } => {
+  const adicionados = Number(data?.adicionados || 0);
+  const atualizados = Number(data?.atualizados || 0);
+  const demitidos = Number(data?.demitidos || 0);
+  const funcoesCriadas = Number(data?.funcoesCriadas || 0);
+
+  return {
+    funcionarios: `Funcionários: ${adicionados} adicionados, ${atualizados} atualizados, ${demitidos} demitidos.`,
+    funcoes: `Funções: ${funcoesCriadas} criadas.`,
+  };
 };

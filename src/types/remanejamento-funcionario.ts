@@ -113,6 +113,7 @@ export type StatusPrestserv =
   | "PENDENTE"
   | "CRIADO"
   | "EM VALIDAÇÃO"
+  | "ANÁLISE DE EXPERIÊNCIA"
   | "INVALIDADO"
   | "VALIDADO"
   | "CANCELADO"

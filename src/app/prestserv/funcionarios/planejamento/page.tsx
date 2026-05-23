@@ -229,7 +229,7 @@ function FuncionariosPageContent() {
         "info",
       );
 
-      const { syncWithRetry, formatSyncMessage } =
+      const { syncWithRetry, formatSyncToastMessages } =
         await import("@/utils/syncUtils");
 
       const result = await syncWithRetry({
@@ -239,8 +239,9 @@ function FuncionariosPageContent() {
       });
 
       if (result.success) {
-        const msg = formatSyncMessage(result.data);
-        showToast(msg, "success");
+        const mensagens = formatSyncToastMessages(result.data);
+        showToast(mensagens.funcionarios, "success");
+        showToast(mensagens.funcoes, "success");
       } else {
         showToast(
           result.error ||

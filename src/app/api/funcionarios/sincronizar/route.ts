@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sincronizarTarefasPadrao } from "@/lib/tarefasPadraoSync";
 import { toSlug } from "@/utils/slug";
+import { Prisma } from "@prisma/client";
 
 function normalizeFuncaoText(funcao: unknown) {
   const raw = String(funcao || "").trim();
@@ -104,6 +105,66 @@ async function fetchExternalDataWithRetry(maxRetries = 3, timeout = 15000) {
   }
 }
 
+async function obterOuCriarFuncao(params: {
+  funcao: string;
+  regime: string;
+}) {
+  const funcaoNorm = params.funcao;
+  const regimeNorm = params.regime;
+  const funcaoSlug = toSlug(funcaoNorm);
+
+  try {
+    const existente = await prisma.funcao.findFirst({
+      where: {
+        regime: regimeNorm,
+        OR: [{ funcao: funcaoNorm }, { funcao_slug: funcaoSlug }],
+      },
+      select: { id: true },
+    });
+
+    // Caminho principal: idempotente pela chave única de slug+regime.
+    const row = await prisma.funcao.upsert({
+      where: {
+        funcao_slug_regime: {
+          funcao_slug: funcaoSlug,
+          regime: regimeNorm,
+        },
+      },
+      update: {
+        ativo: true,
+      },
+      create: {
+        funcao: funcaoNorm,
+        regime: regimeNorm,
+        funcao_slug: funcaoSlug,
+        ativo: true,
+      },
+    });
+    return { row, created: !existente };
+  } catch (error) {
+    // Legado: pode conflitar no outro índice único (funcao+regime).
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      const existente = await prisma.funcao.findFirst({
+        where: {
+          regime: regimeNorm,
+          OR: [{ funcao: funcaoNorm }, { funcao_slug: funcaoSlug }],
+        },
+      });
+      if (existente) {
+        const row = await prisma.funcao.update({
+          where: { id: existente.id },
+          data: { ativo: true },
+        });
+        return { row, created: false };
+      }
+    }
+    throw error;
+  }
+}
+
 export async function POST(request: Request) {
   try {
     console.log("Iniciando sincronização de funcionários...");
@@ -129,12 +190,21 @@ export async function POST(request: Request) {
     // Buscar dados da API externa com retry
     const dadosExternos = await fetchExternalDataWithRetry();
     console.log(`Dados externos obtidos: ${dadosExternos.length} registros`);
+    let funcoesCriadas = 0;
 
     // Buscar dados atuais do banco (excluindo o administrador do sistema)
     const dadosBanco = await prisma.funcionario.findMany({
       where: {
         matricula: {
           not: "ADMIN001",
+        },
+      },
+      include: {
+        funcaoRef: {
+          select: {
+            id: true,
+            regime: true,
+          },
         },
       },
     });
@@ -187,19 +257,12 @@ export async function POST(request: Request) {
         const regime = normalizeRegime(item.EMPREGADO);
         let funcaoRow = null;
         if (funcaoTxt) {
-          funcaoRow = await prisma.funcao.findFirst({
-            where: { funcao: funcaoTxt, regime },
+          const funcaoResult = await obterOuCriarFuncao({
+            funcao: funcaoTxt,
+            regime,
           });
-          if (!funcaoRow) {
-            funcaoRow = await prisma.funcao.create({
-              data: {
-                funcao: funcaoTxt,
-                regime,
-                funcao_slug: toSlug(funcaoTxt),
-                ativo: true,
-              },
-            });
-          }
+          funcaoRow = funcaoResult.row;
+          if (funcaoResult.created) funcoesCriadas += 1;
         }
         await prisma.funcionario.create({
           data: {
@@ -279,7 +342,12 @@ export async function POST(request: Request) {
         ? String((dadosApi as any).FUNCAO)
         : null;
       const funcaoApi = funcaoApiRaw ? funcaoApiRaw.trim() : null;
-      const funcaoBancoNorm = (func.funcao || "").trim();
+      const funcaoApiNorm = funcaoApi ? normalizeFuncaoText(funcaoApi) : null;
+      const funcaoBancoNorm = normalizeFuncaoText(func.funcao || "");
+      const regimeApi = normalizeRegime((dadosApi as any).EMPREGADO);
+      const regimeBanco = String(
+        (func as any).funcaoRef?.regime || "",
+      ).trim().toUpperCase();
       const dataAdmissaoApi = getDateField(
         dadosApi as Record<string, unknown>,
         [
@@ -365,38 +433,41 @@ export async function POST(request: Request) {
       }
 
       // Mudança de função (normalizada com trim)
-      if (funcaoApi && funcaoBancoNorm !== funcaoApi) {
+      const mudouFuncao =
+        !!funcaoApiNorm && funcaoBancoNorm !== String(funcaoApiNorm);
+      const mudouRegimeMesmoNome =
+        !!funcaoApiNorm &&
+        funcaoBancoNorm === String(funcaoApiNorm) &&
+        regimeBanco !== regimeApi;
+      const semFuncaoId = !(func as any).funcaoId;
+
+      if (funcaoApiNorm && (mudouFuncao || mudouRegimeMesmoNome || semFuncaoId)) {
         if (isRhudson)
-          console.log("[SYNC rhudson] função será atualizada para", funcaoApi);
-        const regimeApi = normalizeRegime((dadosApi as any).EMPREGADO);
-        const funcaoApiNorm = normalizeFuncaoText(funcaoApi);
-        let funcaoRow = await prisma.funcao.findFirst({
-          where: { funcao: funcaoApiNorm, regime: regimeApi },
+          console.log(
+            "[SYNC rhudson] função/regime será atualizado para",
+            funcaoApiNorm,
+            regimeApi,
+          );
+        const funcaoResult = await obterOuCriarFuncao({
+          funcao: String(funcaoApiNorm),
+          regime: regimeApi,
         });
-        if (!funcaoRow) {
-          funcaoRow = await prisma.funcao.create({
-            data: {
-              funcao: funcaoApiNorm,
-              regime: regimeApi,
-              funcao_slug: toSlug(funcaoApiNorm),
-              ativo: true,
-            },
-          });
-        }
+        const funcaoRow = funcaoResult.row;
+        if (funcaoResult.created) funcoesCriadas += 1;
         paraAtualizar.push({
           matricula: func.matricula,
           status: func.status || "ATIVO",
-          funcao: funcaoApiNorm,
+          funcao: String(funcaoApiNorm),
           funcaoId: funcaoRow.id,
           atualizadoEm: now,
           excluidoEm: null,
         });
-        if (typeof func.id === "number") {
+        if (mudouFuncao && typeof func.id === "number") {
           funcionariosFuncaoAlteradaIds.add(func.id);
           funcoesAlteradasDetalhes.push({
             funcionarioId: func.id,
             valorAnterior: funcaoBancoNorm,
-            valorNovo: funcaoApi,
+            valorNovo: String(funcaoApiNorm),
           });
         }
       } else {
@@ -533,7 +604,7 @@ export async function POST(request: Request) {
     }
 
     console.log(
-      `Sincronização de funcionários concluída: ${matriculasParaDemitir.length} demitidos, ${novosFuncionarios.length} adicionados, ${paraAtualizar.length} atualizados`,
+      `Sincronização de funcionários concluída: ${matriculasParaDemitir.length} demitidos, ${novosFuncionarios.length} adicionados, ${paraAtualizar.length} atualizados, ${funcoesCriadas} funções criadas`,
     );
 
     return NextResponse.json({
@@ -541,6 +612,7 @@ export async function POST(request: Request) {
       demitidos: matriculasParaDemitir.length,
       adicionados: novosFuncionarios.length,
       atualizados: paraAtualizar.length,
+      funcoesCriadas,
     });
   } catch (error) {
     console.error("Erro na sincronização de funcionários:", error);

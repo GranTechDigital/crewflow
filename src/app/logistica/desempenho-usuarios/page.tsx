@@ -73,6 +73,7 @@ type ApiData = {
     contratoDestino: string;
     dataCriacao: string;
     dataAtualizacao: string;
+    diasSemAndamento: number;
     observacoesRemanejamentoCount: number;
     categoriaPrincipal:
       | "PENDENTE_LOGISTICA"
@@ -138,8 +139,8 @@ type VisaoPeriodo = "mensal" | "semestral" | "anual";
 type FiltroCardPrincipal =
   | "TOTAL"
   | "PENDENTE_LOGISTICA"
-  | "PENDENTE_DEPENDENTE_OUTROS"
-  | "CONCLUIDO";
+  | "PENDENTE_DEPENDENTE_OUTROS";
+type FiltroSemaforo = "TODOS" | "VERDE" | "AMARELO" | "VERMELHO";
 
 function formatDateInput(date: Date) {
   const year = date.getFullYear();
@@ -166,6 +167,20 @@ function formatStatusFiltroLabel(status: string) {
   if (normalized === "CRIADO") return "ANALISAR";
   if (normalized === "PENDENTE DE DESLIGAMENTO") return "DESLIGAR";
   return status;
+}
+
+type SemaforoParado = "VERDE" | "AMARELO" | "VERMELHO";
+
+function getSemaforoParado(diasSemAndamento: number): SemaforoParado {
+  if (diasSemAndamento <= 2) return "VERDE";
+  if (diasSemAndamento <= 7) return "AMARELO";
+  return "VERMELHO";
+}
+
+function getSemaforoParadoClasses(semaforo: SemaforoParado) {
+  if (semaforo === "VERDE") return "bg-emerald-500";
+  if (semaforo === "AMARELO") return "bg-amber-400";
+  return "bg-rose-500";
 }
 
 function startOfDay(date: Date) {
@@ -227,6 +242,7 @@ function DesempenhoUsuariosContent() {
   const [obsList, setObsList] = useState<ObservacaoRemanejamento[]>([]);
   const [obsRemanejamentoId, setObsRemanejamentoId] = useState<string | null>(null);
   const [obsFuncionarioNome, setObsFuncionarioNome] = useState<string>("");
+  const [filtroSemaforo, setFiltroSemaforo] = useState<FiltroSemaforo>("TODOS");
   const [visaoPeriodo, setVisaoPeriodo] = useState<VisaoPeriodo>("mensal");
   const [slaHoras, setSlaHoras] = useState<number>(4);
   const [comparativoResumo, setComparativoResumo] = useState<{
@@ -250,7 +266,7 @@ function DesempenhoUsuariosContent() {
     anterior: number[];
   }>({ labels: [], atual: [], anterior: [] });
   const [paginaAtualRemanejamentos, setPaginaAtualRemanejamentos] = useState(1);
-  const [itensPorPaginaRemanejamentos, setItensPorPaginaRemanejamentos] = useState(20);
+  const [itensPorPaginaRemanejamentos, setItensPorPaginaRemanejamentos] = useState(10);
   const [colaboradoresExpandidos, setColaboradoresExpandidos] = useState<Record<number, boolean>>({});
   const setorFiltroApi = abaAtiva === "logistica" ? "LOGISTICA" : "SETORES";
 
@@ -491,7 +507,9 @@ function DesempenhoUsuariosContent() {
   );
 
   const listaBasePorCard = useMemo(() => {
-    const lista = dados?.listaRemanejamentos || [];
+    const lista = (dados?.listaRemanejamentos || []).filter(
+      (item) => item.categoriaPrincipal !== "CONCLUIDO",
+    );
     if (filtroCardPrincipal === "TOTAL") return lista;
     return lista.filter((item) => item.categoriaPrincipal === filtroCardPrincipal);
   }, [dados, filtroCardPrincipal]);
@@ -526,9 +544,15 @@ function DesempenhoUsuariosContent() {
   }, [listaBasePorCard, filtroCardPrincipal]);
 
   const listaRemanejamentosFiltrada = useMemo(() => {
-    if (filtroStatusReal === "TODOS") return listaBasePorCard;
-    return listaBasePorCard.filter((item) => item.statusPrestserv === filtroStatusReal);
-  }, [listaBasePorCard, filtroStatusReal]);
+    let lista = listaBasePorCard;
+    if (filtroStatusReal !== "TODOS") {
+      lista = lista.filter((item) => item.statusPrestserv === filtroStatusReal);
+    }
+    if (filtroSemaforo !== "TODOS") {
+      lista = lista.filter((item) => getSemaforoParado(Number(item.diasSemAndamento || 0)) === filtroSemaforo);
+    }
+    return [...lista].sort((a, b) => Number(b.diasSemAndamento || 0) - Number(a.diasSemAndamento || 0));
+  }, [listaBasePorCard, filtroStatusReal, filtroSemaforo]);
 
   const totalPaginasRemanejamentos = useMemo(() => {
     const total = Math.ceil(listaRemanejamentosFiltrada.length / itensPorPaginaRemanejamentos);
@@ -541,32 +565,26 @@ function DesempenhoUsuariosContent() {
     return listaRemanejamentosFiltrada.slice(inicio, fim);
   }, [listaRemanejamentosFiltrada, paginaAtualRemanejamentos, itensPorPaginaRemanejamentos]);
 
+  const resumoSemaforoParado = useMemo(() => {
+    const resumo = { verde: 0, amarelo: 0, vermelho: 0 };
+    for (const item of listaRemanejamentosFiltrada) {
+      const semaforo = getSemaforoParado(Number(item.diasSemAndamento || 0));
+      if (semaforo === "VERDE") resumo.verde += 1;
+      else if (semaforo === "AMARELO") resumo.amarelo += 1;
+      else resumo.vermelho += 1;
+    }
+    return resumo;
+  }, [listaRemanejamentosFiltrada]);
+
   useEffect(() => {
     setPaginaAtualRemanejamentos(1);
-  }, [filtroCardPrincipal, filtroStatusReal, dataInicio, dataFim]);
+  }, [filtroCardPrincipal, filtroStatusReal, filtroSemaforo, dataInicio, dataFim]);
 
   useEffect(() => {
     if (paginaAtualRemanejamentos > totalPaginasRemanejamentos) {
       setPaginaAtualRemanejamentos(totalPaginasRemanejamentos);
     }
   }, [paginaAtualRemanejamentos, totalPaginasRemanejamentos]);
-
-  const totaisCards = useMemo(() => {
-    const total = dados?.metricasRemanejamento?.total || 0;
-    const diretos = dados?.metricasRemanejamento?.pendenteLogistica || 0;
-    const indiretos = dados?.metricasRemanejamento?.pendenteDependenteOutros || 0;
-    const concluidos = dados?.metricasRemanejamento?.concluido || 0;
-    const pct = (v: number) => (total > 0 ? (v / total) * 100 : 0);
-    return {
-      total,
-      diretos,
-      indiretos,
-      concluidos,
-      pctDiretos: pct(diretos),
-      pctIndiretos: pct(indiretos),
-      pctConcluidos: pct(concluidos),
-    };
-  }, [dados]);
 
   const rankingColaboradores = useMemo(() => dados?.colaboradores || [], [dados]);
   const topEntregadores = useMemo(
@@ -598,6 +616,7 @@ function DesempenhoUsuariosContent() {
       "Status Tarefas": item.statusTarefas,
       "Data Criação": new Date(item.dataCriacao).toLocaleString("pt-BR"),
       "Última Atualização": new Date(item.dataAtualizacao).toLocaleString("pt-BR"),
+      "Dias sem andamento": Number(item.diasSemAndamento || 0),
       "Observações (qtd)": item.observacoesRemanejamentoCount || 0,
     }));
 
@@ -636,25 +655,31 @@ function DesempenhoUsuariosContent() {
   );
 
   return (
-    <div className="p-4 md:p-6 space-y-6 bg-slate-50 min-h-screen">
-      <div className="flex flex-col gap-2">
+    <div className="p-3 md:p-4 space-y-3 bg-slate-50 min-h-screen">
+      <div className="flex flex-col gap-1">
         <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">
-          {abaAtiva === "logistica" ? "Desempenho Logística" : "Desempenho Setores"}
+          {abaAtiva === "logistica"
+            ? secaoAtiva === "status-remanejamentos"
+              ? "Pendências da Logística"
+              : "Desempenho Logística"
+            : "Desempenho Setores"}
         </h1>
         <p className="text-sm text-slate-600">
           {abaAtiva === "logistica"
-            ? "Atendimento da logística por usuário."
+            ? secaoAtiva === "status-remanejamentos"
+              ? "Visualização e priorização das pendências da logística."
+              : "Atendimento da logística por usuário."
             : "Desempenho dos setores por usuário."}
         </p>
       </div>
 
       {!hideTabs && (
-        <div className="bg-white rounded-xl border border-slate-200 p-2 shadow-sm">
-          <nav className="flex gap-2">
+        <div className="bg-white rounded-lg border border-slate-200 p-1.5 shadow-sm">
+          <nav className="flex gap-1.5">
             <button
               type="button"
               onClick={() => alterarAba("setores")}
-              className={`px-4 py-2 text-sm font-medium rounded-md ${
+              className={`px-3 py-1.5 text-xs font-medium rounded-md ${
                 abaAtiva === "setores"
                   ? "bg-slate-900 text-white"
                   : "text-slate-700 hover:bg-slate-100"
@@ -665,7 +690,7 @@ function DesempenhoUsuariosContent() {
             <button
               type="button"
               onClick={() => alterarAba("logistica")}
-              className={`px-4 py-2 text-sm font-medium rounded-md ${
+              className={`px-3 py-1.5 text-xs font-medium rounded-md ${
                 abaAtiva === "logistica"
                   ? "bg-slate-900 text-white"
                   : "text-slate-700 hover:bg-slate-100"
@@ -677,30 +702,30 @@ function DesempenhoUsuariosContent() {
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-slate-200 p-4 grid grid-cols-1 md:grid-cols-4 gap-4 shadow-sm">
+      <div className="bg-white rounded-lg border border-slate-200 p-2.5 grid grid-cols-2 lg:grid-cols-4 gap-2 shadow-sm">
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">Data inicial</label>
+          <label className="block text-[11px] font-medium text-slate-600 mb-0.5">Data inicial</label>
           <input
             type="date"
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs"
             value={dataInicio}
             onChange={(e) => setDataInicio(e.target.value)}
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">Data final</label>
+          <label className="block text-[11px] font-medium text-slate-600 mb-0.5">Data final</label>
           <input
             type="date"
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs"
             value={dataFim}
             onChange={(e) => setDataFim(e.target.value)}
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">Visão</label>
+          <label className="block text-[11px] font-medium text-slate-600 mb-0.5">Visão</label>
           <input
             type="text"
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-slate-50 text-slate-700"
+            className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs bg-slate-50 text-slate-700"
             value={abaAtiva === "logistica" ? "LOGÍSTICA" : "SETORES"}
             disabled
           />
@@ -709,7 +734,7 @@ function DesempenhoUsuariosContent() {
           <button
             type="button"
             onClick={carregar}
-            className="w-full rounded-md bg-slate-900 text-white px-3 py-2 text-sm font-medium hover:bg-slate-800"
+            className="w-full rounded-md bg-slate-900 text-white px-2 py-1.5 text-xs font-medium hover:bg-slate-800"
           >
             Atualizar
           </button>
@@ -719,7 +744,7 @@ function DesempenhoUsuariosContent() {
       {loading && <div className="text-sm text-slate-600">Carregando dados...</div>}
       {error && <div className="text-sm text-rose-700">{error}</div>}
       {!loading && !error && dados && secaoAtiva === "desempenho" && dados.tabela.length === 0 && (
-        <div className="bg-white border border-slate-200 rounded-lg p-6 text-sm text-slate-700">
+        <div className="bg-white border border-slate-200 rounded-lg p-3 text-xs text-slate-700">
           Nenhum dado encontrado para o período selecionado.
         </div>
       )}
@@ -730,25 +755,22 @@ function DesempenhoUsuariosContent() {
         secaoAtiva === "status-remanejamentos" &&
         abaAtiva === "logistica" &&
         dados.metricasRemanejamento && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
           <button
             type="button"
             onClick={() => {
               setFiltroCardPrincipal("PENDENTE_LOGISTICA");
               setFiltroStatusReal("TODOS");
             }}
-            className={`bg-white border rounded-xl p-4 text-left shadow-sm ${
+            className={`bg-white border rounded-lg p-2.5 text-left shadow-sm ${
               filtroCardPrincipal === "PENDENTE_LOGISTICA"
                 ? "border-slate-900 ring-1 ring-slate-300"
                 : "border-slate-200"
             } cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition`}
           >
-            <p className="text-xs text-slate-600">Pendentes Diretos</p>
-            <p className="text-2xl font-semibold text-slate-900">
+            <p className="text-[11px] text-slate-600">Pendentes Diretos</p>
+            <p className="text-lg font-semibold text-slate-900 leading-none mt-0.5">
               {dados.metricasRemanejamento.pendenteLogistica}
-            </p>
-            <p className="text-xs text-slate-500 mt-1">
-              {totaisCards.pctDiretos.toFixed(1)}% do total
             </p>
           </button>
           <button
@@ -757,38 +779,15 @@ function DesempenhoUsuariosContent() {
               setFiltroCardPrincipal("PENDENTE_DEPENDENTE_OUTROS");
               setFiltroStatusReal("TODOS");
             }}
-            className={`bg-white border rounded-xl p-4 text-left shadow-sm ${
+            className={`bg-white border rounded-lg p-2.5 text-left shadow-sm ${
               filtroCardPrincipal === "PENDENTE_DEPENDENTE_OUTROS"
                 ? "border-slate-900 ring-1 ring-slate-300"
                 : "border-slate-200"
             } cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition`}
           >
-            <p className="text-xs text-slate-600">Pendentes Indiretos</p>
-            <p className="text-2xl font-semibold text-slate-900">
+            <p className="text-[11px] text-slate-600">Pendentes Indiretos</p>
+            <p className="text-lg font-semibold text-slate-900 leading-none mt-0.5">
               {dados.metricasRemanejamento.pendenteDependenteOutros}
-            </p>
-            <p className="text-xs text-slate-500 mt-1">
-              {totaisCards.pctIndiretos.toFixed(1)}% do total
-            </p>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setFiltroCardPrincipal("CONCLUIDO");
-              setFiltroStatusReal("TODOS");
-            }}
-            className={`bg-white border rounded-xl p-4 text-left shadow-sm ${
-              filtroCardPrincipal === "CONCLUIDO"
-                ? "border-slate-900 ring-1 ring-slate-300"
-                : "border-slate-200"
-            } cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition`}
-          >
-            <p className="text-xs text-slate-600">Concluído</p>
-            <p className="text-2xl font-semibold text-slate-900">
-              {dados.metricasRemanejamento.concluido}
-            </p>
-            <p className="text-xs text-slate-500 mt-1">
-              {totaisCards.pctConcluidos.toFixed(1)}% do total
             </p>
           </button>
           <button
@@ -797,15 +796,15 @@ function DesempenhoUsuariosContent() {
               setFiltroCardPrincipal("TOTAL");
               setFiltroStatusReal("TODOS");
             }}
-            className={`bg-white border rounded-xl p-4 text-left shadow-sm ${
+            className={`bg-white border rounded-lg p-2.5 text-left shadow-sm ${
               filtroCardPrincipal === "TOTAL"
                 ? "border-slate-900 ring-1 ring-slate-300"
                 : "border-slate-200"
             } cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition`}
           >
-            <p className="text-xs text-slate-600">Total</p>
-            <p className="text-2xl font-semibold text-slate-900">
-              {dados.metricasRemanejamento.total}
+            <p className="text-[11px] text-slate-600">Total pendente</p>
+            <p className="text-lg font-semibold text-slate-900 leading-none mt-0.5">
+              {listaBasePorCard.length}
             </p>
           </button>
         </div>
@@ -816,7 +815,7 @@ function DesempenhoUsuariosContent() {
         dados &&
         secaoAtiva === "status-remanejamentos" &&
         abaAtiva !== "logistica" && (
-          <div className="bg-white border border-slate-200 rounded-lg p-6 text-sm text-slate-700">
+          <div className="bg-white border border-slate-200 rounded-lg p-3 text-xs text-slate-700">
             Esta seção de status é exibida na visão de logística.
           </div>
         )}
@@ -827,12 +826,12 @@ function DesempenhoUsuariosContent() {
         secaoAtiva === "status-remanejamentos" &&
         abaAtiva === "logistica" && (
           <>
-          <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm">
-            <div className="flex flex-wrap gap-2">
+          <div className="bg-white border border-slate-200 rounded-lg p-2 shadow-sm">
+            <div className="flex flex-wrap gap-1.5">
               <button
                 type="button"
                 onClick={() => setFiltroStatusReal("TODOS")}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium border ${
+                className={`px-2 py-1 rounded-md text-[11px] font-medium border ${
                   filtroStatusReal === "TODOS"
                     ? "bg-slate-900 text-white border-slate-900"
                     : "bg-white text-slate-700 border-slate-300"
@@ -845,7 +844,7 @@ function DesempenhoUsuariosContent() {
                   key={item.status}
                   type="button"
                   onClick={() => setFiltroStatusReal(item.status)}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium border ${
+                  className={`px-2 py-1 rounded-md text-[11px] font-medium border ${
                     filtroStatusReal === item.status
                       ? "bg-slate-900 text-white border-slate-900"
                       : "bg-white text-slate-700 border-slate-300"
@@ -856,20 +855,34 @@ function DesempenhoUsuariosContent() {
               ))}
             </div>
           </div>
-          <div className="bg-white border border-slate-200 rounded-xl p-4 overflow-x-auto shadow-sm">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold text-slate-800">Lista de remanejamentos</h2>
-              <div className="flex items-center gap-3">
-                <span className="text-xs text-slate-600">
+          <div className="bg-white border border-slate-200 rounded-lg p-2.5 overflow-x-auto shadow-sm">
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-xs font-semibold text-slate-800">Lista de remanejamentos</h2>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-slate-600">
                   {listaRemanejamentosFiltrada.length} item(ns)
                 </span>
+                <div className="hidden md:flex items-center gap-2 text-[10px] text-slate-600">
+                  <span className="inline-flex items-center gap-1">
+                    <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                    0-3d: {resumoSemaforoParado.verde}
+                  </span>
+                  <span className="inline-flex items-center gap-1">
+                    <span className="inline-block w-2.5 h-2.5 rounded-full bg-amber-400" />
+                    4-7d: {resumoSemaforoParado.amarelo}
+                  </span>
+                  <span className="inline-flex items-center gap-1">
+                    <span className="inline-block w-2.5 h-2.5 rounded-full bg-rose-500" />
+                    8+d: {resumoSemaforoParado.vermelho}
+                  </span>
+                </div>
                 <select
                   value={itensPorPaginaRemanejamentos}
                   onChange={(e) => {
                     setItensPorPaginaRemanejamentos(Number(e.target.value));
                     setPaginaAtualRemanejamentos(1);
                   }}
-                  className="px-2 py-1.5 text-xs rounded-md border border-slate-300 text-slate-700 bg-white"
+                  className="px-1.5 py-1 text-[11px] rounded-md border border-slate-300 text-slate-700 bg-white"
                 >
                   <option value={10}>10 / página</option>
                   <option value={20}>20 / página</option>
@@ -879,50 +892,110 @@ function DesempenhoUsuariosContent() {
                 <button
                   type="button"
                   onClick={exportarListaRemanejamentos}
-                  className="px-3 py-1.5 text-xs font-medium rounded-md border border-slate-300 text-slate-700 hover:bg-slate-50"
+                  className="px-2 py-1 text-[11px] font-medium rounded-md border border-slate-300 text-slate-700 hover:bg-slate-50"
                 >
                   Exportar Excel
                 </button>
               </div>
             </div>
-            <table className="min-w-full text-sm">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-1.5 mb-2">
+              <button
+                type="button"
+                onClick={() => setFiltroSemaforo("TODOS")}
+                className={`rounded-md border p-1.5 text-left cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition ${
+                  filtroSemaforo === "TODOS"
+                    ? "border-slate-900 ring-1 ring-slate-300 bg-slate-50"
+                    : "border-slate-200 bg-white"
+                }`}
+              >
+                <p className="text-[10px] text-slate-600">Todos</p>
+                <p className="text-xs font-semibold text-slate-900">{listaBasePorCard.length}</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => setFiltroSemaforo("VERDE")}
+                className={`rounded-md border p-1.5 text-left cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition ${
+                  filtroSemaforo === "VERDE"
+                    ? "border-emerald-600 ring-1 ring-emerald-300 bg-emerald-50"
+                    : "border-slate-200 bg-white"
+                }`}
+              >
+                <p className="text-[10px] text-slate-600">0-3 dias</p>
+                <p className="text-xs font-semibold text-emerald-700">{resumoSemaforoParado.verde}</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => setFiltroSemaforo("AMARELO")}
+                className={`rounded-md border p-1.5 text-left cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition ${
+                  filtroSemaforo === "AMARELO"
+                    ? "border-amber-600 ring-1 ring-amber-300 bg-amber-50"
+                    : "border-slate-200 bg-white"
+                }`}
+              >
+                <p className="text-[10px] text-slate-600">4-7 dias</p>
+                <p className="text-xs font-semibold text-amber-700">{resumoSemaforoParado.amarelo}</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => setFiltroSemaforo("VERMELHO")}
+                className={`rounded-md border p-1.5 text-left cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition ${
+                  filtroSemaforo === "VERMELHO"
+                    ? "border-rose-600 ring-1 ring-rose-300 bg-rose-50"
+                    : "border-slate-200 bg-white"
+                }`}
+              >
+                <p className="text-[10px] text-slate-600">8+ dias</p>
+                <p className="text-xs font-semibold text-rose-700">{resumoSemaforoParado.vermelho}</p>
+              </button>
+            </div>
+            <table className="min-w-full text-xs">
               <thead>
                 <tr className="text-left border-b border-slate-200 text-slate-600">
-                  <th className="px-2 py-2">ID Grupo</th>
-                  <th className="px-2 py-2">Funcionário</th>
-                  <th className="px-2 py-2">Matrícula</th>
-                  <th className="px-2 py-2">Tipo</th>
-                  <th className="px-2 py-2">Origem</th>
-                  <th className="px-2 py-2">Destino</th>
-                  <th className="px-2 py-2">Status Prestserv</th>
-                  <th className="px-2 py-2">Status Tarefas</th>
-                  <th className="px-2 py-2">Data criação</th>
-                  <th className="px-2 py-2">Última atualização</th>
-                  <th className="px-2 py-2">Observações</th>
+                  <th className="px-1.5 py-1.5 whitespace-nowrap">ID Grupo</th>
+                  <th className="px-1.5 py-1.5 whitespace-nowrap">Funcionário</th>
+                  <th className="px-1.5 py-1.5 whitespace-nowrap">Matrícula</th>
+                  <th className="px-1.5 py-1.5 whitespace-nowrap">Tipo</th>
+                  <th className="px-1.5 py-1.5 whitespace-nowrap">Origem</th>
+                  <th className="px-1.5 py-1.5 whitespace-nowrap">Destino</th>
+                  <th className="px-1.5 py-1.5 whitespace-nowrap">Status Prestserv</th>
+                  <th className="px-1.5 py-1.5 whitespace-nowrap">Status Tarefas</th>
+                  <th className="px-1.5 py-1.5 whitespace-nowrap">Data criação</th>
+                  <th className="px-1.5 py-1.5 whitespace-nowrap">Última atualização</th>
+                  <th className="px-1.5 py-1.5 whitespace-nowrap">Sem andamento</th>
+                  <th className="px-1.5 py-1.5 whitespace-nowrap">Observações</th>
                 </tr>
               </thead>
               <tbody>
-                {listaRemanejamentosPaginada.map((item) => (
+                {listaRemanejamentosPaginada.map((item) => {
+                  const diasParado = Number(item.diasSemAndamento || 0);
+                  const semaforo = getSemaforoParado(diasParado);
+                  return (
                   <tr key={item.id} className="border-b border-slate-100 odd:bg-slate-50/40">
-                    <td className="px-2 py-2 text-slate-900">{item.solicitacaoId}</td>
-                    <td className="px-2 py-2 text-slate-900 font-medium">{item.funcionarioNome}</td>
-                    <td className="px-2 py-2 text-slate-700">{item.funcionarioMatricula}</td>
-                    <td className="px-2 py-2 text-slate-700">{item.tipoSolicitacao}</td>
-                    <td className="px-2 py-2 text-slate-700">{item.contratoOrigem}</td>
-                    <td className="px-2 py-2 text-slate-700">{item.contratoDestino}</td>
-                    <td className="px-2 py-2 text-slate-700">{item.statusPrestserv}</td>
-                    <td className="px-2 py-2 text-slate-700">{item.statusTarefas}</td>
-                    <td className="px-2 py-2 text-slate-700">
+                    <td className="px-1.5 py-1.5 text-slate-900 whitespace-nowrap">{item.solicitacaoId}</td>
+                    <td className="px-1.5 py-1.5 text-slate-900 font-medium whitespace-nowrap">{item.funcionarioNome}</td>
+                    <td className="px-1.5 py-1.5 text-slate-700 whitespace-nowrap">{item.funcionarioMatricula}</td>
+                    <td className="px-1.5 py-1.5 text-slate-700 whitespace-nowrap">{item.tipoSolicitacao}</td>
+                    <td className="px-1.5 py-1.5 text-slate-700 whitespace-nowrap">{item.contratoOrigem}</td>
+                    <td className="px-1.5 py-1.5 text-slate-700 whitespace-nowrap">{item.contratoDestino}</td>
+                    <td className="px-1.5 py-1.5 text-slate-700 whitespace-nowrap">{item.statusPrestserv}</td>
+                    <td className="px-1.5 py-1.5 text-slate-700 whitespace-nowrap">{item.statusTarefas}</td>
+                    <td className="px-1.5 py-1.5 text-slate-700 whitespace-nowrap">
                       {new Date(item.dataCriacao).toLocaleDateString("pt-BR")}
                     </td>
-                    <td className="px-2 py-2 text-slate-700">
+                    <td className="px-1.5 py-1.5 text-slate-700 whitespace-nowrap">
                       {new Date(item.dataAtualizacao).toLocaleDateString("pt-BR")}
                     </td>
-                    <td className="px-2 py-2">
+                    <td className="px-1.5 py-1.5 whitespace-nowrap">
+                      <span className="inline-flex items-center gap-1.5 px-1.5 py-0.5 rounded border border-slate-200 bg-white text-[11px] text-slate-700 whitespace-nowrap">
+                        <span className={`inline-block w-2.5 h-2.5 rounded-full ${getSemaforoParadoClasses(semaforo)}`} />
+                        {diasParado}d
+                      </span>
+                    </td>
+                    <td className="px-1.5 py-1.5 whitespace-nowrap">
                       <button
                         type="button"
                         onClick={() => abrirObservacoes(item)}
-                        className="inline-flex items-center gap-1 px-2 py-1 rounded border border-slate-200 text-slate-700 hover:bg-slate-50"
+                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-slate-200 text-slate-700 hover:bg-slate-50"
                         title="Ver observações"
                       >
                         <ChatBubbleLeftRightIcon className="w-4 h-4" />
@@ -930,11 +1003,11 @@ function DesempenhoUsuariosContent() {
                       </button>
                     </td>
                   </tr>
-                ))}
+                )})}
               </tbody>
             </table>
             {listaRemanejamentosFiltrada.length > 0 && (
-              <div className="mt-3 flex items-center justify-between gap-2">
+              <div className="mt-2 flex items-center justify-between gap-2">
                 <span className="text-xs text-slate-600">
                   Página {paginaAtualRemanejamentos} de {totalPaginasRemanejamentos}
                 </span>
@@ -986,7 +1059,7 @@ function DesempenhoUsuariosContent() {
                 <XMarkIcon className="w-5 h-5" />
               </button>
             </div>
-            <div className="p-4 overflow-y-auto max-h-[65vh] space-y-3">
+            <div className="p-3 overflow-y-auto max-h-[65vh] space-y-2">
               {obsLoading && <p className="text-sm text-slate-600">Carregando observações...</p>}
               {!obsLoading && obsList.length === 0 && (
                 <p className="text-sm text-slate-600">Nenhuma observação registrada para este remanejamento.</p>
@@ -1014,15 +1087,15 @@ function DesempenhoUsuariosContent() {
       {!loading && !error && dados && secaoAtiva === "desempenho" && dados.tabela.length > 0 && (
         <>
           {abaAtiva === "logistica" && (
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 md:p-5 space-y-4 shadow-sm">
-              <div className="flex flex-wrap items-center gap-2 md:gap-3">
-                <div className="inline-flex rounded-xl border border-slate-200 bg-white p-1">
+            <div className="rounded-xl border border-slate-200 bg-white p-2.5 md:p-3 space-y-2.5 shadow-sm">
+              <div className="flex flex-wrap items-center gap-1.5 md:gap-2">
+                <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
                   {(["mensal", "semestral", "anual"] as VisaoPeriodo[]).map((v) => (
                     <button
                       key={v}
                       type="button"
                       onClick={() => setVisaoPeriodo(v)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                      className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition ${
                         visaoPeriodo === v ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"
                       }`}
                     >
@@ -1030,49 +1103,49 @@ function DesempenhoUsuariosContent() {
                     </button>
                   ))}
                 </div>
-                <div className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5">
-                  <span className="text-xs text-slate-500">SLA (h)</span>
+                <div className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2 py-1">
+                  <span className="text-[11px] text-slate-500">SLA (h)</span>
                   <input
                     type="number"
                     min={1}
                     step={1}
                     value={slaHoras}
                     onChange={(e) => setSlaHoras(Number(e.target.value) || 4)}
-                    className="w-14 rounded border border-slate-300 px-2 py-0.5 text-sm"
+                    className="w-12 rounded border border-slate-300 px-1.5 py-0.5 text-xs"
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2">
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
                   <p className="text-xs text-slate-600">SLA definido</p>
                   <p className="text-2xl font-semibold text-slate-900">{dados.resumo.slaHoras || slaHoras}h</p>
                 </div>
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
                   <p className="text-xs text-slate-600">% atendido</p>
                   <p className="text-2xl font-semibold text-slate-900">{(dados.resumo.percentualDentroSla || 0).toFixed(1)}%</p>
                 </div>
-                <div className="rounded-xl border border-slate-200 bg-white p-3">
+                <div className="rounded-lg border border-slate-200 bg-white p-2">
                   <p className="text-xs text-slate-500">Total de atuações</p>
                   <p className="text-2xl font-semibold text-slate-900">{dados.resumo.totalAtuacoes}</p>
                 </div>
-                <div className="rounded-xl border border-slate-200 bg-white p-3">
+                <div className="rounded-lg border border-slate-200 bg-white p-2">
                   <p className="text-xs text-slate-500">Tempo médio</p>
                   <p className="text-2xl font-semibold text-slate-900">{dados.resumo.tempoMedioHorasGeral.toFixed(2)}h</p>
                 </div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div className="rounded-xl border border-slate-200 bg-white p-3">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                <div className="rounded-lg border border-slate-200 bg-white p-2">
                   <p className="text-xs text-slate-500">Volume do período</p>
                   <p className="text-lg font-bold text-slate-900">{comparativoResumo.atual}</p>
                   <p className={`text-xs ${comparativoResumo.variacaoPct >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
                     {comparativoResumo.variacaoPct >= 0 ? "↑" : "↓"} {Math.abs(comparativoResumo.variacaoPct)}% vs anterior
                   </p>
                 </div>
-                <div className="rounded-xl border border-slate-200 bg-white p-3">
+                <div className="rounded-lg border border-slate-200 bg-white p-2">
                   <p className="text-xs text-slate-500">Volume anterior</p>
                   <p className="text-lg font-bold text-slate-900">{comparativoResumo.anterior}</p>
                 </div>
-                <div className="rounded-xl border border-slate-200 bg-white p-3">
+                <div className="rounded-lg border border-slate-200 bg-white p-2">
                   <p className="text-xs text-slate-500">Variação tempo médio</p>
                   <p className={`text-lg font-bold ${comparativoResumo.variacaoTempoPct > 0 ? "text-rose-700" : "text-emerald-700"}`}>
                     {comparativoResumo.variacaoTempoPct > 0 ? "+" : ""}{comparativoResumo.variacaoTempoPct}%
@@ -1092,7 +1165,7 @@ function DesempenhoUsuariosContent() {
                     : "Evolução estável de produtividade."}
                 </div>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-white p-3">
+              <div className="rounded-lg border border-slate-200 bg-white p-2">
                 <h3 className="text-sm font-semibold text-slate-800 mb-2">Volume diário: mês atual vs anterior</h3>
                 <div className="h-52">
                   <Line
@@ -1107,12 +1180,12 @@ function DesempenhoUsuariosContent() {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-1 xl:grid-cols-3 gap-3">
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <div className="grid grid-cols-1 xl:grid-cols-3 gap-2">
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
                   <h3 className="text-sm font-semibold text-slate-900 mb-2">Alta produtividade</h3>
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     {topEntregadores.slice(0, 5).map((c, idx) => (
-                      <div key={c.usuarioId} className="rounded-lg border border-slate-200 bg-white p-2">
+                      <div key={c.usuarioId} className="rounded-md border border-slate-200 bg-white p-1.5">
                         <p className="text-xs font-semibold text-slate-800">{idx + 1}. {c.usuario}</p>
                         <p className="text-xs text-slate-600">{c.totalAtuacoes} atuações • {c.produtividade.toFixed(2)} prod.</p>
                       </div>
@@ -1120,11 +1193,11 @@ function DesempenhoUsuariosContent() {
                     {topEntregadores.length === 0 && <p className="text-xs text-slate-600">Sem registros no período.</p>}
                   </div>
                 </div>
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
                   <h3 className="text-sm font-semibold text-slate-900 mb-2">Satisfatórios</h3>
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     {satisfatorios.slice(0, 5).map((c, idx) => (
-                      <div key={c.usuarioId} className="rounded-lg border border-slate-200 bg-white p-2">
+                      <div key={c.usuarioId} className="rounded-md border border-slate-200 bg-white p-1.5">
                         <p className="text-xs font-semibold text-slate-800">{idx + 1}. {c.usuario}</p>
                         <p className="text-xs text-slate-600">{c.totalAtuacoes} atuações • {c.mediaTempoHoras.toFixed(2)}h</p>
                       </div>
@@ -1132,11 +1205,11 @@ function DesempenhoUsuariosContent() {
                     {satisfatorios.length === 0 && <p className="text-xs text-slate-600">Sem registros no período.</p>}
                   </div>
                 </div>
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
                   <h3 className="text-sm font-semibold text-slate-900 mb-2">Baixa performance</h3>
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     {baixaPerformance.slice(0, 5).map((c, idx) => (
-                      <div key={c.usuarioId} className="rounded-lg border border-slate-200 bg-white p-2">
+                      <div key={c.usuarioId} className="rounded-md border border-slate-200 bg-white p-1.5">
                         <p className="text-xs font-semibold text-slate-800">{idx + 1}. {c.usuario}</p>
                         <p className="text-xs text-slate-600">{c.mediaTempoHoras.toFixed(2)}h • {c.totalAtuacoes} atuações</p>
                       </div>
@@ -1146,7 +1219,7 @@ function DesempenhoUsuariosContent() {
                 </div>
               </div>
               {!!rankingColaboradores.length && (
-                <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white p-3">
+                <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white p-2">
                   <h3 className="text-sm font-semibold text-slate-800 mb-2">Eficiência por colaborador</h3>
                   <table className="min-w-full text-sm">
                     <thead>
@@ -1254,20 +1327,20 @@ function DesempenhoUsuariosContent() {
               )}
             </div>
           )}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="bg-white border border-slate-200 rounded-lg p-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-1.5">
+            <div className="bg-white border border-slate-200 rounded-lg p-2">
               <p className="text-xs text-slate-500">Total de atuações</p>
               <p className="text-2xl font-bold text-slate-900">{dados.resumo.totalAtuacoes}</p>
             </div>
-            <div className="bg-white border border-slate-200 rounded-lg p-4">
+            <div className="bg-white border border-slate-200 rounded-lg p-2">
               <p className="text-xs text-slate-500">Usuários com atuação</p>
               <p className="text-2xl font-bold text-slate-900">{dados.resumo.totalUsuarios}</p>
             </div>
-            <div className="bg-white border border-slate-200 rounded-lg p-4">
+            <div className="bg-white border border-slate-200 rounded-lg p-2">
               <p className="text-xs text-slate-500">Setores de tarefas</p>
               <p className="text-2xl font-bold text-slate-900">{dados.resumo.totalSetores}</p>
             </div>
-            <div className="bg-white border border-slate-200 rounded-lg p-4">
+            <div className="bg-white border border-slate-200 rounded-lg p-2">
               <p className="text-xs text-slate-500">Tempo médio (h)</p>
               <p className="text-2xl font-bold text-slate-900">
                 {dados.resumo.tempoMedioHorasGeral.toFixed(2)}
@@ -1275,21 +1348,21 @@ function DesempenhoUsuariosContent() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-            <div className="bg-white border border-slate-200 rounded-lg p-4">
-              <h2 className="text-sm font-semibold text-slate-800 mb-3">Top usuários por atuação</h2>
-              <div className="h-56">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-1.5">
+            <div className="bg-white border border-slate-200 rounded-lg p-2">
+              <h2 className="text-sm font-semibold text-slate-800 mb-2">Top usuários por atuação</h2>
+              <div className="h-52">
                 <Bar
                   data={graficoUsuarios}
                   options={{ ...chartOptionsCompact, plugins: { legend: { display: false } } }}
                 />
               </div>
             </div>
-            <div className="bg-white border border-slate-200 rounded-lg p-4">
-              <h2 className="text-sm font-semibold text-slate-800 mb-3">
+            <div className="bg-white border border-slate-200 rounded-lg p-2">
+              <h2 className="text-sm font-semibold text-slate-800 mb-2">
                 Top usuários por tempo médio de ação
               </h2>
-              <div className="h-56">
+              <div className="h-52">
                 <Bar
                   data={graficoTempoMedio}
                   options={{ ...chartOptionsCompact, plugins: { legend: { display: false } } }}
@@ -1298,16 +1371,16 @@ function DesempenhoUsuariosContent() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-            <div className="bg-white border border-slate-200 rounded-lg p-4">
-              <h2 className="text-sm font-semibold text-slate-800 mb-3">Atuações por tipo</h2>
-              <div className="h-56 max-w-md">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-1.5">
+            <div className="bg-white border border-slate-200 rounded-lg p-2">
+              <h2 className="text-sm font-semibold text-slate-800 mb-2">Atuações por tipo</h2>
+              <div className="h-52 max-w-md">
                 <Doughnut data={graficoTipos} options={chartOptionsCompact} />
               </div>
             </div>
-            <div className="bg-white border border-slate-200 rounded-lg p-4">
-              <h2 className="text-sm font-semibold text-slate-800 mb-3">Atuações por setor</h2>
-              <div className="h-56">
+            <div className="bg-white border border-slate-200 rounded-lg p-2">
+              <h2 className="text-sm font-semibold text-slate-800 mb-2">Atuações por setor</h2>
+              <div className="h-52">
                 <Bar
                   data={{
                     labels: (dados?.graficos.atuacoesPorSetor || []).map((item) => item.setor),
@@ -1326,15 +1399,15 @@ function DesempenhoUsuariosContent() {
             </div>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-lg p-4">
-            <h2 className="text-sm font-semibold text-slate-800 mb-3">Evolução diária de atuações</h2>
-            <div className="h-56">
+          <div className="bg-white border border-slate-200 rounded-lg p-2">
+            <h2 className="text-sm font-semibold text-slate-800 mb-2">Evolução diária de atuações</h2>
+            <div className="h-52">
               <Line data={graficoSerie} options={chartOptionsCompact} />
             </div>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-lg p-4 overflow-x-auto">
-            <h2 className="text-sm font-semibold text-slate-800 mb-3">Tabela de desempenho</h2>
+          <div className="bg-white border border-slate-200 rounded-lg p-2 overflow-x-auto">
+            <h2 className="text-sm font-semibold text-slate-800 mb-2">Tabela de desempenho</h2>
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="text-left border-b border-slate-200 text-slate-600">
@@ -1375,4 +1448,3 @@ function DesempenhoUsuariosContent() {
     </div>
   );
 }
-

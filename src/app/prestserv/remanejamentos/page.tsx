@@ -327,6 +327,11 @@ function FuncionariosPageContent() {
         updateData.statusTarefas = "SUBMETER RASCUNHO";
       }
 
+      // "ANÁLISE DE EXPERIÊNCIA" é status de espera logística sem automações
+      if (novoStatus === "ANÁLISE DE EXPERIÊNCIA") {
+        // Intencionalmente sem alteração de statusTarefas/statusFuncionario/emMigracao
+      }
+
       // Se status for INVALIDADO, automaticamente mudar status geral para REPROVAR TAREFAS
       if (novoStatus === "INVALIDADO") {
         updateData.statusTarefas = "REPROVAR TAREFAS";
@@ -404,6 +409,8 @@ function FuncionariosPageContent() {
           "Prestserv foi rejeitado. Verifique as observações e corrija as pendências.",
         INVALIDADO:
           "Prestserv foi invalidado. Status geral alterado para 'REPROVAR TAREFAS'. Funcionário permanece em migração até validação.",
+        "ANÁLISE DE EXPERIÊNCIA":
+          "Prestserv movido para 'Análise de Experiência'. Status de espera logística sem automações.",
         VALIDADO:
           funcionario.tipoSolicitacao === "DESLIGAMENTO"
             ? "Prestserv foi validado! Funcionário desligado (status: Inativo). Migração finalizada. ✅"
@@ -476,6 +483,7 @@ function FuncionariosPageContent() {
       CRIADO: "4. CRIADO",
       SUBMETIDO: "5. SUBMETIDO",
       "EM VALIDAÇÃO": "6. EM VALIDAÇÃO",
+      "ANÁLISE DE EXPERIÊNCIA": "13. ANÁLISE DE EXPERIÊNCIA",
       VALIDADO: "8. VALIDADO",
       INVALIDADO: "9. INVALIDADO",
       CANCELADO: "10. CANCELADO",
@@ -506,6 +514,7 @@ function FuncionariosPageContent() {
       "CRIADO",
       "SUBMETIDO",
       "EM VALIDAÇÃO",
+      "ANÁLISE DE EXPERIÊNCIA",
       "VALIDADO",
       "INVALIDADO",
       "CANCELADO",
@@ -535,6 +544,10 @@ function FuncionariosPageContent() {
     const statusTarefas = funcionario.statusTarefas;
     const options = [prestservStatus]; // Sempre incluir o status atual
 
+    if (prestservStatus === "VALIDADO") {
+      return options;
+    }
+
     // Regras específicas baseadas na combinação de status (valores do banco)
     if (statusTarefas === "APROVAR SOLICITAÇÃO") {
     } else if (prestservStatus === "PENDENTE") {
@@ -544,6 +557,12 @@ function FuncionariosPageContent() {
       options.push("INVALIDADO");
     } else if (statusTarefas === "SUBMETER RASCUNHO") {
       options.push("EM VALIDAÇÃO");
+      options.push("ANÁLISE DE EXPERIÊNCIA");
+    } else if (prestservStatus === "INVALIDADO") {
+      options.push("ANÁLISE DE EXPERIÊNCIA");
+    } else if (prestservStatus === "ANÁLISE DE EXPERIÊNCIA") {
+      options.push("EM VALIDAÇÃO");
+      options.push("INVALIDADO");
     }
 
     options.push("CANCELADO");
@@ -1369,6 +1388,7 @@ function FuncionariosPageContent() {
       APROVADO: "bg-gray-200 text-gray-800",
       REJEITADO: "bg-red-100 text-red-700",
       INVALIDADO: "bg-red-100 text-red-700",
+      "ANÁLISE DE EXPERIÊNCIA": "bg-amber-100 text-amber-800",
       CANCELADO: "bg-red-100 text-red-700",
       "TAREFAS PENDENTES": "bg-yellow-100 text-yellow-700",
       "EM VALIDAÇÃO": "bg-blue-100 text-blue-700",

@@ -33,6 +33,7 @@ const FlowbiteStatusTimeline: React.FC<StatusTimelineProps> = ({
     "PENDENTE",
     "CRIADO",
     "EM VALIDAÇÃO",
+    "ANÁLISE DE EXPERIÊNCIA",
     "VALIDADO",
     
   ];
@@ -104,6 +105,8 @@ const FlowbiteStatusTimeline: React.FC<StatusTimelineProps> = ({
           : isInvalidated
           ? "Invalidado"
           : "Em Validação";
+      case "ANÁLISE DE EXPERIÊNCIA":
+        return "Análise de Experiência";
       case "VALIDADO":
         return "Validado";
       default:

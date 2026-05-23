@@ -105,6 +105,7 @@ interface FuncionarioTableData {
   dataMudancaFuncao?: string;
   observacoesPrestserv?: string;
   observacoesRemanejamentoCount?: number;
+  observacoesRemanejamentoTexto?: string;
 }
 
 interface ObservacaoRemanejamento {
@@ -478,7 +479,7 @@ function FuncionariosPageContent() {
         "info",
       );
 
-      const { syncWithRetry, formatSyncMessage } =
+      const { syncWithRetry, formatSyncToastMessages } =
         await import("@/utils/syncUtils");
 
       const result = await syncWithRetry({
@@ -488,8 +489,9 @@ function FuncionariosPageContent() {
       });
 
       if (result.success) {
-        const msg = formatSyncMessage(result.data);
-        showToast(msg, "success");
+        const mensagens = formatSyncToastMessages(result.data);
+        showToast(mensagens.funcionarios, "success");
+        showToast(mensagens.funcoes, "success");
       } else {
         showToast(
           result.error ||
@@ -965,6 +967,11 @@ function FuncionariosPageContent() {
         updateData.statusTarefas = "SUBMETER RASCUNHO";
       }
 
+      // "ANÁLISE DE EXPERIÊNCIA" é status de espera logística sem automações
+      if (novoStatus === "ANÁLISE DE EXPERIÊNCIA") {
+        // Intencionalmente sem alteração de statusTarefas/statusFuncionario/emMigracao
+      }
+
       // Se status for INVALIDADO, automaticamente mudar status geral para REPROVAR TAREFAS
       if (novoStatus === "INVALIDADO") {
         updateData.statusTarefas = "REPROVAR TAREFAS";
@@ -1056,6 +1063,8 @@ function FuncionariosPageContent() {
           "Prestserv foi rejeitado. Verifique as observações e corrija as pendências.",
         INVALIDADO:
           "Prestserv foi invalidado. Status geral alterado para 'REPROVAR TAREFAS'. Funcionário permanece em migração até validação.",
+        "ANÁLISE DE EXPERIÊNCIA":
+          "Prestserv movido para 'Análise de Experiência'. Status de espera logística sem automações.",
         VALIDADO:
           funcionario.tipoSolicitacao === "DESLIGAMENTO"
             ? "Prestserv foi validado! Funcionário desligado (status: Inativo). Migração finalizada. ✅"
@@ -1154,6 +1163,7 @@ function FuncionariosPageContent() {
       CRIADO: "4. CRIADO",
       SUBMETIDO: "5. SUBMETIDO",
       "EM VALIDAÇÃO": "6. EM VALIDAÇÃO",
+      "ANÁLISE DE EXPERIÊNCIA": "13. ANÁLISE DE EXPERIÊNCIA",
       VALIDADO: "8. VALIDADO",
       INVALIDADO: "9. CORREÇÃO",
       CANCELADO: "10. CANCELADO",
@@ -1187,6 +1197,7 @@ function FuncionariosPageContent() {
       "CRIADO",
       "SUBMETIDO",
       "EM VALIDAÇÃO",
+      "ANÁLISE DE EXPERIÊNCIA",
       "VALIDADO",
       "INVALIDADO",
       "CANCELADO",
@@ -1219,6 +1230,10 @@ function FuncionariosPageContent() {
     const statusTarefas = funcionario.statusTarefas;
     const options = [prestservStatus]; // Sempre incluir o status atual
 
+    if (prestservStatus === "VALIDADO") {
+      return options;
+    }
+
     // Regras específicas baseadas na combinação de status (valores do banco)
     if (statusTarefas === "APROVAR SOLICITAÇÃO") {
     } else if (prestservStatus === "PENDENTE") {
@@ -1234,8 +1249,14 @@ function FuncionariosPageContent() {
     } else if (statusTarefas === "SUBMETER RASCUNHO") {
       options.push("INVALIDADO");
       options.push("EM VALIDAÇÃO");
+      options.push("ANÁLISE DE EXPERIÊNCIA");
       options.push("PENDENTE DE DESLIGAMENTO");
       options.push("DESLIGAMENTO SOLICITADO");
+    } else if (prestservStatus === "INVALIDADO") {
+      options.push("ANÁLISE DE EXPERIÊNCIA");
+    } else if (prestservStatus === "ANÁLISE DE EXPERIÊNCIA") {
+      options.push("EM VALIDAÇÃO");
+      options.push("INVALIDADO");
     }
 
     options.push("CANCELADO");
@@ -1400,6 +1421,8 @@ function FuncionariosPageContent() {
             createdAt: solicitacao.createdAt,
             updatedAt: solicitacao.updatedAt,
             observacoesPrestserv: rf.observacoesPrestserv || "",
+            observacoesRemanejamentoTexto:
+              rf.observacoesRemanejamentoTexto || "",
             statusFuncionario: rf.statusFuncionario,
             funcaoAlteradaRecentemente: rf.funcaoAlteradaRecentemente || false,
             dataMudancaFuncao: rf.dataMudancaFuncao || undefined,
@@ -1539,6 +1562,8 @@ function FuncionariosPageContent() {
             createdAt: solicitacao.createdAt,
             updatedAt: solicitacao.updatedAt,
             observacoesPrestserv: rf.observacoesPrestserv || "",
+            observacoesRemanejamentoTexto:
+              rf.observacoesRemanejamentoTexto || "",
             statusFuncionario: rf.statusFuncionario,
             funcaoAlteradaRecentemente: rf.funcaoAlteradaRecentemente || false,
             dataMudancaFuncao: rf.dataMudancaFuncao || undefined,
@@ -1918,6 +1943,14 @@ function FuncionariosPageContent() {
 
   const exportarParaExcel = async () => {
     const dadosParaExportar = funcionariosFiltrados.map((funcionario) => {
+      const observacoesConsolidadas = String(
+        funcionario.observacoesRemanejamentoTexto || "",
+      )
+        .split("|")
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .join(" | ");
+
       // Função para determinar status do setor
       const getStatusSetor = (setor: string) => {
         const progressoSetor = funcionario.progressoPorSetor.find(
@@ -1951,6 +1984,7 @@ function FuncionariosPageContent() {
         ),
         Concluído: funcionario.tarefasConcluidas || 0,
         "RASCUNHO PRESTSERV": funcionario.statusPrestserv,
+        "OBSERVAÇÕES LOGÍSTICA": observacoesConsolidadas,
         RH: getStatusSetor("RH"),
         MEDICINA: getStatusSetor("MEDICINA"),
         TREINAMENTO: getStatusSetor("TREINAMENTO"),
@@ -2609,6 +2643,7 @@ function FuncionariosPageContent() {
       APROVADO: "bg-gray-200 text-gray-800",
       REJEITADO: "bg-red-100 text-red-700",
       INVALIDADO: "bg-red-100 text-red-700",
+      "ANÁLISE DE EXPERIÊNCIA": "bg-amber-100 text-amber-800",
       CANCELADO: "bg-red-100 text-red-700",
       "EM VALIDAÇÃO": "bg-blue-100 text-blue-700",
       VALIDADO: "bg-green-100 text-green-700",
@@ -5268,6 +5303,7 @@ function FuncionariosPageContent() {
                               "CRIADO",
                               "SUBMETIDO",
                               "EM VALIDAÇÃO",
+                              "ANÁLISE DE EXPERIÊNCIA",
                               "VALIDADO",
                               "INVALIDADO",
                               "CANCELADO",
@@ -6463,9 +6499,6 @@ function FuncionariosPageContent() {
                       Status Prestserv
                     </th>
                     <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                      Rascunho Prestserv
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
                       Ações
                     </th>
                   </tr>
@@ -6647,39 +6680,6 @@ function FuncionariosPageContent() {
                             >
                               {getStatusLabel(funcionario.statusPrestserv)}
                             </span>
-                          </div>
-                        </td>
-                        <td className="px-3 py-2 text-xs text-gray-700">
-                          <div className="flex items-center gap-2">
-                            {isAdmin() ? (
-                              <select
-                                value={funcionario.statusPrestserv}
-                                onChange={(e) => {
-                                  const novoStatus = e.target.value;
-                                  if (
-                                    novoStatus !== funcionario.statusPrestserv
-                                  ) {
-                                    updatePrestservStatus(
-                                      funcionario.id,
-                                      novoStatus,
-                                    );
-                                  }
-                                }}
-                                className="px-2 py-1 text-[11px] bg-white border border-gray-300 rounded hover:border-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                              >
-                                {getValidStatusOptions(funcionario).map(
-                                  (opt) => (
-                                    <option key={opt} value={opt}>
-                                      {getStatusLabel(opt)}
-                                    </option>
-                                  ),
-                                )}
-                              </select>
-                            ) : (
-                              <span className="px-2 py-0.5 text-[10px] rounded bg-gray-100 text-gray-800 border border-gray-200">
-                                {getStatusLabel(funcionario.statusPrestserv)}
-                              </span>
-                            )}
                           </div>
                         </td>
                         <td className="px-3 py-2 text-xs text-gray-700">

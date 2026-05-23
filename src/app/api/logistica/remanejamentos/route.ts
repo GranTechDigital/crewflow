@@ -2,6 +2,21 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { NovasolicitacaoRemanejamento } from "@/types/remanejamento-funcionario";
 
+const OBSERVACAO_TECNICA_OCULTA =
+  "Prestserv resetado para CRIADO devido a novas tarefas sincronizadas/reativadas após sincronização de matriz/tarefas padrão.";
+
+function normalizeText(value?: string | null) {
+  return (value || "")
+    .trim()
+    .toUpperCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function isObservacaoTecnicaOculta(texto?: string | null) {
+  return normalizeText(texto) === normalizeText(OBSERVACAO_TECNICA_OCULTA);
+}
+
 // Tipos de status de tarefas que são considerados em processo
 type StatusTarefasEmProcesso = "REPROVAR TAREFAS" | "ATENDER TAREFAS";
 
@@ -677,19 +692,32 @@ async function buscarRemanejamentos(
           map.set(h.remanejamentoFuncionarioId!, h.dataAcao.toISOString());
         }
       });
-      const observacoesPorRf =
-        await prisma.observacaoRemanejamentoFuncionario.groupBy({
+      const observacoesTextoPorRf =
+        await prisma.observacaoRemanejamentoFuncionario.findMany({
           where: {
             remanejamentoFuncionarioId: { in: rfIds },
           },
-          by: ["remanejamentoFuncionarioId"],
-          _count: {
-            id: true,
+          select: {
+            remanejamentoFuncionarioId: true,
+            texto: true,
+            dataCriacao: true,
+          },
+          orderBy: {
+            dataCriacao: "asc",
           },
         });
       const mapObs = new Map<string, number>();
-      observacoesPorRf.forEach((o: any) => {
-        mapObs.set(o.remanejamentoFuncionarioId, o._count.id);
+      const mapObsTexto = new Map<string, string>();
+      observacoesTextoPorRf.forEach((o: any) => {
+        const txt = String(o.texto || "").trim();
+        if (!txt) return;
+        if (isObservacaoTecnicaOculta(txt)) return;
+        mapObs.set(o.remanejamentoFuncionarioId, (mapObs.get(o.remanejamentoFuncionarioId) ?? 0) + 1);
+        const atual = mapObsTexto.get(o.remanejamentoFuncionarioId);
+        mapObsTexto.set(
+          o.remanejamentoFuncionarioId,
+          atual ? `${atual} | ${txt}` : txt,
+        );
       });
       solicitacoes.forEach((s: any) =>
         s.funcionarios?.forEach((rf: any) => {
@@ -700,6 +728,7 @@ async function buscarRemanejamentos(
           }
           const totalObs = mapObs.get(rf.id) ?? 0;
           (rf as any).observacoesRemanejamentoCount = totalObs;
+          (rf as any).observacoesRemanejamentoTexto = mapObsTexto.get(rf.id) ?? "";
         }),
       );
     }

@@ -2,6 +2,21 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getUserFromRequest } from "@/utils/authUtils";
 
+const OBSERVACAO_TECNICA_OCULTA =
+  "Prestserv resetado para CRIADO devido a novas tarefas sincronizadas/reativadas após sincronização de matriz/tarefas padrão.";
+
+function normalizeText(value?: string | null) {
+  return (value || "")
+    .trim()
+    .toUpperCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function isObservacaoTecnicaOculta(texto?: string | null) {
+  return normalizeText(texto) === normalizeText(OBSERVACAO_TECNICA_OCULTA);
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -24,7 +39,11 @@ export async function GET(
         },
       });
 
-    return NextResponse.json(observacoes);
+    const observacoesVisiveis = observacoes.filter(
+      (obs) => !isObservacaoTecnicaOculta(obs.texto)
+    );
+
+    return NextResponse.json(observacoesVisiveis);
   } catch (error) {
     console.error("Erro ao buscar observações:", error);
     return NextResponse.json(
