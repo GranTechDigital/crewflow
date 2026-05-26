@@ -78,6 +78,8 @@ export async function GET(
     const treinamentosDoContrato = treinamentos.filter((t) => treinamentoIdsContrato.includes(t.id));
 
     const tiposObrigatoriedade = ['RA', 'AP', 'C', 'SD', 'N/A'];
+    const protectPassword = process.env.EXCEL_PROTECT_PASSWORD ?? '';
+    const protectOptions = { selectLockedCells: true, selectUnlockedCells: true };
 
     // Workbook
     const workbook = new ExcelJS.Workbook();
@@ -316,7 +318,7 @@ export async function GET(
     wsTreinamentos.getColumn(5).width = 16;
     wsTreinamentos.getColumn(6).width = 18;
     wsTreinamentos.views = [{ state: 'frozen', ySplit: 1 }];
-    wsTreinamentos.protect(process.env.EXCEL_PROTECT_PASSWORD ?? '', { selectLockedCells: true, selectUnlockedCells: true });
+    await wsTreinamentos.protect(protectPassword, protectOptions);
     wsTreinamentos.state = 'visible';
 
     // Reverter: remover aba SelecaoCabecalhos e usar lista direta da aba Treinamentos
@@ -377,7 +379,7 @@ export async function GET(
   wsFuncoes.getColumn(3).width = 18;  // Regime
   wsFuncoes.getColumn(4).width = 42;  // Label
   wsFuncoes.views = [{ state: 'frozen', ySplit: 1 }];
-  wsFuncoes.protect(process.env.EXCEL_PROTECT_PASSWORD ?? '', { selectLockedCells: true, selectUnlockedCells: true });
+  await wsFuncoes.protect(protectPassword, protectOptions);
   wsFuncoes.state = 'visible';
 
     const wsTipos = workbook.addWorksheet('TiposObrigatoriedade');
@@ -395,7 +397,7 @@ export async function GET(
   // Largura da coluna
   wsTipos.getColumn(1).width = 24;
   wsTipos.views = [{ state: 'frozen', ySplit: 1 }];
-  wsTipos.protect(process.env.EXCEL_PROTECT_PASSWORD ?? '', { selectLockedCells: true, selectUnlockedCells: true });
+  await wsTipos.protect(protectPassword, protectOptions);
   wsTipos.state = 'visible';
 
     // Validações
@@ -461,7 +463,7 @@ export async function GET(
     b5.protection = { locked: true };
 
     // Proteger planilha mantendo edição nas células desbloqueadas
-    ws.protect(process.env.EXCEL_PROTECT_PASSWORD ?? '', { selectLockedCells: true, selectUnlockedCells: true });
+    await ws.protect(protectPassword, protectOptions);
 
     // Resumo do Contrato
     const resumo = workbook.addWorksheet('Resumo');
@@ -478,7 +480,7 @@ export async function GET(
     resumo.getCell(1, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDDEBF7' } };
     resumo.getCell(1, 2).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDDEBF7' } };
     resumo.views = [{ state: 'frozen', ySplit: 1 }];
-    resumo.protect(process.env.EXCEL_PROTECT_PASSWORD ?? '', { selectLockedCells: true, selectUnlockedCells: true });
+    await resumo.protect(protectPassword, protectOptions);
 
     // Legenda
     const legenda = workbook.addWorksheet('Legenda');
