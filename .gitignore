@@ -53,3 +53,8 @@ prisma/prisma/
 backups/
 *.dump
 tmp/
+
+# generated import reports
+/public/import-reports/*.xlsx
+/public/import-reports/*.csv
+/public/import-reports/*.tmp
