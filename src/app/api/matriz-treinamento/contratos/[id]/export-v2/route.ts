@@ -79,7 +79,11 @@ export async function GET(
 
     const tiposObrigatoriedade = ['RA', 'AP', 'C', 'SD', 'N/A'];
     const protectPassword = process.env.EXCEL_PROTECT_PASSWORD ?? '';
-    const protectOptions = { selectLockedCells: true, selectUnlockedCells: true };
+    const protectOptions = {
+      selectLockedCells: true,
+      selectUnlockedCells: true,
+      spinCount: 1000,
+    };
 
     // Workbook
     const workbook = new ExcelJS.Workbook();
