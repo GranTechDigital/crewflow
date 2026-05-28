@@ -3,13 +3,27 @@ import { prisma } from '@/lib/prisma';
 import { getUserFromRequest } from '@/utils/authUtils';
 import ExcelJS from 'exceljs';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
+import { Readable } from 'stream';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const startedAt = Date.now();
+    const logExport = (stage: string, extra: Record<string, unknown> = {}) => {
+      const memory = process.memoryUsage();
+      console.log('[matriz-export-v2]', {
+        stage,
+        elapsedMs: Date.now() - startedAt,
+        rssMb: Math.round(memory.rss / 1024 / 1024),
+        heapUsedMb: Math.round(memory.heapUsed / 1024 / 1024),
+        ...extra,
+      });
+    };
+
     const user = await getUserFromRequest(request);
     if (!user) {
       return NextResponse.json(
@@ -76,6 +90,13 @@ export async function GET(
       )
     ) as number[];
     const treinamentosDoContrato = treinamentos.filter((t) => treinamentoIdsContrato.includes(t.id));
+    logExport('data-loaded', {
+      contratoId,
+      funcoesDoContrato: funcoesDoContrato.length,
+      todasFuncoes: todasFuncoes.length,
+      treinamentos: treinamentos.length,
+      treinamentosDoContrato: treinamentosDoContrato.length,
+    });
 
     const tiposObrigatoriedade = ['RA', 'AP', 'C', 'SD', 'N/A'];
     const protectPassword = process.env.EXCEL_PROTECT_PASSWORD ?? '';
@@ -503,14 +524,38 @@ export async function GET(
     ]);
     legenda.views = [{ state: 'frozen', ySplit: 1 }];
 
-    // Buffer e resposta
-    const buf = await workbook.xlsx.writeBuffer();
+    // Arquivo temporario + stream evita segurar o XLSX final inteiro em memoria.
     const filename = `matriz-treinamento_${contrato.numero}_v2.xlsx`;
-    return new NextResponse(buf as unknown as BodyInit, {
+    const safeFilename = filename.replace(/[\\/:*?"<>|]/g, '_');
+    const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'matriz-export-'));
+    const tempFile = path.join(tempDir, safeFilename);
+
+    try {
+      logExport('write-file-start', { contratoId, worksheets: workbook.worksheets.length });
+      await workbook.xlsx.writeFile(tempFile);
+      const stats = await fs.promises.stat(tempFile);
+      logExport('write-file-done', { contratoId, fileSizeMb: Math.round((stats.size / 1024 / 1024) * 100) / 100 });
+    } catch (error) {
+      await fs.promises.rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
+      throw error;
+    }
+
+    const nodeStream = fs.createReadStream(tempFile);
+    const cleanup = () => {
+      fs.promises.rm(tempDir, { recursive: true, force: true }).catch((cleanupError) => {
+        console.error('[matriz-export-v2] erro ao limpar arquivo temporario:', cleanupError);
+      });
+    };
+    nodeStream.on('close', cleanup);
+    nodeStream.on('error', cleanup);
+
+    return new NextResponse(Readable.toWeb(nodeStream) as unknown as BodyInit, {
       status: 200,
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': `attachment; filename="${filename}"`
+        'Content-Disposition': `attachment; filename="${safeFilename}"`,
+        'Cache-Control': 'no-store',
+        'X-Content-Type-Options': 'nosniff',
       }
     });
   } catch (error) {
