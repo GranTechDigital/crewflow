@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getUserFromRequest } from "@/utils/authUtils";
+import { sincronizarTarefasPadrao } from "@/lib/tarefasPadraoSync";
 import { read, utils } from "xlsx";
 import ExcelJS from "exceljs";
 import { randomUUID } from "crypto";
@@ -23,6 +24,31 @@ function parseBool(val: unknown): boolean {
     .trim()
     .toLowerCase();
   return s === "true" || s === "1" || s === "sim" || s === "yes";
+}
+
+async function buscarRemanejamentosAfetadosPorContrato(contratoId: number) {
+  const remanejamentos = await prisma.remanejamentoFuncionario.findMany({
+    where: {
+      statusTarefas: {
+        in: [
+          "ATENDER TAREFAS",
+          "SUBMETER RASCUNHO",
+          "REPROVAR TAREFAS",
+          "APROVAR SOLICITAÇÃO",
+        ],
+      },
+      statusPrestserv: {
+        notIn: ["EM VALIDAÇÃO", "VALIDADO", "CANCELADO"],
+      },
+      OR: [
+        { solicitacao: { contratoDestinoId: contratoId } },
+        { funcionario: { contratoId } },
+      ],
+    },
+    select: { id: true },
+  });
+
+  return remanejamentos.map((remanejamento) => remanejamento.id);
 }
 
 export async function POST(
@@ -745,6 +771,12 @@ export async function POST(
     )}${pad(ts.getUTCDate())}_${pad(ts.getUTCHours())}${pad(
       ts.getUTCMinutes()
     )}${pad(ts.getUTCSeconds())}.xlsx`;
+    const reportBuffer = await wb.xlsx.writeBuffer();
+    const reportBase64 = (
+      reportBuffer instanceof Buffer
+        ? reportBuffer
+        : Buffer.from(reportBuffer as unknown as Uint8Array)
+    ).toString("base64");
     let reportUrl: string | null = null;
     try {
       const reportsDir = path.resolve(
@@ -780,6 +812,63 @@ export async function POST(
       } catch {}
     } catch {}
 
+    const syncUsuarioResponsavel =
+      (user as any)?.funcionario?.nome ||
+      "Sistema - Importação de Matriz de Treinamento";
+    const syncUsuarioResponsavelId = (user as any)?.id;
+    const syncEquipeId = (user as any)?.equipeId;
+
+    const sincronizacaoPromise = (async () => {
+      try {
+        logStep("sync_lookup_start", { contratoId });
+        const remanejamentoIds =
+          await buscarRemanejamentosAfetadosPorContrato(contratoId);
+        logStep("sync_lookup_done", {
+          contratoId,
+          remanejamentosAfetados: remanejamentoIds.length,
+        });
+
+        if (remanejamentoIds.length === 0) {
+          logStep("sync_skipped_no_remanejamentos", { contratoId });
+          return;
+        }
+
+        const resultadoSync = await sincronizarTarefasPadrao({
+          setores: ["TREINAMENTO"],
+          usuarioResponsavel: syncUsuarioResponsavel,
+          usuarioResponsavelId: syncUsuarioResponsavelId,
+          equipeId: syncEquipeId,
+          remanejamentoIds,
+          criarFaltantes: true,
+          verbose: true,
+        });
+
+        logStep("sync_done", {
+          contratoId,
+          remanejamentosAfetados: remanejamentoIds.length,
+          totalRemanejamentos: resultadoSync.totalRemanejamentos,
+          totalTarefasCriadas: resultadoSync.totalTarefasCriadas,
+          totalTarefasCanceladas: resultadoSync.totalTarefasCanceladas ?? 0,
+          totalTarefasReativadas: resultadoSync.totalTarefasReativadas ?? 0,
+          totalStatusTarefasCorrigidos:
+            resultadoSync.totalStatusTarefasCorrigidos ?? 0,
+        });
+      } catch (syncError) {
+        console.error(
+          JSON.stringify({
+            scope: "matriz_treinamento_import",
+            traceId,
+            step: "sync_failed",
+            elapsedMs: Date.now() - startedAt,
+            contratoId,
+            error: (syncError as Error)?.message || String(syncError),
+            stack: (syncError as Error)?.stack,
+          })
+        );
+      }
+    })();
+    void sincronizacaoPromise;
+
     logStep("success", {
       criados,
       atualizados,
@@ -787,6 +876,7 @@ export async function POST(
       ignorados,
       erros,
       reportUrl,
+      sync: "scheduled",
     });
 
     return json({
@@ -795,11 +885,13 @@ export async function POST(
       stats: { criados, atualizados, removidos, ignorados, erros },
       errors: errosDetalhes,
       reportUrl,
+      reportBase64,
       reportFilename: filename,
       sync: {
-        skipped: true,
-        reason:
-          "A sincronização de tarefas foi removida do processamento do upload para evitar fechamento da requisição.",
+        scheduled: true,
+        setor: "TREINAMENTO",
+        scope: "contrato",
+        contratoId,
       },
     });
   } catch (error) {

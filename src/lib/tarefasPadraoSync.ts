@@ -680,14 +680,20 @@ export async function sincronizarTarefasPadrao({
               ehNr26OuNr33(String(m.treinamento?.treinamento || "")),
             )
           : matrizObrigatoriaBruta;
+        const matrizObrigatoriaParaTarefas = matrizObrigatoria.filter((m) => {
+          const tipoObrig = String(m.tipoObrigatoriedade || "")
+            .trim()
+            .toUpperCase();
+          return ["AP", "RA"].includes(tipoObrig);
+        });
 
         const mandatariosIdSet = new Set<number>(
-          matrizObrigatoria
+          matrizObrigatoriaParaTarefas
             .map((m) => m.treinamento?.id as number)
             .filter((id) => typeof id === "number"),
         );
         const mandatariosChaveSet = new Set<string>(
-          matrizObrigatoria
+          matrizObrigatoriaParaTarefas
             .map((m) =>
               chaveTarefa(m.treinamento?.treinamento || "", "TREINAMENTO"),
             )
@@ -707,11 +713,7 @@ export async function sincronizarTarefasPadrao({
         const novasChaves = new Set<string>();
 
         // Criar faltantes
-        for (const m of matrizObrigatoria) {
-          const tipoObrig = String(m.tipoObrigatoriedade || "")
-            .trim()
-            .toUpperCase();
-          if (!["AP", "RA"].includes(tipoObrig)) continue;
+        for (const m of matrizObrigatoriaParaTarefas) {
           const tipo = m.treinamento?.treinamento || "";
           const resp = "TREINAMENTO";
           if (!tipo) continue;
