@@ -771,12 +771,6 @@ export async function POST(
     )}${pad(ts.getUTCDate())}_${pad(ts.getUTCHours())}${pad(
       ts.getUTCMinutes()
     )}${pad(ts.getUTCSeconds())}.xlsx`;
-    const reportBuffer = await wb.xlsx.writeBuffer();
-    const reportBase64 = (
-      reportBuffer instanceof Buffer
-        ? reportBuffer
-        : Buffer.from(reportBuffer as unknown as Uint8Array)
-    ).toString("base64");
     let reportUrl: string | null = null;
     try {
       const reportsDir = path.resolve(
@@ -885,7 +879,6 @@ export async function POST(
       stats: { criados, atualizados, removidos, ignorados, erros },
       errors: errosDetalhes,
       reportUrl,
-      reportBase64,
       reportFilename: filename,
       sync: {
         scheduled: true,
