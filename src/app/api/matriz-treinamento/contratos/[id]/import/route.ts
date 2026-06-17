@@ -756,7 +756,7 @@ export async function POST(
         fs.mkdirSync(reportsDir, { recursive: true });
       const filePath = path.join(reportsDir, filename);
       await wb.xlsx.writeFile(filePath);
-      reportUrl = `/import-reports/${filename}`;
+      reportUrl = `/api/import-reports/${encodeURIComponent(filename)}`;
       logStep("report_written", { reportUrl, filename });
       try {
         const retentionDays = Number.parseInt(
