@@ -145,6 +145,14 @@ function parseEndDate(value?: string | null) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+function daysSince(date: Date) {
+  const start = new Date(date);
+  start.setHours(0, 0, 0, 0);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.max(0, Math.floor((today.getTime() - start.getTime()) / 86_400_000));
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -259,11 +267,13 @@ export async function GET(request: NextRequest) {
       concluidos: 0,
       emAberto: 0,
       pendencias: Object.fromEntries(SETORES.map((setor) => [setor, 0])) as Record<Setor, number>,
+      tarefasPendentes: Object.fromEntries(SETORES.map((setor) => [setor, 0])) as Record<Setor, number>,
     };
 
     const itens = remanejamentosAtivos.map((rem) => {
       const concluido = isMovementDone(rem.statusTarefas, rem.statusPrestserv, rem.dataConcluido);
       const pendencias = Object.fromEntries(SETORES.map((setor) => [setor, 0])) as Record<Setor, number>;
+      const tarefasPendentes = Object.fromEntries(SETORES.map((setor) => [setor, 0])) as Record<Setor, number>;
 
       if (concluido) {
         resumo.concluidos += 1;
@@ -276,6 +286,7 @@ export async function GET(request: NextRequest) {
           const setor = detectSetor(tarefa.responsavel);
           if (!setor) continue;
           pendencias[setor] += 1;
+          tarefasPendentes[setor] += 1;
         }
 
         if (hasLogisticaPending(rem.statusTarefas, rem.statusPrestserv)) {
@@ -285,6 +296,7 @@ export async function GET(request: NextRequest) {
 
       for (const setor of SETORES) {
         resumo.pendencias[setor] += pendencias[setor];
+        resumo.tarefasPendentes[setor] += tarefasPendentes[setor];
       }
 
       const contratoOrigem = resolveContratoOrigem({
@@ -315,6 +327,9 @@ export async function GET(request: NextRequest) {
         statusPrestserv: statusLabel(rem.statusPrestserv),
         concluido,
         pendencias,
+        tarefasPendentes,
+        dataCriacao: rem.createdAt.toISOString(),
+        diasDesdeCriacao: daysSince(rem.createdAt),
         dataSolicitacao: rem.solicitacao.dataSolicitacao.toISOString(),
         atualizadoEm: rem.updatedAt.toISOString(),
       };

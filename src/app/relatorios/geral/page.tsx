@@ -1,11 +1,21 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  BriefcaseBusiness,
+  CheckCircle2,
+  ClipboardList,
+  GraduationCap,
+  HeartPulse,
+  Hourglass,
+  Truck,
+} from "lucide-react";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { ROUTE_PROTECTION } from "@/lib/permissions";
 
 type Setor = "LOGISTICA" | "MEDICINA" | "TREINAMENTO" | "RH";
 type SituacaoFiltro = "TODOS" | "ABERTOS" | "CONCLUIDOS";
+type DiasOperador = ">" | "<" | "=";
 
 type RelatorioItem = {
   id: string;
@@ -23,6 +33,9 @@ type RelatorioItem = {
   statusPrestserv: string;
   concluido: boolean;
   pendencias: Record<Setor, number>;
+  tarefasPendentes: Record<Setor, number>;
+  dataCriacao: string;
+  diasDesdeCriacao: number;
   dataSolicitacao: string;
   atualizadoEm: string;
 };
@@ -37,6 +50,7 @@ type RelatorioResponse = {
     concluidos: number;
     emAberto: number;
     pendencias: Record<Setor, number>;
+    tarefasPendentes: Record<Setor, number>;
   };
   itens: RelatorioItem[];
   message?: string;
@@ -48,6 +62,13 @@ const SETORES: Array<{ key: Setor; label: string }> = [
   { key: "TREINAMENTO", label: "Treinamento" },
   { key: "RH", label: "RH" },
 ];
+
+const SETOR_ICONS = {
+  LOGISTICA: Truck,
+  MEDICINA: HeartPulse,
+  TREINAMENTO: GraduationCap,
+  RH: BriefcaseBusiness,
+} satisfies Record<Setor, typeof Truck>;
 
 const STORAGE_KEY = "relatorio-geral-filtros";
 const DATA_INICIO_PADRAO = "2026-01-01";
@@ -78,10 +99,6 @@ function formatDate(value: string) {
 
 function sanitizeSheetName(value: string) {
   return value.replace(/[*?:\\/[\]]/g, "").slice(0, 31) || "Relatorio";
-}
-
-function dateOnly(value: string) {
-  return value.slice(0, 10);
 }
 
 function funcionarioOption(item: Pick<RelatorioItem, "funcionario" | "matricula">) {
@@ -127,35 +144,35 @@ function MultiCheckboxFilter({
 
   return (
     <div>
-      <label className="mb-1 block text-sm font-medium text-gray-700">{label}</label>
+      <label className="mb-0.5 block text-[10px] font-semibold uppercase tracking-wide text-gray-500">{label}</label>
       <details className="group relative">
-        <summary className="flex min-h-[38px] cursor-pointer list-none items-center justify-between gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-slate-200">
+        <summary className="flex min-h-[30px] cursor-pointer list-none items-center justify-between gap-2 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-slate-200">
           <span className="truncate">
             {selected.length > 0 ? `${selected.length} selecionado(s)` : `Selecionar ${label.toLowerCase()}`}
           </span>
           <span className="text-xs text-gray-400 group-open:rotate-180">▾</span>
         </summary>
-        <div className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white p-2 shadow-lg">
+        <div className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-md border border-gray-200 bg-white p-1.5 shadow-lg">
           {searchable && (
             <input
               value={term}
               onChange={(event) => setTerm(event.target.value)}
               placeholder={placeholder}
-              className="mb-2 w-full rounded-md border border-gray-300 px-2 py-1.5 text-xs text-gray-700 placeholder:text-gray-400 focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
+              className="mb-1 w-full rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 placeholder:text-gray-400 focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
             />
           )}
           {selected.length > 0 && (
             <button
               type="button"
               onClick={() => onChange([])}
-              className="mb-1 w-full rounded px-2 py-1 text-left text-xs font-medium text-slate-600 hover:bg-slate-50"
+              className="mb-1 w-full rounded px-2 py-0.5 text-left text-xs font-medium text-slate-600 hover:bg-slate-50"
             >
               Limpar seleção
             </button>
           )}
           <div className="space-y-0.5">
             {filteredOptions.map((option) => (
-              <label key={option} className="flex items-center gap-2 rounded px-2 py-1 text-xs text-gray-700 hover:bg-gray-50">
+              <label key={option} className="flex items-center gap-2 rounded px-2 py-0.5 text-xs text-gray-700 hover:bg-gray-50">
                 <input
                   type="checkbox"
                   checked={selected.includes(option)}
@@ -184,7 +201,6 @@ function RelatorioGeralContent() {
   const [funcionarioList, setFuncionarioList] = useState<string[]>([]);
   const [situacaoList, setSituacaoList] = useState<string[]>([]);
   const [setorList, setSetorList] = useState<string[]>([]);
-  const [tipoList, setTipoList] = useState<string[]>([]);
   const [solicitanteList, setSolicitanteList] = useState<string[]>([]);
   const [origemList, setOrigemList] = useState<string[]>([]);
   const [destinoList, setDestinoList] = useState<string[]>([]);
@@ -192,10 +208,11 @@ function RelatorioGeralContent() {
   const [statusPrestservList, setStatusPrestservList] = useState<string[]>([]);
   const [dataSolicitacaoInicio, setDataSolicitacaoInicio] = useState("");
   const [dataSolicitacaoFim, setDataSolicitacaoFim] = useState("");
+  const [diasOperador, setDiasOperador] = useState<DiasOperador>(">");
+  const [diasValor, setDiasValor] = useState("");
   const [appliedFuncionarioList, setAppliedFuncionarioList] = useState<string[]>([]);
   const [appliedSituacaoList, setAppliedSituacaoList] = useState<string[]>([]);
   const [appliedSetorList, setAppliedSetorList] = useState<string[]>([]);
-  const [appliedTipoList, setAppliedTipoList] = useState<string[]>([]);
   const [appliedSolicitanteList, setAppliedSolicitanteList] = useState<string[]>([]);
   const [appliedOrigemList, setAppliedOrigemList] = useState<string[]>([]);
   const [appliedDestinoList, setAppliedDestinoList] = useState<string[]>([]);
@@ -203,6 +220,8 @@ function RelatorioGeralContent() {
   const [appliedStatusPrestservList, setAppliedStatusPrestservList] = useState<string[]>([]);
   const [appliedDataSolicitacaoInicio, setAppliedDataSolicitacaoInicio] = useState("");
   const [appliedDataSolicitacaoFim, setAppliedDataSolicitacaoFim] = useState("");
+  const [appliedDiasOperador, setAppliedDiasOperador] = useState<DiasOperador>(">");
+  const [appliedDiasValor, setAppliedDiasValor] = useState("");
   const [exportando, setExportando] = useState(false);
 
   useEffect(() => {
@@ -217,8 +236,6 @@ function RelatorioGeralContent() {
         situacaoList?: string[];
         setorFiltro?: string;
         setorList?: string[];
-        tipoFiltro?: string;
-        tipoList?: string[];
         solicitanteFiltro?: string;
         solicitanteList?: string[];
         origemFiltro?: string;
@@ -231,12 +248,13 @@ function RelatorioGeralContent() {
         statusPrestservList?: string[];
         dataSolicitacaoInicio?: string;
         dataSolicitacaoFim?: string;
+        diasOperador?: DiasOperador;
+        diasValor?: string;
       };
 
       const storedFuncionarioList = parseStoredList(parsed.funcionarioList || parsed.search);
       const storedSituacaoList = parseStoredList(parsed.situacaoList || parsed.situacao);
       const storedSetorList = parseStoredList(parsed.setorList || parsed.setorFiltro);
-      const storedTipoList = parseStoredList(parsed.tipoList || parsed.tipoFiltro);
       const storedSolicitanteList = parseStoredList(parsed.solicitanteList || parsed.solicitanteFiltro);
       const storedOrigemList = parseStoredList(parsed.origemList || parsed.origemFiltro);
       const storedDestinoList = parseStoredList(parsed.destinoList || parsed.destinoFiltro);
@@ -244,11 +262,12 @@ function RelatorioGeralContent() {
       const storedStatusPrestservList = parseStoredList(parsed.statusPrestservList || parsed.statusPrestservFiltro);
       const storedDataInicio = parsed.dataSolicitacaoInicio || "";
       const storedDataFim = parsed.dataSolicitacaoFim || "";
+      const storedDiasOperador = parsed.diasOperador === "<" || parsed.diasOperador === "=" ? parsed.diasOperador : ">";
+      const storedDiasValor = parsed.diasValor || "";
 
       setFuncionarioList(storedFuncionarioList);
       setSituacaoList(storedSituacaoList);
       setSetorList(storedSetorList);
-      setTipoList(storedTipoList);
       setSolicitanteList(storedSolicitanteList);
       setOrigemList(storedOrigemList);
       setDestinoList(storedDestinoList);
@@ -256,10 +275,11 @@ function RelatorioGeralContent() {
       setStatusPrestservList(storedStatusPrestservList);
       setDataSolicitacaoInicio(storedDataInicio);
       setDataSolicitacaoFim(storedDataFim);
+      setDiasOperador(storedDiasOperador);
+      setDiasValor(storedDiasValor);
       setAppliedFuncionarioList(storedFuncionarioList);
       setAppliedSituacaoList(storedSituacaoList);
       setAppliedSetorList(storedSetorList);
-      setAppliedTipoList(storedTipoList);
       setAppliedSolicitanteList(storedSolicitanteList);
       setAppliedOrigemList(storedOrigemList);
       setAppliedDestinoList(storedDestinoList);
@@ -267,6 +287,8 @@ function RelatorioGeralContent() {
       setAppliedStatusPrestservList(storedStatusPrestservList);
       setAppliedDataSolicitacaoInicio(storedDataInicio);
       setAppliedDataSolicitacaoFim(storedDataFim);
+      setAppliedDiasOperador(storedDiasOperador);
+      setAppliedDiasValor(storedDiasValor);
     } catch {
       localStorage.removeItem(STORAGE_KEY);
     }
@@ -279,7 +301,6 @@ function RelatorioGeralContent() {
         funcionarioList,
         situacaoList,
         setorList,
-        tipoList,
         solicitanteList,
         origemList,
         destinoList,
@@ -287,13 +308,14 @@ function RelatorioGeralContent() {
         statusPrestservList,
         dataSolicitacaoInicio,
         dataSolicitacaoFim,
+        diasOperador,
+        diasValor,
       }),
     );
   }, [
     funcionarioList,
     situacaoList,
     setorList,
-    tipoList,
     solicitanteList,
     origemList,
     destinoList,
@@ -301,6 +323,8 @@ function RelatorioGeralContent() {
     statusPrestservList,
     dataSolicitacaoInicio,
     dataSolicitacaoFim,
+    diasOperador,
+    diasValor,
   ]);
 
   const carregar = useCallback(async () => {
@@ -333,7 +357,6 @@ function RelatorioGeralContent() {
     const itens = data?.itens || [];
     return {
       funcionarios: uniqueOptions(itens.map((item) => funcionarioOption(item))),
-      tipos: uniqueOptions(itens.map((item) => item.tipo)),
       solicitantes: uniqueOptions(itens.map((item) => item.solicitante)),
       origens: uniqueOptions(itens.map((item) => item.contratoOrigem)),
       destinos: uniqueOptions(itens.map((item) => item.contratoDestino)),
@@ -350,12 +373,19 @@ function RelatorioGeralContent() {
       if (appliedFuncionarioList.length > 0 && !appliedFuncionarioList.includes(funcionarioOption(item))) return false;
       if (appliedSituacaoList.length > 0 && !appliedSituacaoList.includes(situacaoItem)) return false;
       if (appliedSetorList.length > 0 && !appliedSetorList.some((setor) => (item.pendencias[setor as Setor] || 0) > 0)) return false;
-      if (appliedTipoList.length > 0 && !appliedTipoList.includes(item.tipo)) return false;
       if (appliedSolicitanteList.length > 0 && !appliedSolicitanteList.includes(item.solicitante)) return false;
       if (appliedOrigemList.length > 0 && !appliedOrigemList.includes(item.contratoOrigem)) return false;
       if (appliedDestinoList.length > 0 && !appliedDestinoList.includes(item.contratoDestino)) return false;
       if (appliedStatusTarefasList.length > 0 && !appliedStatusTarefasList.includes(item.statusTarefas)) return false;
       if (appliedStatusPrestservList.length > 0 && !appliedStatusPrestservList.includes(item.statusPrestserv)) return false;
+      if (appliedDiasValor) {
+        const numericValue = Number(appliedDiasValor);
+        if (Number.isFinite(numericValue)) {
+          if (appliedDiasOperador === ">" && !(item.diasDesdeCriacao > numericValue)) return false;
+          if (appliedDiasOperador === "<" && !(item.diasDesdeCriacao < numericValue)) return false;
+          if (appliedDiasOperador === "=" && !(item.diasDesdeCriacao === numericValue)) return false;
+        }
+      }
       return true;
     });
   }, [
@@ -363,13 +393,44 @@ function RelatorioGeralContent() {
     appliedFuncionarioList,
     appliedSituacaoList,
     appliedSetorList,
-    appliedTipoList,
     appliedSolicitanteList,
     appliedOrigemList,
     appliedDestinoList,
     appliedStatusTarefasList,
     appliedStatusPrestservList,
+    appliedDiasOperador,
+    appliedDiasValor,
   ]);
+
+  const resumoFiltrado = useMemo(() => {
+    const resumo = {
+      total: itensFiltrados.length,
+      concluidos: 0,
+      emAberto: 0,
+      pendencias: Object.fromEntries(SETORES.map((setor) => [setor.key, 0])) as Record<Setor, number>,
+      linhasComPendencia: Object.fromEntries(SETORES.map((setor) => [setor.key, 0])) as Record<Setor, number>,
+      tarefasPendentes: Object.fromEntries(SETORES.map((setor) => [setor.key, 0])) as Record<Setor, number>,
+    };
+
+    for (const item of itensFiltrados) {
+      if (item.concluido) {
+        resumo.concluidos += 1;
+      } else {
+        resumo.emAberto += 1;
+      }
+
+      for (const setor of SETORES) {
+        const pendenciasSetor = item.pendencias[setor.key] || 0;
+        resumo.pendencias[setor.key] += pendenciasSetor;
+        if (pendenciasSetor > 0) {
+          resumo.linhasComPendencia[setor.key] += 1;
+        }
+        resumo.tarefasPendentes[setor.key] += item.tarefasPendentes?.[setor.key] || 0;
+      }
+    }
+
+    return resumo;
+  }, [itensFiltrados]);
 
   const filtrosAplicados = useMemo(() => {
     const filtros: Array<{ key: string; label: string; onRemove: () => void }> = [];
@@ -398,7 +459,6 @@ function RelatorioGeralContent() {
     addLista("funcionario", "Funcionário", appliedFuncionarioList, setFuncionarioList, setAppliedFuncionarioList);
     addLista("situacao", "Situação", appliedSituacaoList, setSituacaoList, setAppliedSituacaoList, (value) => SITUACOES.find((item) => item.value === value)?.label || value);
     addLista("setor", "Pendência", appliedSetorList, setSetorList, setAppliedSetorList, (value) => SETORES.find((item) => item.key === value)?.label || value);
-    addLista("tipo", "Tipo", appliedTipoList, setTipoList, setAppliedTipoList);
     addLista("solicitante", "Solicitante", appliedSolicitanteList, setSolicitanteList, setAppliedSolicitanteList);
     addLista("origem", "Origem", appliedOrigemList, setOrigemList, setAppliedOrigemList);
     addLista("destino", "Destino", appliedDestinoList, setDestinoList, setAppliedDestinoList);
@@ -424,12 +484,21 @@ function RelatorioGeralContent() {
         },
       });
     }
+    if (appliedDiasValor) {
+      filtros.push({
+        key: "diasCorridos",
+        label: `Dias corridos ${appliedDiasOperador} ${appliedDiasValor}`,
+        onRemove: () => {
+          setDiasValor("");
+          setAppliedDiasValor("");
+        },
+      });
+    }
     return filtros;
   }, [
     appliedFuncionarioList,
     appliedSituacaoList,
     appliedSetorList,
-    appliedTipoList,
     appliedSolicitanteList,
     appliedOrigemList,
     appliedDestinoList,
@@ -437,13 +506,14 @@ function RelatorioGeralContent() {
     appliedStatusPrestservList,
     appliedDataSolicitacaoInicio,
     appliedDataSolicitacaoFim,
+    appliedDiasOperador,
+    appliedDiasValor,
   ]);
 
   const limparFiltros = () => {
     setFuncionarioList([]);
     setSituacaoList([]);
     setSetorList([]);
-    setTipoList([]);
     setSolicitanteList([]);
     setOrigemList([]);
     setDestinoList([]);
@@ -451,10 +521,11 @@ function RelatorioGeralContent() {
     setStatusPrestservList([]);
     setDataSolicitacaoInicio("");
     setDataSolicitacaoFim("");
+    setDiasOperador(">");
+    setDiasValor("");
     setAppliedFuncionarioList([]);
     setAppliedSituacaoList([]);
     setAppliedSetorList([]);
-    setAppliedTipoList([]);
     setAppliedSolicitanteList([]);
     setAppliedOrigemList([]);
     setAppliedDestinoList([]);
@@ -462,6 +533,8 @@ function RelatorioGeralContent() {
     setAppliedStatusPrestservList([]);
     setAppliedDataSolicitacaoInicio("");
     setAppliedDataSolicitacaoFim("");
+    setAppliedDiasOperador(">");
+    setAppliedDiasValor("");
   };
 
   const hasPendingFilters = useMemo(
@@ -469,14 +542,15 @@ function RelatorioGeralContent() {
       !sameList(funcionarioList, appliedFuncionarioList) ||
       !sameList(situacaoList, appliedSituacaoList) ||
       !sameList(setorList, appliedSetorList) ||
-      !sameList(tipoList, appliedTipoList) ||
       !sameList(solicitanteList, appliedSolicitanteList) ||
       !sameList(origemList, appliedOrigemList) ||
       !sameList(destinoList, appliedDestinoList) ||
       !sameList(statusTarefasList, appliedStatusTarefasList) ||
       !sameList(statusPrestservList, appliedStatusPrestservList) ||
       dataSolicitacaoInicio !== appliedDataSolicitacaoInicio ||
-      dataSolicitacaoFim !== appliedDataSolicitacaoFim,
+      dataSolicitacaoFim !== appliedDataSolicitacaoFim ||
+      (Boolean(diasValor || appliedDiasValor) && diasOperador !== appliedDiasOperador) ||
+      diasValor !== appliedDiasValor,
     [
       funcionarioList,
       appliedFuncionarioList,
@@ -484,8 +558,6 @@ function RelatorioGeralContent() {
       appliedSituacaoList,
       setorList,
       appliedSetorList,
-      tipoList,
-      appliedTipoList,
       solicitanteList,
       appliedSolicitanteList,
       origemList,
@@ -500,6 +572,10 @@ function RelatorioGeralContent() {
       appliedDataSolicitacaoInicio,
       dataSolicitacaoFim,
       appliedDataSolicitacaoFim,
+      diasOperador,
+      appliedDiasOperador,
+      diasValor,
+      appliedDiasValor,
     ],
   );
 
@@ -507,7 +583,6 @@ function RelatorioGeralContent() {
     setAppliedFuncionarioList(funcionarioList);
     setAppliedSituacaoList(situacaoList);
     setAppliedSetorList(setorList);
-    setAppliedTipoList(tipoList);
     setAppliedSolicitanteList(solicitanteList);
     setAppliedOrigemList(origemList);
     setAppliedDestinoList(destinoList);
@@ -515,6 +590,8 @@ function RelatorioGeralContent() {
     setAppliedStatusPrestservList(statusPrestservList);
     setAppliedDataSolicitacaoInicio(dataSolicitacaoInicio);
     setAppliedDataSolicitacaoFim(dataSolicitacaoFim);
+    setAppliedDiasOperador(diasOperador);
+    setAppliedDiasValor(diasValor);
   };
 
   const exportarExcel = async () => {
@@ -538,6 +615,7 @@ function RelatorioGeralContent() {
         { header: "Tipo", key: "tipo" },
         { header: "Solicitante", key: "solicitante" },
         { header: "Data da solicitação", key: "dataSolicitacao" },
+        { header: "Dias corridos", key: "diasDesdeCriacao" },
         { header: "Origem", key: "contratoOrigem" },
         { header: "Destino", key: "contratoDestino" },
         { header: "Status tarefas", key: "statusTarefas" },
@@ -558,6 +636,7 @@ function RelatorioGeralContent() {
         item.tipo,
         item.solicitante,
         formatDate(item.dataSolicitacao),
+        item.diasDesdeCriacao,
         item.contratoOrigem,
         item.contratoDestino,
         item.statusTarefas,
@@ -570,7 +649,7 @@ function RelatorioGeralContent() {
         formatDate(item.atualizadoEm),
       ]);
 
-      worksheet.mergeCells("A1:Q1");
+      worksheet.mergeCells("A1:R1");
       const titleCell = worksheet.getCell("A1");
       titleCell.value = "Relatório Geral de Pendências";
       titleCell.font = { bold: true, size: 16, color: { argb: "FFFFFFFF" } };
@@ -578,7 +657,7 @@ function RelatorioGeralContent() {
       titleCell.alignment = { vertical: "middle", horizontal: "center" };
       worksheet.getRow(1).height = 24;
 
-      worksheet.mergeCells("A2:Q2");
+      worksheet.mergeCells("A2:R2");
       const subtitleCell = worksheet.getCell("A2");
       const periodoSolicitacaoUsuario =
         appliedDataSolicitacaoInicio || appliedDataSolicitacaoFim
@@ -640,7 +719,7 @@ function RelatorioGeralContent() {
       for (let rowNumber = 5; rowNumber <= worksheet.rowCount; rowNumber += 1) {
         const row = worksheet.getRow(rowNumber);
         row.height = 18;
-        [11, 12, 13, 14].forEach((columnNumber) => {
+        [8, 13, 14, 15, 16].forEach((columnNumber) => {
           row.getCell(columnNumber).alignment = { vertical: "middle", horizontal: "center" };
         });
       }
@@ -665,13 +744,12 @@ function RelatorioGeralContent() {
   };
 
   return (
-    <div className="container mx-auto px-4 py-6">
-      <div className="rounded-lg bg-white p-5 shadow-md">
-        <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+    <div className="w-full space-y-3">
+        <div className="flex flex-col gap-2 border-b border-gray-100 pb-3 md:flex-row md:items-start md:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-800">Relatório Geral de Pendências</h1>
-            <p className="mt-1 text-sm text-gray-600">
-              Remanejamentos e pendências por setor, com filtros persistidos.
+            <h1 className="text-lg font-bold text-gray-900">Relatório Geral de Pendências</h1>
+            <p className="mt-0.5 text-[11px] text-gray-500">
+              Visão consolidada dos remanejamentos em aberto e das tarefas pendentes por setor.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -679,7 +757,7 @@ function RelatorioGeralContent() {
               type="button"
               onClick={exportarExcel}
               disabled={loading || exportando || !data}
-              className="rounded-md bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-emerald-300"
+              className="rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-emerald-300"
             >
               {exportando ? "Exportando..." : "Exportar Excel"}
             </button>
@@ -687,7 +765,7 @@ function RelatorioGeralContent() {
               type="button"
               onClick={carregar}
               disabled={loading}
-              className="rounded-md bg-slate-700 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+              className="rounded-md bg-slate-800 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-slate-900 disabled:cursor-not-allowed disabled:bg-slate-300"
             >
               {loading ? "Atualizando..." : "Atualizar"}
             </button>
@@ -695,154 +773,212 @@ function RelatorioGeralContent() {
         </div>
 
         {error && (
-          <div className="mb-4 rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-700">
+          <div className="rounded-lg border border-red-300 bg-red-50 p-2 text-xs text-red-700">
             {error}
           </div>
         )}
 
         {loading && !data ? (
-          <div className="rounded-lg border border-gray-200 bg-gray-50 p-8 text-center text-sm text-gray-600">
+          <div className="rounded-lg border border-gray-200 bg-gray-50 p-6 text-center text-sm text-gray-600">
             Carregando relatório...
           </div>
         ) : data ? (
           <>
-            <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-7">
-              <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-                <p className="text-xs font-medium uppercase text-gray-500">Total</p>
-                <p className="mt-1 text-2xl font-bold text-gray-900">{data.resumo.total}</p>
-              </div>
-              <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-                <p className="text-xs font-medium uppercase text-gray-500">Em aberto</p>
-                <p className="mt-1 text-2xl font-bold text-amber-700">{data.resumo.emAberto}</p>
-              </div>
-              <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-                <p className="text-xs font-medium uppercase text-gray-500">Concluídos</p>
-                <p className="mt-1 text-2xl font-bold text-emerald-700">{data.resumo.concluidos}</p>
-              </div>
-              {SETORES.map((setor) => (
-                <div key={setor.key} className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-                  <p className="text-xs font-medium uppercase text-gray-500">{setor.label}</p>
-                  <p className="mt-1 text-2xl font-bold text-gray-900">
-                    {data.resumo.pendencias[setor.key] || 0}
-                  </p>
+            <div className="grid grid-cols-2 gap-2 lg:grid-cols-7">
+              <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Tabela</p>
+                  <span className="rounded-md border border-slate-200 bg-white p-1 text-slate-500">
+                    <ClipboardList size={14} />
+                  </span>
                 </div>
-              ))}
+                <p className="mt-1 text-xl font-bold leading-none text-slate-950">{resumoFiltrado.total}</p>
+                <p className="mt-0.5 text-[10px] text-slate-500">linhas filtradas</p>
+              </div>
+              <div className="rounded-md border border-amber-200 bg-amber-50/70 p-2">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-700">Em aberto</p>
+                  <span className="rounded-md border border-amber-200 bg-white/80 p-1 text-amber-700">
+                    <Hourglass size={14} />
+                  </span>
+                </div>
+                <p className="mt-1 text-xl font-bold leading-none text-amber-800">{resumoFiltrado.emAberto}</p>
+                <p className="mt-0.5 text-[10px] text-amber-700/80">não concluídos</p>
+              </div>
+              <div className="rounded-md border border-emerald-200 bg-emerald-50/70 p-2">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700">Concluídos</p>
+                  <span className="rounded-md border border-emerald-200 bg-white/80 p-1 text-emerald-700">
+                    <CheckCircle2 size={14} />
+                  </span>
+                </div>
+                <p className="mt-1 text-xl font-bold leading-none text-emerald-800">{resumoFiltrado.concluidos}</p>
+                <p className="mt-0.5 text-[10px] text-emerald-700/80">no filtro atual</p>
+              </div>
+              {SETORES.map((setor) => {
+                const linhasComPendencia = resumoFiltrado.linhasComPendencia[setor.key] || 0;
+                const tarefasPendentes = resumoFiltrado.tarefasPendentes[setor.key] || 0;
+                const SetorIcon = SETOR_ICONS[setor.key];
+
+                return (
+                  <div key={setor.key} className="rounded-md border border-gray-200 bg-gray-50 p-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">{setor.label}</p>
+                      <span className="rounded-md border border-gray-200 bg-white p-1 text-gray-500">
+                        <SetorIcon size={14} />
+                      </span>
+                    </div>
+                    <div className="mt-1 flex items-end justify-between gap-2">
+                      <p className="text-xl font-bold leading-none text-gray-900">{linhasComPendencia}</p>
+                      <span className="pb-0.5 text-[10px] font-medium text-gray-500">
+                        {tarefasPendentes} tarefas
+                      </span>
+                    </div>
+                    <p className="mt-0.5 text-[10px] text-gray-500">linhas com pendência</p>
+                  </div>
+                );
+              })}
             </div>
 
-            <div className="mb-3 grid gap-3 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
-              <MultiCheckboxFilter
-                label="Funcionário ou matrícula"
-                options={opcoes.funcionarios}
-                selected={funcionarioList}
-                onChange={setFuncionarioList}
-                placeholder="Pesquisar nome ou matrícula..."
-                searchable
-              />
-              <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Solicitação de</label>
-                <input
-                  type="date"
-                  min={DATA_INICIO_PADRAO}
-                  value={dataSolicitacaoInicio}
-                  onChange={(event) => setDataSolicitacaoInicio(event.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
+            <div className="rounded-md border border-gray-200 bg-gray-50/80 p-2">
+              <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-xs font-bold uppercase tracking-wide text-gray-700">Filtros</h2>
+                  {hasPendingFilters ? (
+                    <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
+                      Alterações pendentes
+                    </span>
+                  ) : (
+                    <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                      Aplicado
+                    </span>
+                  )}
+                  <span className="text-[11px] text-gray-500">
+                    {itensFiltrados.length} de {data.itens.length}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={aplicarFiltros}
+                  disabled={!hasPendingFilters || loading}
+                  className="rounded-md bg-slate-900 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+                >
+                  Aplicar filtros
+                </button>
+              </div>
+
+              <div className="grid gap-1.5 md:grid-cols-3 xl:grid-cols-6 2xl:grid-cols-8">
+                <MultiCheckboxFilter
+                  label="Funcionário/matrícula"
+                  options={opcoes.funcionarios}
+                  selected={funcionarioList}
+                  onChange={setFuncionarioList}
+                  placeholder="Pesquisar nome ou matrícula..."
+                  searchable
+                />
+                <MultiCheckboxFilter
+                  label="Solicitante"
+                  options={opcoes.solicitantes}
+                  selected={solicitanteList}
+                  onChange={setSolicitanteList}
+                  placeholder="Pesquisar solicitante..."
+                  searchable
+                />
+                <div>
+                  <label className="mb-0.5 block text-[10px] font-semibold uppercase tracking-wide text-gray-500">Solicitação de</label>
+                  <input
+                    type="date"
+                    min={DATA_INICIO_PADRAO}
+                    value={dataSolicitacaoInicio}
+                    onChange={(event) => setDataSolicitacaoInicio(event.target.value)}
+                    className="min-h-[30px] w-full rounded-md border border-gray-300 px-2 py-1 text-xs focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
+                  />
+                </div>
+                <div>
+                  <label className="mb-0.5 block text-[10px] font-semibold uppercase tracking-wide text-gray-500">Solicitação até</label>
+                  <input
+                    type="date"
+                    min={DATA_INICIO_PADRAO}
+                    value={dataSolicitacaoFim}
+                    onChange={(event) => setDataSolicitacaoFim(event.target.value)}
+                    className="min-h-[30px] w-full rounded-md border border-gray-300 px-2 py-1 text-xs focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
+                  />
+                </div>
+                <div>
+                  <label className="mb-0.5 block text-[10px] font-semibold uppercase tracking-wide text-gray-500">Dias corridos</label>
+                  <div className="grid min-h-[30px] grid-cols-[48px_1fr] overflow-hidden rounded-md border border-gray-300 bg-white">
+                    <select
+                      value={diasOperador}
+                      onChange={(event) => setDiasOperador(event.target.value as DiasOperador)}
+                      className="border-r border-gray-300 bg-gray-50 px-1.5 py-1 text-xs font-semibold text-gray-700 focus:outline-none"
+                      aria-label="Operador dias corridos"
+                    >
+                      <option value=">">&gt;</option>
+                      <option value="<">&lt;</option>
+                      <option value="=">=</option>
+                    </select>
+                    <input
+                      type="number"
+                      min={0}
+                      step={1}
+                      value={diasValor}
+                      onChange={(event) => setDiasValor(event.target.value.replace(/\D/g, ""))}
+                      placeholder="dias"
+                      className="w-full px-2 py-1 text-xs text-gray-700 placeholder:text-gray-400 focus:outline-none"
+                    />
+                  </div>
+                </div>
+                <MultiCheckboxFilter
+                  label="Situação"
+                  options={SITUACOES.filter((item) => item.value !== "TODOS").map((item) => item.value)}
+                  selected={situacaoList}
+                  onChange={setSituacaoList}
+                  placeholder="Pesquisar situação..."
+                  getOptionLabel={(value) => SITUACOES.find((item) => item.value === value)?.label || value}
+                />
+                <MultiCheckboxFilter
+                  label="Setor"
+                  options={SETORES.map((setor) => setor.key)}
+                  selected={setorList}
+                  onChange={setSetorList}
+                  placeholder="Pesquisar setor..."
+                  getOptionLabel={(value) => SETORES.find((item) => item.key === value)?.label || value}
+                />
+                <MultiCheckboxFilter
+                  label="Origem"
+                  options={opcoes.origens}
+                  selected={origemList}
+                  onChange={setOrigemList}
+                  placeholder="Pesquisar origem..."
+                />
+                <MultiCheckboxFilter
+                  label="Destino"
+                  options={opcoes.destinos}
+                  selected={destinoList}
+                  onChange={setDestinoList}
+                  placeholder="Pesquisar destino..."
+                />
+                <MultiCheckboxFilter
+                  label="Status tarefas"
+                  options={opcoes.statusTarefas}
+                  selected={statusTarefasList}
+                  onChange={setStatusTarefasList}
+                  placeholder="Pesquisar status..."
+                />
+                <MultiCheckboxFilter
+                  label="Status Prestserv"
+                  options={opcoes.statusPrestserv}
+                  selected={statusPrestservList}
+                  onChange={setStatusPrestservList}
+                  placeholder="Pesquisar status..."
                 />
               </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Solicitação até</label>
-                <input
-                  type="date"
-                  min={DATA_INICIO_PADRAO}
-                  value={dataSolicitacaoFim}
-                  onChange={(event) => setDataSolicitacaoFim(event.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
-                />
-              </div>
-              <MultiCheckboxFilter
-                label="Situação"
-                options={SITUACOES.filter((item) => item.value !== "TODOS").map((item) => item.value)}
-                selected={situacaoList}
-                onChange={setSituacaoList}
-                placeholder="Pesquisar situação..."
-                getOptionLabel={(value) => SITUACOES.find((item) => item.value === value)?.label || value}
-              />
-              <MultiCheckboxFilter
-                label="Tipo"
-                options={opcoes.tipos}
-                selected={tipoList}
-                onChange={setTipoList}
-                placeholder="Pesquisar tipo..."
-              />
-              <MultiCheckboxFilter
-                label="Solicitante"
-                options={opcoes.solicitantes}
-                selected={solicitanteList}
-                onChange={setSolicitanteList}
-                placeholder="Pesquisar solicitante..."
-                searchable
-              />
-              <MultiCheckboxFilter
-                label="Origem"
-                options={opcoes.origens}
-                selected={origemList}
-                onChange={setOrigemList}
-                placeholder="Pesquisar origem..."
-              />
-              <MultiCheckboxFilter
-                label="Destino"
-                options={opcoes.destinos}
-                selected={destinoList}
-                onChange={setDestinoList}
-                placeholder="Pesquisar destino..."
-              />
-              <MultiCheckboxFilter
-                label="Status tarefas"
-                options={opcoes.statusTarefas}
-                selected={statusTarefasList}
-                onChange={setStatusTarefasList}
-                placeholder="Pesquisar status..."
-              />
-              <MultiCheckboxFilter
-                label="Status Prestserv"
-                options={opcoes.statusPrestserv}
-                selected={statusPrestservList}
-                onChange={setStatusPrestservList}
-                placeholder="Pesquisar status..."
-              />
-              <MultiCheckboxFilter
-                label="Pendência por setor"
-                options={SETORES.map((setor) => setor.key)}
-                selected={setorList}
-                onChange={setSetorList}
-                placeholder="Pesquisar setor..."
-                getOptionLabel={(value) => SETORES.find((item) => item.key === value)?.label || value}
-              />
             </div>
 
-            <div className="mb-3 flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={aplicarFiltros}
-                disabled={!hasPendingFilters || loading}
-                className="rounded-md bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-slate-900 disabled:cursor-not-allowed disabled:bg-slate-300"
-              >
-                Aplicar filtros
-              </button>
-              {hasPendingFilters ? (
-                <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-800">
-                  Existem alterações de filtro ainda não aplicadas
-                </span>
-              ) : (
-                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
-                  Filtros aplicados na tabela
-                </span>
-              )}
-            </div>
-
-            <div className="mb-4 flex min-h-9 flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+            <div className="flex min-h-8 flex-wrap items-center gap-1.5 rounded-md border border-gray-200 bg-white px-2 py-1.5 shadow-sm">
               <span className="text-xs font-semibold uppercase text-gray-500">Critérios e filtros</span>
               <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
-                Corte fixo: desde {formatDate(`${DATA_INICIO_PADRAO}T00:00:00`)}
+                Data da solicitação: desde {formatDate(`${DATA_INICIO_PADRAO}T00:00:00`)}
               </span>
               <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
                 Cancelados: desconsiderados
@@ -876,64 +1012,68 @@ function RelatorioGeralContent() {
               )}
             </div>
 
-            <div className="overflow-x-auto rounded-lg border border-gray-200">
-              <table className="min-w-[1320px] w-full border-collapse text-left text-[11px] leading-tight">
-                <thead className="bg-gray-100 text-[10px] uppercase leading-tight text-gray-600">
+            <div className="max-h-[calc(100vh-300px)] min-h-[300px] overflow-auto rounded-md border border-gray-200">
+              <table className="min-w-[1320px] w-full border-collapse text-left text-[10.5px] leading-tight">
+                <thead className="sticky top-0 z-10 bg-gray-100 text-[10px] uppercase leading-tight text-gray-600 shadow-[0_1px_0_#e5e7eb]">
                   <tr>
-                    <th className="px-2 py-1.5 align-bottom">Funcionário</th>
-                    <th className="px-2 py-1.5 align-bottom">Matrícula</th>
-                    <th className="px-2 py-1.5 align-bottom">Tipo</th>
-                    <th className="px-2 py-1.5 align-bottom">Solicitante</th>
-                    <th className="max-w-[85px] px-2 py-1.5 align-bottom">Data da solicitação</th>
-                    <th className="px-2 py-1.5 align-bottom">Origem</th>
-                    <th className="px-2 py-1.5 align-bottom">Destino</th>
-                    <th className="px-2 py-1.5 align-bottom">Status tarefas</th>
-                    <th className="px-2 py-1.5 align-bottom">Status Prestserv</th>
+                    <th className="px-1.5 py-1.5 align-bottom">Funcionário</th>
+                    <th className="px-1.5 py-1.5 align-bottom">Matrícula</th>
+                    <th className="px-1.5 py-1.5 align-bottom">Tipo</th>
+                    <th className="px-1.5 py-1.5 align-bottom">Solicitante</th>
+                    <th className="max-w-[78px] px-1.5 py-1.5 align-bottom">Data da solicitação</th>
+                    <th className="max-w-[64px] px-1.5 py-1.5 text-center align-bottom">Dias corridos</th>
+                    <th className="px-1.5 py-1.5 align-bottom">Origem</th>
+                    <th className="px-1.5 py-1.5 align-bottom">Destino</th>
+                    <th className="px-1.5 py-1.5 align-bottom">Status tarefas</th>
+                    <th className="px-1.5 py-1.5 align-bottom">Status Prestserv</th>
                     {SETORES.map((setor) => (
-                      <th key={setor.key} className="px-2 py-1.5 text-center align-bottom">
+                      <th key={setor.key} className="px-1.5 py-1.5 text-center align-bottom">
                         {setor.label}
                       </th>
                     ))}
-                    <th className="max-w-[80px] px-2 py-1.5 align-bottom">Última atualização</th>
+                    <th className="max-w-[76px] px-1.5 py-1.5 align-bottom">Última atualização</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {itensFiltrados.length === 0 ? (
                     <tr>
-                      <td colSpan={14} className="px-2 py-6 text-center text-gray-500">
+                      <td colSpan={15} className="px-2 py-6 text-center text-gray-500">
                         Nenhum remanejamento encontrado.
                       </td>
                     </tr>
                   ) : (
                     itensFiltrados.map((item) => (
                       <tr key={item.id} className="odd:bg-white even:bg-gray-50 hover:bg-slate-50">
-                        <td className="max-w-[150px] truncate px-2 py-1.5 font-semibold text-gray-900" title={item.funcionario}>
+                        <td className="max-w-[142px] truncate px-1.5 py-1.5 font-semibold text-gray-900" title={item.funcionario}>
                           {item.funcionario}
                         </td>
-                        <td className="whitespace-nowrap px-2 py-1.5 text-gray-700">{item.matricula}</td>
-                        <td className="max-w-[105px] truncate px-2 py-1.5 text-gray-700" title={item.tipo}>
+                        <td className="whitespace-nowrap px-1.5 py-1.5 text-gray-700">{item.matricula}</td>
+                        <td className="max-w-[100px] truncate px-1.5 py-1.5 text-gray-700" title={item.tipo}>
                           {item.tipo}
                         </td>
-                        <td className="max-w-[145px] truncate px-2 py-1.5 text-gray-700" title={item.solicitante}>
+                        <td className="max-w-[136px] truncate px-1.5 py-1.5 text-gray-700" title={item.solicitante}>
                           {item.solicitante}
                         </td>
-                        <td className="whitespace-nowrap px-2 py-1.5 text-gray-700">{formatDate(item.dataSolicitacao)}</td>
-                        <td className="max-w-[150px] truncate px-2 py-1.5 text-gray-700" title={item.contratoOrigem}>
+                        <td className="whitespace-nowrap px-1.5 py-1.5 text-gray-700">{formatDate(item.dataSolicitacao)}</td>
+                        <td className="whitespace-nowrap px-1.5 py-1.5 text-center font-mono text-gray-700">
+                          {item.diasDesdeCriacao}
+                        </td>
+                        <td className="max-w-[138px] truncate px-1.5 py-1.5 text-gray-700" title={item.contratoOrigem}>
                           {item.contratoOrigem}
                         </td>
-                        <td className="max-w-[150px] truncate px-2 py-1.5 text-gray-700" title={item.contratoDestino}>
+                        <td className="max-w-[138px] truncate px-1.5 py-1.5 text-gray-700" title={item.contratoDestino}>
                           {item.contratoDestino}
                         </td>
-                        <td className="max-w-[130px] truncate px-2 py-1.5 text-gray-700" title={item.statusTarefas}>
+                        <td className="max-w-[124px] truncate px-1.5 py-1.5 text-gray-700" title={item.statusTarefas}>
                           {item.statusTarefas}
                         </td>
-                        <td className="max-w-[125px] truncate px-2 py-1.5 text-gray-700" title={item.statusPrestserv}>
+                        <td className="max-w-[118px] truncate px-1.5 py-1.5 text-gray-700" title={item.statusPrestserv}>
                           {item.statusPrestserv}
                         </td>
                         {SETORES.map((setor) => {
                           const value = item.pendencias[setor.key] || 0;
                           return (
-                            <td key={setor.key} className="whitespace-nowrap px-2 py-1.5 text-center">
+                            <td key={setor.key} className="whitespace-nowrap px-1.5 py-1.5 text-center">
                               <span
                                 className={
                                   value > 0
@@ -946,20 +1086,15 @@ function RelatorioGeralContent() {
                             </td>
                           );
                         })}
-                        <td className="whitespace-nowrap px-2 py-1.5 text-gray-700">{formatDate(item.atualizadoEm)}</td>
+                        <td className="whitespace-nowrap px-1.5 py-1.5 text-gray-700">{formatDate(item.atualizadoEm)}</td>
                       </tr>
                     ))
                   )}
                 </tbody>
               </table>
             </div>
-
-            <div className="mt-3 text-sm text-gray-500">
-              Exibindo {itensFiltrados.length} de {data.itens.length} remanejamentos.
-            </div>
           </>
         ) : null}
-      </div>
     </div>
   );
 }
