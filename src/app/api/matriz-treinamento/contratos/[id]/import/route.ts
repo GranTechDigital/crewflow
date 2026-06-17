@@ -252,6 +252,11 @@ export async function POST(
       treinamentoId: number;
       valor: string;
     }> = [];
+    const operacoesPorChave = new Map<
+      string,
+      { funcaoId: number; treinamentoId: number; valor: string }
+    >();
+    let operacoesDuplicadasNaPlanilha = 0;
     const funcoesNaPlanilha = new Set<number>();
 
     // Linhas de dados iniciam na linha 5 (r=4)
@@ -269,20 +274,34 @@ export async function POST(
       for (const { colIndex, treinamentoId } of trainingCols) {
         const rawCell = readCell(r, colIndex);
         const raw = (rawCell || "").trim().toUpperCase();
+        let valorFinal = "";
         if (raw === "") {
-          operacoes.push({ funcaoId, treinamentoId, valor: "" });
-          continue;
-        }
-        const valor = normalizeObrigatoriedade(raw);
-        if (valor === "N/A") {
-          operacoes.push({ funcaoId, treinamentoId, valor: "" });
-        } else if (validObrig.has(valor)) {
-          operacoes.push({ funcaoId, treinamentoId, valor });
+          valorFinal = "";
         } else {
-          ignorados += 1;
+          const valor = normalizeObrigatoriedade(raw);
+          if (valor === "N/A") {
+            valorFinal = "";
+          } else if (validObrig.has(valor)) {
+            valorFinal = valor;
+          } else {
+            ignorados += 1;
+            continue;
+          }
         }
+
+        const chaveOperacao = `${funcaoId}_${treinamentoId}`;
+        if (operacoesPorChave.has(chaveOperacao)) {
+          operacoesDuplicadasNaPlanilha += 1;
+        }
+        operacoesPorChave.set(chaveOperacao, {
+          funcaoId,
+          treinamentoId,
+          valor: valorFinal,
+        });
       }
     }
+    operacoes.push(...operacoesPorChave.values());
+    ignorados += operacoesDuplicadasNaPlanilha;
 
     // Buscar registros existentes para o contrato e funções presentes na planilha
     const existentes = await prisma.matrizTreinamento.findMany({
@@ -456,7 +475,7 @@ export async function POST(
               para: op.valor,
             });
           } else {
-            await prisma.matrizTreinamento.create({
+            const criado = await prisma.matrizTreinamento.create({
               data: {
                 contratoId,
                 funcaoId: op.funcaoId,
@@ -464,7 +483,9 @@ export async function POST(
                 tipoObrigatoriedade: op.valor,
                 ativo: true,
               },
+              select: { id: true },
             });
+            mapaExistentes.set(chave, { id: criado.id, tipo: op.valor });
             criados += 1;
             detalhesOperacoes.push({
               acao: "CRIADO",
@@ -684,14 +705,42 @@ export async function POST(
     } catch {}
 
     try {
-      await sincronizarTarefasPadrao({
-        setores: ["TREINAMENTO"],
-        usuarioResponsavel:
-          (user as any)?.funcionario?.nome ||
-          "Sistema - Importação de Matriz de Treinamento",
-        usuarioResponsavelId: (user as any)?.id,
-        equipeId: (user as any)?.equipeId,
-      });
+      const remanejamentosParaSincronizar =
+        await prisma.remanejamentoFuncionario.findMany({
+          where: {
+            statusTarefas: {
+              in: [
+                "ATENDER TAREFAS",
+                "SUBMETER RASCUNHO",
+                "REPROVAR TAREFAS",
+                "APROVAR SOLICITAÇÃO",
+              ],
+            },
+            statusPrestserv: {
+              notIn: ["EM VALIDAÇÃO", "VALIDADO", "CANCELADO"],
+            },
+            OR: [
+              { solicitacao: { contratoDestinoId: contratoId } },
+              { funcionario: { contratoId } },
+            ],
+          },
+          select: { id: true },
+        });
+      const remanejamentoIds = remanejamentosParaSincronizar.map(
+        (rem) => rem.id
+      );
+
+      if (remanejamentoIds.length > 0) {
+        await sincronizarTarefasPadrao({
+          setores: ["TREINAMENTO"],
+          remanejamentoIds,
+          usuarioResponsavel:
+            (user as any)?.funcionario?.nome ||
+            "Sistema - Importação de Matriz de Treinamento",
+          usuarioResponsavelId: (user as any)?.id,
+          equipeId: (user as any)?.equipeId,
+        });
+      }
     } catch (syncErr) {
       console.error(
         "Erro na sincronização automática após importação de matriz:",
