@@ -175,6 +175,40 @@ function ContratoDetalheContent() {
     }
   };
 
+  const downloadImportReport = async (
+    reportUrl: string,
+    fallbackFilename: string,
+  ) => {
+    const response = await fetch(reportUrl, {
+      cache: "no-store",
+      credentials: "same-origin",
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      let errorMessage = text || "Falha ao baixar relatório de importação.";
+      try {
+        const parsed = JSON.parse(text);
+        errorMessage = parsed.error || parsed.message || errorMessage;
+      } catch {}
+      throw new Error(errorMessage);
+    }
+
+    const blob = await response.blob();
+    if (blob.size === 0) {
+      throw new Error("Relatório de importação retornou vazio.");
+    }
+
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fallbackFilename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  };
+
   const handleImportChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -279,17 +313,18 @@ function ContratoDetalheContent() {
         }
       } else if (json.reportUrl) {
         try {
-          const url = json.reportUrl as string;
-          const a = document.createElement("a");
-          a.href = url;
-          a.download =
+          await downloadImportReport(
+            json.reportUrl as string,
             json.reportFilename ||
-            `resultado_import_contrato_${contratoId}.xlsx`;
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
+              `resultado_import_contrato_${contratoId}.xlsx`,
+          );
         } catch (e) {
-          console.warn("Falha ao iniciar download do relatório:", e);
+          console.warn("Falha ao baixar relatório:", e);
+          alert(
+            e instanceof Error
+              ? e.message
+              : "Falha ao baixar relatório de importação.",
+          );
         }
       } else {
         // Fallback: mostrar resumo se não houver relatório
