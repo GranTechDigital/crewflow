@@ -179,19 +179,35 @@ function ContratoDetalheContent() {
     reportUrl: string,
     fallbackFilename: string,
   ) => {
-    const response = await fetch(reportUrl, {
+    const normalizedReportUrl = reportUrl.startsWith("/import-reports/")
+      ? `/api/import-reports/${encodeURIComponent(reportUrl.split("/").pop() || fallbackFilename)}`
+      : reportUrl;
+    const response = await fetch(normalizedReportUrl, {
       cache: "no-store",
       credentials: "same-origin",
     });
 
     if (!response.ok) {
       const text = await response.text();
-      let errorMessage = text || "Falha ao baixar relatório de importação.";
+      let errorMessage =
+        text || `Falha ao baixar relatório de importação (${response.status}).`;
       try {
         const parsed = JSON.parse(text);
         errorMessage = parsed.error || parsed.message || errorMessage;
       } catch {}
-      throw new Error(errorMessage);
+      const details = [
+        `Falha ao baixar relatório de importação (${response.status}).`,
+        `URL original: ${reportUrl}`,
+        `URL usada: ${normalizedReportUrl}`,
+        `Resposta: ${errorMessage.slice(0, 1000)}`,
+      ].join("\n");
+      console.error(details);
+      try {
+        await navigator.clipboard?.writeText(details);
+      } catch {}
+      throw new Error(
+        "Falha ao baixar relatório de importação. Detalhes foram enviados ao console e, se o navegador permitir, copiados para a área de transferência.",
+      );
     }
 
     const blob = await response.blob();
