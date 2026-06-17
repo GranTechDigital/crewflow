@@ -581,9 +581,9 @@ function RelatorioGeralContent() {
       worksheet.mergeCells("A2:Q2");
       const subtitleCell = worksheet.getCell("A2");
       const periodoSolicitacaoUsuario =
-        dataSolicitacaoInicio || dataSolicitacaoFim
-          ? `Filtro de solicitação: ${dataSolicitacaoInicio ? `de ${formatDate(`${dataSolicitacaoInicio}T00:00:00`)}` : "sem início"} ${
-              dataSolicitacaoFim ? `até ${formatDate(`${dataSolicitacaoFim}T00:00:00`)}` : "sem fim"
+        appliedDataSolicitacaoInicio || appliedDataSolicitacaoFim
+          ? `Filtro de solicitação: ${appliedDataSolicitacaoInicio ? `de ${formatDate(`${appliedDataSolicitacaoInicio}T00:00:00`)}` : "sem início"} ${
+              appliedDataSolicitacaoFim ? `até ${formatDate(`${appliedDataSolicitacaoFim}T00:00:00`)}` : "sem fim"
             }`
           : "Sem filtro adicional de solicitação";
       subtitleCell.value = `Critérios fixos: solicitações desde ${formatDate(`${DATA_INICIO_PADRAO}T00:00:00`)} e cancelados desconsiderados | ${periodoSolicitacaoUsuario} | Exportado em ${new Intl.DateTimeFormat("pt-BR", {
@@ -817,6 +817,26 @@ function RelatorioGeralContent() {
                 placeholder="Pesquisar setor..."
                 getOptionLabel={(value) => SETORES.find((item) => item.key === value)?.label || value}
               />
+            </div>
+
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={aplicarFiltros}
+                disabled={!hasPendingFilters || loading}
+                className="rounded-md bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-slate-900 disabled:cursor-not-allowed disabled:bg-slate-300"
+              >
+                Aplicar filtros
+              </button>
+              {hasPendingFilters ? (
+                <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-800">
+                  Existem alterações de filtro ainda não aplicadas
+                </span>
+              ) : (
+                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
+                  Filtros aplicados na tabela
+                </span>
+              )}
             </div>
 
             <div className="mb-4 flex min-h-9 flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
