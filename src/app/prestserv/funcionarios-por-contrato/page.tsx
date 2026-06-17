@@ -4,6 +4,8 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { read, utils, writeFile } from "xlsx";
 import { toast } from "react-hot-toast";
+import ProtectedRoute from "@/components/ProtectedRoute";
+import { ROUTE_PROTECTION } from "@/lib/permissions";
 import {
   DocumentArrowDownIcon,
   UserGroupIcon,
@@ -104,6 +106,17 @@ interface ContratoInfo {
 }
 
 export default function FuncionariosPorContratoPage() {
+  return (
+    <ProtectedRoute
+      requiredPermissions={ROUTE_PROTECTION.FUNCIONARIOS.requiredPermissions}
+      requiredEquipe={ROUTE_PROTECTION.FUNCIONARIOS.requiredEquipe}
+    >
+      <FuncionariosPorContratoContent />
+    </ProtectedRoute>
+  );
+}
+
+function FuncionariosPorContratoContent() {
   const router = useRouter();
   const [funcionarios, setFuncionarios] = useState<FuncionarioContrato[]>([]);
   const [contratos, setContratos] = useState<any[]>([]);
@@ -2018,4 +2031,3 @@ const [contratosFuturosMap, setContratosFuturosMap] = useState<Record<string, st
     </div>
   );
 }
-

@@ -134,6 +134,10 @@ export default function Sidebar() {
         icon: BarChart3,
         items: [
           {
+            label: "Relatório Geral de Pendências (novo)",
+            href: "/relatorios/geral",
+          },
+          {
             label: "Atendimentos Concluídos",
             href: "/sla/relatorio?tab=dias&hideTabs=true",
           },
@@ -236,6 +240,10 @@ export default function Sidebar() {
         label: "Recursos Humanos",
         icon: Users,
         items: [
+          {
+            label: "Lista de Funcionários",
+            href: "/prestserv/funcionarios-por-contrato",
+          },
           { label: "Minhas Tarefas", href: "/tarefas?setor=rh" },
           { label: "Minhas Tarefas V2 (Beta)", href: "/tarefas-v2?setor=rh" },
           {
@@ -255,6 +263,10 @@ export default function Sidebar() {
         label: "Treinamento",
         icon: GraduationCap,
         items: [
+          {
+            label: "Lista de Funcionários",
+            href: "/prestserv/funcionarios-por-contrato",
+          },
           { label: "Minhas Tarefas", href: "/tarefas?setor=treinamento" },
           {
             label: "Minhas Tarefas V2 (Beta)",
@@ -288,6 +300,10 @@ export default function Sidebar() {
         items: [
           // { label: "Geral", href: "/medicina/geral" },
           // { label: "Segurança", href: "/medicina/seguranca" },
+          {
+            label: "Lista de Funcionários",
+            href: "/prestserv/funcionarios-por-contrato",
+          },
           { label: "Minhas Tarefas", href: "/tarefas?setor=medicina" },
           {
             label: "Minhas Tarefas V2 (Beta)",

@@ -167,6 +167,10 @@ const setores: SetorCard[] = [
       "Liderança (Visualizador)",
     ], // Administração e Medicina
     links: [
+      {
+        label: "Lista de Funcionários",
+        href: "/prestserv/funcionarios-por-contrato",
+      },
       { label: "Minhas Tarefas", href: "/tarefas?setor=medicina" },
       { label: "Usuários da Equipe", href: "/medicina/usuarios" },
     ],
@@ -188,6 +192,10 @@ const setores: SetorCard[] = [
       "Liderança (Visualizador)",
     ], // Administração e RH
     links: [
+      {
+        label: "Lista de Funcionários",
+        href: "/prestserv/funcionarios-por-contrato",
+      },
       { label: "Minhas Tarefas", href: "/tarefas?setor=rh" },
       { label: "Usuários da Equipe", href: "/rh/usuarios" },
     ],
@@ -209,6 +217,10 @@ const setores: SetorCard[] = [
       "Liderança (Visualizador)",
     ], // Administração e Treinamento
     links: [
+      {
+        label: "Lista de Funcionários",
+        href: "/prestserv/funcionarios-por-contrato",
+      },
       { label: "Minhas Tarefas", href: "/tarefas?setor=treinamento" },
       { label: "Matriz de Treinamento", href: "/matriz-treinamento/contratos" },
       { label: "Gerenciar Funções", href: "/funcoes" },
@@ -233,6 +245,7 @@ const setores: SetorCard[] = [
       "Liderança (Visualizador)",
     ],
     links: [
+      { label: "Relatório Geral de Pendências", href: "/relatorios/geral" },
       {
         label: "Concluídos",
         href: "/sla/relatorio?tab=dias&hideTabs=true",
