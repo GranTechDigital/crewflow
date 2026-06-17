@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getUserFromRequest } from "@/utils/authUtils";
-import { sincronizarTarefasPadrao } from "@/lib/tarefasPadraoSync";
 import { read, utils } from "xlsx";
 import ExcelJS from "exceljs";
+import { randomUUID } from "crypto";
 import fs from "fs";
 import path from "path";
 
@@ -29,29 +29,66 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const traceId = request.headers.get("x-trace-id") || randomUUID();
+  const startedAt = Date.now();
+  const logStep = (step: string, data: Record<string, unknown> = {}) => {
+    console.info(
+      JSON.stringify({
+        scope: "matriz_treinamento_import",
+        traceId,
+        step,
+        elapsedMs: Date.now() - startedAt,
+        ...data,
+      })
+    );
+  };
+  const json = (
+    body: Record<string, unknown>,
+    init?: ResponseInit & { status?: number }
+  ) =>
+    NextResponse.json(
+      { ...body, traceId },
+      {
+        ...init,
+        headers: {
+          ...(init?.headers || {}),
+          "x-trace-id": traceId,
+        },
+      }
+    );
+
   try {
+    logStep("start");
     const user = await getUserFromRequest(request);
     if (!user) {
-      return NextResponse.json(
+      logStep("auth_failed");
+      return json(
         { success: false, error: "Token de autenticação necessário" },
         { status: 401 }
       );
     }
+    logStep("auth_ok", {
+      userId: (user as any)?.id,
+      equipeId: (user as any)?.equipeId,
+    });
 
     const { id } = await params;
     const contratoId = parseInt(id);
     if (isNaN(contratoId)) {
-      return NextResponse.json(
+      logStep("invalid_contract_id", { id });
+      return json(
         { success: false, error: "ID do contrato inválido" },
         { status: 400 }
       );
     }
+    logStep("contract_ok", { contratoId });
 
     const form = await request.formData();
     const file = form.get("file");
     // Em runtime Node.js, garantir Blob/File para usar arrayBuffer
     if (!(file instanceof Blob)) {
-      return NextResponse.json(
+      logStep("invalid_file_field", { fileType: typeof file });
+      return json(
         {
           success: false,
           error: "Arquivo XLSX não enviado ou inválido (campo file)",
@@ -62,17 +99,24 @@ export async function POST(
 
     const arrayBuffer = await (file as Blob).arrayBuffer();
     if (!arrayBuffer || arrayBuffer.byteLength === 0) {
-      return NextResponse.json(
+      logStep("empty_file");
+      return json(
         { success: false, error: "Arquivo XLSX vazio ou não lido." },
         { status: 400 }
       );
     }
+    logStep("file_loaded", {
+      sizeBytes: arrayBuffer.byteLength,
+      fileName: (file as File)?.name,
+      fileType: (file as File)?.type,
+    });
 
     let workbook;
     try {
       workbook = read(Buffer.from(arrayBuffer), { type: "buffer" });
     } catch (e) {
-      return NextResponse.json(
+      logStep("xlsx_read_failed", { error: (e as Error)?.message || String(e) });
+      return json(
         {
           success: false,
           error: `Não foi possível ler o arquivo XLSX: ${
@@ -88,7 +132,8 @@ export async function POST(
       workbook.SheetNames[0];
     const sheet = workbook.Sheets[sheetName];
     if (!sheet) {
-      return NextResponse.json(
+      logStep("sheet_not_found", { sheetName });
+      return json(
         {
           success: false,
           error: `Aba da planilha não encontrada: ${sheetName}`,
@@ -100,6 +145,11 @@ export async function POST(
     // Utilitários para ler célula por índice (0-based)
     const ref = (sheet as any)["!ref"] || "A1";
     const range = utils.decode_range(ref);
+    logStep("workbook_loaded", {
+      sheetName,
+      ref,
+      sheets: workbook.SheetNames,
+    });
     const readCell = (r: number, c: number): string => {
       // Limitar ao range para evitar exceções
       if (r < range.s.r || r > range.e.r || c < range.s.c || c > range.e.c)
@@ -118,7 +168,8 @@ export async function POST(
 
     // Garantir que há ao menos 4 linhas (cabeçalho na linha 4)
     if (range.e.r < 3) {
-      return NextResponse.json(
+      logStep("invalid_header_row", { ref });
+      return json(
         {
           success: false,
           error: "Formato inválido: cabeçalho esperado na linha 4.",
@@ -138,7 +189,8 @@ export async function POST(
       trainingCols.push({ colIndex: c, treinamentoId: idNum });
     }
     if (trainingCols.length === 0) {
-      return NextResponse.json(
+      logStep("training_headers_not_found");
+      return json(
         {
           success: false,
           error:
@@ -158,7 +210,8 @@ export async function POST(
       (id) => !validIds.has(id)
     );
     if (invalidTrainingIds.length > 0) {
-      return NextResponse.json(
+      logStep("invalid_training_ids", { invalidTrainingIds });
+      return json(
         {
           success: false,
           error: `IDs de treinamento inválidos no cabeçalho: ${invalidTrainingIds.join(
@@ -172,6 +225,11 @@ export async function POST(
         { status: 400 }
       );
     }
+    logStep("training_headers_ok", {
+      trainingColumns: trainingCols.length,
+      rowCount: range.e.r - range.s.r + 1,
+      colCount: range.e.c - range.s.c + 1,
+    });
 
     // Inicializar contadores ANTES de qualquer uso
     let criados = 0,
@@ -302,6 +360,12 @@ export async function POST(
     }
     operacoes.push(...operacoesPorChave.values());
     ignorados += operacoesDuplicadasNaPlanilha;
+    logStep("operations_parsed", {
+      funcoesNaPlanilha: funcoesNaPlanilha.size,
+      operacoes: operacoes.length,
+      operacoesDuplicadasNaPlanilha,
+      ignorados,
+    });
 
     // Buscar registros existentes para o contrato e funções presentes na planilha
     const existentes = await prisma.matrizTreinamento.findMany({
@@ -341,6 +405,7 @@ export async function POST(
         where: { id: { in: idsParaExcluir } },
       });
       removidos += delDup.count;
+      logStep("existing_duplicates_removed", { count: delDup.count });
     }
 
     const mapaExistentes = new Map<
@@ -500,7 +565,17 @@ export async function POST(
           }
         }
       } catch (e) {
-        console.error("Erro ao aplicar operação:", e);
+        console.error(
+          JSON.stringify({
+            scope: "matriz_treinamento_import",
+            traceId,
+            step: "operation_failed",
+            elapsedMs: Date.now() - startedAt,
+            funcaoId: op.funcaoId,
+            treinamentoId: op.treinamentoId,
+            error: (e as Error)?.message || String(e),
+          })
+        );
         erros += 1;
         errosDetalhes.push(
           `Funcao ${op.funcaoId}, Treinamento ${op.treinamentoId}: ${
@@ -509,6 +584,13 @@ export async function POST(
         );
       }
     }
+    logStep("operations_applied", {
+      criados,
+      atualizados,
+      removidos,
+      ignorados,
+      erros,
+    });
 
     // Remoção em massa de funções cujo linha foi removida da planilha
     const funcoesExistentesContrato = await prisma.funcao.findMany({
@@ -561,6 +643,7 @@ export async function POST(
         where: { contratoId, funcaoId: { in: funcoesParaRemover } },
       });
       removidos += delRes.count;
+      logStep("removed_missing_functions", { count: delRes.count });
     }
 
     // Gerar planilha de resultado
@@ -662,14 +745,6 @@ export async function POST(
     )}${pad(ts.getUTCDate())}_${pad(ts.getUTCHours())}${pad(
       ts.getUTCMinutes()
     )}${pad(ts.getUTCSeconds())}.xlsx`;
-    const reportBuffer = await wb.xlsx.writeBuffer();
-    // Converter o buffer do relatório para base64 de forma compatível com Node 20+
-    // ExcelJS pode retornar ArrayBuffer ou Buffer dependendo do ambiente
-    const reportBase64 = (
-      reportBuffer instanceof Buffer
-        ? reportBuffer
-        : Buffer.from(reportBuffer as unknown as Uint8Array)
-    ).toString("base64");
     let reportUrl: string | null = null;
     try {
       const reportsDir = path.resolve(
@@ -682,6 +757,7 @@ export async function POST(
       const filePath = path.join(reportsDir, filename);
       await wb.xlsx.writeFile(filePath);
       reportUrl = `/import-reports/${filename}`;
+      logStep("report_written", { reportUrl, filename });
       try {
         const retentionDays = Number.parseInt(
           process.env.IMPORT_REPORTS_RETENTION_DAYS || "30",
@@ -704,62 +780,40 @@ export async function POST(
       } catch {}
     } catch {}
 
-    try {
-      const remanejamentosParaSincronizar =
-        await prisma.remanejamentoFuncionario.findMany({
-          where: {
-            statusTarefas: {
-              in: [
-                "ATENDER TAREFAS",
-                "SUBMETER RASCUNHO",
-                "REPROVAR TAREFAS",
-                "APROVAR SOLICITAÇÃO",
-              ],
-            },
-            statusPrestserv: {
-              notIn: ["EM VALIDAÇÃO", "VALIDADO", "CANCELADO"],
-            },
-            OR: [
-              { solicitacao: { contratoDestinoId: contratoId } },
-              { funcionario: { contratoId } },
-            ],
-          },
-          select: { id: true },
-        });
-      const remanejamentoIds = remanejamentosParaSincronizar.map(
-        (rem) => rem.id
-      );
+    logStep("success", {
+      criados,
+      atualizados,
+      removidos,
+      ignorados,
+      erros,
+      reportUrl,
+    });
 
-      if (remanejamentoIds.length > 0) {
-        await sincronizarTarefasPadrao({
-          setores: ["TREINAMENTO"],
-          remanejamentoIds,
-          usuarioResponsavel:
-            (user as any)?.funcionario?.nome ||
-            "Sistema - Importação de Matriz de Treinamento",
-          usuarioResponsavelId: (user as any)?.id,
-          equipeId: (user as any)?.equipeId,
-        });
-      }
-    } catch (syncErr) {
-      console.error(
-        "Erro na sincronização automática após importação de matriz:",
-        syncErr
-      );
-    }
-
-    return NextResponse.json({
+    return json({
       success: true,
       message: "Importação concluída",
       stats: { criados, atualizados, removidos, ignorados, erros },
       errors: errosDetalhes,
       reportUrl,
-      reportBase64,
       reportFilename: filename,
+      sync: {
+        skipped: true,
+        reason:
+          "A sincronização de tarefas foi removida do processamento do upload para evitar fechamento da requisição.",
+      },
     });
   } catch (error) {
-    console.error("Erro ao importar matriz:", error);
-    return NextResponse.json(
+    console.error(
+      JSON.stringify({
+        scope: "matriz_treinamento_import",
+        traceId,
+        step: "unhandled_error",
+        elapsedMs: Date.now() - startedAt,
+        error: (error as Error)?.message || String(error),
+        stack: (error as Error)?.stack,
+      })
+    );
+    return json(
       {
         success: false,
         error: (error as Error)?.message || "Erro interno do servidor",

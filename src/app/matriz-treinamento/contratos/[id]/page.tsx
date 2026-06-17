@@ -178,6 +178,9 @@ function ContratoDetalheContent() {
   const handleImportChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const importTraceId =
+      globalThis.crypto?.randomUUID?.() ||
+      `matrix-import-${Date.now()}-${Math.random().toString(16).slice(2)}`;
     try {
       setUploading(true);
       const formData = new FormData();
@@ -186,12 +189,31 @@ function ContratoDetalheContent() {
         `/api/matriz-treinamento/contratos/${contratoId}/import`,
         {
           method: "POST",
+          headers: {
+            "x-trace-id": importTraceId,
+          },
           body: formData,
         },
       );
-      const json = await res.json();
-      if (!res.ok || !json.success) {
-        throw new Error(json.error || json.message || "Falha ao importar XLSX");
+      const rawResponse = await res.text();
+      const responseTraceId = res.headers.get("x-trace-id");
+      let json: any = null;
+      try {
+        json = rawResponse ? JSON.parse(rawResponse) : null;
+      } catch {
+        json = null;
+      }
+      const traceId = json?.traceId || responseTraceId;
+      if (!res.ok || !json?.success) {
+        const traceMessage = traceId ? `\nCódigo de rastreio: ${traceId}` : "";
+        throw new Error(
+          `${
+            json?.error ||
+            json?.message ||
+            rawResponse ||
+            "O servidor encerrou a conexão sem retornar resposta da importação."
+          }${traceMessage}`,
+        );
       }
       const stats = json.stats || json.data?.stats || {};
       const criados = stats.criados ?? 0;
@@ -276,7 +298,13 @@ function ContratoDetalheContent() {
       await fetchContratoDetalhes();
     } catch (err) {
       console.error("Erro ao importar XLSX:", err);
-      alert(err instanceof Error ? err.message : "Erro ao importar XLSX");
+      const message =
+        err instanceof Error ? err.message : "Erro ao importar XLSX";
+      alert(
+        message.includes("Código de rastreio")
+          ? message
+          : `${message}\nCódigo de rastreio: ${importTraceId}`,
+      );
     } finally {
       setUploading(false);
       if (fileInputRef.current) {

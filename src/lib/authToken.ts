@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import jwt from "jsonwebtoken";
 
 export type AuthTokenPayload = Record<string, unknown> & {
   iat?: number;
@@ -56,7 +57,18 @@ export async function verifyAuthToken(token: string) {
 
   const parts = token.split(".");
   if (parts.length !== 3 || parts[0] !== "v1") {
-    throw new Error("Formato de token invalido");
+    for (const secret of getCandidateSecrets()) {
+      try {
+        const payload = jwt.verify(token, secret);
+        if (payload && typeof payload === "object") {
+          return { payload: payload as AuthTokenPayload };
+        }
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    throw lastError ?? new Error("Formato de token invalido");
   }
 
   const [, payloadHex, signature] = parts;
