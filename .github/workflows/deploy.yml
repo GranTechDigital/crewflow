@@ -143,13 +143,12 @@ jobs:
             df -h
             echo "🧮 Docker system df (before):"
             docker system df || true
-            echo "🧼 Pruning unused Docker images, caches and volumes"
+            echo "🧼 Pruning unused Docker images and build cache"
             docker image prune -af || true
             docker builder prune -af || true
-            docker volume prune -f || true
-            docker system prune -af --volumes || true
-            echo "🧼 Cleaning /tmp to free ephemeral space"
-            rm -rf /tmp/* || true
+            docker system prune -af || true
+            echo "🧼 Cleaning only CrewFlow temporary deploy artifacts"
+            rm -f /tmp/crewflow_*.tar.gz /tmp/crewflow-app-production.tar /tmp/crewflow-app-staging.tar || true
             echo "🧼 Reducing journald logs size"
             journalctl --vacuum-size=200M || true
             echo "📊 Disk usage after cleanup (no prune):"
