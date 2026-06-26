@@ -469,6 +469,20 @@ model PeriodoUpload {
   @@index([mesReferencia, anoReferencia])
 }
 
+model RelatorioSnapshot {
+  id             Int      @id @default(autoincrement())
+  tipo           String
+  dataReferencia DateTime @default(now())
+  dataCorte      DateTime
+  dataFim        DateTime?
+  resumo         Json
+  filtros        Json?
+  createdAt      DateTime @default(now())
+
+  @@index([tipo, dataReferencia])
+  @@index([createdAt])
+}
+
 model Status {
   id             Int             @id @default(autoincrement())
   categoria      String          @unique

@@ -190,6 +190,29 @@ jobs:
           ADMIN_EMAIL_VALUE="${{ secrets.PROD_ADMIN_EMAIL }}"
           ADMIN_PASSWORD_VALUE="${{ secrets.PROD_ADMIN_PASSWORD }}"
           ADMIN_FORCE_PASSWORD_VALUE="${{ secrets.PROD_ADMIN_FORCE_PASSWORD }}"
+          SMTP_HOST_VALUE="${{ secrets.SMTP_HOST || secrets.PROD_SMTP_HOST }}"
+          SMTP_PORT_VALUE="${{ secrets.SMTP_PORT || secrets.PROD_SMTP_PORT }}"
+          SMTP_SECURE_VALUE="${{ secrets.SMTP_SECURE || secrets.PROD_SMTP_SECURE }}"
+          SMTP_USER_VALUE="${{ secrets.SMTP_USER || secrets.PROD_SMTP_USER }}"
+          SMTP_PASS_VALUE="${{ secrets.SMTP_PASS || secrets.PROD_SMTP_PASS }}"
+          SMTP_FROM_VALUE="${{ secrets.SMTP_FROM || secrets.PROD_SMTP_FROM }}"
+          REPORT_GENERAL_RECIPIENTS_VALUE="${{ vars.REPORT_GENERAL_RECIPIENTS || secrets.PROD_REPORT_GENERAL_RECIPIENTS }}"
+          RELATORIO_EMAIL_SERVICE_TOKEN_VALUE="${{ secrets.RELATORIO_EMAIL_SERVICE_TOKEN || secrets.PROD_RELATORIO_EMAIL_SERVICE_TOKEN }}"
+
+          get_existing_env() {
+            KEY="$1"
+            ssh -o StrictHostKeyChecking=no root@${{ secrets.PROD_SERVER_HOST }} \
+              "awk -F= -v key=\"$KEY\" '\$1 == key { sub(/^[^=]*=/, \"\"); print; exit }' /opt/projetogran/.env.production 2>/dev/null" || true
+          }
+
+          [ -z "$SMTP_HOST_VALUE" ] && SMTP_HOST_VALUE="$(get_existing_env SMTP_HOST)"
+          [ -z "$SMTP_PORT_VALUE" ] && SMTP_PORT_VALUE="$(get_existing_env SMTP_PORT)"
+          [ -z "$SMTP_SECURE_VALUE" ] && SMTP_SECURE_VALUE="$(get_existing_env SMTP_SECURE)"
+          [ -z "$SMTP_USER_VALUE" ] && SMTP_USER_VALUE="$(get_existing_env SMTP_USER)"
+          [ -z "$SMTP_PASS_VALUE" ] && SMTP_PASS_VALUE="$(get_existing_env SMTP_PASS)"
+          [ -z "$SMTP_FROM_VALUE" ] && SMTP_FROM_VALUE="$(get_existing_env SMTP_FROM)"
+          [ -z "$REPORT_GENERAL_RECIPIENTS_VALUE" ] && REPORT_GENERAL_RECIPIENTS_VALUE="$(get_existing_env REPORT_GENERAL_RECIPIENTS)"
+          [ -z "$RELATORIO_EMAIL_SERVICE_TOKEN_VALUE" ] && RELATORIO_EMAIL_SERVICE_TOKEN_VALUE="$(get_existing_env RELATORIO_EMAIL_SERVICE_TOKEN)"
 
           [ -z "$POSTGRES_PASSWORD_VALUE" ] && POSTGRES_PASSWORD_VALUE="postgres"
           [ -z "$PGADMIN_EMAIL_VALUE" ] && PGADMIN_EMAIL_VALUE="admin@crewflow.com"
@@ -207,6 +230,20 @@ jobs:
           [ -z "$ADMIN_EMAIL_VALUE" ] && ADMIN_EMAIL_VALUE="admin@gransystem.com"
           [ -z "$ADMIN_PASSWORD_VALUE" ] && ADMIN_PASSWORD_VALUE="admin123"
           [ -z "$ADMIN_FORCE_PASSWORD_VALUE" ] && ADMIN_FORCE_PASSWORD_VALUE="false"
+          [ -z "$SMTP_HOST_VALUE" ] && SMTP_HOST_VALUE="granhub.com.br"
+          [ -z "$SMTP_PORT_VALUE" ] && SMTP_PORT_VALUE="465"
+          [ -z "$SMTP_SECURE_VALUE" ] && SMTP_SECURE_VALUE="true"
+          [ -z "$SMTP_USER_VALUE" ] && SMTP_USER_VALUE="crewcontrol@granhub.com.br"
+          [ -z "$SMTP_FROM_VALUE" ] && SMTP_FROM_VALUE="CrewControl <crewcontrol@granhub.com.br>"
+
+          if [ -z "$SMTP_PASS_VALUE" ]; then
+            echo "❌ SMTP_PASS não configurado no GitHub nem preservado do servidor."
+            exit 1
+          fi
+          if [ -z "$RELATORIO_EMAIL_SERVICE_TOKEN_VALUE" ]; then
+            echo "❌ RELATORIO_EMAIL_SERVICE_TOKEN não configurado no GitHub nem preservado do servidor."
+            exit 1
+          fi
 
           DB_USER="$POSTGRES_USER_VALUE"; DB_PASS="$POSTGRES_PASSWORD_VALUE"; DB_NAME="$POSTGRES_DB_VALUE"
           DATABASE_URL_VALUE="postgresql://${DB_USER}:${DB_PASS}@postgres-prod:5432/${DB_NAME}?schema=public"
@@ -228,6 +265,14 @@ jobs:
           printf 'ADMIN_EMAIL=%s\n' "$ADMIN_EMAIL_VALUE" >> "$ENV_FILE"
           printf 'ADMIN_PASSWORD=%s\n' "$ADMIN_PASSWORD_VALUE" >> "$ENV_FILE"
           printf 'ADMIN_FORCE_PASSWORD=%s\n' "$ADMIN_FORCE_PASSWORD_VALUE" >> "$ENV_FILE"
+          printf 'SMTP_HOST=%s\n' "$SMTP_HOST_VALUE" >> "$ENV_FILE"
+          printf 'SMTP_PORT=%s\n' "$SMTP_PORT_VALUE" >> "$ENV_FILE"
+          printf 'SMTP_SECURE=%s\n' "$SMTP_SECURE_VALUE" >> "$ENV_FILE"
+          printf 'SMTP_USER=%s\n' "$SMTP_USER_VALUE" >> "$ENV_FILE"
+          printf 'SMTP_PASS=%s\n' "$SMTP_PASS_VALUE" >> "$ENV_FILE"
+          printf 'SMTP_FROM=%s\n' "$SMTP_FROM_VALUE" >> "$ENV_FILE"
+          printf 'REPORT_GENERAL_RECIPIENTS=%s\n' "$REPORT_GENERAL_RECIPIENTS_VALUE" >> "$ENV_FILE"
+          printf 'RELATORIO_EMAIL_SERVICE_TOKEN=%s\n' "$RELATORIO_EMAIL_SERVICE_TOKEN_VALUE" >> "$ENV_FILE"
 
           ls -l "$ENV_FILE"
           ssh -o StrictHostKeyChecking=no root@${{ secrets.PROD_SERVER_HOST }} "mkdir -p /opt/projetogran"

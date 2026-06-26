@@ -23,7 +23,8 @@
     "db:backup:prod": "node scripts/prod-dump-and-fetch.cjs",
     "db:restore:dev": "node scripts/dev-restore-from-dump.cjs --file=",
     "db:sync:prod-to-dev": "node scripts/db-sync-prod-to-dev.cjs",
-    "perf:tarefas": "node scripts/benchmark-tarefas-v1-v2.cjs"
+    "perf:tarefas": "node scripts/benchmark-tarefas-v1-v2.cjs",
+    "report:email-requests": "node scripts/process-report-email-requests.mjs"
   },
   "prisma": {
     "seed": "node prisma/seed-complete.cjs"
@@ -43,12 +44,15 @@
     "flowbite": "^3.1.2",
     "flowbite-react": "^0.12.6",
     "form-data": "^4.0.4",
+    "imapflow": "^1.4.1",
     "jose": "^6.0.12",
     "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.511.0",
+    "mailparser": "^3.9.10",
     "next": "15.3.6",
     "next-auth": "^4.24.11",
     "node-fetch": "^2.7.0",
+    "nodemailer": "^6.10.1",
     "react": "19.2.1",
     "react-chartjs-2": "^5.3.0",
     "react-dom": "19.2.1",
@@ -62,6 +66,7 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@types/node": "^20",
+    "@types/nodemailer": "^8.0.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",

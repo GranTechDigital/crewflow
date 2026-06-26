@@ -90,6 +90,21 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Permitir envio automático do relatório geral via token de serviço
+  const relatorioEmailToken = process.env.RELATORIO_EMAIL_SERVICE_TOKEN;
+  const relatorioServiceRoutes = [
+    "/api/relatorios/geral/enviar-email",
+    "/api/relatorios/geral/email",
+    "/api/relatorios/geral/snapshots",
+  ];
+  if (
+    relatorioServiceRoutes.some((route) => pathname.startsWith(route)) &&
+    relatorioEmailToken &&
+    authHeader === `Bearer ${relatorioEmailToken}`
+  ) {
+    return NextResponse.next();
+  }
+
   // Obter token do cookie
   const token = request.cookies.get("auth-token")?.value;
 

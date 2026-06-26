@@ -1,0 +1,41 @@
+name: Process Report Email Requests
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Verifica respostas a cada 15 minutos.
+    - cron: "*/15 * * * *"
+
+jobs:
+  process-requests:
+    if: github.event_name == 'workflow_dispatch' || vars.ENABLE_REPORT_EMAIL_REQUESTS == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Process inbox requests
+        env:
+          REPORT_ENDPOINT: ${{ secrets.REPORT_GENERAL_EMAIL_ENDPOINT }}
+          REPORT_GENERAL_API_BASE: ${{ vars.REPORT_GENERAL_API_BASE || secrets.REPORT_GENERAL_API_BASE }}
+          REPORT_TOKEN: ${{ secrets.RELATORIO_EMAIL_SERVICE_TOKEN || secrets.PROD_RELATORIO_EMAIL_SERVICE_TOKEN }}
+          REPORT_GENERAL_RECIPIENTS: ${{ vars.REPORT_GENERAL_RECIPIENTS || secrets.PROD_REPORT_GENERAL_RECIPIENTS }}
+          REPORT_REQUEST_ALLOWED_SENDERS: ${{ vars.REPORT_REQUEST_ALLOWED_SENDERS || secrets.PROD_REPORT_REQUEST_ALLOWED_SENDERS }}
+          REPORT_REQUEST_KEYWORD: relatorio
+          REPORT_REQUEST_MAX_PER_RUN: "5"
+          REPORT_REQUEST_MAX_PER_SENDER_PER_RUN: "1"
+          IMAP_HOST: ${{ secrets.IMAP_HOST || secrets.PROD_IMAP_HOST || 'granhub.com.br' }}
+          IMAP_PORT: ${{ secrets.IMAP_PORT || secrets.PROD_IMAP_PORT || '993' }}
+          IMAP_SECURE: ${{ secrets.IMAP_SECURE || secrets.PROD_IMAP_SECURE || 'true' }}
+          IMAP_USER: ${{ secrets.IMAP_USER || secrets.PROD_IMAP_USER || secrets.PROD_SMTP_USER }}
+          IMAP_PASS: ${{ secrets.IMAP_PASS || secrets.PROD_IMAP_PASS || secrets.PROD_SMTP_PASS }}
+        run: node scripts/process-report-email-requests.mjs
