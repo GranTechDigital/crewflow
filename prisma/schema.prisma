@@ -483,6 +483,26 @@ model RelatorioSnapshot {
   @@index([createdAt])
 }
 
+model RelatorioDestinatario {
+  id                     Int       @id @default(autoincrement())
+  reportKey              String
+  name                   String
+  email                  String
+  active                 Boolean   @default(true)
+  receivesScheduledEmail Boolean   @default(true)
+  canRequestByEmail      Boolean   @default(false)
+  frequency              String    @default("weekly")
+  lastSentAt             DateTime?
+  createdBy              String?
+  updatedBy              String?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  @@unique([reportKey, email])
+  @@index([reportKey, active])
+  @@index([email])
+}
+
 model Status {
   id             Int             @id @default(autoincrement())
   categoria      String          @unique

@@ -198,9 +198,21 @@ function daysSince(date: Date) {
 
 export function formatDatePtBr(value: string | Date) {
   return new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "America/Sao_Paulo",
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
+  }).format(value instanceof Date ? value : new Date(value));
+}
+
+export function formatDateTimePtBr(value: string | Date) {
+  return new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
   }).format(value instanceof Date ? value : new Date(value));
 }
 
@@ -465,7 +477,7 @@ export async function criarExcelRelatorioGeralPendencias(
   const subtitleCell = worksheet.getCell("A2");
   subtitleCell.value = `Critérios fixos: solicitações desde ${formatDatePtBr(relatorio.dataCorte)} e cancelados desconsiderados | Exportado em ${new Intl.DateTimeFormat(
     "pt-BR",
-    { dateStyle: "short", timeStyle: "short" },
+    { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" },
   ).format(new Date())}`;
   subtitleCell.font = { size: 10, color: { argb: "FF475569" } };
   subtitleCell.alignment = { vertical: "middle", horizontal: "center" };

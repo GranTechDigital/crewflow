@@ -111,8 +111,21 @@ Campos sugeridos:
 - `requestedBy`
 - `sentAt`
 
-## Decisao atual
-Manter a implementacao atual funcionando por enquanto, usando variaveis de ambiente para destinatarios e autorizados.
+## Evolucao implementada
+Em 29/06/2026, a administracao de destinatarios saiu das variaveis operacionais e passou para o banco de dados.
 
-Quando a rotina estiver validada em producao, evoluir para a arquitetura correta com cadastro em banco, tela administrativa e auditoria completa.
+O que foi implementado:
+1. Tabela `RelatorioDestinatario` para o Relatorio Geral de Pendencias.
+2. Tela administrativa em `Administracao > Destinatarios de Relatorios`.
+3. Cadastro, edicao, ativacao/desativacao e remocao de destinatarios.
+4. Controle separado para:
+- receber envio semanal;
+- poder solicitar relatorio por e-mail.
+5. Envio automatico busca destinatarios ativos no banco.
+6. Solicitacao por e-mail passa a ser validada pelo backend com base no banco.
+7. `REPORT_GENERAL_RECIPIENTS` permanece apenas como fallback temporario caso a tabela ainda esteja vazia.
 
+## Pendencias futuras
+1. Criar auditoria detalhada de envio em tabela propria, por destinatario.
+2. Criar uma tela de historico de envios e falhas.
+3. Remover o fallback `REPORT_GENERAL_RECIPIENTS` depois que os destinatarios de producao estiverem cadastrados no banco.

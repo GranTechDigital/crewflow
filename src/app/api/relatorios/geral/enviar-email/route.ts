@@ -37,7 +37,14 @@ export async function POST(request: NextRequest) {
         success: false,
         message: error instanceof Error ? error.message : "Erro ao processar relatório geral por e-mail.",
       },
-      { status: error instanceof Error && error.name === "MissingReportRecipientsError" ? 503 : 500 },
+      {
+        status:
+          error instanceof Error && error.name === "MissingReportRecipientsError"
+            ? 503
+            : error instanceof Error && error.name === "UnauthorizedReportRecipientError"
+              ? 403
+              : 500,
+      },
     );
   }
 }

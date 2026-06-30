@@ -20,16 +20,18 @@ function normalizeText(value = "") {
     .toLowerCase();
 }
 
+function getRequestKeywords() {
+  const configured = process.env.REPORT_REQUEST_KEYWORDS || process.env.REPORT_REQUEST_KEYWORD || "relatorio";
+  return parseList(configured)
+    .map(normalizeText)
+    .filter(Boolean);
+}
+
 function parseList(value = "") {
   return value
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
-}
-
-function getAllowedSenders() {
-  const configured = process.env.REPORT_REQUEST_ALLOWED_SENDERS || process.env.REPORT_GENERAL_RECIPIENTS || "";
-  return new Set(parseList(configured).map(normalizeEmail));
 }
 
 function getFromAddress(parsed) {
@@ -44,15 +46,13 @@ function getReplyText(parsed) {
 }
 
 function hasRequestKeyword(parsed) {
-  const keyword = normalizeText(process.env.REPORT_REQUEST_KEYWORD || "relatorio");
   const content = normalizeText(getReplyText(parsed));
-  return content.includes(keyword);
+  return getRequestKeywords().some((keyword) => content.includes(keyword));
 }
 
 function extractRequestedDate(parsed) {
   const content = normalizeText(getReplyText(parsed));
-  const keyword = normalizeText(process.env.REPORT_REQUEST_KEYWORD || "relatorio");
-  if (!content.includes(keyword)) return null;
+  if (!getRequestKeywords().some((keyword) => content.includes(keyword))) return null;
 
   if (/\bhoje\b/.test(content)) return "hoje";
   if (/\bontem\b/.test(content)) return "ontem";
@@ -98,11 +98,6 @@ async function requestReport({ recipient, subject, requestedDate }) {
 }
 
 async function main() {
-  const allowedSenders = getAllowedSenders();
-  if (allowedSenders.size === 0) {
-    throw new Error("REPORT_REQUEST_ALLOWED_SENDERS or REPORT_GENERAL_RECIPIENTS is required");
-  }
-
   const host = process.env.IMAP_HOST || process.env.SMTP_HOST || "granhub.com.br";
   const port = Number(process.env.IMAP_PORT || "993");
   const secure =
@@ -143,17 +138,21 @@ async function main() {
 
       const parsed = await simpleParser(message.source);
       const from = getFromAddress(parsed);
-      const allowed = allowedSenders.has(from);
+      const isDeliveryStatus = from === "mailer-daemon@granhub.com.br" || from.startsWith("mailer-daemon@");
       const requested = hasRequestKeyword(parsed);
       const requestedDate = requested ? extractRequestedDate(parsed) : null;
       const senderSentCount = sentBySender.get(from) || 0;
 
-      if (allowed && requested && senderSentCount < maxPerSender) {
-        await requestReport({ recipient: from, subject: parsed.subject, requestedDate });
-        sentBySender.set(from, senderSentCount + 1);
-        sentCount += 1;
-      } else if (!allowed) {
-        console.log(`Ignorado remetente não autorizado: ${from || "(sem remetente)"}`);
+      if (isDeliveryStatus) {
+        console.log(`Ignorado retorno automático de entrega: ${parsed.subject || "(sem assunto)"}`);
+      } else if (requested && senderSentCount < maxPerSender) {
+        try {
+          await requestReport({ recipient: from, subject: parsed.subject, requestedDate });
+          sentBySender.set(from, senderSentCount + 1);
+          sentCount += 1;
+        } catch (error) {
+          console.log(error instanceof Error ? error.message : `Falha ao processar solicitação de ${from}`);
+        }
       } else if (!requested) {
         console.log(`Ignorado e-mail sem palavra-chave de relatório: ${from}`);
       } else {

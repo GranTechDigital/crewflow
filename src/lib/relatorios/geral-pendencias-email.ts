@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import {
   criarSnapshotRelatorioGeral,
   formatDatePtBr,
+  formatDateTimePtBr,
   RelatorioGeralResultado,
   RelatorioGeralSnapshot,
   SETORES_RELATORIO,
@@ -182,7 +183,7 @@ export function buildGeneralReportEmailHtml({
   previous: RelatorioGeralSnapshot | null;
 }) {
   const totalPendencias = SETORES_RELATORIO.reduce((sum, setor) => sum + relatorio.resumo.pendencias[setor], 0);
-  const generatedAt = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date());
+  const generatedAt = formatDateTimePtBr(new Date());
 
   const distributionSegments = SETORES_RELATORIO.map((setor) => {
     const value = relatorio.resumo.pendencias[setor];
@@ -285,7 +286,7 @@ export function buildGeneralReportEmailHtml({
                     Os totais principais representam movimentos. A distribuição por setor representa tarefas pendentes, pois um mesmo movimento pode ter atuação de mais de um setor.
                     O arquivo Excel em anexo contém a base analítica completa para conferência e tratamento operacional.
                     Para receber uma atualização em tempo real fora da programação semanal, responda este e-mail apenas com a palavra <strong>relatório</strong>.
-                    ${previous ? `Comparação realizada com o envio de ${formatDatePtBr(previous.generatedAt)}.` : "Este é o primeiro envio com histórico disponível para comparação."}
+                    ${previous ? `Comparação realizada com o envio de ${formatDateTimePtBr(previous.generatedAt)}.` : "Este é o primeiro envio com histórico disponível para comparação."}
                   </div>
                 </td>
               </tr>
@@ -350,7 +351,7 @@ export function buildGeneralReportSnapshotEmailHtml({
                 <td style="background:#111827;padding:24px 28px;color:#ffffff;">
                   <div style="font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#cbd5e1;">CrewControl</div>
                   <h1 style="margin:8px 0 0;font-size:24px;line-height:1.25;">Snapshot do Relatório Geral</h1>
-                  <p style="margin:8px 0 0;color:#cbd5e1;font-size:13px;">Snapshot solicitado para ${requestedDate}. Gerado originalmente em ${formatDatePtBr(snapshot.generatedAt)}.</p>
+                  <p style="margin:8px 0 0;color:#cbd5e1;font-size:13px;">Snapshot solicitado para ${requestedDate}. Gerado originalmente em ${formatDateTimePtBr(snapshot.generatedAt)}.</p>
                 </td>
               </tr>
               <tr>
@@ -389,7 +390,7 @@ export function buildGeneralReportSnapshotEmailHtml({
 export function buildGeneralReportSnapshotEmailText(snapshot: RelatorioGeralSnapshot, requestedDate: string) {
   return [
     `Snapshot do Relatório Geral - ${requestedDate}`,
-    `Snapshot gerado originalmente em ${formatDatePtBr(snapshot.generatedAt)}.`,
+    `Snapshot gerado originalmente em ${formatDateTimePtBr(snapshot.generatedAt)}.`,
     `Total de movimentos: ${snapshot.resumo.total}`,
     `Movimentos pendentes: ${snapshot.resumo.emAberto}`,
     `Movimentos concluídos: ${snapshot.resumo.concluidos}`,

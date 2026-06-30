@@ -338,6 +338,7 @@ export default function Sidebar() {
           { label: "Gerenciar Usuários", href: "/admin/usuarios" },
           { label: "Gerenciar Equipes", href: "/admin/equipes" },
           { label: "Gerenciar Tarefas Padrão", href: "/admin/tarefas-padrao" },
+          { label: "Destinatários de Relatórios", href: "/admin/relatorios/destinatarios" },
           { label: "Sincronizar Lista de Funcionários", href: "/funcionarios" },
           { label: "Criar Contratos", href: "/planejamento/contratos" },
           { label: "Gerenciar Status", href: "/status" },

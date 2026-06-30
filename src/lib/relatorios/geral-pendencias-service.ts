@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { timingSafeEqual } from "node:crypto";
-import { getReportRecipients, sendHtmlReportMail } from "@/lib/email/mailer";
+import { sendHtmlReportMail } from "@/lib/email/mailer";
 import {
   criarExcelRelatorioGeralPendencias,
   gerarRelatorioGeralPendencias,
@@ -17,6 +17,7 @@ import {
   readPreviousGeneralReportSnapshot,
   saveGeneralReportSnapshot,
 } from "@/lib/relatorios/geral-pendencias-email";
+import { markReportRecipientsSent, resolveReportRecipientEmails } from "@/lib/relatorios/relatorio-destinatarios";
 
 export type GeneralReportRequestBody = {
   dryRun?: boolean;
@@ -39,25 +40,6 @@ export function isReportServiceAuthorized(request: NextRequest) {
   const expectedBuffer = Buffer.from(expectedToken);
 
   return tokenBuffer.length === expectedBuffer.length && timingSafeEqual(tokenBuffer, expectedBuffer);
-}
-
-function normalizeEmail(value: string) {
-  return value.trim().toLowerCase();
-}
-
-export function resolveReportRecipients(requestedRecipients?: string[]) {
-  const configuredRecipients = getReportRecipients();
-  if (!requestedRecipients || requestedRecipients.length === 0) return configuredRecipients;
-
-  const allowed = new Set(configuredRecipients.map(normalizeEmail));
-  const recipients = requestedRecipients.map(normalizeEmail).filter(Boolean);
-  const unauthorized = recipients.filter((recipient) => !allowed.has(recipient));
-
-  if (unauthorized.length > 0) {
-    throw new Error(`Destinatário não autorizado para relatório: ${unauthorized.join(", ")}`);
-  }
-
-  return [...new Set(recipients)];
 }
 
 export async function createGeneralReportSnapshot(body: Pick<GeneralReportRequestBody, "inicio" | "fim"> = {}) {
@@ -180,7 +162,10 @@ async function sendGeneralReportSnapshotEmail(
   body: GeneralReportRequestBody,
   requestedDate: ReturnType<typeof parseRequestedDate>,
 ): Promise<unknown> {
-  const recipients = resolveReportRecipients(body.recipients);
+  const recipients = await resolveReportRecipientEmails({
+    requestedRecipients: body.recipients,
+    mode: body.requestedBy ? "email_request" : "scheduled",
+  });
   if (recipients.length === 0) {
     const error = new Error("Nenhum destinatário configurado em REPORT_GENERAL_RECIPIENTS.");
     error.name = "MissingReportRecipientsError";
@@ -227,6 +212,7 @@ async function sendGeneralReportSnapshotEmail(
     html,
     text,
   });
+  await markReportRecipientsSent(recipients);
 
   return {
     success: true,
@@ -262,7 +248,10 @@ export async function sendGeneralReportEmail(body: GeneralReportRequestBody = {}
     };
   }
 
-  const recipients = resolveReportRecipients(body.recipients);
+  const recipients = await resolveReportRecipientEmails({
+    requestedRecipients: body.recipients,
+    mode: body.requestedBy ? "email_request" : "scheduled",
+  });
   if (recipients.length === 0) {
     const error = new Error("Nenhum destinatário configurado em REPORT_GENERAL_RECIPIENTS.");
     error.name = "MissingReportRecipientsError";
@@ -285,6 +274,7 @@ export async function sendGeneralReportEmail(body: GeneralReportRequestBody = {}
       },
     ],
   });
+  await markReportRecipientsSent(recipients);
 
   if (body.saveSnapshot !== false) {
     await saveGeneralReportSnapshot(relatorio);
