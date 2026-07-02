@@ -503,6 +503,29 @@ model RelatorioDestinatario {
   @@index([email])
 }
 
+model RelatorioAgenda {
+  id                Int       @id @default(autoincrement())
+  reportKey         String    @unique
+  active            Boolean   @default(true)
+  frequency         String    @default("weekly")
+  weekdays          Json?
+  dayOfMonth        Int?
+  timeOfDay         String    @default("17:30")
+  timezone          String    @default("America/Sao_Paulo")
+  sendEmail         Boolean   @default(true)
+  saveSnapshot      Boolean   @default(true)
+  lastRunKey        String?
+  lastRunAt         DateTime?
+  lastSnapshotKey   String?
+  lastSnapshotAt    DateTime?
+  createdBy         String?
+  updatedBy         String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([reportKey, active])
+}
+
 model Status {
   id             Int             @id @default(autoincrement())
   categoria      String          @unique

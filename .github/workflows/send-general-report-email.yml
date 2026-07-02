@@ -20,10 +20,8 @@ on:
           - "false"
           - "true"
   schedule:
-    # 17:30 America/Sao_Paulo: snapshot diario, exceto sexta
-    - cron: "30 20 * * 0-4,6"
-    # 17:30 America/Sao_Paulo: snapshot + envio semanal para diretoria
-    - cron: "30 20 * * 5"
+    # Verifica a agenda configurada no CrewFlow a cada 15 minutos.
+    - cron: "*/15 * * * *"
 
 jobs:
   send-report:
@@ -38,7 +36,6 @@ jobs:
           DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
           SNAPSHOT_ONLY_INPUT: ${{ github.event.inputs.snapshot_only || 'false' }}
           EVENT_NAME: ${{ github.event_name }}
-          EVENT_SCHEDULE: ${{ github.event.schedule }}
         run: |
           if [ -z "$REPORT_API_BASE" ] && [ -z "$LEGACY_REPORT_ENDPOINT" ]; then
             echo "REPORT_GENERAL_API_BASE or REPORT_GENERAL_EMAIL_ENDPOINT secret is required."
@@ -50,21 +47,21 @@ jobs:
             exit 1
           fi
 
-          SNAPSHOT_ONLY="$SNAPSHOT_ONLY_INPUT"
-          if [ "$EVENT_NAME" = "schedule" ] && [ "$EVENT_SCHEDULE" != "30 20 * * 5" ]; then
-            SNAPSHOT_ONLY="true"
-          fi
-
           if [ -n "$REPORT_API_BASE" ]; then
             EMAIL_ENDPOINT="${REPORT_API_BASE%/}/email"
             SNAPSHOT_ENDPOINT="${REPORT_API_BASE%/}/snapshots"
+            SCHEDULE_ENDPOINT="${REPORT_API_BASE%/}/schedule"
           else
             API_BASE="${LEGACY_REPORT_ENDPOINT%/enviar-email}"
             EMAIL_ENDPOINT="${API_BASE%/}/email"
             SNAPSHOT_ENDPOINT="${API_BASE%/}/snapshots"
+            SCHEDULE_ENDPOINT="${API_BASE%/}/schedule"
           fi
 
-          if [ "$SNAPSHOT_ONLY" = "true" ] && [ "$DRY_RUN" != "true" ]; then
+          if [ "$EVENT_NAME" = "schedule" ]; then
+            REPORT_ENDPOINT="$SCHEDULE_ENDPOINT"
+            BODY="{}"
+          elif [ "$SNAPSHOT_ONLY_INPUT" = "true" ] && [ "$DRY_RUN" != "true" ]; then
             REPORT_ENDPOINT="$SNAPSHOT_ENDPOINT"
             BODY="{\"inicio\": null}"
           else

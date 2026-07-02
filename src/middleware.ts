@@ -96,6 +96,7 @@ export async function middleware(request: NextRequest) {
     "/api/relatorios/geral/enviar-email",
     "/api/relatorios/geral/email",
     "/api/relatorios/geral/snapshots",
+    "/api/relatorios/geral/schedule",
   ];
   if (
     relatorioServiceRoutes.some((route) => pathname.startsWith(route)) &&

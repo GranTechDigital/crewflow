@@ -125,6 +125,21 @@ O que foi implementado:
 6. Solicitacao por e-mail passa a ser validada pelo backend com base no banco.
 7. `REPORT_GENERAL_RECIPIENTS` permanece apenas como fallback temporario caso a tabela ainda esteja vazia.
 
+## Agenda pelo painel
+Em 01/07/2026, a agenda do envio deixou de depender de cron fixo semanal no GitHub Actions.
+
+O workflow `Send General Pending Report` passou a executar como verificador periodico. Ele chama o backend, e o backend decide se deve enviar ou salvar snapshot com base na configuracao gravada em banco.
+
+A tela `Administracao > Destinatarios de Relatorios` passou a permitir configurar:
+1. status da agenda;
+2. frequencia diaria, semanal ou mensal;
+3. dias da semana, quando semanal;
+4. dia do mes, quando mensal;
+5. horario;
+6. se deve salvar snapshot.
+
+O fluxo de solicitacao por resposta de e-mail foi descontinuado operacionalmente. A opcao de permissao para solicitar relatorio por e-mail foi ocultada da tela.
+
 ## Pendencias futuras
 1. Criar auditoria detalhada de envio em tabela propria, por destinatario.
 2. Criar uma tela de historico de envios e falhas.

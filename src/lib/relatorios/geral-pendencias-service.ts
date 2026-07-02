@@ -17,6 +17,14 @@ import {
   readPreviousGeneralReportSnapshot,
   saveGeneralReportSnapshot,
 } from "@/lib/relatorios/geral-pendencias-email";
+import {
+  getGeneralReportSchedule,
+  getScheduleRunKey,
+  isDefaultSnapshotDue,
+  isScheduleDue,
+  markGeneralReportScheduleEmailRun,
+  markGeneralReportScheduleSnapshotRun,
+} from "@/lib/relatorios/relatorio-agenda";
 import { markReportRecipientsSent, resolveReportRecipientEmails } from "@/lib/relatorios/relatorio-destinatarios";
 
 export type GeneralReportRequestBody = {
@@ -287,5 +295,46 @@ export async function sendGeneralReportEmail(body: GeneralReportRequestBody = {}
     accepted: info.accepted,
     rejected: info.rejected,
     resumo: relatorio.resumo,
+  };
+}
+
+export async function processGeneralReportSchedule(now = new Date()) {
+  const schedule = await getGeneralReportSchedule();
+  const runKey = getScheduleRunKey(schedule, now);
+
+  if (isScheduleDue(schedule, now)) {
+    const result = await sendGeneralReportEmail({ saveSnapshot: schedule.saveSnapshot });
+    await markGeneralReportScheduleEmailRun(runKey);
+    if (schedule.saveSnapshot) {
+      await markGeneralReportScheduleSnapshotRun(runKey);
+    }
+
+    return {
+      success: true,
+      action: "email_sent",
+      runKey,
+      schedule,
+      result,
+    };
+  }
+
+  if (isDefaultSnapshotDue(schedule, now)) {
+    const relatorio = await createGeneralReportSnapshot();
+    await markGeneralReportScheduleSnapshotRun(runKey);
+
+    return {
+      success: true,
+      action: "snapshot_saved",
+      runKey,
+      schedule,
+      resumo: relatorio.resumo,
+    };
+  }
+
+  return {
+    success: true,
+    action: "skipped",
+    runKey,
+    schedule,
   };
 }
