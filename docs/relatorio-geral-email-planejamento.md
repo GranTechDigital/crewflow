@@ -140,7 +140,29 @@ A tela `Administracao > Destinatarios de Relatorios` passou a permitir configura
 
 O fluxo de solicitacao por resposta de e-mail foi descontinuado operacionalmente. A opcao de permissao para solicitar relatorio por e-mail foi ocultada da tela.
 
+## Agendas por evento
+Em 02/07/2026, a agenda deixou de ser um valor unico por relatorio e passou a representar eventos de envio.
+
+Modelo atual:
+1. `RelatorioDestinatario` continua sendo o cadastro base de pessoas/e-mails.
+2. `RelatorioAgenda` representa um evento programado, com nome, tipo de relatorio, frequencia, horario e configuracoes.
+3. `RelatorioAgendaDestinatario` vincula cada agenda aos seus destinatarios.
+
+Com isso, o mesmo tipo de relatorio pode ter diferentes variacoes de envio:
+- Diretoria semanal, sexta-feira as 17:30.
+- Operacao diaria, todos os dias as 17:30.
+- RH semanal, segunda-feira as 08:00.
+
+O workflow continua sendo apenas um verificador tecnico a cada 15 minutos. A regra operacional fica no banco, administrada pela aplicacao.
+
+Cuidados definidos:
+1. Agendas sem destinatarios nao enviam e-mail.
+2. Cada agenda registra sua propria ultima execucao para evitar duplicidade.
+3. Snapshot diario e evitado quando ja existe snapshot para a mesma data.
+4. O campo `reportKey` permanece como chave do tipo de relatorio, permitindo adicionar outros relatorios no futuro sem recriar a infraestrutura de agenda.
+
 ## Pendencias futuras
 1. Criar auditoria detalhada de envio em tabela propria, por destinatario.
 2. Criar uma tela de historico de envios e falhas.
 3. Remover o fallback `REPORT_GENERAL_RECIPIENTS` depois que os destinatarios de producao estiverem cadastrados no banco.
+4. Evoluir a tela para permitir filtros especificos por agenda quando novos relatorios forem adicionados.

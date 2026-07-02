@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import { CalendarClock, Mail, Plus, RefreshCw, Save, Trash2 } from "lucide-react";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { ROUTE_PROTECTION } from "@/lib/permissions";
@@ -16,21 +17,9 @@ type ReportRecipient = {
   updatedAt: string;
 };
 
-type RecipientForm = {
-  name: string;
-  email: string;
-  active: boolean;
-  receivesScheduledEmail: boolean;
-};
-
-const emptyForm: RecipientForm = {
-  name: "",
-  email: "",
-  active: true,
-  receivesScheduledEmail: true,
-};
-
 type ReportSchedule = {
+  id: number | null;
+  name: string;
   active: boolean;
   frequency: "daily" | "weekly" | "monthly";
   weekdays: number[];
@@ -39,8 +28,39 @@ type ReportSchedule = {
   timezone: string;
   sendEmail: boolean;
   saveSnapshot: boolean;
+  recipientIds: number[];
   lastRunAt: string | null;
   lastSnapshotAt: string | null;
+};
+
+type RecipientForm = {
+  name: string;
+  email: string;
+  active: boolean;
+  receivesScheduledEmail: boolean;
+};
+
+const emptyRecipientForm: RecipientForm = {
+  name: "",
+  email: "",
+  active: true,
+  receivesScheduledEmail: true,
+};
+
+const emptyScheduleForm: ReportSchedule = {
+  id: null,
+  name: "Diretoria semanal",
+  active: true,
+  frequency: "weekly",
+  weekdays: [5],
+  dayOfMonth: 1,
+  timeOfDay: "17:30",
+  timezone: "America/Sao_Paulo",
+  sendEmail: true,
+  saveSnapshot: true,
+  recipientIds: [],
+  lastRunAt: null,
+  lastSnapshotAt: null,
 };
 
 const weekDays = [
@@ -66,25 +86,19 @@ export default function ReportRecipientsPage() {
 
 function ReportRecipientsContent() {
   const [recipients, setRecipients] = useState<ReportRecipient[]>([]);
-  const [form, setForm] = useState<RecipientForm>(emptyForm);
-  const [editingId, setEditingId] = useState<number | null>(null);
+  const [schedules, setSchedules] = useState<ReportSchedule[]>([]);
+  const [recipientForm, setRecipientForm] = useState<RecipientForm>(emptyRecipientForm);
+  const [scheduleForm, setScheduleForm] = useState<ReportSchedule>(emptyScheduleForm);
+  const [editingRecipientId, setEditingRecipientId] = useState<number | null>(null);
+  const [editingScheduleId, setEditingScheduleId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [scheduleSaving, setScheduleSaving] = useState(false);
+  const [savingRecipient, setSavingRecipient] = useState(false);
+  const [savingSchedule, setSavingSchedule] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [schedule, setSchedule] = useState<ReportSchedule>({
-    active: true,
-    frequency: "weekly",
-    weekdays: [5],
-    dayOfMonth: 1,
-    timeOfDay: "17:30",
-    timezone: "America/Sao_Paulo",
-    sendEmail: true,
-    saveSnapshot: true,
-    lastRunAt: null,
-    lastSnapshotAt: null,
-  });
+
+  const activeRecipients = recipients.filter((recipient) => recipient.active && recipient.receivesScheduledEmail);
+  const activeSchedules = schedules.filter((schedule) => schedule.active && schedule.sendEmail);
 
   const filteredRecipients = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -96,47 +110,53 @@ function ReportRecipientsContent() {
     );
   }, [recipients, search]);
 
-  const scheduledCount = recipients.filter((recipient) => recipient.active && recipient.receivesScheduledEmail).length;
-
-  async function loadRecipients() {
+  async function loadAll() {
     setLoading(true);
     setMessage(null);
     try {
-      const response = await fetch("/api/admin/relatorios/destinatarios", { cache: "no-store" });
-      const data = await response.json();
-      if (!response.ok || !data.success) throw new Error(data.message || "Erro ao carregar destinatários.");
-      setRecipients(data.recipients);
+      const [recipientsResponse, schedulesResponse] = await Promise.all([
+        fetch("/api/admin/relatorios/destinatarios", { cache: "no-store" }),
+        fetch("/api/admin/relatorios/agenda", { cache: "no-store" }),
+      ]);
+      const recipientsData = await recipientsResponse.json();
+      const schedulesData = await schedulesResponse.json();
+
+      if (!recipientsResponse.ok || !recipientsData.success) {
+        throw new Error(recipientsData.message || "Erro ao carregar destinatários.");
+      }
+      if (!schedulesResponse.ok || !schedulesData.success) {
+        throw new Error(schedulesData.message || "Erro ao carregar agendas.");
+      }
+
+      setRecipients(recipientsData.recipients);
+      setSchedules(schedulesData.schedules || []);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Erro ao carregar destinatários.");
+      setMessage(error instanceof Error ? error.message : "Erro ao carregar configurações.");
     } finally {
       setLoading(false);
     }
   }
 
-  async function loadSchedule() {
-    try {
-      const response = await fetch("/api/admin/relatorios/agenda", { cache: "no-store" });
-      const data = await response.json();
-      if (!response.ok || !data.success) throw new Error(data.message || "Erro ao carregar agenda.");
-      setSchedule(data.schedule);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Erro ao carregar agenda.");
-    }
-  }
-
   useEffect(() => {
-    loadRecipients();
-    loadSchedule();
+    loadAll();
   }, []);
 
-  function resetForm() {
-    setForm(emptyForm);
-    setEditingId(null);
+  function resetRecipientForm() {
+    setRecipientForm(emptyRecipientForm);
+    setEditingRecipientId(null);
   }
 
-  function startEdit(recipient: ReportRecipient) {
-    setEditingId(recipient.id);
-    setForm({
+  function resetScheduleForm() {
+    setScheduleForm({
+      ...emptyScheduleForm,
+      recipientIds: activeRecipients.map((recipient) => recipient.id),
+    });
+    setEditingScheduleId(null);
+  }
+
+  function startEditRecipient(recipient: ReportRecipient) {
+    setEditingRecipientId(recipient.id);
+    setRecipientForm({
       name: recipient.name,
       email: recipient.email,
       active: recipient.active,
@@ -145,63 +165,90 @@ function ReportRecipientsContent() {
     setMessage(null);
   }
 
-  async function submitForm(event: FormEvent) {
+  function startEditSchedule(schedule: ReportSchedule) {
+    setEditingScheduleId(schedule.id);
+    setScheduleForm({
+      ...schedule,
+      dayOfMonth: schedule.dayOfMonth || 1,
+      recipientIds: schedule.recipientIds || [],
+    });
+    setMessage(null);
+  }
+
+  async function submitRecipient(event: FormEvent) {
     event.preventDefault();
-    setSaving(true);
+    setSavingRecipient(true);
     setMessage(null);
 
-    const endpoint = editingId
-      ? `/api/admin/relatorios/destinatarios/${editingId}`
+    const endpoint = editingRecipientId
+      ? `/api/admin/relatorios/destinatarios/${editingRecipientId}`
       : "/api/admin/relatorios/destinatarios";
-    const method = editingId ? "PATCH" : "POST";
+    const method = editingRecipientId ? "PATCH" : "POST";
 
     try {
       const response = await fetch(endpoint, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(recipientForm),
       });
       const data = await response.json();
       if (!response.ok || !data.success) throw new Error(data.message || "Erro ao salvar destinatário.");
-      setMessage(editingId ? "Destinatário atualizado." : "Destinatário cadastrado.");
-      resetForm();
-      await loadRecipients();
+      resetRecipientForm();
+      await loadAll();
+      setMessage(editingRecipientId ? "Destinatário atualizado." : "Destinatário cadastrado.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Erro ao salvar destinatário.");
     } finally {
-      setSaving(false);
+      setSavingRecipient(false);
     }
   }
 
-  async function saveSchedule(event: FormEvent) {
+  async function submitSchedule(event: FormEvent) {
     event.preventDefault();
-    setScheduleSaving(true);
+    setSavingSchedule(true);
     setMessage(null);
 
     try {
       const response = await fetch("/api/admin/relatorios/agenda", {
-        method: "PUT",
+        method: editingScheduleId ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(schedule),
+        body: JSON.stringify({
+          ...scheduleForm,
+          id: editingScheduleId,
+          sendEmail: scheduleForm.active,
+        }),
       });
       const data = await response.json();
       if (!response.ok || !data.success) throw new Error(data.message || "Erro ao salvar agenda.");
-      setSchedule(data.schedule);
-      setMessage("Agenda atualizada.");
+      resetScheduleForm();
+      await loadAll();
+      setMessage(editingScheduleId ? "Agenda atualizada." : "Agenda criada.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Erro ao salvar agenda.");
     } finally {
-      setScheduleSaving(false);
+      setSavingSchedule(false);
     }
   }
 
   function toggleWeekday(day: number) {
-    setSchedule((current) => {
+    setScheduleForm((current) => {
       const exists = current.weekdays.includes(day);
       const weekdays = exists
         ? current.weekdays.filter((item) => item !== day)
         : [...current.weekdays, day];
       return { ...current, weekdays: weekdays.length > 0 ? weekdays : [day] };
+    });
+  }
+
+  function toggleScheduleRecipient(recipientId: number) {
+    setScheduleForm((current) => {
+      const exists = current.recipientIds.includes(recipientId);
+      return {
+        ...current,
+        recipientIds: exists
+          ? current.recipientIds.filter((id) => id !== recipientId)
+          : [...current.recipientIds, recipientId],
+      };
     });
   }
 
@@ -236,11 +283,27 @@ function ReportRecipientsContent() {
       const response = await fetch(`/api/admin/relatorios/destinatarios/${recipient.id}`, { method: "DELETE" });
       const data = await response.json();
       if (!response.ok || !data.success) throw new Error(data.message || "Erro ao remover destinatário.");
-      if (editingId === recipient.id) resetForm();
-      await loadRecipients();
+      if (editingRecipientId === recipient.id) resetRecipientForm();
+      await loadAll();
       setMessage("Destinatário removido.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Erro ao remover destinatário.");
+    }
+  }
+
+  async function removeSchedule(schedule: ReportSchedule) {
+    if (!schedule.id || !window.confirm(`Remover a agenda "${schedule.name}"?`)) return;
+    setMessage(null);
+
+    try {
+      const response = await fetch(`/api/admin/relatorios/agenda?id=${schedule.id}`, { method: "DELETE" });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.message || "Erro ao remover agenda.");
+      if (editingScheduleId === schedule.id) resetScheduleForm();
+      await loadAll();
+      setMessage("Agenda removida.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Erro ao remover agenda.");
     }
   }
 
@@ -250,11 +313,11 @@ function ReportRecipientsContent() {
         <header className="flex flex-col justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm md:flex-row md:items-center">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Configurações de relatórios</p>
-            <h1 className="text-xl font-bold text-slate-950">Destinatários do Relatório Geral</h1>
+            <h1 className="text-xl font-bold text-slate-950">Envios programados</h1>
           </div>
           <button
             type="button"
-            onClick={loadRecipients}
+            onClick={loadAll}
             className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
           >
             <RefreshCw size={15} />
@@ -263,131 +326,240 @@ function ReportRecipientsContent() {
         </header>
 
         <section className="grid gap-3 md:grid-cols-3">
-          <MetricCard label="Destinatários ativos" value={scheduledCount} />
+          <MetricCard label="Destinatários ativos" value={activeRecipients.length} />
+          <MetricCard label="Agendas ativas" value={activeSchedules.length} />
           <MetricCard label="Total cadastrado" value={recipients.length} />
-          <MetricCard label="Agenda" value={schedule.active && schedule.sendEmail ? 1 : 0} suffix={schedule.active && schedule.sendEmail ? "ativa" : "pausada"} />
         </section>
 
-        <form onSubmit={saveSchedule} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="mb-3 flex flex-col justify-between gap-2 md:flex-row md:items-center">
-            <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-slate-900 text-white">
-                <CalendarClock size={16} />
+        {message && (
+          <div className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm">
+            {message}
+          </div>
+        )}
+
+        <section className="grid gap-4 xl:grid-cols-[420px_1fr]">
+          <form onSubmit={submitSchedule} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+            <SectionHeader icon={<CalendarClock size={16} />} title={editingScheduleId ? "Editar agenda" : "Nova agenda"} subtitle="Tipo de relatório, frequência e destinatários." />
+
+            <div className="space-y-3">
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-slate-600">Nome da agenda</span>
+                <input
+                  value={scheduleForm.name}
+                  onChange={(event) => setScheduleForm((current) => ({ ...current, name: event.target.value }))}
+                  className="h-9 w-full rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-slate-500"
+                  placeholder="Ex.: Diretoria semanal"
+                  required
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-slate-600">Tipo de relatório</span>
+                <select
+                  value="RELATORIO_GERAL_PENDENCIAS"
+                  disabled
+                  className="h-9 w-full rounded-md border border-slate-300 bg-slate-50 px-2 text-sm text-slate-600"
+                >
+                  <option value="RELATORIO_GERAL_PENDENCIAS">Relatório Geral de Pendências</option>
+                </select>
+              </label>
+
+              <div className="grid grid-cols-[1fr_120px] gap-2">
+                <label className="block">
+                  <span className="mb-1 block text-xs font-semibold text-slate-600">Frequência</span>
+                  <select
+                    value={scheduleForm.frequency}
+                    onChange={(event) => setScheduleForm((current) => ({ ...current, frequency: event.target.value as ReportSchedule["frequency"] }))}
+                    className="h-9 w-full rounded-md border border-slate-300 px-2 text-sm outline-none focus:border-slate-500"
+                  >
+                    <option value="daily">Diário</option>
+                    <option value="weekly">Semanal</option>
+                    <option value="monthly">Mensal</option>
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-xs font-semibold text-slate-600">Horário</span>
+                  <input
+                    type="time"
+                    value={scheduleForm.timeOfDay}
+                    onChange={(event) => setScheduleForm((current) => ({ ...current, timeOfDay: event.target.value }))}
+                    className="h-9 w-full rounded-md border border-slate-300 px-2 text-sm outline-none focus:border-slate-500"
+                  />
+                </label>
               </div>
+
+              {scheduleForm.frequency === "weekly" ? (
+                <div>
+                  <span className="mb-1 block text-xs font-semibold text-slate-600">Dias da semana</span>
+                  <div className="flex flex-wrap gap-1">
+                    {weekDays.map((day) => (
+                      <button
+                        key={day.value}
+                        type="button"
+                        onClick={() => toggleWeekday(day.value)}
+                        className={`h-8 rounded-md border px-3 text-xs font-bold ${
+                          scheduleForm.weekdays.includes(day.value)
+                            ? "border-slate-900 bg-slate-900 text-white"
+                            : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                        }`}
+                      >
+                        {day.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : scheduleForm.frequency === "monthly" ? (
+                <label className="block">
+                  <span className="mb-1 block text-xs font-semibold text-slate-600">Dia do mês</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={31}
+                    value={scheduleForm.dayOfMonth || 1}
+                    onChange={(event) => setScheduleForm((current) => ({ ...current, dayOfMonth: Number(event.target.value) }))}
+                    className="h-9 w-28 rounded-md border border-slate-300 px-2 text-sm outline-none focus:border-slate-500"
+                  />
+                </label>
+              ) : null}
+
+              <div className="grid grid-cols-2 gap-2">
+                <ToggleField
+                  label="Ativa"
+                  checked={scheduleForm.active}
+                  onChange={(checked) => setScheduleForm((current) => ({ ...current, active: checked }))}
+                />
+                <ToggleField
+                  label="Salvar snapshot"
+                  checked={scheduleForm.saveSnapshot}
+                  onChange={(checked) => setScheduleForm((current) => ({ ...current, saveSnapshot: checked }))}
+                />
+              </div>
+
               <div>
-                <h2 className="text-sm font-bold text-slate-950">Agenda de envio</h2>
-                <p className="text-xs text-slate-500">O GitHub apenas verifica; o backend decide pelo horário configurado aqui.</p>
+                <div className="mb-1 flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-600">Destinatários desta agenda</span>
+                  <button
+                    type="button"
+                    onClick={() => setScheduleForm((current) => ({ ...current, recipientIds: activeRecipients.map((recipient) => recipient.id) }))}
+                    className="text-xs font-semibold text-slate-600 hover:text-slate-950"
+                  >
+                    marcar ativos
+                  </button>
+                </div>
+                <div className="max-h-44 overflow-y-auto rounded-md border border-slate-200">
+                  {activeRecipients.length === 0 ? (
+                    <div className="px-3 py-6 text-center text-xs text-slate-500">Cadastre destinatários ativos para montar uma agenda.</div>
+                  ) : (
+                    activeRecipients.map((recipient) => (
+                      <label key={recipient.id} className="flex cursor-pointer items-center gap-2 border-b border-slate-100 px-3 py-2 text-xs last:border-b-0 hover:bg-slate-50">
+                        <input
+                          type="checkbox"
+                          checked={scheduleForm.recipientIds.includes(recipient.id)}
+                          onChange={() => toggleScheduleRecipient(recipient.id)}
+                          className="h-4 w-4 accent-slate-900"
+                        />
+                        <span className="min-w-0">
+                          <span className="block truncate font-semibold text-slate-800">{recipient.name}</span>
+                          <span className="block truncate font-mono text-[11px] text-slate-500">{recipient.email}</span>
+                        </span>
+                      </label>
+                    ))
+                  )}
+                </div>
               </div>
             </div>
-            <button
-              type="submit"
-              disabled={scheduleSaving}
-              className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-slate-900 px-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <Save size={15} />
-              {scheduleSaving ? "Salvando..." : "Salvar agenda"}
-            </button>
-          </div>
 
-          <div className="grid gap-3 md:grid-cols-[130px_160px_1fr_120px_160px]">
-            <label className="block">
-              <span className="mb-1 block text-xs font-semibold text-slate-600">Status</span>
-              <select
-                value={schedule.active && schedule.sendEmail ? "active" : "paused"}
-                onChange={(event) =>
-                  setSchedule((current) => ({
-                    ...current,
-                    active: event.target.value === "active",
-                    sendEmail: event.target.value === "active",
-                  }))
-                }
-                className="h-9 w-full rounded-md border border-slate-300 px-2 text-sm outline-none focus:border-slate-500"
+            <div className="mt-4 flex gap-2">
+              <button
+                type="submit"
+                disabled={savingSchedule}
+                className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md bg-slate-900 px-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <option value="active">Ativo</option>
-                <option value="paused">Pausado</option>
-              </select>
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-xs font-semibold text-slate-600">Frequência</span>
-              <select
-                value={schedule.frequency}
-                onChange={(event) => setSchedule((current) => ({ ...current, frequency: event.target.value as ReportSchedule["frequency"] }))}
-                className="h-9 w-full rounded-md border border-slate-300 px-2 text-sm outline-none focus:border-slate-500"
-              >
-                <option value="daily">Diário</option>
-                <option value="weekly">Semanal</option>
-                <option value="monthly">Mensal</option>
-              </select>
-            </label>
-            <div>
-              <span className="mb-1 block text-xs font-semibold text-slate-600">
-                {schedule.frequency === "weekly" ? "Dias da semana" : schedule.frequency === "monthly" ? "Dia do mês" : "Execução"}
-              </span>
-              {schedule.frequency === "weekly" ? (
-                <div className="flex flex-wrap gap-1">
-                  {weekDays.map((day) => (
-                    <button
-                      key={day.value}
-                      type="button"
-                      onClick={() => toggleWeekday(day.value)}
-                      className={`h-9 rounded-md border px-3 text-xs font-bold ${
-                        schedule.weekdays.includes(day.value)
-                          ? "border-slate-900 bg-slate-900 text-white"
-                          : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
-                      }`}
-                    >
-                      {day.label}
-                    </button>
-                  ))}
-                </div>
-              ) : schedule.frequency === "monthly" ? (
-                <input
-                  type="number"
-                  min={1}
-                  max={31}
-                  value={schedule.dayOfMonth || 1}
-                  onChange={(event) => setSchedule((current) => ({ ...current, dayOfMonth: Number(event.target.value) }))}
-                  className="h-9 w-24 rounded-md border border-slate-300 px-2 text-sm outline-none focus:border-slate-500"
-                />
-              ) : (
-                <div className="flex h-9 items-center rounded-md border border-slate-200 px-3 text-sm text-slate-600">Todos os dias</div>
+                <Save size={15} />
+                {savingSchedule ? "Salvando..." : editingScheduleId ? "Salvar agenda" : "Criar agenda"}
+              </button>
+              {editingScheduleId && (
+                <button
+                  type="button"
+                  onClick={resetScheduleForm}
+                  className="h-9 rounded-md border border-slate-300 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Cancelar
+                </button>
               )}
             </div>
-            <label className="block">
-              <span className="mb-1 block text-xs font-semibold text-slate-600">Horário</span>
-              <input
-                type="time"
-                value={schedule.timeOfDay}
-                onChange={(event) => setSchedule((current) => ({ ...current, timeOfDay: event.target.value }))}
-                className="h-9 w-full rounded-md border border-slate-300 px-2 text-sm outline-none focus:border-slate-500"
-              />
-            </label>
-            <ToggleField
-              label="Salvar snapshot"
-              checked={schedule.saveSnapshot}
-              onChange={(checked) => setSchedule((current) => ({ ...current, saveSnapshot: checked }))}
-            />
-          </div>
-        </form>
+          </form>
 
-        <section className="grid gap-4 lg:grid-cols-[360px_1fr]">
-          <form onSubmit={submitForm} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="mb-4 flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-slate-900 text-white">
-                <Mail size={16} />
-              </div>
-              <div>
-                <h2 className="text-sm font-bold text-slate-950">{editingId ? "Editar destinatário" : "Novo destinatário"}</h2>
-                <p className="text-xs text-slate-500">Controle operacional, sem deploy.</p>
-              </div>
+          <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-200 p-3">
+              <SectionHeader icon={<CalendarClock size={16} />} title="Agendas cadastradas" subtitle="Cada agenda dispara seu próprio grupo de destinatários." />
             </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-200 text-sm">
+                <thead className="bg-slate-50">
+                  <tr>
+                    <th className="px-3 py-2 text-left text-[11px] font-bold uppercase text-slate-500">Agenda</th>
+                    <th className="px-3 py-2 text-left text-[11px] font-bold uppercase text-slate-500">Frequência</th>
+                    <th className="px-3 py-2 text-center text-[11px] font-bold uppercase text-slate-500">Dest.</th>
+                    <th className="px-3 py-2 text-center text-[11px] font-bold uppercase text-slate-500">Status</th>
+                    <th className="px-3 py-2 text-right text-[11px] font-bold uppercase text-slate-500">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {loading ? (
+                    <tr><td className="px-3 py-8 text-center text-slate-500" colSpan={5}>Carregando agendas...</td></tr>
+                  ) : schedules.length === 0 ? (
+                    <tr><td className="px-3 py-8 text-center text-slate-500" colSpan={5}>Nenhuma agenda cadastrada.</td></tr>
+                  ) : (
+                    schedules.map((schedule) => (
+                      <tr key={schedule.id} className="hover:bg-slate-50">
+                        <td className="px-3 py-2">
+                          <div className="font-semibold text-slate-950">{schedule.name}</div>
+                          <div className="text-xs text-slate-500">Último envio: {formatDateTime(schedule.lastRunAt)}</div>
+                        </td>
+                        <td className="px-3 py-2 text-xs text-slate-600">{formatSchedule(schedule)}</td>
+                        <td className="px-3 py-2 text-center font-mono text-xs">{schedule.recipientIds.length}</td>
+                        <td className="px-3 py-2 text-center">
+                          <span className={`rounded-full px-2 py-1 text-[11px] font-bold ${schedule.active && schedule.sendEmail ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
+                            {schedule.active && schedule.sendEmail ? "Ativa" : "Pausada"}
+                          </span>
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2 text-right">
+                          <button
+                            type="button"
+                            onClick={() => startEditSchedule(schedule)}
+                            className="mr-2 rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                          >
+                            Editar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removeSchedule(schedule)}
+                            className="inline-flex items-center rounded-md border border-red-200 px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-50"
+                            aria-label={`Remover ${schedule.name}`}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section className="grid gap-4 xl:grid-cols-[420px_1fr]">
+          <form onSubmit={submitRecipient} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+            <SectionHeader icon={<Mail size={16} />} title={editingRecipientId ? "Editar destinatário" : "Novo destinatário"} subtitle="Cadastro base usado nas agendas." />
 
             <div className="space-y-3">
               <label className="block">
                 <span className="mb-1 block text-xs font-semibold text-slate-600">Nome</span>
                 <input
-                  value={form.name}
-                  onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
+                  value={recipientForm.name}
+                  onChange={(event) => setRecipientForm((current) => ({ ...current, name: event.target.value }))}
                   className="h-9 w-full rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-slate-500"
                   placeholder="Nome do destinatário"
                   required
@@ -397,39 +569,41 @@ function ReportRecipientsContent() {
                 <span className="mb-1 block text-xs font-semibold text-slate-600">E-mail</span>
                 <input
                   type="email"
-                  value={form.email}
-                  onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
+                  value={recipientForm.email}
+                  onChange={(event) => setRecipientForm((current) => ({ ...current, email: event.target.value }))}
                   className="h-9 w-full rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-slate-500"
                   placeholder="nome@empresa.com"
                   required
                 />
               </label>
 
-              <ToggleField
-                label="Ativo"
-                checked={form.active}
-                onChange={(checked) => setForm((current) => ({ ...current, active: checked }))}
-              />
-              <ToggleField
-                label="Recebe relatório"
-                checked={form.receivesScheduledEmail}
-                onChange={(checked) => setForm((current) => ({ ...current, receivesScheduledEmail: checked }))}
-              />
+              <div className="grid grid-cols-2 gap-2">
+                <ToggleField
+                  label="Ativo"
+                  checked={recipientForm.active}
+                  onChange={(checked) => setRecipientForm((current) => ({ ...current, active: checked }))}
+                />
+                <ToggleField
+                  label="Elegível para agenda"
+                  checked={recipientForm.receivesScheduledEmail}
+                  onChange={(checked) => setRecipientForm((current) => ({ ...current, receivesScheduledEmail: checked }))}
+                />
+              </div>
             </div>
 
             <div className="mt-4 flex gap-2">
               <button
                 type="submit"
-                disabled={saving}
+                disabled={savingRecipient}
                 className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md bg-slate-900 px-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {editingId ? <Save size={15} /> : <Plus size={15} />}
-                {saving ? "Salvando..." : editingId ? "Salvar" : "Adicionar"}
+                {editingRecipientId ? <Save size={15} /> : <Plus size={15} />}
+                {savingRecipient ? "Salvando..." : editingRecipientId ? "Salvar" : "Adicionar"}
               </button>
-              {editingId && (
+              {editingRecipientId && (
                 <button
                   type="button"
-                  onClick={resetForm}
+                  onClick={resetRecipientForm}
                   className="h-9 rounded-md border border-slate-300 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                 >
                   Cancelar
@@ -446,7 +620,6 @@ function ReportRecipientsContent() {
                 className="h-9 w-full rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-slate-500 md:max-w-sm"
                 placeholder="Buscar por nome ou e-mail"
               />
-              {message && <span className="text-xs font-semibold text-slate-600">{message}</span>}
             </div>
 
             <div className="overflow-x-auto">
@@ -456,19 +629,15 @@ function ReportRecipientsContent() {
                     <th className="px-3 py-2 text-left text-[11px] font-bold uppercase text-slate-500">Nome</th>
                     <th className="px-3 py-2 text-left text-[11px] font-bold uppercase text-slate-500">E-mail</th>
                     <th className="px-3 py-2 text-center text-[11px] font-bold uppercase text-slate-500">Ativo</th>
-                    <th className="px-3 py-2 text-center text-[11px] font-bold uppercase text-slate-500">Recebe</th>
+                    <th className="px-3 py-2 text-center text-[11px] font-bold uppercase text-slate-500">Elegível</th>
                     <th className="px-3 py-2 text-right text-[11px] font-bold uppercase text-slate-500">Ações</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {loading ? (
-                    <tr>
-                      <td className="px-3 py-8 text-center text-slate-500" colSpan={5}>Carregando destinatários...</td>
-                    </tr>
+                    <tr><td className="px-3 py-8 text-center text-slate-500" colSpan={5}>Carregando destinatários...</td></tr>
                   ) : filteredRecipients.length === 0 ? (
-                    <tr>
-                      <td className="px-3 py-8 text-center text-slate-500" colSpan={5}>Nenhum destinatário encontrado.</td>
-                    </tr>
+                    <tr><td className="px-3 py-8 text-center text-slate-500" colSpan={5}>Nenhum destinatário encontrado.</td></tr>
                   ) : (
                     filteredRecipients.map((recipient) => (
                       <tr key={recipient.id} className="hover:bg-slate-50">
@@ -483,7 +652,7 @@ function ReportRecipientsContent() {
                         <td className="whitespace-nowrap px-3 py-2 text-right">
                           <button
                             type="button"
-                            onClick={() => startEdit(recipient)}
+                            onClick={() => startEditRecipient(recipient)}
                             className="mr-2 rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
                           >
                             Editar
@@ -510,14 +679,42 @@ function ReportRecipientsContent() {
   );
 }
 
-function MetricCard({ label, value, suffix }: { label: string; value: number; suffix?: string }) {
+function formatDateTime(value: string | null) {
+  if (!value) return "nunca";
+  return new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "short",
+    timeZone: "America/Sao_Paulo",
+  }).format(new Date(value));
+}
+
+function formatSchedule(schedule: ReportSchedule) {
+  const time = schedule.timeOfDay;
+  if (schedule.frequency === "daily") return `Diário às ${time}`;
+  if (schedule.frequency === "monthly") return `Dia ${schedule.dayOfMonth || 1}, às ${time}`;
+  const labels = weekDays.filter((day) => schedule.weekdays.includes(day.value)).map((day) => day.label).join(", ");
+  return `${labels || "Sem dia"} às ${time}`;
+}
+
+function MetricCard({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">
       <p className="text-xs font-bold uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="mt-1 font-mono text-2xl font-bold text-slate-950">
-        {value}
-        {suffix && <span className="ml-2 font-sans text-xs font-bold uppercase text-slate-500">{suffix}</span>}
-      </p>
+      <p className="mt-1 font-mono text-2xl font-bold text-slate-950">{value}</p>
+    </div>
+  );
+}
+
+function SectionHeader({ icon, title, subtitle }: { icon: ReactNode; title: string; subtitle: string }) {
+  return (
+    <div className="mb-4 flex items-center gap-2">
+      <div className="flex h-8 w-8 items-center justify-center rounded-md bg-slate-900 text-white">
+        {icon}
+      </div>
+      <div>
+        <h2 className="text-sm font-bold text-slate-950">{title}</h2>
+        <p className="text-xs text-slate-500">{subtitle}</p>
+      </div>
     </div>
   );
 }

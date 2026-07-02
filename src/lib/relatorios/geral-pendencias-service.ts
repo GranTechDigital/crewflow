@@ -18,12 +18,13 @@ import {
   saveGeneralReportSnapshot,
 } from "@/lib/relatorios/geral-pendencias-email";
 import {
-  getGeneralReportSchedule,
+  getScheduleSnapshotKey,
   getScheduleRunKey,
-  isDefaultSnapshotDue,
   isScheduleDue,
-  markGeneralReportScheduleEmailRun,
-  markGeneralReportScheduleSnapshotRun,
+  isSnapshotDue,
+  listGeneralReportSchedulesWithFallback,
+  markReportScheduleEmailRun,
+  markReportScheduleSnapshotRun,
 } from "@/lib/relatorios/relatorio-agenda";
 import { markReportRecipientsSent, resolveReportRecipientEmails } from "@/lib/relatorios/relatorio-destinatarios";
 
@@ -299,42 +300,72 @@ export async function sendGeneralReportEmail(body: GeneralReportRequestBody = {}
 }
 
 export async function processGeneralReportSchedule(now = new Date()) {
-  const schedule = await getGeneralReportSchedule();
-  const runKey = getScheduleRunKey(schedule, now);
+  const schedules = await listGeneralReportSchedulesWithFallback();
+  const results: unknown[] = [];
+  const skipped: unknown[] = [];
+  const snapshotKeysSaved = new Set<string>();
 
-  if (isScheduleDue(schedule, now)) {
-    const result = await sendGeneralReportEmail({ saveSnapshot: schedule.saveSnapshot });
-    await markGeneralReportScheduleEmailRun(runKey);
-    if (schedule.saveSnapshot) {
-      await markGeneralReportScheduleSnapshotRun(runKey);
+  for (const schedule of schedules) {
+    const runKey = getScheduleRunKey(schedule, now);
+    const snapshotKey = getScheduleSnapshotKey(schedule, now);
+    const activeRecipients = schedule.recipients.filter(
+      (recipient) => recipient.active && recipient.receivesScheduledEmail,
+    );
+    const recipients = activeRecipients.map((recipient) => recipient.email);
+
+    if (isScheduleDue(schedule, now)) {
+      if (schedule.id && recipients.length === 0) {
+        skipped.push({
+          action: "no_recipients",
+          runKey,
+          schedule: { id: schedule.id, name: schedule.name, reportKey: schedule.reportKey },
+        });
+      } else {
+        const result = await sendGeneralReportEmail({
+          recipients: recipients.length > 0 ? recipients : undefined,
+          saveSnapshot: false,
+        });
+        await markReportScheduleEmailRun(schedule, runKey);
+
+        results.push({
+          action: "email_sent",
+          runKey,
+          schedule: { id: schedule.id, name: schedule.name, reportKey: schedule.reportKey },
+          recipients: recipients.length,
+          result,
+        });
+      }
     }
 
-    return {
-      success: true,
-      action: "email_sent",
-      runKey,
-      schedule,
-      result,
-    };
-  }
+    if (isSnapshotDue(schedule, now) && !snapshotKeysSaved.has(snapshotKey)) {
+      const existingSnapshot = await readGeneralReportSnapshotByDate(new Date(`${snapshotKey}T12:00:00.000Z`));
+      const relatorio = existingSnapshot ? null : await createGeneralReportSnapshot();
+      snapshotKeysSaved.add(snapshotKey);
+      await markReportScheduleSnapshotRun(schedule, snapshotKey);
+      results.push({
+        action: existingSnapshot ? "snapshot_already_exists" : "snapshot_saved",
+        snapshotKey,
+        schedule: { id: schedule.id, name: schedule.name, reportKey: schedule.reportKey },
+        resumo: relatorio?.resumo || existingSnapshot?.resumo || null,
+      });
+    } else if (isSnapshotDue(schedule, now)) {
+      await markReportScheduleSnapshotRun(schedule, snapshotKey);
+    }
 
-  if (isDefaultSnapshotDue(schedule, now)) {
-    const relatorio = await createGeneralReportSnapshot();
-    await markGeneralReportScheduleSnapshotRun(runKey);
-
-    return {
-      success: true,
-      action: "snapshot_saved",
-      runKey,
-      schedule,
-      resumo: relatorio.resumo,
-    };
+    if (!isScheduleDue(schedule, now) && !isSnapshotDue(schedule, now)) {
+      skipped.push({
+        action: "not_due",
+        runKey,
+        snapshotKey,
+        schedule: { id: schedule.id, name: schedule.name, reportKey: schedule.reportKey },
+      });
+    }
   }
 
   return {
     success: true,
-    action: "skipped",
-    runKey,
-    schedule,
+    action: results.length > 0 ? "processed" : "skipped",
+    processed: results,
+    skipped,
   };
 }
