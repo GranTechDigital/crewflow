@@ -277,6 +277,10 @@ export default function Sidebar() {
             href: "/matriz-treinamento/contratos",
           },
           {
+            label: "Funções Sem Matriz",
+            href: "/treinamento/funcoes-sem-matriz",
+          },
+          {
             label: "Gerenciar Funções",
             href: "/funcoes",
           },

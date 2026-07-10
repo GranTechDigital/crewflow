@@ -158,21 +158,10 @@ export default function NotificationsDropdown() {
                             | undefined;
 
                           if (categoria === "TREINAMENTO_00") {
-                            const funcaoIdParam =
-                              typeof item.funcionario?.funcaoId === "number"
-                                ? `&funcaoId=${encodeURIComponent(
-                                    String(item.funcionario.funcaoId),
-                                  )}`
-                                : "";
-                            linkUrl = item.solicitacao?.contratoDestino?.id
-                              ? `/matriz-treinamento/contratos/${
-                                  item.solicitacao.contratoDestino.id
-                                }?search=${encodeURIComponent(
-                                  item.funcionario?.funcao || "",
-                                )}${funcaoIdParam}`
-                              : "/matriz-treinamento";
-                            actionText =
-                              "Criar/Atualizar Matriz de Treinamento";
+                            linkUrl = `/treinamento/funcoes-sem-matriz?search=${encodeURIComponent(
+                              item.funcionario?.funcao || "",
+                            )}`;
+                            actionText = "Ver Funções Sem Matriz";
                           } else if (categoria === "LOGISTICA") {
                             if (isAprovar) {
                               linkUrl = `/prestserv/funcionarios?status=${encodeURIComponent(
