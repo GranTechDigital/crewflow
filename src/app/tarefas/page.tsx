@@ -68,6 +68,49 @@ interface Observacao {
   modificadoEm?: string;
 }
 
+function formatDateInput(value: string | null | undefined): string {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const y = date.getUTCFullYear();
+  const m = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(date.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function formatDateBR(value: string | null | undefined): string {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toLocaleDateString("pt-BR");
+}
+
+function isDateOnlyPast(value: string | null | undefined): boolean {
+  if (!value) return false;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return false;
+  date.setHours(0, 0, 0, 0);
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  return date.getTime() < hoje.getTime();
+}
+
+function getUltimaValidadeTarefa(tarefa: TarefaRemanejamento) {
+  if (tarefa.historicoDataAnterior?.dataVencimento) {
+    return {
+      dataVencimento: tarefa.historicoDataAnterior.dataVencimento,
+      vencido: tarefa.historicoDataAnterior.vencido,
+    };
+  }
+  if (tarefa.dataVencimento) {
+    return {
+      dataVencimento: tarefa.dataVencimento,
+      vencido: isDateOnlyPast(tarefa.dataVencimento),
+    };
+  }
+  return null;
+}
+
 // Interface para tarefa com estrutura hierárquica correta
 // Removida interface Tarefa artificial - usando diretamente TarefaRemanejamento da API
 // A estrutura hierárquica é: SolicitacaoRemanejamento > RemanejamentoFuncionario > TarefaRemanejamento
@@ -1185,36 +1228,47 @@ export default function TarefasPage() {
       console.error("Erro ao obter última observação para exportação:", err);
     }
 
-    const dadosExcel = tarefasFiltradas.map((tarefa) => ({
-      "Tipo Solicitação": (() => {
-        const tipo = (
-          tarefa.tipoSolicitacaoExport || "REMANEJAMENTO"
-        ).toUpperCase();
-        if (tipo === "ALOCACAO") return "ALOCACAO";
-        if (tipo === "DESLIGAMENTO") return "DESLIGAMENTO";
-        return "REMANEJAMENTO";
-      })(),
-      "Contrato Origem": tarefa.contratoOrigemNumeroExport || "N/A",
-      "Contrato Destino": tarefa.contratoDestinoNumeroExport || "N/A",
-      Regime: tarefa.regimeExport || "N/A",
-      ID: tarefa.id,
-      Tipo: tarefa.tipo,
-      Descrição: tarefa.descricao,
-      Status: tarefa.status,
-      Prioridade: tarefa.prioridade,
-      "Data Limite": tarefa.dataLimite
-        ? new Date(tarefa.dataLimite).toLocaleDateString("pt-BR")
-        : "N/A",
-      "Data Conclusão": tarefa.dataConclusao
-        ? new Date(tarefa.dataConclusao).toLocaleDateString("pt-BR")
-        : "N/A",
-      "Data Criação": new Date(tarefa.dataCriacao).toLocaleDateString("pt-BR"),
-      Funcionário: tarefa.funcionario?.nome || "N/A",
-      Matrícula: tarefa.funcionario?.matricula || "N/A",
-      Função: tarefa.funcionario?.funcao || "N/A",
-      "Setor Responsável": tarefa.responsavel,
-      "Última Observação": ultimaObsMap[tarefa.id]?.texto || "N/A",
-    }));
+    const dadosExcel = tarefasFiltradas.map((tarefa) => {
+      const ultimaValidade = getUltimaValidadeTarefa(tarefa);
+      return {
+        "Tipo Solicitação": (() => {
+          const tipo = (
+            tarefa.tipoSolicitacaoExport || "REMANEJAMENTO"
+          ).toUpperCase();
+          if (tipo === "ALOCACAO") return "ALOCACAO";
+          if (tipo === "DESLIGAMENTO") return "DESLIGAMENTO";
+          return "REMANEJAMENTO";
+        })(),
+        "Contrato Origem": tarefa.contratoOrigemNumeroExport || "N/A",
+        "Contrato Destino": tarefa.contratoDestinoNumeroExport || "N/A",
+        Regime: tarefa.regimeExport || "N/A",
+        ID: tarefa.id,
+        Tipo: tarefa.tipo,
+        Descrição: tarefa.descricao,
+        Status: tarefa.status,
+        Prioridade: tarefa.prioridade,
+        "Data Limite": tarefa.dataLimite
+          ? new Date(tarefa.dataLimite).toLocaleDateString("pt-BR")
+          : "N/A",
+        "Última Validade": ultimaValidade
+          ? formatDateBR(ultimaValidade.dataVencimento)
+          : "N/A",
+        "Última Validade Vencida": ultimaValidade
+          ? ultimaValidade.vencido
+            ? "Sim"
+            : "Não"
+          : "N/A",
+        "Data Conclusão": tarefa.dataConclusao
+          ? new Date(tarefa.dataConclusao).toLocaleDateString("pt-BR")
+          : "N/A",
+        "Data Criação": new Date(tarefa.dataCriacao).toLocaleDateString("pt-BR"),
+        Funcionário: tarefa.funcionario?.nome || "N/A",
+        Matrícula: tarefa.funcionario?.matricula || "N/A",
+        Função: tarefa.funcionario?.funcao || "N/A",
+        "Setor Responsável": tarefa.responsavel,
+        "Última Observação": ultimaObsMap[tarefa.id]?.texto || "N/A",
+      };
+    });
 
     // Gerar Excel com exceljs e auto largura de colunas
     const wb = new ExcelJS.Workbook();
@@ -1231,6 +1285,8 @@ export default function TarefasPage() {
       "Status",
       "Prioridade",
       "Data Limite",
+      "Última Validade",
+      "Última Validade Vencida",
       "Data Conclusão",
       "Data Criação",
       "Funcionário",
@@ -1750,10 +1806,13 @@ export default function TarefasPage() {
   const [erroDataVencimento, setErroDataVencimento] = useState<string>("");
 
   // Funções para o modal de conclusão de tarefa
-  const abrirModalConcluir = (tarefa: TarefaRemanejamento) => {
+  const abrirModalConcluir = (
+    tarefa: TarefaRemanejamento,
+    dataVencimentoInicial = "",
+  ) => {
     saveAnchorPos(focoRemKey);
     setTarefaSelecionada(tarefa);
-    setDataVencimento(""); // Resetar a data de vencimento
+    setDataVencimento(dataVencimentoInicial);
     setErroDataVencimento("");
     setMostrarModalConcluir(true);
     requestAnimationFrame(() => restoreAnchorPos());
@@ -1790,7 +1849,7 @@ export default function TarefasPage() {
       const tarefaId = tarefaSelecionada.id;
       const cacheKey = filtroSetorServidor || "ALL";
       const concluidaEmIso = new Date().toISOString();
-      const novoStatus = "CONCLUIDO";
+      const novoStatus: StatusTarefa = "CONCLUIDO";
       let snapshot: TarefaRemanejamento | null = null;
       setSolicitacoes((prev) =>
         prev.map((sol) => ({
@@ -1971,13 +2030,14 @@ export default function TarefasPage() {
         const msg = errorData?.error || "Erro ao excluir tarefa";
         const last = ultimaAtualizacaoRef.current;
         if (last && last.tarefaId === tarefaId && last.previous) {
+          const previous = last.previous;
           setSolicitacoes((prev) =>
             prev.map((sol) => ({
               ...sol,
               funcionarios: (sol.funcionarios || []).map((rem) => ({
                 ...rem,
                 tarefas: [
-                  last.previous,
+                  previous,
                   ...(rem.tarefas || []).filter((t) => t.id !== last.tarefaId),
                 ],
               })),
@@ -1990,7 +2050,7 @@ export default function TarefasPage() {
               funcionarios: (sol.funcionarios || []).map((rem) => ({
                 ...rem,
                 tarefas: [
-                  last.previous,
+                  previous,
                   ...(rem.tarefas || []).filter((t) => t.id !== last.tarefaId),
                 ],
               })),
@@ -3738,6 +3798,12 @@ export default function TarefasPage() {
                                             scope="col"
                                             className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider"
                                           >
+                                            Última Validade
+                                          </th>
+                                          <th
+                                            scope="col"
+                                            className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider"
+                                          >
                                             Data Conclusão
                                           </th>
                                           {!setorAtual && (
@@ -3887,6 +3953,8 @@ export default function TarefasPage() {
                                           const tarefaKey =
                                             tarefa.id ??
                                             `${chaveGrupo}-${index}`;
+                                          const ultimaValidade =
+                                            getUltimaValidadeTarefa(tarefa);
 
                                           return (
                                             <tr
@@ -3982,6 +4050,65 @@ export default function TarefasPage() {
                                                   </span>
                                                 ) : (
                                                   "N/A"
+                                                )}
+                                              </td>
+                                              <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-500">
+                                                {ultimaValidade ? (
+                                                  <div className="space-y-1">
+                                                    <div
+                                                      className={
+                                                        ultimaValidade.vencido
+                                                          ? "font-medium text-red-700"
+                                                          : "font-medium text-gray-700"
+                                                      }
+                                                    >
+                                                      {formatDateBR(
+                                                        ultimaValidade
+                                                          .dataVencimento,
+                                                      )}
+                                                      {ultimaValidade.vencido && (
+                                                        <span className="ml-1 rounded bg-red-50 px-1 py-0.5 text-[10px] text-red-700">
+                                                          vencida
+                                                        </span>
+                                                      )}
+                                                    </div>
+                                                    {tarefa.status !==
+                                                      "CONCLUIDO" &&
+                                                      tarefa.status !==
+                                                        "CONCLUIDA" &&
+                                                      tarefa.responsavel !==
+                                                        "RH" &&
+                                                      tarefa.historicoDataAnterior
+                                                        ?.dataVencimento &&
+                                                      !tarefa
+                                                        .historicoDataAnterior
+                                                        .vencido && (
+                                                        <button
+                                                          type="button"
+                                                          className="rounded border border-gray-300 px-1.5 py-0.5 text-[10px] font-medium text-gray-600 hover:bg-gray-100"
+                                                          onClick={() => {
+                                                            saveAnchorPos(
+                                                              chaveGrupo,
+                                                            );
+                                                            setFocusRem(
+                                                              chaveGrupo,
+                                                            );
+                                                            abrirModalConcluir(
+                                                              tarefa,
+                                                              formatDateInput(
+                                                                tarefa
+                                                                  .historicoDataAnterior
+                                                                  ?.dataVencimento,
+                                                              ),
+                                                            );
+                                                          }}
+                                                        >
+                                                          Usar
+                                                        </button>
+                                                      )}
+                                                  </div>
+                                                ) : (
+                                                  "-"
                                                 )}
                                               </td>
                                               <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-500">
@@ -5169,6 +5296,44 @@ export default function TarefasPage() {
                 <p className="text-xs text-gray-600">
                   <span className="font-medium">Funcionário:</span> {"N/A"}
                 </p>
+                {getUltimaValidadeTarefa(tarefaSelecionada) && (
+                  <div className="mt-3 rounded border border-gray-200 bg-white p-3 text-xs text-gray-700">
+                    <div className="font-medium">Última validade informada</div>
+                    <div
+                      className={
+                        getUltimaValidadeTarefa(tarefaSelecionada)?.vencido
+                          ? "mt-1 text-red-700"
+                          : "mt-1 text-gray-700"
+                      }
+                    >
+                      {formatDateBR(
+                        getUltimaValidadeTarefa(tarefaSelecionada)
+                          ?.dataVencimento,
+                      )}
+                      {getUltimaValidadeTarefa(tarefaSelecionada)?.vencido &&
+                        " (vencida)"}
+                    </div>
+                    {tarefaSelecionada.responsavel !== "RH" &&
+                      tarefaSelecionada.historicoDataAnterior
+                        ?.dataVencimento &&
+                      !tarefaSelecionada.historicoDataAnterior.vencido && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setDataVencimento(
+                            formatDateInput(
+                              tarefaSelecionada.historicoDataAnterior
+                                ?.dataVencimento,
+                            ),
+                          )
+                        }
+                        className="mt-2 rounded border border-gray-300 px-2 py-1 text-[11px] font-medium text-gray-600 hover:bg-gray-100"
+                      >
+                        Usar esta data
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Campo de Data de Vencimento - Oculto para RH */}

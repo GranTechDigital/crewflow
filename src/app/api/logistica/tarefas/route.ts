@@ -29,6 +29,76 @@ const ehNr33 = (tipo: unknown) =>
 const tarefaConcluida = (status: string | null | undefined) =>
   status === "CONCLUIDO" || status === "CONCLUIDA";
 
+type TarefaComHistorico = {
+  id: string;
+  remanejamentoFuncionarioId: string;
+  tarefaPadraoId: number | null;
+  treinamentoId: number | null;
+  tipo: string;
+  responsavel: string;
+  dataVencimento: Date | null;
+  dataConclusao: Date | null;
+  treinamento?: {
+    validadeValor: number;
+    validadeUnidade: string;
+  } | null;
+  remanejamentoFuncionario?: {
+    funcionario?: {
+      id: number;
+    } | null;
+  } | null;
+};
+
+const treinamentoExigeValidade = (
+  treinamento?: { validadeValor: number; validadeUnidade: string } | null,
+) => {
+  if (!treinamento) return true;
+
+  const unidade = normalizarTexto(treinamento.validadeUnidade).toLowerCase();
+  const valor = Number(treinamento.validadeValor);
+  const isUnico = unidade.includes("unico");
+  const isMesZero =
+    (unidade.includes("mes") || unidade.includes("meses")) &&
+    Number.isFinite(valor) &&
+    valor <= 0;
+
+  return !(isUnico || isMesZero);
+};
+
+const tarefaInformaData = (tarefa: TarefaComHistorico) => {
+  const responsavel = normalizarTexto(tarefa.responsavel);
+  if (responsavel === "MEDICINA") return true;
+  if (responsavel === "TREINAMENTO") {
+    return treinamentoExigeValidade(tarefa.treinamento);
+  }
+  return false;
+};
+
+const isMesmaTarefaHistorica = (
+  atual: TarefaComHistorico,
+  historica: TarefaComHistorico,
+) => {
+  if (atual.treinamentoId && historica.treinamentoId) {
+    return atual.treinamentoId === historica.treinamentoId;
+  }
+  if (atual.tarefaPadraoId && historica.tarefaPadraoId) {
+    return atual.tarefaPadraoId === historica.tarefaPadraoId;
+  }
+  return (
+    normalizarTexto(atual.responsavel) ===
+      normalizarTexto(historica.responsavel) &&
+    normalizarTexto(atual.tipo) === normalizarTexto(historica.tipo)
+  );
+};
+
+const vencimentoEstaVencido = (dataVencimento: Date) => {
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  const vencimento = new Date(dataVencimento);
+  vencimento.setHours(0, 0, 0, 0);
+  return vencimento.getTime() < hoje.getTime();
+};
+
 const casoEspecialNr26Nr33Concluido = (
   tarefas: Array<{ tipo: unknown; status: string | null | undefined }>,
 ) => {
@@ -113,6 +183,12 @@ export async function GET(request: NextRequest) {
         dataConclusao: true,
         observacoes: true,
         observacoesTarefa: true,
+        treinamento: {
+          select: {
+            validadeValor: true,
+            validadeUnidade: true,
+          },
+        },
         remanejamentoFuncionario: {
           select: {
             funcionario: {
@@ -162,7 +238,121 @@ export async function GET(request: NextRequest) {
       );
     });
 
-    return NextResponse.json(tarefasFiltradas);
+    const tarefasComData = tarefasFiltradas.filter((tarefa) =>
+      tarefaInformaData(tarefa),
+    );
+    const funcionarioIds = Array.from(
+      new Set(
+        tarefasComData
+          .map((tarefa) => tarefa.remanejamentoFuncionario?.funcionario?.id)
+          .filter((id): id is number => typeof id === "number"),
+      ),
+    );
+    const historicoPorTarefaId = new Map<
+      string,
+      {
+        tarefaId: string;
+        remanejamentoFuncionarioId: string;
+        dataVencimento: Date;
+        dataConclusao: Date | null;
+        status: string;
+      }
+    >();
+
+    if (funcionarioIds.length > 0 && tarefasComData.length > 0) {
+      const historicas = await prisma.tarefaRemanejamento.findMany({
+        where: {
+          dataVencimento: { not: null },
+          status: { not: "CANCELADO" },
+          remanejamentoFuncionario: {
+            funcionarioId: { in: funcionarioIds },
+          },
+        },
+        select: {
+          id: true,
+          remanejamentoFuncionarioId: true,
+          tarefaPadraoId: true,
+          treinamentoId: true,
+          tipo: true,
+          responsavel: true,
+          status: true,
+          dataVencimento: true,
+          dataConclusao: true,
+          treinamento: {
+            select: {
+              validadeValor: true,
+              validadeUnidade: true,
+            },
+          },
+          remanejamentoFuncionario: {
+            select: {
+              funcionario: {
+                select: {
+                  id: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      for (const tarefa of tarefasComData) {
+        const funcionarioId = tarefa.remanejamentoFuncionario?.funcionario?.id;
+        if (!funcionarioId) continue;
+
+        let melhorHistorico: (typeof historicas)[number] | null = null;
+
+        for (const historica of historicas) {
+          if (
+            historica.remanejamentoFuncionarioId ===
+            tarefa.remanejamentoFuncionarioId
+          ) {
+            continue;
+          }
+          if (
+            historica.remanejamentoFuncionario?.funcionario?.id !==
+            funcionarioId
+          ) {
+            continue;
+          }
+          if (!historica.dataVencimento) continue;
+          if (!isMesmaTarefaHistorica(tarefa, historica)) continue;
+          if (
+            !melhorHistorico?.dataVencimento ||
+            historica.dataVencimento.getTime() >
+              melhorHistorico.dataVencimento.getTime()
+          ) {
+            melhorHistorico = historica;
+          }
+        }
+
+        if (melhorHistorico?.dataVencimento) {
+          historicoPorTarefaId.set(tarefa.id, {
+            tarefaId: melhorHistorico.id,
+            remanejamentoFuncionarioId:
+              melhorHistorico.remanejamentoFuncionarioId,
+            dataVencimento: melhorHistorico.dataVencimento,
+            dataConclusao: melhorHistorico.dataConclusao,
+            status: melhorHistorico.status,
+          });
+        }
+      }
+    }
+
+    return NextResponse.json(
+      tarefasFiltradas.map((tarefa) => {
+        const historico = historicoPorTarefaId.get(tarefa.id);
+        return {
+          ...tarefa,
+          historicoDataAnterior: historico
+            ? {
+                ...historico,
+                vencido: vencimentoEstaVencido(historico.dataVencimento),
+              }
+            : null,
+        };
+      }),
+    );
   } catch (error) {
     console.error("Erro ao listar tarefas:", error);
     return NextResponse.json(
