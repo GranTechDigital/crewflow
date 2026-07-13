@@ -41,14 +41,6 @@ type Tarefa = {
   dataVencimento: string | null;
   dataConclusao: string | null;
   observacoes: string | null;
-  historicoDataAnterior?: {
-    tarefaId: string;
-    remanejamentoFuncionarioId: string;
-    dataVencimento: string;
-    dataConclusao: string | null;
-    status: string;
-    vencido: boolean;
-  } | null;
 };
 
 type HierarquiaItem = {
@@ -310,32 +302,6 @@ function formatDateOnly(value: string | null | undefined): string {
     month: "2-digit",
     year: "numeric",
   }).format(date);
-}
-
-function isDateOnlyPast(value: string | null | undefined): boolean {
-  if (!value) return false;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return false;
-  date.setHours(0, 0, 0, 0);
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
-  return date.getTime() < hoje.getTime();
-}
-
-function getUltimaValidadeTarefa(task: Tarefa) {
-  if (task.historicoDataAnterior?.dataVencimento) {
-    return {
-      dataVencimento: task.historicoDataAnterior.dataVencimento,
-      vencido: task.historicoDataAnterior.vencido,
-    };
-  }
-  if (task.dataVencimento) {
-    return {
-      dataVencimento: task.dataVencimento,
-      vencido: isDateOnlyPast(task.dataVencimento),
-    };
-  }
-  return null;
 }
 
 function extrairDetalhesComplementares(descricao: string | null | undefined): string[] {
@@ -1978,19 +1944,15 @@ export default function TarefasV2Page() {
         if (!item || typeof item !== "object") continue;
         const remId = String(item.remanejamentoId || "");
         const kindRaw = String(item.kind || "");
-        const itensRaw: unknown[] = Array.isArray(item.itens) ? item.itens : [];
+        const itensRaw = Array.isArray(item.itens) ? item.itens : [];
         if (!remId || (kindRaw !== "UNITARIO" && kindRaw !== "LOTE") || itensRaw.length === 0) {
           continue;
         }
 
         const itens: SyncItemPayload[] = itensRaw
-          .filter((it: unknown): it is { id: string; dataVencimento?: unknown } =>
-            Boolean(it) &&
-            typeof it === "object" &&
-            typeof (it as { id?: unknown }).id === "string",
-          )
+          .filter((it) => it && typeof it.id === "string")
           .map((it) => ({
-            id: it.id,
+            id: String(it.id),
             dataVencimento:
               typeof it.dataVencimento === "string" ? it.dataVencimento : null,
           }));
@@ -3526,7 +3488,6 @@ export default function TarefasV2Page() {
                                       )}
                                       <th className="px-2 py-1.5 text-left font-semibold text-slate-700">Status</th>
                                       <th className="px-2 py-1.5 text-left font-semibold text-slate-700">Data limite</th>
-                                      <th className="px-2 py-1.5 text-left font-semibold text-slate-700">Última validade</th>
                                       <th className="px-2 py-1.5 text-left font-semibold text-slate-700">Data vencimento</th>
                                       <th className="px-2 py-1.5 text-left font-semibold text-slate-700">Ações</th>
                                     </tr>
@@ -3539,7 +3500,6 @@ export default function TarefasV2Page() {
                                         const sincronizando = Boolean(pendingTaskSyncById[task.id]);
                                         const exigeDataVencimento = precisaDataVencimento(task);
                                         const dataVencimentoAtual = obterDataVencimentoEfetiva(task);
-                                        const ultimaValidade = getUltimaValidadeTarefa(task);
                                         const dataValidaParaLote = !validarDataVencimentoMinimoD30(
                                           dataVencimentoAtual,
                                         );
@@ -3603,67 +3563,6 @@ export default function TarefasV2Page() {
                                             <span className="ml-1 text-amber-700 font-medium">
                                               (Vencida)
                                             </span>
-                                          )}
-                                        </td>
-                                        <td className="px-2 py-1 align-top text-[11px]">
-                                          {exigeDataVencimento && ultimaValidade ? (
-                                            <div className="space-y-1">
-                                              <div
-                                                className={
-                                                  ultimaValidade.vencido
-                                                    ? "font-medium text-rose-700"
-                                                    : "font-medium text-slate-700"
-                                                }
-                                              >
-                                                {formatDateOnly(ultimaValidade.dataVencimento)}
-                                                {ultimaValidade.vencido && (
-                                                  <span className="ml-1 rounded bg-rose-50 px-1 py-0.5 text-[10px] text-rose-700">
-                                                    vencida
-                                                  </span>
-                                                )}
-                                              </div>
-                                              {!concluida && !sincronizando && (
-                                                task.historicoDataAnterior
-                                                  ?.dataVencimento &&
-                                                !task.historicoDataAnterior
-                                                  .vencido && (
-                                                  <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                      const valor = formatDateInput(
-                                                        task.historicoDataAnterior
-                                                          ?.dataVencimento,
-                                                      );
-                                                      if (!valor) return;
-                                                      setDataVencimentoPorTarefa((prev) => ({
-                                                        ...prev,
-                                                        [task.id]: valor,
-                                                      }));
-                                                      const erro = validarDataVencimentoMinimoD30(valor);
-                                                      if (erro) {
-                                                        setErroDataPorTarefa((prev) => ({
-                                                          ...prev,
-                                                          [task.id]: erro,
-                                                        }));
-                                                        toggleSelecionarTarefaRh(item.id, task.id, false);
-                                                        return;
-                                                      }
-                                                      setErroDataPorTarefa((prev) => {
-                                                        if (!prev[task.id]) return prev;
-                                                        const next = { ...prev };
-                                                        delete next[task.id];
-                                                        return next;
-                                                      });
-                                                    }}
-                                                    className="rounded border border-slate-300 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 hover:bg-slate-100"
-                                                  >
-                                                    Usar
-                                                  </button>
-                                                )
-                                              )}
-                                            </div>
-                                          ) : (
-                                            <span className="text-slate-400">-</span>
                                           )}
                                         </td>
                                         <td className="px-2 py-1 align-top">

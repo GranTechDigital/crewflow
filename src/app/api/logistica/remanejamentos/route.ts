@@ -17,71 +17,6 @@ function isObservacaoTecnicaOculta(texto?: string | null) {
   return normalizeText(texto) === normalizeText(OBSERVACAO_TECNICA_OCULTA);
 }
 
-type TarefaHistoricoData = {
-  id: string;
-  remanejamentoFuncionarioId: string;
-  tarefaPadraoId: number | null;
-  treinamentoId: number | null;
-  tipo: string;
-  responsavel: string;
-  dataVencimento: Date | null;
-  dataConclusao: Date | null;
-  status?: string | null;
-  treinamento?: {
-    validadeValor: number;
-    validadeUnidade: string;
-  } | null;
-};
-
-function treinamentoExigeValidade(
-  treinamento?: { validadeValor: number; validadeUnidade: string } | null,
-) {
-  if (!treinamento) return true;
-
-  const unidade = normalizeText(treinamento.validadeUnidade).toLowerCase();
-  const valor = Number(treinamento.validadeValor);
-  const isUnico = unidade.includes("unico");
-  const isMesZero =
-    (unidade.includes("mes") || unidade.includes("meses")) &&
-    Number.isFinite(valor) &&
-    valor <= 0;
-
-  return !(isUnico || isMesZero);
-}
-
-function tarefaInformaData(tarefa: TarefaHistoricoData) {
-  const responsavel = normalizeText(tarefa.responsavel);
-  if (responsavel === "MEDICINA") return true;
-  if (responsavel === "TREINAMENTO") {
-    return treinamentoExigeValidade(tarefa.treinamento);
-  }
-  return false;
-}
-
-function isMesmaTarefaHistorica(
-  atual: TarefaHistoricoData,
-  historica: TarefaHistoricoData,
-) {
-  if (atual.treinamentoId && historica.treinamentoId) {
-    return atual.treinamentoId === historica.treinamentoId;
-  }
-  if (atual.tarefaPadraoId && historica.tarefaPadraoId) {
-    return atual.tarefaPadraoId === historica.tarefaPadraoId;
-  }
-  return (
-    normalizeText(atual.responsavel) === normalizeText(historica.responsavel) &&
-    normalizeText(atual.tipo) === normalizeText(historica.tipo)
-  );
-}
-
-function vencimentoEstaVencido(dataVencimento: Date) {
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
-  const vencimento = new Date(dataVencimento);
-  vencimento.setHours(0, 0, 0, 0);
-  return vencimento.getTime() < hoje.getTime();
-}
-
 // Tipos de status de tarefas que são considerados em processo
 type StatusTarefasEmProcesso = "REPROVAR TAREFAS" | "ATENDER TAREFAS";
 
@@ -152,10 +87,6 @@ type PrismaTarefaRemanejamento = {
   dataVencimento: Date | null;
   dataConclusao: Date | null;
   observacoes: string | null;
-  treinamento?: {
-    validadeValor: number;
-    validadeUnidade: string;
-  } | null;
 };
 
 type PrismaRemanejamentoFuncionario = {
@@ -306,10 +237,6 @@ interface TarefaRemanejamento {
   dataVencimento: Date | null;
   dataConclusao: Date | null;
   observacoes: string | null;
-  treinamento?: {
-    validadeValor: number;
-    validadeUnidade: string;
-  } | null;
 }
 
 interface ContratoInfo {
@@ -566,12 +493,6 @@ async function buscarRemanejamentos(
       dataVencimento: true,
       dataConclusao: true,
       observacoes: true,
-      treinamento: {
-        select: {
-          validadeValor: true,
-          validadeUnidade: true,
-        },
-      },
     },
   } as const;
   const tarefasInclude =
@@ -745,98 +666,6 @@ async function buscarRemanejamentos(
         }
       }),
     );
-  }
-
-  try {
-    const tarefasVisiveis: Array<{
-      tarefa: TarefaHistoricoData;
-      funcionarioId: number;
-    }> = [];
-
-    solicitacoes.forEach((s: any) =>
-      s.funcionarios?.forEach((rf: any) => {
-        const funcionarioId = rf?.funcionario?.id;
-        if (typeof funcionarioId !== "number") return;
-        (rf.tarefas || []).forEach((tarefa: TarefaHistoricoData) => {
-          if (!tarefaInformaData(tarefa)) return;
-          tarefasVisiveis.push({ tarefa, funcionarioId });
-        });
-      }),
-    );
-
-    const funcionarioIds = Array.from(
-      new Set(tarefasVisiveis.map((item) => item.funcionarioId)),
-    );
-
-    if (funcionarioIds.length > 0 && tarefasVisiveis.length > 0) {
-      const historicas = await prisma.tarefaRemanejamento.findMany({
-        where: {
-          dataVencimento: { not: null },
-          status: { not: "CANCELADO" },
-          remanejamentoFuncionario: {
-            funcionarioId: { in: funcionarioIds },
-          },
-        },
-        select: {
-          id: true,
-          remanejamentoFuncionarioId: true,
-          tarefaPadraoId: true,
-          treinamentoId: true,
-          tipo: true,
-          responsavel: true,
-          status: true,
-          dataVencimento: true,
-          dataConclusao: true,
-          treinamento: {
-            select: {
-              validadeValor: true,
-              validadeUnidade: true,
-            },
-          },
-          remanejamentoFuncionario: {
-            select: {
-              funcionarioId: true,
-            },
-          },
-        },
-      });
-
-      for (const { tarefa, funcionarioId } of tarefasVisiveis) {
-        let melhorHistorico: (typeof historicas)[number] | null = null;
-
-        for (const historica of historicas) {
-          if (historica.remanejamentoFuncionarioId === tarefa.remanejamentoFuncionarioId) {
-            continue;
-          }
-          if (historica.remanejamentoFuncionario.funcionarioId !== funcionarioId) {
-            continue;
-          }
-          if (!historica.dataVencimento) continue;
-          if (!isMesmaTarefaHistorica(tarefa, historica)) continue;
-          if (
-            !melhorHistorico?.dataVencimento ||
-            historica.dataVencimento.getTime() >
-              melhorHistorico.dataVencimento.getTime()
-          ) {
-            melhorHistorico = historica;
-          }
-        }
-
-        (tarefa as any).historicoDataAnterior = melhorHistorico?.dataVencimento
-          ? {
-              tarefaId: melhorHistorico.id,
-              remanejamentoFuncionarioId:
-                melhorHistorico.remanejamentoFuncionarioId,
-              dataVencimento: melhorHistorico.dataVencimento,
-              dataConclusao: melhorHistorico.dataConclusao,
-              status: melhorHistorico.status,
-              vencido: vencimentoEstaVencido(melhorHistorico.dataVencimento),
-            }
-          : null;
-      }
-    }
-  } catch (e) {
-    console.warn("Falha ao calcular histórico de validade das tarefas:", e);
   }
 
   try {
