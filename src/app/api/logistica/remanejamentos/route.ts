@@ -58,20 +58,10 @@ function tarefaInformaData(tarefa: TarefaHistoricoData) {
   return false;
 }
 
-function isMesmaTarefaHistorica(
-  atual: TarefaHistoricoData,
-  historica: TarefaHistoricoData,
-) {
-  if (atual.treinamentoId && historica.treinamentoId) {
-    return atual.treinamentoId === historica.treinamentoId;
-  }
-  if (atual.tarefaPadraoId && historica.tarefaPadraoId) {
-    return atual.tarefaPadraoId === historica.tarefaPadraoId;
-  }
-  return (
-    normalizeText(atual.responsavel) === normalizeText(historica.responsavel) &&
-    normalizeText(atual.tipo) === normalizeText(historica.tipo)
-  );
+function chaveTarefaHistorica(tarefa: TarefaHistoricoData) {
+  if (tarefa.treinamentoId) return `treinamento:${tarefa.treinamentoId}`;
+  if (tarefa.tarefaPadraoId) return `padrao:${tarefa.tarefaPadraoId}`;
+  return `tipo:${normalizeText(tarefa.responsavel)}:${normalizeText(tarefa.tipo)}`;
 }
 
 function vencimentoEstaVencido(dataVencimento: Date) {
@@ -382,6 +372,7 @@ interface ParametrosBuscaRemanejamento {
   statusPrestserv?: string;
   funcionarioId?: string;
   filtrarProcesso: boolean;
+  includeHistoricoValidade?: boolean;
   page?: number;
   limit?: number;
   nome?: string;
@@ -403,6 +394,7 @@ async function buscarRemanejamentos(
     statusPrestserv,
     funcionarioId,
     filtrarProcesso,
+    includeHistoricoValidade,
     page,
     limit,
     nome,
@@ -747,96 +739,155 @@ async function buscarRemanejamentos(
     );
   }
 
-  try {
-    const tarefasVisiveis: Array<{
-      tarefa: TarefaHistoricoData;
-      funcionarioId: number;
-    }> = [];
+  if (includeHistoricoValidade) {
+    try {
+      const tarefasVisiveis: Array<{
+        tarefa: TarefaHistoricoData;
+        funcionarioId: number;
+      }> = [];
 
-    solicitacoes.forEach((s: any) =>
-      s.funcionarios?.forEach((rf: any) => {
-        const funcionarioId = rf?.funcionario?.id;
-        if (typeof funcionarioId !== "number") return;
-        (rf.tarefas || []).forEach((tarefa: TarefaHistoricoData) => {
-          if (!tarefaInformaData(tarefa)) return;
-          tarefasVisiveis.push({ tarefa, funcionarioId });
+      solicitacoes.forEach((s: any) =>
+        s.funcionarios?.forEach((rf: any) => {
+          const funcionarioId = rf?.funcionario?.id;
+          if (typeof funcionarioId !== "number") return;
+          (rf.tarefas || []).forEach((tarefa: TarefaHistoricoData) => {
+            if (!tarefaInformaData(tarefa)) return;
+            tarefasVisiveis.push({ tarefa, funcionarioId });
+          });
+        }),
+      );
+
+      const funcionarioIds = Array.from(
+        new Set(tarefasVisiveis.map((item) => item.funcionarioId)),
+      );
+
+      if (funcionarioIds.length > 0 && tarefasVisiveis.length > 0) {
+        const treinamentoIds = Array.from(
+          new Set(
+            tarefasVisiveis
+              .map((item) => item.tarefa.treinamentoId)
+              .filter((id): id is number => typeof id === "number"),
+          ),
+        );
+        const tarefaPadraoIds = Array.from(
+          new Set(
+            tarefasVisiveis
+              .map((item) => item.tarefa.tarefaPadraoId)
+              .filter((id): id is number => typeof id === "number"),
+          ),
+        );
+        const tipos = Array.from(
+          new Set(tarefasVisiveis.map((item) => item.tarefa.tipo)),
+        );
+        const responsaveis = Array.from(
+          new Set(tarefasVisiveis.map((item) => item.tarefa.responsavel)),
+        );
+        const filtrosTarefasHistoricas: any[] = [];
+
+        if (treinamentoIds.length > 0) {
+          filtrosTarefasHistoricas.push({
+            treinamentoId: { in: treinamentoIds },
+          });
+        }
+        if (tarefaPadraoIds.length > 0) {
+          filtrosTarefasHistoricas.push({
+            tarefaPadraoId: { in: tarefaPadraoIds },
+          });
+        }
+        if (tipos.length > 0 && responsaveis.length > 0) {
+          filtrosTarefasHistoricas.push({
+            tipo: { in: tipos },
+            responsavel: { in: responsaveis },
+          });
+        }
+
+        const historicas = await prisma.tarefaRemanejamento.findMany({
+          where: {
+            dataVencimento: { not: null },
+            status: { not: "CANCELADO" },
+            ...(filtrosTarefasHistoricas.length > 0
+              ? { OR: filtrosTarefasHistoricas }
+              : {}),
+            remanejamentoFuncionario: {
+              funcionarioId: { in: funcionarioIds },
+            },
+          },
+          select: {
+            id: true,
+            remanejamentoFuncionarioId: true,
+            tarefaPadraoId: true,
+            treinamentoId: true,
+            tipo: true,
+            responsavel: true,
+            status: true,
+            dataVencimento: true,
+            dataConclusao: true,
+            treinamento: {
+              select: {
+                validadeValor: true,
+                validadeUnidade: true,
+              },
+            },
+            remanejamentoFuncionario: {
+              select: {
+                funcionarioId: true,
+              },
+            },
+          },
         });
-      }),
-    );
 
-    const funcionarioIds = Array.from(
-      new Set(tarefasVisiveis.map((item) => item.funcionarioId)),
-    );
-
-    if (funcionarioIds.length > 0 && tarefasVisiveis.length > 0) {
-      const historicas = await prisma.tarefaRemanejamento.findMany({
-        where: {
-          dataVencimento: { not: null },
-          status: { not: "CANCELADO" },
-          remanejamentoFuncionario: {
-            funcionarioId: { in: funcionarioIds },
-          },
-        },
-        select: {
-          id: true,
-          remanejamentoFuncionarioId: true,
-          tarefaPadraoId: true,
-          treinamentoId: true,
-          tipo: true,
-          responsavel: true,
-          status: true,
-          dataVencimento: true,
-          dataConclusao: true,
-          treinamento: {
-            select: {
-              validadeValor: true,
-              validadeUnidade: true,
-            },
-          },
-          remanejamentoFuncionario: {
-            select: {
-              funcionarioId: true,
-            },
-          },
-        },
-      });
-
-      for (const { tarefa, funcionarioId } of tarefasVisiveis) {
-        let melhorHistorico: (typeof historicas)[number] | null = null;
+        const historicosPorChave = new Map<
+          string,
+          Array<(typeof historicas)[number]>
+        >();
 
         for (const historica of historicas) {
-          if (historica.remanejamentoFuncionarioId === tarefa.remanejamentoFuncionarioId) {
-            continue;
-          }
-          if (historica.remanejamentoFuncionario.funcionarioId !== funcionarioId) {
-            continue;
-          }
           if (!historica.dataVencimento) continue;
-          if (!isMesmaTarefaHistorica(tarefa, historica)) continue;
-          if (
-            !melhorHistorico?.dataVencimento ||
-            historica.dataVencimento.getTime() >
-              melhorHistorico.dataVencimento.getTime()
-          ) {
-            melhorHistorico = historica;
+
+          const funcionarioId = historica.remanejamentoFuncionario.funcionarioId;
+          const chave = `${funcionarioId}|${chaveTarefaHistorica(historica)}`;
+          const lista = historicosPorChave.get(chave);
+          if (lista) {
+            lista.push(historica);
+          } else {
+            historicosPorChave.set(chave, [historica]);
           }
         }
 
-        (tarefa as any).historicoDataAnterior = melhorHistorico?.dataVencimento
-          ? {
-              tarefaId: melhorHistorico.id,
-              remanejamentoFuncionarioId:
-                melhorHistorico.remanejamentoFuncionarioId,
-              dataVencimento: melhorHistorico.dataVencimento,
-              dataConclusao: melhorHistorico.dataConclusao,
-              status: melhorHistorico.status,
-              vencido: vencimentoEstaVencido(melhorHistorico.dataVencimento),
-            }
-          : null;
+        for (const lista of historicosPorChave.values()) {
+          lista.sort((a, b) => {
+            const timeA = a.dataVencimento?.getTime() || 0;
+            const timeB = b.dataVencimento?.getTime() || 0;
+            return timeB - timeA;
+          });
+        }
+
+        for (const { tarefa, funcionarioId } of tarefasVisiveis) {
+          const melhorHistorico =
+            historicosPorChave
+              .get(`${funcionarioId}|${chaveTarefaHistorica(tarefa)}`)
+              ?.find(
+                (historica) =>
+                  historica.remanejamentoFuncionarioId !==
+                  tarefa.remanejamentoFuncionarioId,
+              ) || null;
+
+          (tarefa as any).historicoDataAnterior = melhorHistorico?.dataVencimento
+            ? {
+                tarefaId: melhorHistorico.id,
+                remanejamentoFuncionarioId:
+                  melhorHistorico.remanejamentoFuncionarioId,
+                dataVencimento: melhorHistorico.dataVencimento,
+                dataConclusao: melhorHistorico.dataConclusao,
+                status: melhorHistorico.status,
+                vencido: vencimentoEstaVencido(melhorHistorico.dataVencimento),
+              }
+            : null;
+        }
       }
+    } catch (e) {
+      console.warn("Falha ao calcular histórico de validade das tarefas:", e);
     }
-  } catch (e) {
-    console.warn("Falha ao calcular histórico de validade das tarefas:", e);
   }
 
   try {
@@ -967,6 +1018,8 @@ export async function GET(request: NextRequest) {
     const statusPrestserv = searchParams.get("statusPrestserv");
     const funcionarioId = searchParams.get("funcionarioId");
     const filtrarProcesso = searchParams.get("filtrarProcesso") === "true";
+    const includeHistoricoValidade =
+      searchParams.get("includeHistoricoValidade") === "true";
 
     // Parâmetros de paginação
     const page = searchParams.get("page")
@@ -1001,6 +1054,7 @@ export async function GET(request: NextRequest) {
       statusPrestserv: statusPrestserv || undefined,
       funcionarioId: funcionarioId || undefined,
       filtrarProcesso,
+      includeHistoricoValidade,
       page,
       limit,
       nome: nome || undefined,

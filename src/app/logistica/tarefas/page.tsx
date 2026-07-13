@@ -621,6 +621,7 @@ export default function TarefasPage() {
       setError(null);
       const params = new URLSearchParams();
       params.set("filtrarProcesso", "false");
+      params.set("includeHistoricoValidade", "true");
       if (filtroSetorServidor) {
         params.set("responsavel", filtroSetorServidor);
       }
