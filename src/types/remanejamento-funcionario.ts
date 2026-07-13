@@ -62,6 +62,18 @@ export interface TarefaRemanejamento {
   dataConclusao?: string;
   observacoes?: string;
   setorId?: number | null;
+  treinamento?: {
+    validadeValor: number;
+    validadeUnidade: string;
+  } | null;
+  historicoDataAnterior?: {
+    tarefaId: string;
+    remanejamentoFuncionarioId: string;
+    dataVencimento: string;
+    dataConclusao: string | null;
+    status: string;
+    vencido: boolean;
+  } | null;
 }
 
 export interface SolicitacaoRemanejamento {
