@@ -433,6 +433,12 @@ export async function sincronizarTarefasPadrao({
           nome: true,
           matricula: true,
           funcao: true,
+          funcaoId: true,
+          funcaoRef: {
+            select: {
+              regime: true,
+            },
+          },
           contratoId: true,
         },
       },
@@ -648,10 +654,23 @@ export async function sincronizarTarefasPadrao({
       const funcaoIds: number[] = [];
       const funcaoNome = String(rem.funcionario?.funcao || "").trim();
       const funcaoSlug = keySlug(funcaoNome);
+      const funcaoIdFuncionario =
+        typeof rem.funcionario?.funcaoId === "number"
+          ? rem.funcionario.funcaoId
+          : null;
+      const regimeFuncionario = String(
+        rem.funcionario?.funcaoRef?.regime || "",
+      )
+        .trim()
+        .toUpperCase();
+      if (funcaoIdFuncionario) {
+        funcaoIds.push(funcaoIdFuncionario);
+      }
       if (funcaoSlug) {
         const funcoes = await prisma.funcao.findMany({
           where: {
             ativo: true,
+            ...(regimeFuncionario ? { regime: regimeFuncionario } : {}),
             OR: [
               { funcao_slug: funcaoSlug },
               { funcao: { equals: funcaoNome, mode: "insensitive" } },

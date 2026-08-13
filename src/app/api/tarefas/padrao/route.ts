@@ -130,9 +130,24 @@ async function gerarTarefasTreinamento(
       return;
     }
 
+    const funcaoIdFuncionario =
+      typeof funcionario.funcaoId === "number"
+        ? funcionario.funcaoId
+        : null;
+    const regimeFuncionario = normalizarTexto(
+      (funcionario.funcaoRef as { regime?: string } | null | undefined)
+        ?.regime,
+    );
+
+    const funcaoIds: number[] = [];
+    if (funcaoIdFuncionario) {
+      funcaoIds.push(funcaoIdFuncionario);
+    }
+
     const funcoesCompativeis = await prisma.funcao.findMany({
       where: {
         ativo: true,
+        ...(regimeFuncionario ? { regime: regimeFuncionario } : {}),
         OR: [
           { funcao_slug: slugFuncao(funcaoNome) },
           { funcao: { equals: funcaoNome, mode: "insensitive" } },
@@ -141,11 +156,14 @@ async function gerarTarefasTreinamento(
       select: { id: true, funcao: true, regime: true },
     });
 
-    const funcaoIds = funcoesCompativeis
-      .map((f) => f.id)
-      .filter((id) => typeof id === "number");
+    for (const funcao of funcoesCompativeis) {
+      if (typeof funcao.id === "number" && !funcaoIds.includes(funcao.id)) {
+        funcaoIds.push(funcao.id);
+      }
+    }
 
     console.log("Função do funcionário:", funcaoNome);
+    console.log("Regime do funcionário:", regimeFuncionario || "N/A");
     console.log("Funções compatíveis na tabela de funções:", funcaoIds.length);
 
     if (funcaoIds.length === 0) {
@@ -312,7 +330,11 @@ export async function POST(request: NextRequest) {
         await prisma.remanejamentoFuncionario.findUnique({
           where: { id: funcionarioId },
           include: {
-            funcionario: true,
+            funcionario: {
+              include: {
+                funcaoRef: { select: { regime: true } },
+              },
+            },
             solicitacao: true,
           },
         });
@@ -334,6 +356,9 @@ export async function POST(request: NextRequest) {
         // Verificar se o funcionário existe primeiro
         funcionario = await prisma.funcionario.findUnique({
           where: { id: funcionarioIdInt },
+          include: {
+            funcaoRef: { select: { regime: true } },
+          },
         });
 
         if (funcionario) {
