@@ -38,7 +38,7 @@ async function buscarRemanejamentosAfetadosPorContrato(contratoId: number) {
         ],
       },
       statusPrestserv: {
-        notIn: ["EM VALIDAÇÃO", "VALIDADO", "CANCELADO"],
+        notIn: ["VALIDADO", "CANCELADO"],
       },
       OR: [
         { solicitacao: { contratoDestinoId: contratoId } },

@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    const processados = [];
+    const candidatosParaRevisao = [];
 
     // 3. Filtrar e atualizar
     for (const rem of candidatos) {
@@ -38,58 +38,10 @@ export async function GET(request: NextRequest) {
             t.treinamentoId !== null),
       );
 
-      // Se não tem tarefas de treinamento (0/0), precisa reverter
+      // Se não tem tarefas de treinamento (0/0), apenas reportar.
+      // Reabrir VALIDADO deve ser uma ação explícita em fluxo próprio, não automação.
       if (tarefasTreinamento.length === 0) {
-        // Atualizar status
-        await prisma.remanejamentoFuncionario.update({
-          where: { id: rem.id },
-          data: {
-            statusPrestserv: "CRIADO",
-            statusTarefas: "ATENDER TAREFAS",
-            // Forçar atualização do updatedAt para aparecer no topo se ordenar por data
-            updatedAt: new Date(),
-          },
-        });
-
-        // Registrar no histórico
-        await prisma.historicoRemanejamento.create({
-          data: {
-            solicitacaoId: rem.solicitacaoId!,
-            remanejamentoFuncionarioId: rem.id,
-            tipoAcao: "ATUALIZACAO_STATUS",
-            entidade: "STATUS_PRESTSERV",
-            descricaoAcao:
-              "Reversão automática de VALIDADO para CRIADO: Funcionário validado sem tarefas de treinamento (0/0).",
-            campoAlterado: "statusPrestserv",
-            valorAnterior: rem.statusPrestserv,
-            valorNovo: "CRIADO",
-            usuarioResponsavel: "Sistema (Correção)",
-            observacoes:
-              "Correção solicitada: validado incorretamente sem treinamentos.",
-          },
-        });
-
-        const textoReversao =
-          "Reversão automática: Status retornado para CRIADO pois foi validado sem tarefas de treinamento. Necessário sincronizar/gerar matriz.";
-        const totalObsReversao =
-          await prisma.observacaoRemanejamentoFuncionario.count({
-            where: {
-              remanejamentoFuncionarioId: rem.id,
-              texto: { contains: textoReversao },
-            },
-          });
-        if (totalObsReversao === 0) {
-          await prisma.observacaoRemanejamentoFuncionario.create({
-            data: {
-              remanejamentoFuncionarioId: rem.id,
-              texto: textoReversao,
-              criadoPor: "Sistema (Correção)",
-              modificadoPor: "Sistema (Correção)",
-            },
-          });
-        }
-
-        processados.push({
+        candidatosParaRevisao.push({
           id: rem.id,
           funcionario: rem.funcionario.nome,
           matricula: rem.funcionario.matricula,
@@ -100,9 +52,12 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      modo: "somente_leitura",
+      message:
+        "Correção automática VALIDADO -> CRIADO desabilitada. Use este retorno apenas para revisar candidatos.",
       totalEncontrados: candidatos.length,
-      totalRevertidos: processados.length,
-      revertidos: processados,
+      totalCandidatosParaRevisao: candidatosParaRevisao.length,
+      candidatosParaRevisao,
     });
   } catch (error) {
     console.error("Erro ao reverter validados:", error);

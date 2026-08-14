@@ -412,7 +412,7 @@ export async function sincronizarTarefasPadrao({
       ],
     },
     statusPrestserv: {
-      notIn: ["EM VALIDAÇÃO", "VALIDADO", "CANCELADO"],
+      notIn: ["VALIDADO", "CANCELADO"],
     },
   };
 
@@ -494,11 +494,8 @@ export async function sincronizarTarefasPadrao({
   };
 
   for (const rem of rems) {
-    // Segurança adicional: não alterar tarefas quando o Prestserv está em validação ou validado
-    if (
-      rem.statusPrestserv === "EM VALIDAÇÃO" ||
-      rem.statusPrestserv === "VALIDADO"
-    ) {
+    // Segurança adicional: não alterar tarefas quando o Prestserv está validado.
+    if (rem.statusPrestserv === "VALIDADO") {
       continue;
     }
     const existentes = new Set<string>(
@@ -1408,37 +1405,13 @@ export async function sincronizarTarefasPadrao({
       }
 
       const temPendentes = !semPendentes;
-      const houveNovasTarefas = criadasCount > 0 || reativadasCount > 0;
-
-      // Status que só devem ser resetados se houver novas tarefas (para não destravar bloqueios manuais indevidamente)
-      const estadosBloqueio = new Set<string>([
-        "PENDENTE DE DESLIGAMENTO",
-        "DESLIGAMENTO SOLICITADO",
-        "SISPAT BLOQUEADO",
-      ]);
-
-      let deveResetar = false;
-
-      if (temPendentes) {
-        if (rem.statusPrestserv === "CRIADO") {
-          deveResetar = false;
-        } else if (estadosBloqueio.has(rem.statusPrestserv)) {
-          if (houveNovasTarefas) {
-            deveResetar = true;
-          }
-        } else {
-          // Para outros status (APROVADO, SUBMETIDO, etc), se tem pendência, reseta
-          deveResetar = true;
-        }
-      }
+      const statusPrestservNormalizado = keyTexto(rem.statusPrestserv);
+      const deveResetar =
+        temPendentes && statusPrestservNormalizado === "EM VALIDACAO";
 
       if (deveResetar) {
-        const motivoReset =
-          rem.statusPrestserv === "SEM_CADASTRO"
-            ? "devido a tarefas pendentes (correção de inconsistência)"
-            : "devido a novas tarefas sincronizadas/reativadas";
-
-        const observacao = `Prestserv resetado para CRIADO ${motivoReset} após sincronização de matriz/tarefas padrão.`;
+        const observacao =
+          "Prestserv retornado de EM VALIDAÇÃO para CRIADO porque a sincronização identificou tarefas pendentes/reabertas por matriz/tarefas padrão.";
 
         // Registrar observação na nova tabela
         try {
@@ -1473,7 +1446,8 @@ export async function sincronizarTarefasPadrao({
               remanejamentoFuncionarioId: rem.id,
               tipoAcao: "ATUALIZACAO_STATUS",
               entidade: "STATUS_TAREFAS",
-              descricaoAcao: `Prestserv resetado automaticamente para CRIADO: ${motivoReset}.`,
+              descricaoAcao:
+                "Prestserv retornado automaticamente de EM VALIDAÇÃO para CRIADO por pendências detectadas na sincronização.",
               campoAlterado: "statusPrestserv",
               valorAnterior: rem.statusPrestserv,
               valorNovo: "CRIADO",
@@ -1484,80 +1458,6 @@ export async function sincronizarTarefasPadrao({
             },
           });
         } catch {}
-      }
-
-      const invalidadoSet = new Set<string>([
-        "INVALIDADO",
-        "INVALIDAO",
-        "INVALIDADA",
-        "CORREÇÃO",
-        "CORRECAO",
-      ]);
-      if (invalidadoSet.has(rem.statusPrestserv)) {
-        const tarefasAtualParaCheck = await prisma.tarefaRemanejamento.findMany(
-          {
-            where: { remanejamentoFuncionarioId: rem.id },
-            select: { status: true },
-          },
-        );
-        const temReprovadas = tarefasAtualParaCheck.some(
-          (t) => t.status === "REPROVADO",
-        );
-        if (!temReprovadas) {
-          const observacaoCorr =
-            "Status 'INVALIDADO' corrigido automaticamente após sincronização: tarefas reprovadas foram removidas/canceladas na matriz/padrão.";
-
-          // Registrar observação na nova tabela
-          try {
-            await criarObservacaoRemanejamentoSeNaoExistir({
-              remanejamentoFuncionarioId: rem.id,
-              texto: observacaoCorr,
-              autor: usuarioResponsavel || "Sistema",
-            });
-          } catch (e) {
-            console.error("Erro ao criar observação de correção:", e);
-          }
-
-          await prisma.remanejamentoFuncionario.update({
-            where: { id: rem.id },
-            data: {
-              statusPrestserv: "CRIADO",
-              // Mantemos observacoesPrestserv legado sem alteração
-            },
-          });
-          if (verbose) {
-            alteracoesResumo.push({
-              campo: "statusPrestserv",
-              de: rem.statusPrestserv,
-              para: "CRIADO",
-              observacoes: observacaoCorr,
-            });
-            alteracoesResumo.push({
-              campo: "observacoesPrestserv",
-              de: rem.observacoesPrestserv ?? null,
-              para: observacaoCorr,
-            });
-          }
-          try {
-            await prisma.historicoRemanejamento.create({
-              data: {
-                solicitacaoId: rem.solicitacao!.id,
-                remanejamentoFuncionarioId: rem.id,
-                tipoAcao: "ATUALIZACAO_STATUS",
-                entidade: "STATUS_TAREFAS",
-                descricaoAcao:
-                  "Status 'INVALIDADO' revertido para 'CRIADO' por ausência de tarefas reprovadas/pendentes para setores após sincronização.",
-                campoAlterado: "statusPrestserv",
-                valorAnterior: "INVALIDADO",
-                valorNovo: "CRIADO",
-                usuarioResponsavel: usuarioResponsavel || "Sistema",
-                usuarioResponsavelId: usuarioResponsavelId,
-                equipeId: equipeId,
-                observacoes: observacaoCorr,
-              },
-            });
-          } catch {}
-        }
       }
     } catch {}
 
