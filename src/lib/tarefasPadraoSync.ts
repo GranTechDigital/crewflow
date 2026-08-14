@@ -941,10 +941,7 @@ export async function sincronizarTarefasPadrao({
           const deveManter =
             (typeof tidT === "number" && mandatariosIdSet.has(tidT)) ||
             mandatariosChaveSet.has(chave);
-          const podeCancelar =
-            t.status !== "CANCELADO" &&
-            t.status !== "CONCLUIDO" &&
-            t.status !== "CONCLUIDA";
+          const podeCancelar = t.status !== "CANCELADO";
           if (!deveManter && podeCancelar) {
             tarefasParaCancelar.push({
               id: t.id,
