@@ -20,6 +20,8 @@ function normalizarNumeroContrato(valor: unknown) {
     .replace(/^0+/, "");
 }
 
+const CONTRATOS_RH_CURRICULO = new Set(["4600687770", "4600688121"]);
+
 function slugFuncao(valor: unknown) {
   return normalizarTexto(valor)
     .toLowerCase()
@@ -64,6 +66,11 @@ function deveCriarTarefaPadraoParaContrato({
 }) {
   if (setor === "RH" && normalizarTexto(tipo) === "PLANO DE SAUDE") {
     return normalizarNumeroContrato(contratoDestinoNumero) === "12345";
+  }
+  if (setor === "RH" && normalizarTexto(tipo) === "CURRICULO") {
+    return CONTRATOS_RH_CURRICULO.has(
+      normalizarNumeroContrato(contratoDestinoNumero),
+    );
   }
   return true;
 }

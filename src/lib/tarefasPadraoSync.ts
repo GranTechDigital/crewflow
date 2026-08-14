@@ -30,6 +30,8 @@ const keySlug = (s: string | null | undefined) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
 
+const CONTRATOS_RH_CURRICULO = new Set(["4600687770", "4600688121"]);
+
 function ehNr26OuNr33(tipo: string) {
   const v = keyTexto(tipo).replace(/[^A-Z0-9]/g, "");
   return v.includes("NR26") || v.includes("NR33");
@@ -97,6 +99,9 @@ function deveCriarTarefaPadraoParaContrato({
 }) {
   if (setor === "RH" && keyTexto(tipo) === "PLANO DE SAUDE") {
     return keyNumeroContrato(contratoDestinoNumero) === "12345";
+  }
+  if (setor === "RH" && keyTexto(tipo) === "CURRICULO") {
+    return CONTRATOS_RH_CURRICULO.has(keyNumeroContrato(contratoDestinoNumero));
   }
   return true;
 }
