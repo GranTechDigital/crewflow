@@ -22,6 +22,21 @@ services:
       - SMTP_FROM=${SMTP_FROM}
       - REPORT_GENERAL_RECIPIENTS=${REPORT_GENERAL_RECIPIENTS}
       - RELATORIO_EMAIL_SERVICE_TOKEN=${RELATORIO_EMAIL_SERVICE_TOKEN}
+      - DRAKE_ENVIRONMENT=${DRAKE_ENVIRONMENT}
+      - DRAKE_API_BASE_URL=${DRAKE_API_BASE_URL}
+      - DRAKE_SYNC_PATH=${DRAKE_SYNC_PATH}
+      - DRAKE_SYNC_WORKER_PATH=${DRAKE_SYNC_WORKER_PATH}
+      - DRAKE_API_KEY=${DRAKE_API_KEY}
+      - DRAKE_TENANT_ID=${DRAKE_TENANT_ID}
+      - DRAKE_TENANT_HEADER_NAME=${DRAKE_TENANT_HEADER_NAME}
+      - DRAKE_AUTH_HEADER_NAME=${DRAKE_AUTH_HEADER_NAME}
+      - DRAKE_TIMEOUT_MS=${DRAKE_TIMEOUT_MS}
+      - DRAKE_WEBHOOK_ENABLED=${DRAKE_WEBHOOK_ENABLED}
+      - DRAKE_SYNC_SESSION_ENABLED=${DRAKE_SYNC_SESSION_ENABLED}
+      - DRAKE_SYNC_SESSION_BASE_PATH=${DRAKE_SYNC_SESSION_BASE_PATH}
+      - DRAKE_SYNC_SESSION_TIMEOUT_MS=${DRAKE_SYNC_SESSION_TIMEOUT_MS}
+      - DRAKE_CADASTRO_MIN_START_AT=${DRAKE_CADASTRO_MIN_START_AT}
+      - DRAKE_OUTBOX_SERVICE_TOKEN=${DRAKE_OUTBOX_SERVICE_TOKEN}
       - NODE_ENV=production
     container_name: crewflow-app-production
     volumes:
@@ -39,6 +54,37 @@ services:
       - projetogran_crewflow-network
     depends_on:
       - postgres-prod
+
+  drake-outbox-worker:
+    image: crewflow-app:latest
+    container_name: crewflow-drake-outbox-worker
+    environment:
+      - DRAKE_OUTBOX_WORKER_ENABLED=${DRAKE_OUTBOX_WORKER_ENABLED}
+      - DRAKE_OUTBOX_TARGET_URL=http://app:3001/api/admin/integracoes/drake/outbox/processar
+      - DRAKE_OUTBOX_SERVICE_TOKEN=${DRAKE_OUTBOX_SERVICE_TOKEN}
+      - DRAKE_OUTBOX_INTERVAL_MINUTES=${DRAKE_OUTBOX_INTERVAL_MINUTES}
+      - DRAKE_OUTBOX_INITIAL_DELAY_MS=${DRAKE_OUTBOX_INITIAL_DELAY_MS}
+      - DRAKE_OUTBOX_LIMIT=${DRAKE_OUTBOX_LIMIT}
+      - DRAKE_ENVIRONMENT=${DRAKE_ENVIRONMENT}
+      - TZ=America/Sao_Paulo
+      - NODE_ENV=production
+    command: >
+      sh -lc 'if [ "$$DRAKE_OUTBOX_WORKER_ENABLED" = "true" ]; then
+        node scripts/drake-outbox-worker.js;
+      else
+        echo "[drake-outbox-worker] Desabilitado por DRAKE_OUTBOX_WORKER_ENABLED=$$DRAKE_OUTBOX_WORKER_ENABLED";
+        tail -f /dev/null;
+      fi'
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    restart: unless-stopped
+    networks:
+      - projetogran_crewflow-network
+    depends_on:
+      - app
 
   postgres-prod:
     image: postgres:15

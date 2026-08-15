@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { reconciliarCiclosRemanejamentoSafe } from "@/lib/remanejamentoCiclos";
 
 function chaveTarefa(tipo: string, responsavel: string) {
   const r = String(responsavel || "")
@@ -201,6 +202,9 @@ export async function POST(request: NextRequest) {
           await prisma.remanejamentoFuncionario.update({
             where: { id: rem.id },
             data: { statusTarefas: novoStatus },
+          });
+          await reconciliarCiclosRemanejamentoSafe(rem.id, {
+            motivo: "Status de tarefas recalculado via deduplicacao",
           });
           // Histórico da atualização
           try {

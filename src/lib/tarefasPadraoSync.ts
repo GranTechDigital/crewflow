@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { reconciliarCiclosRemanejamentoSafe } from "@/lib/remanejamentoCiclos";
 
 const SETORES_VALIDOS = ["RH", "MEDICINA", "TREINAMENTO"] as const;
 export type SetorValido = (typeof SETORES_VALIDOS)[number];
@@ -1526,6 +1527,17 @@ export async function sincronizarTarefasPadrao({
         });
       }
     }
+  }
+
+  const remanejamentosParaReconciliar = new Set<string>([
+    ...detalhes.map((item) => item.remanejamentoId),
+    ...statusCorrigidos.map((item) => item.remanejamentoId),
+  ]);
+  for (const remanejamentoId of remanejamentosParaReconciliar) {
+    await reconciliarCiclosRemanejamentoSafe(remanejamentoId, {
+      usuarioResponsavelId,
+      motivo: "Reconciliacao apos sincronizacao de tarefas padrao/matriz",
+    });
   }
 
   const mensagem = criarFaltantes

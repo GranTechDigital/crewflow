@@ -1,9 +1,10 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import ProtectedRoute from '@/components/ProtectedRoute';
-import { usePermissions } from '@/app/hooks/useAuth';
-import { PERMISSIONS, ROUTE_PROTECTION } from '@/lib/permissions';
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { Link2, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
+import ProtectedRoute from "@/components/ProtectedRoute";
+import { usePermissions } from "@/app/hooks/useAuth";
+import { PERMISSIONS, ROUTE_PROTECTION } from "@/lib/permissions";
 
 type Contrato = {
   id: number;
@@ -29,50 +30,62 @@ type Vinculacao = {
   createdAt: string;
 };
 
+function normalizar(valor: string) {
+  return valor.trim().toLowerCase();
+}
+
+function textoContrato(contrato: Contrato) {
+  return `${contrato.numero} - ${contrato.nome} (${contrato.cliente})`;
+}
+
+function textoCentroCusto(centroCusto: CentroCusto) {
+  return `${centroCusto.num_centro_custo} - ${centroCusto.nome_centro_custo}`;
+}
+
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("pt-BR").format(new Date(value));
+}
+
 export default function VinculacaoContratosPage() {
   const [contratos, setContratos] = useState<Contrato[]>([]);
   const [centrosCusto, setCentrosCusto] = useState<CentroCusto[]>([]);
   const [vinculacoes, setVinculacoes] = useState<Vinculacao[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [contratoId, setContratoId] = useState("");
+  const [centroCustoId, setCentroCustoId] = useState("");
+  const [filtroContrato, setFiltroContrato] = useState("");
+  const [filtroCentroCusto, setFiltroCentroCusto] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const { hasPermission } = usePermissions();
   const isEditor = hasPermission(PERMISSIONS.ACCESS_PLANEJAMENTO);
 
-  // Modal states
-  const [modalOpen, setModalOpen] = useState(false);
-  const [form, setForm] = useState({
-    contratoId: '',
-    centroCustoId: '',
-  });
-
-  // Filtros
-  const [filtroContrato, setFiltroContrato] = useState('');
-  const [filtroCentroCusto, setFiltroCentroCusto] = useState('');
-
   async function fetchData() {
     setLoading(true);
+    setError(null);
     try {
       const [contratosRes, centrosCustoRes, vinculacoesRes] = await Promise.all([
-        fetch('/api/contratos'),
-        fetch('/api/centros-custo'),
-        fetch('/api/contratos-centros-custo')
+        fetch("/api/contratos", { cache: "no-store" }),
+        fetch("/api/centros-custo", { cache: "no-store" }),
+        fetch("/api/contratos-centros-custo", { cache: "no-store" }),
       ]);
 
       if (!contratosRes.ok || !centrosCustoRes.ok || !vinculacoesRes.ok) {
-        throw new Error('Erro ao carregar dados');
+        throw new Error("Erro ao carregar dados.");
       }
 
       const [contratosData, centrosCustoData, vinculacoesData] = await Promise.all([
         contratosRes.json(),
         centrosCustoRes.json(),
-        vinculacoesRes.json()
+        vinculacoesRes.json(),
       ]);
 
       setContratos(contratosData);
       setCentrosCusto(centrosCustoData);
       setVinculacoes(vinculacoesData);
-    } catch (error) {
-      console.error(error);
-      alert('Erro ao carregar dados');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro desconhecido.");
     } finally {
       setLoading(false);
     }
@@ -82,281 +95,319 @@ export default function VinculacaoContratosPage() {
     fetchData();
   }, []);
 
-  function openAddModal() {
-    if (!isEditor) return;
-    setForm({ contratoId: '', centroCustoId: '' });
-    setModalOpen(true);
-  }
+  const contratosAtivos = useMemo(
+    () =>
+      contratos
+        .filter((contrato) => contrato.status === "Ativo")
+        .sort((a, b) => a.numero.localeCompare(b.numero, "pt-BR")),
+    [contratos],
+  );
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!isEditor) return;
+  const centrosCustoAtivos = useMemo(
+    () =>
+      centrosCusto
+        .filter((centroCusto) => centroCusto.status === "Ativo")
+        .sort((a, b) => a.num_centro_custo.localeCompare(b.num_centro_custo, "pt-BR")),
+    [centrosCusto],
+  );
 
-    if (!form.contratoId || !form.centroCustoId) {
-      alert('Selecione um contrato e um centro de custo');
+  const vinculacoesFiltradas = useMemo(() => {
+    const contratoQuery = normalizar(filtroContrato);
+    const centroCustoQuery = normalizar(filtroCentroCusto);
+
+    return vinculacoes.filter((vinculacao) => {
+      const contratoTexto = normalizar(textoContrato(vinculacao.contrato));
+      const centroCustoTexto = normalizar(textoCentroCusto(vinculacao.centroCusto));
+      return (
+        (!contratoQuery || contratoTexto.includes(contratoQuery)) &&
+        (!centroCustoQuery || centroCustoTexto.includes(centroCustoQuery))
+      );
+    });
+  }, [filtroCentroCusto, filtroContrato, vinculacoes]);
+
+  const centrosCustoDisponiveis = useMemo(() => {
+    if (!contratoId) return centrosCustoAtivos;
+    const contratoSelecionado = Number(contratoId);
+    const vinculados = new Set(
+      vinculacoes
+        .filter((vinculacao) => vinculacao.contratoId === contratoSelecionado)
+        .map((vinculacao) => vinculacao.centroCustoId),
+    );
+    return centrosCustoAtivos.filter((centroCusto) => !vinculados.has(centroCusto.id));
+  }, [centrosCustoAtivos, contratoId, vinculacoes]);
+
+  async function handleSubmit(event: FormEvent) {
+    event.preventDefault();
+    if (!isEditor) return;
+    if (!contratoId || !centroCustoId) {
+      setError("Selecione um contrato e um centro de custo.");
       return;
     }
 
+    setSaving(true);
+    setError(null);
+    setMessage(null);
     try {
-      const res = await fetch('/api/contratos-centros-custo', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/contratos-centros-custo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          contratoId: parseInt(form.contratoId),
-          centroCustoId: parseInt(form.centroCustoId)
+          contratoId: Number(contratoId),
+          centroCustoId: Number(centroCustoId),
         }),
       });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload?.error || "Erro ao criar vínculo.");
 
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || 'Erro ao criar vinculação');
-      }
-
-      setModalOpen(false);
-      fetchData();
-    } catch (error: any) {
-      console.error(error);
-      alert(error.message || 'Erro ao criar vinculação');
+      setContratoId("");
+      setCentroCustoId("");
+      setMessage("Vínculo criado com sucesso.");
+      await fetchData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro desconhecido.");
+    } finally {
+      setSaving(false);
     }
   }
 
-  async function handleDelete(id: number) {
-    if (!confirm('Tem certeza que deseja remover esta vinculação?')) return;
+  async function handleDelete(vinculacao: Vinculacao) {
     if (!isEditor) return;
+    const ok = window.confirm(
+      `Remover o vínculo ${vinculacao.contrato.numero} x ${vinculacao.centroCusto.num_centro_custo}?`,
+    );
+    if (!ok) return;
 
+    setSaving(true);
+    setError(null);
+    setMessage(null);
     try {
-      const res = await fetch(`/api/contratos-centros-custo/${id}`, {
-        method: 'DELETE',
+      const response = await fetch(`/api/contratos-centros-custo/${vinculacao.id}`, {
+        method: "DELETE",
       });
-      
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || 'Erro ao remover vinculação');
-      }
-      
-      fetchData();
-    } catch (error: any) {
-      console.error(error);
-      alert(error.message || 'Erro ao remover vinculação');
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload?.error || "Erro ao remover vínculo.");
+
+      setMessage("Vínculo removido com sucesso.");
+      await fetchData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro desconhecido.");
+    } finally {
+      setSaving(false);
     }
   }
-
-  // Filtrar vinculações
-  const vinculacoesFiltradas = vinculacoes.filter(v => {
-    const matchContrato = !filtroContrato || 
-      v.contrato.numero.toLowerCase().includes(filtroContrato.toLowerCase()) ||
-      v.contrato.nome.toLowerCase().includes(filtroContrato.toLowerCase());
-    
-    const matchCentroCusto = !filtroCentroCusto || 
-      v.centroCusto.num_centro_custo.toLowerCase().includes(filtroCentroCusto.toLowerCase()) ||
-      v.centroCusto.nome_centro_custo.toLowerCase().includes(filtroCentroCusto.toLowerCase());
-    
-    return matchContrato && matchCentroCusto;
-  });
-
-  // Contratos disponíveis (que ainda não estão vinculados ao centro de custo selecionado)
-  const contratosDisponiveis = contratos.filter(contrato => {
-    if (!form.centroCustoId) return true;
-    return !vinculacoes.some(v => 
-      v.contratoId === contrato.id && 
-      v.centroCustoId === parseInt(form.centroCustoId)
-    );
-  });
 
   return (
     <ProtectedRoute
       requiredEquipe={ROUTE_PROTECTION.PLANEJAMENTO.requiredEquipe}
       requiredPermissions={ROUTE_PROTECTION.PLANEJAMENTO.requiredPermissions}
     >
-    <div className="p-6 max-w-7xl mx-auto space-y-8">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold">Vinculação Contratos x Centros de Custo</h1>
-          <p className="text-gray-600 mt-2">Gerencie as vinculações entre contratos e centros de custo</p>
-        </div>
-        {isEditor && (
-          <button
-            onClick={openAddModal}
-            className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition"
-          >
-            Nova Vinculação
-          </button>
-        )}
-      </div>
+      <main className="min-h-screen bg-slate-50 p-6 text-slate-800">
+        <div className="mx-auto max-w-7xl space-y-5">
+          <header className="flex flex-col gap-3 border-b border-slate-200 pb-4 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-red-600">
+                Planejamento
+              </p>
+              <h1 className="mt-1 text-2xl font-semibold text-slate-900">
+                Contratos x Centros de Custo
+              </h1>
+              <p className="mt-1 text-sm text-slate-500">
+                Relacionamento manual usado para identificar o contrato a partir do centro de custo.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={fetchData}
+              disabled={loading}
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+              Atualizar
+            </button>
+          </header>
 
-      {/* Filtros */}
-      <div className="bg-white p-4 rounded-lg shadow">
-        <h3 className="text-lg font-semibold mb-4">Filtros</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Filtrar por Contrato
-            </label>
-            <input
-              type="text"
-              placeholder="Número ou nome do contrato..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              value={filtroContrato}
-              onChange={(e) => setFiltroContrato(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Filtrar por Centro de Custo
-            </label>
-            <input
-              type="text"
-              placeholder="Número ou nome do centro de custo..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              value={filtroCentroCusto}
-              onChange={(e) => setFiltroCentroCusto(e.target.value)}
-            />
-          </div>
-        </div>
-      </div>
+          <section className="grid gap-3 md:grid-cols-3">
+            <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+              <p className="text-xs font-medium text-slate-500">Contratos ativos</p>
+              <p className="mt-1 text-2xl font-semibold text-slate-900">{contratosAtivos.length}</p>
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+              <p className="text-xs font-medium text-slate-500">Centros de custo ativos</p>
+              <p className="mt-1 text-2xl font-semibold text-slate-900">
+                {centrosCustoAtivos.length}
+              </p>
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+              <p className="text-xs font-medium text-slate-500">Vínculos cadastrados</p>
+              <p className="mt-1 text-2xl font-semibold text-slate-900">{vinculacoes.length}</p>
+            </div>
+          </section>
 
-      {loading ? (
-        <div className="flex justify-center items-center py-8">
-          <p className="text-gray-600">Carregando vinculações...</p>
-        </div>
-      ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <table className="min-w-full table-auto">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contrato</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cliente</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Centro de Custo</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data Vinculação</th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {vinculacoesFiltradas.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
-                    {vinculacoes.length === 0 ? 'Nenhuma vinculação encontrada.' : 'Nenhuma vinculação corresponde aos filtros.'}
-                  </td>
-                </tr>
-              ) : (
-                vinculacoesFiltradas.map((vinculacao) => (
-                  <tr key={vinculacao.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">
-                          {vinculacao.contrato.numero}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          {vinculacao.contrato.nome}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {vinculacao.contrato.cliente}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">
-                          {vinculacao.centroCusto.num_centro_custo}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          {vinculacao.centroCusto.nome_centro_custo}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {new Date(vinculacao.createdAt).toLocaleDateString('pt-BR')}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center">
-                      {isEditor && (
-                        <button
-                          onClick={() => handleDelete(vinculacao.id)}
-                          className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition text-sm"
-                        >
-                          Remover
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
+          {(error || message) && (
+            <div
+              className={`rounded-lg border p-3 text-sm ${
+                error ? "border-red-200 bg-red-50 text-red-700" : "border-emerald-200 bg-emerald-50 text-emerald-700"
+              }`}
+            >
+              {error || message}
+            </div>
+          )}
 
-      {/* Modal */}
-      {isEditor && modalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-lg relative shadow-xl">
-            <h2 className="text-xl font-bold mb-4">Nova Vinculação</h2>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Centro de Custo
-                </label>
-                <select
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  value={form.centroCustoId}
-                  onChange={(e) => setForm({ ...form, centroCustoId: e.target.value, contratoId: '' })}
-                >
-                  <option value="">Selecione um centro de custo</option>
-                  {centrosCusto
-                    .filter(cc => cc.status === 'Ativo')
-                    .map((cc) => (
-                      <option key={cc.id} value={cc.id}>
-                        {cc.num_centro_custo} - {cc.nome_centro_custo}
-                      </option>
-                    ))
-                  }
-                </select>
+          {isEditor && (
+            <form
+              onSubmit={handleSubmit}
+              className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm"
+            >
+              <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-900">
+                <Link2 className="h-4 w-4 text-slate-500" />
+                Novo vínculo
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Contrato
-                </label>
-                <select
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  value={form.contratoId}
-                  onChange={(e) => setForm({ ...form, contratoId: e.target.value })}
-                  disabled={!form.centroCustoId}
-                >
-                  <option value="">Selecione um contrato</option>
-                  {contratosDisponiveis
-                    .filter(c => c.status === 'Ativo')
-                    .map((contrato) => (
+              <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
+                <label className="block">
+                  <span className="text-xs font-medium text-slate-600">Contrato</span>
+                  <select
+                    value={contratoId}
+                    onChange={(event) => {
+                      setContratoId(event.target.value);
+                      setCentroCustoId("");
+                    }}
+                    className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-slate-50 px-3 text-sm text-slate-700 outline-none focus:border-slate-500 focus:bg-white"
+                  >
+                    <option value="">Selecione</option>
+                    {contratosAtivos.map((contrato) => (
                       <option key={contrato.id} value={contrato.id}>
-                        {contrato.numero} - {contrato.nome} ({contrato.cliente})
+                        {textoContrato(contrato)}
                       </option>
-                    ))
-                  }
-                </select>
-                {!form.centroCustoId && (
-                  <p className="text-sm text-gray-500 mt-1">
-                    Selecione primeiro um centro de custo
-                  </p>
-                )}
-              </div>
-              <div className="flex justify-end space-x-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setModalOpen(false)}
-                  className="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 transition"
-                >
-                  Cancelar
-                </button>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="block">
+                  <span className="text-xs font-medium text-slate-600">Centro de custo</span>
+                  <select
+                    value={centroCustoId}
+                    onChange={(event) => setCentroCustoId(event.target.value)}
+                    className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-slate-50 px-3 text-sm text-slate-700 outline-none focus:border-slate-500 focus:bg-white"
+                  >
+                    <option value="">Selecione</option>
+                    {centrosCustoDisponiveis.map((centroCusto) => (
+                      <option key={centroCusto.id} value={centroCusto.id}>
+                        {textoCentroCusto(centroCusto)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
                 <button
                   type="submit"
-                  className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
+                  disabled={saving || !contratoId || !centroCustoId}
+                  className="mt-5 inline-flex h-10 items-center justify-center gap-2 rounded-md border border-red-700 bg-red-600 px-4 text-sm font-medium text-white shadow-sm hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  Criar Vinculação
+                  <Plus className="h-4 w-4" />
+                  Vincular
                 </button>
               </div>
             </form>
-          </div>
+          )}
+
+          <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-900">
+              <Search className="h-4 w-4 text-slate-500" />
+              Filtros
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="block">
+                <span className="text-xs font-medium text-slate-600">Contrato</span>
+                <input
+                  value={filtroContrato}
+                  onChange={(event) => setFiltroContrato(event.target.value)}
+                  placeholder="Número, nome ou cliente"
+                  className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-slate-50 px-3 text-sm text-slate-700 outline-none focus:border-slate-500 focus:bg-white"
+                />
+              </label>
+              <label className="block">
+                <span className="text-xs font-medium text-slate-600">Centro de custo</span>
+                <input
+                  value={filtroCentroCusto}
+                  onChange={(event) => setFiltroCentroCusto(event.target.value)}
+                  placeholder="Código ou nome"
+                  className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-slate-50 px-3 text-sm text-slate-700 outline-none focus:border-slate-500 focus:bg-white"
+                />
+              </label>
+            </div>
+          </section>
+
+          <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-200 px-4 py-3 text-sm font-semibold text-slate-900">
+              Vínculos
+            </div>
+            <table className="min-w-full divide-y divide-slate-200 text-sm">
+              <thead className="bg-slate-100 text-xs uppercase text-slate-600">
+                <tr>
+                  <th className="px-4 py-3 text-left font-semibold">Contrato</th>
+                  <th className="px-4 py-3 text-left font-semibold">Centro de custo</th>
+                  <th className="px-4 py-3 text-left font-semibold">Cliente</th>
+                  <th className="px-4 py-3 text-left font-semibold">Data</th>
+                  <th className="px-4 py-3 text-right font-semibold">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {loading ? (
+                  <tr>
+                    <td className="px-4 py-8 text-center text-slate-500" colSpan={5}>
+                      Carregando vínculos...
+                    </td>
+                  </tr>
+                ) : vinculacoesFiltradas.length === 0 ? (
+                  <tr>
+                    <td className="px-4 py-8 text-center text-slate-500" colSpan={5}>
+                      Nenhum vínculo encontrado.
+                    </td>
+                  </tr>
+                ) : (
+                  vinculacoesFiltradas.map((vinculacao) => (
+                    <tr key={vinculacao.id} className="hover:bg-slate-50">
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-slate-900">
+                          {vinculacao.contrato.numero}
+                        </div>
+                        <div className="mt-1 text-xs text-slate-500">
+                          {vinculacao.contrato.nome}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-slate-900">
+                          {vinculacao.centroCusto.num_centro_custo}
+                        </div>
+                        <div className="mt-1 text-xs text-slate-500">
+                          {vinculacao.centroCusto.nome_centro_custo}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-slate-600">{vinculacao.contrato.cliente}</td>
+                      <td className="px-4 py-3 text-slate-600">
+                        {formatDate(vinculacao.createdAt)}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {isEditor && (
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(vinculacao)}
+                            disabled={saving}
+                            className="inline-flex h-8 items-center justify-center gap-2 rounded-md border border-red-200 bg-red-50 px-3 text-xs font-medium text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            Remover
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </section>
         </div>
-      )}
-    </div>
+      </main>
     </ProtectedRoute>
   );
 }

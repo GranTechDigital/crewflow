@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { logHistorico } from "@/lib/historico";
+import { reconciliarCiclosRemanejamentoSafe } from "@/lib/remanejamentoCiclos";
 
 type IdempotencyCacheEntry = {
   status: number;
@@ -558,6 +559,11 @@ async function atualizarStatusTarefasFuncionario(
         id: remanejamentoFuncionarioId,
       },
       data: dadosUpdate,
+    });
+
+    await reconciliarCiclosRemanejamentoSafe(remanejamentoFuncionarioId, {
+      usuarioResponsavelId,
+      motivo: "Status de tarefas recalculado via conclusao de tarefa",
     });
 
     // Registrar no histórico a mudança de status das tarefas

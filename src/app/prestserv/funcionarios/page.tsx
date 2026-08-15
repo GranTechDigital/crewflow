@@ -133,6 +133,19 @@ export default function FuncionariosPage() {
 }
 
 function FuncionariosPageContent() {
+  const FETCH_TIMEOUT_MS = 90000;
+  const isAbortLikeError = (err: unknown) => {
+    if (err instanceof Error) {
+      const message = err.message.toLowerCase();
+      return (
+        err.name === "AbortError" ||
+        message.includes("aborted") ||
+        message.includes("abort")
+      );
+    }
+    return false;
+  };
+
   const router = useRouter();
   const searchParams = useSearchParams();
   const { showToast } = useToast();
@@ -1332,7 +1345,10 @@ function FuncionariosPageContent() {
       }
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000);
+      const timeoutId = setTimeout(
+        () => controller.abort(),
+        FETCH_TIMEOUT_MS,
+      );
       let response: Response;
       try {
         response = await fetch(`/api/logistica/remanejamentos?${params}`, {
@@ -1502,7 +1518,13 @@ function FuncionariosPageContent() {
         setTotalSolicitacoes(totalSolicitacoesAPI);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro desconhecido");
+      setError(
+        isAbortLikeError(err)
+          ? "A consulta demorou mais que o esperado. Aguarde alguns segundos e tente atualizar a página."
+          : err instanceof Error
+            ? err.message
+            : "Erro desconhecido",
+      );
     } finally {
       if (showLoader) {
         setLoading(false);

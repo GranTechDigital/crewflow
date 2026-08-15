@@ -90,6 +90,16 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Permitir processamento periodico da outbox Drake via token de servico
+  const drakeOutboxToken = process.env.DRAKE_OUTBOX_SERVICE_TOKEN;
+  if (
+    pathname.startsWith("/api/admin/integracoes/drake/outbox/processar") &&
+    drakeOutboxToken &&
+    authHeader === `Bearer ${drakeOutboxToken}`
+  ) {
+    return NextResponse.next();
+  }
+
   // Permitir envio automático do relatório geral via token de serviço
   const relatorioEmailToken = process.env.RELATORIO_EMAIL_SERVICE_TOKEN;
   const relatorioServiceRoutes = [

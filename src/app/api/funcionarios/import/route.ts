@@ -1,6 +1,7 @@
 // src/app/api/funcionarios/import/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { sincronizarContratosWorkerDrakeSafe } from "@/lib/integracoes/workerContratos";
 
 function parseDate(dateStr: string): Date | null {
   const date = new Date(dateStr);
@@ -47,7 +48,7 @@ export async function POST() {
     // Em vez de apagar (o que pode apagar usuários por cascata),
     // marcamos como DEMITIDO quem não está na fonte e fazemos upsert dos demais
     const existentes = await prisma.funcionario.findMany({
-      select: { id: true, matricula: true, status: true },
+      select: { id: true, matricula: true, status: true, centroCusto: true },
     });
     const setApi = new Set<string>(
       dadosExternos.map((i: any) => String(i.MATRICULA)),
@@ -126,6 +127,7 @@ export async function POST() {
     // Upsert: atualizar existentes e criar novos
     let atualizados = 0;
     let criados = 0;
+    const matriculasContratoDrake = new Set<string>();
     for (const d of dadosParaInserir) {
       const found = existentes.find((e) => e.matricula === d.matricula);
       if (found) {
@@ -150,11 +152,23 @@ export async function POST() {
             excluidoEm: null,
           },
         });
+        const centroCustoAnterior = found.centroCusto ? String(found.centroCusto).trim() : null;
+        const centroCustoNovo = d.centroCusto ? String(d.centroCusto).trim() : null;
+        if (centroCustoAnterior !== centroCustoNovo) {
+          matriculasContratoDrake.add(d.matricula);
+        }
         atualizados++;
       } else {
         await prisma.funcionario.create({ data: d as any });
+        matriculasContratoDrake.add(d.matricula);
         criados++;
       }
+    }
+
+    if (matriculasContratoDrake.size > 0) {
+      await sincronizarContratosWorkerDrakeSafe({
+        matriculas: Array.from(matriculasContratoDrake),
+      });
     }
 
     console.log("Importação concluída com sucesso.");

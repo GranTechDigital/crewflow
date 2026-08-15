@@ -46,6 +46,8 @@ const setores: SetorCard[] = [
       { label: "Sincronizar Lista de Funcionários", href: "/funcionarios" },
       { label: "Criar Contratos", href: "/planejamento/contratos" },
       { label: "Gerenciar Status", href: "/status" },
+      { label: "Auditar Ciclos", href: "/admin/remanejamento-ciclos" },
+      { label: "Eventos de Integração", href: "/admin/integracoes-cadastro" },
     ],
   },
   // {
@@ -95,6 +97,10 @@ const setores: SetorCard[] = [
       {
         label: "Lista de Funcionários",
         href: "/prestserv/funcionarios-por-contrato",
+      },
+      {
+        label: "Contratos x Centros de Custo",
+        href: "/planejamento/vinculacao-contratos",
       },
       // BI removido do card Planejamento
     ],

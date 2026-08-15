@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { StatusTarefa } from "@/types/remanejamento-funcionario";
+import { reconciliarCiclosRemanejamentoSafe } from "@/lib/remanejamentoCiclos";
 
 const normalizarTexto = (valor: unknown) =>
   String(valor || "")
@@ -686,6 +687,10 @@ async function atualizarStatusTarefasFuncionario(
       data: {
         statusTarefas: statusCalculado,
       },
+    });
+
+    await reconciliarCiclosRemanejamentoSafe(remanejamentoFuncionarioId, {
+      motivo: "Status de tarefas recalculado via atualizacao de tarefa individual",
     });
 
     // Registrar no histórico a mudança de status das tarefas

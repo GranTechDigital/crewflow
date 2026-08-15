@@ -922,24 +922,14 @@ async function buscarRemanejamentos(
           select: {
             remanejamentoFuncionarioId: true,
             texto: true,
-            dataCriacao: true,
-          },
-          orderBy: {
-            dataCriacao: "asc",
           },
         });
       const mapObs = new Map<string, number>();
-      const mapObsTexto = new Map<string, string>();
       observacoesTextoPorRf.forEach((o: any) => {
         const txt = String(o.texto || "").trim();
         if (!txt) return;
         if (isObservacaoTecnicaOculta(txt)) return;
         mapObs.set(o.remanejamentoFuncionarioId, (mapObs.get(o.remanejamentoFuncionarioId) ?? 0) + 1);
-        const atual = mapObsTexto.get(o.remanejamentoFuncionarioId);
-        mapObsTexto.set(
-          o.remanejamentoFuncionarioId,
-          atual ? `${atual} | ${txt}` : txt,
-        );
       });
       solicitacoes.forEach((s: any) =>
         s.funcionarios?.forEach((rf: any) => {
@@ -950,7 +940,7 @@ async function buscarRemanejamentos(
           }
           const totalObs = mapObs.get(rf.id) ?? 0;
           (rf as any).observacoesRemanejamentoCount = totalObs;
-          (rf as any).observacoesRemanejamentoTexto = mapObsTexto.get(rf.id) ?? "";
+          (rf as any).observacoesRemanejamentoTexto = "";
         }),
       );
     }

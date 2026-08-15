@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { reconciliarCiclosRemanejamentoSafe } from "@/lib/remanejamentoCiclos";
 
 // POST - Aprovar todas as tarefas de um funcionário (para teste)
 export async function POST(
@@ -224,6 +225,11 @@ export async function POST(
     await prisma.remanejamentoFuncionario.update({
       where: { id: funcionarioId },
       data: dadosUpdate,
+    });
+
+    await reconciliarCiclosRemanejamentoSafe(funcionarioId, {
+      usuarioResponsavelId: usuarioAutenticado?.id,
+      motivo: "Status de tarefas recalculado via aprovacao em lote",
     });
 
     // Registrar no histórico

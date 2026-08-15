@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { reconciliarCiclosRemanejamentoSafe } from "@/lib/remanejamentoCiclos";
 
 // Setores válidos para validação
 const SETORES_VALIDOS = ["RH", "MEDICINA", "TREINAMENTO"] as const;
@@ -756,6 +757,10 @@ export async function POST(request: NextRequest) {
           histErr,
         );
       }
+      await reconciliarCiclosRemanejamentoSafe(remanejamentoFuncionario.id, {
+        usuarioResponsavelId: usuarioId,
+        motivo: "Tarefas geradas apos aprovacao inicial",
+      });
     } catch (statusError) {
       console.error("Erro ao atualizar status geral:", statusError);
       // Não falha a criação das tarefas se a atualização do status falhar

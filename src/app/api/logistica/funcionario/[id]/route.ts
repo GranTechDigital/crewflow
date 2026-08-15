@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { AtualizarStatusPrestserv } from "@/types/remanejamento-funcionario";
+import { reconciliarCiclosRemanejamentoSafe } from "@/lib/remanejamentoCiclos";
 
 const normalizarTexto = (valor: unknown) =>
   String(valor || "")
@@ -122,21 +123,6 @@ export async function GET(
       return NextResponse.json(
         { error: "Funcionário em remanejamento não encontrado" },
         { status: 404 },
-      );
-    }
-
-    // Status VALIDADO é terminal: não permite regressão para outros status
-    if (
-      remanejamentoFuncionario.statusPrestserv === "VALIDADO" &&
-      statusPrestservCanonical &&
-      statusPrestservCanonical !== "VALIDADO"
-    ) {
-      return NextResponse.json(
-        {
-          error:
-            "Não é permitido alterar um Prestserv já VALIDADO para outro status.",
-        },
-        { status: 400 },
       );
     }
 
@@ -1012,6 +998,11 @@ export async function PUT(
       );
     }
 
+    await reconciliarCiclosRemanejamentoSafe(funcionarioAtualizado.id, {
+      usuarioResponsavelId: usuarioAutenticado?.id ?? null,
+      motivo: "Status Prestserv atualizado pela Logistica",
+    });
+
     return NextResponse.json(funcionarioAtualizado);
   } catch (error) {
     console.error("Erro ao atualizar status do Prestserv:", error);
@@ -1528,6 +1519,11 @@ export async function PATCH(
         usuarioAutenticado?.id ?? undefined,
       );
     }
+
+    await reconciliarCiclosRemanejamentoSafe(funcionarioAtualizado.id, {
+      usuarioResponsavelId: usuarioAutenticado?.id ?? null,
+      motivo: "Status Prestserv atualizado pela Logistica",
+    });
 
     return NextResponse.json({ success: true, funcionarioAtualizado });
   } catch (error) {

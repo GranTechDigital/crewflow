@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sincronizarTarefasPadrao } from "@/lib/tarefasPadraoSync";
+import { sincronizarContratosWorkerDrakeSafe } from "@/lib/integracoes/workerContratos";
 import { toSlug } from "@/utils/slug";
 import { Prisma } from "@prisma/client";
 
@@ -210,6 +211,7 @@ export async function POST(request: Request) {
     });
 
     const now = new Date();
+    const matriculasContratoDrake = new Set<string>();
 
     // Criar maps para facilitar a comparação por matrícula
     const mapApi = new Map<string, Record<string, unknown>>();
@@ -307,6 +309,7 @@ export async function POST(request: Request) {
             excluidoEm: null,
           },
         });
+        matriculasContratoDrake.add(matricula);
         if (funcaoRow) {
           await prisma.$executeRaw`UPDATE "public"."Funcionario" SET "funcaoId"=${funcaoRow.id} WHERE "matricula"=${matricula}`;
         }
@@ -319,10 +322,12 @@ export async function POST(request: Request) {
       status: string;
       statusPrestserv?: string;
       funcao?: string | null;
+      funcaoId?: number;
       atualizadoEm: Date;
       excluidoEm?: Date | null;
       dataAdmissao?: Date | null;
       dataDemissao?: Date | null;
+      centroCusto?: string | null;
     }> = [];
 
     const funcionariosFuncaoAlteradaIds = new Set<number>();
@@ -338,6 +343,10 @@ export async function POST(request: Request) {
 
       const statusApi = String((dadosApi as any).STATUS);
       const statusBanco = func.status;
+      const centroCustoApi = (dadosApi as any).CENTRO_CUSTO
+        ? String((dadosApi as any).CENTRO_CUSTO).trim()
+        : null;
+      const centroCustoBanco = func.centroCusto ? String(func.centroCusto).trim() : null;
       const funcaoApiRaw = (dadosApi as any).FUNCAO
         ? String((dadosApi as any).FUNCAO)
         : null;
@@ -492,6 +501,17 @@ export async function POST(request: Request) {
           dataDemissao: shouldUpdateDemissao ? dataDemissaoApi : undefined,
         });
       }
+
+      if (centroCustoApi !== centroCustoBanco) {
+        paraAtualizar.push({
+          matricula: func.matricula,
+          status: func.status || "ATIVO",
+          atualizadoEm: now,
+          excluidoEm: null,
+          centroCusto: centroCustoApi,
+        });
+        matriculasContratoDrake.add(func.matricula);
+      }
     }
 
     // Atualizar os registros
@@ -509,11 +529,19 @@ export async function POST(request: Request) {
             f.dataAdmissao !== undefined ? f.dataAdmissao : undefined,
           dataDemissao:
             f.dataDemissao !== undefined ? f.dataDemissao : undefined,
+          centroCusto:
+            f.centroCusto !== undefined ? f.centroCusto : undefined,
         },
       });
       if (typeof (f as any).funcaoId === "number") {
         await prisma.$executeRaw`UPDATE "public"."Funcionario" SET "funcaoId"=${(f as any).funcaoId} WHERE "matricula"=${f.matricula}`;
       }
+    }
+
+    if (matriculasContratoDrake.size > 0) {
+      await sincronizarContratosWorkerDrakeSafe({
+        matriculas: Array.from(matriculasContratoDrake),
+      });
     }
     console.log("[SYNC] total atualizações aplicadas:", paraAtualizar.length);
 

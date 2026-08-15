@@ -32,6 +32,7 @@ yarn-error.log*
 .env.dev
 .env.staging
 .env.production
+.env.prod.drake
 
 # Docker local configs with credentials
 docker-compose.local.yml
