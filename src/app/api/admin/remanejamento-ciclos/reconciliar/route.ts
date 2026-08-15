@@ -9,6 +9,7 @@ type Payload = {
   remanejamentoIds?: string[];
   limit?: number;
   incluirCancelados?: boolean;
+  somenteSemCiclos?: boolean;
   dryRun?: boolean;
 };
 
@@ -45,6 +46,13 @@ export async function POST(request: NextRequest) {
       : 100;
     const dryRun = body.dryRun === true;
 
+    const filtroBase = body.incluirCancelados
+      ? {}
+      : {
+          statusTarefas: { not: "CANCELADO" },
+          statusPrestserv: { not: "CANCELADO" },
+        };
+
     const remanejamentos =
       idsInformados.length > 0
         ? await prisma.remanejamentoFuncionario.findMany({
@@ -53,12 +61,10 @@ export async function POST(request: NextRequest) {
             orderBy: { updatedAt: "desc" },
           })
         : await prisma.remanejamentoFuncionario.findMany({
-            where: body.incluirCancelados
-              ? undefined
-              : {
-                  statusTarefas: { not: "CANCELADO" },
-                  statusPrestserv: { not: "CANCELADO" },
-                },
+            where: {
+              ...filtroBase,
+              ...(body.somenteSemCiclos ? { ciclos: { none: {} } } : {}),
+            },
             select: { id: true },
             orderBy: { updatedAt: "desc" },
             take: limit,

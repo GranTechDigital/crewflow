@@ -195,6 +195,8 @@ function RemanejamentoCiclosContent() {
   const [tipoCiclo, setTipoCiclo] = useState("TODOS");
   const [multiCiclo, setMultiCiclo] = useState(false);
   const [limit, setLimit] = useState(100);
+  const [reconciling, setReconciling] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
 
   const ciclos = useMemo(
     () =>
@@ -267,6 +269,39 @@ function RemanejamentoCiclosContent() {
     loadCiclos();
   }
 
+  async function reconciliarPendentes() {
+    setReconciling(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const response = await fetch("/api/admin/remanejamento-ciclos/reconciliar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          limit: 500,
+          somenteSemCiclos: true,
+          incluirCancelados: false,
+          dryRun: false,
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload?.error || "Erro ao reconstruir ciclos.");
+      }
+
+      setMessage(
+        `Reconciliação concluída: ${payload.totalSucesso || 0} sucesso(s), ${
+          payload.totalFalha || 0
+        } falha(s), ${payload.totalProcessado || 0} processado(s).`,
+      );
+      await loadCiclos();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro desconhecido.");
+    } finally {
+      setReconciling(false);
+    }
+  }
+
   return (
     <main className="min-h-screen bg-gray-50 p-6">
       <div className="mx-auto max-w-[1500px] space-y-5">
@@ -283,15 +318,26 @@ function RemanejamentoCiclosContent() {
               integracao externa.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={loadCiclos}
-            disabled={loading}
-            className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-            Atualizar
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={reconciliarPendentes}
+              disabled={loading || reconciling}
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 text-sm font-medium text-amber-800 shadow-sm hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Clock3 className={`h-4 w-4 ${reconciling ? "animate-spin" : ""}`} />
+              Reconstruir pendentes
+            </button>
+            <button
+              type="button"
+              onClick={loadCiclos}
+              disabled={loading}
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+              Atualizar
+            </button>
+          </div>
         </header>
 
         <section className="grid gap-3 md:grid-cols-5">
@@ -405,6 +451,11 @@ function RemanejamentoCiclosContent() {
         {error && (
           <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
             {error}
+          </div>
+        )}
+        {message && (
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            {message}
           </div>
         )}
 
