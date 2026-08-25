@@ -137,28 +137,55 @@ function minDate(dates: Array<Date | null | undefined>): Date | null {
   return new Date(Math.min(...valid.map((d) => d.getTime())));
 }
 
+function isAfter(date: Date | null | undefined, reference: Date | null | undefined) {
+  if (!date || !reference) return false;
+  return date.getTime() > reference.getTime();
+}
+
 type TarefaRemanejamentoCarregada = NonNullable<
   Awaited<ReturnType<typeof carregarRemanejamento>>
 >["tarefas"][number];
 
+function inicioAtuacaoTarefa(
+  tarefa: TarefaRemanejamentoCarregada,
+  depoisDe?: Date | null,
+) {
+  const eventosReabertura = tarefa.eventosStatus
+    .filter((evento) => isTarefaPendenteDeAtuacao(evento.statusNovo))
+    .map((evento) => evento.dataEvento)
+    .filter((data) => !depoisDe || data.getTime() > depoisDe.getTime());
+
+  if (depoisDe) {
+    return (
+      minDate(eventosReabertura) ??
+      (isAfter(tarefa.dataCriacao, depoisDe) ? tarefa.dataCriacao : null)
+    );
+  }
+
+  return minDate(eventosReabertura) ?? tarefa.dataCriacao;
+}
+
 function mapearCicloPorLoteDeCriacao(tarefas: TarefaRemanejamentoCarregada[]) {
   const sorted = [...tarefas].sort(
-    (a, b) => a.dataCriacao.getTime() - b.dataCriacao.getTime(),
+    (a, b) =>
+      (inicioAtuacaoTarefa(a) ?? a.dataCriacao).getTime() -
+      (inicioAtuacaoTarefa(b) ?? b.dataCriacao).getTime(),
   );
   const cicloPorTarefa = new Map<string, number>();
   let numeroCiclo = 1;
-  let ultimaCriacao: Date | null = null;
+  let ultimoInicio: Date | null = null;
 
   for (const tarefa of sorted) {
+    const inicioAtuacao = inicioAtuacaoTarefa(tarefa) ?? tarefa.dataCriacao;
     if (
-      ultimaCriacao &&
-      tarefa.dataCriacao.getTime() - ultimaCriacao.getTime() >
+      ultimoInicio &&
+      inicioAtuacao.getTime() - ultimoInicio.getTime() >
         GAP_NOVO_LOTE_TAREFAS_DIAS * DIA_EM_MS
     ) {
       numeroCiclo += 1;
     }
     cicloPorTarefa.set(tarefa.id, numeroCiclo);
-    ultimaCriacao = tarefa.dataCriacao;
+    ultimoInicio = inicioAtuacao;
   }
 
   return cicloPorTarefa;
@@ -179,7 +206,7 @@ function agruparPorNumeroCiclo(
 }
 
 function inicioTarefas(tarefas: TarefaRemanejamentoCarregada[]) {
-  return minDate(tarefas.map((t) => t.dataCriacao));
+  return minDate(tarefas.map((t) => inicioAtuacaoTarefa(t) ?? t.dataCriacao));
 }
 
 function fimTarefasParaAgrupamento(tarefas: TarefaRemanejamentoCarregada[]) {
@@ -372,6 +399,7 @@ async function upsertCiclo(
     },
     update: {
       status: existente?.status === "IGNORADO" ? "ABERTO" : undefined,
+      inicioAt: existente?.status === "ABERTO" ? data.inicioAt : undefined,
       prazoPrevistoAt: data.prazoPrevistoAt ?? undefined,
       tipoCiclo: data.tipoCiclo ?? undefined,
       tituloCiclo: data.tituloCiclo ?? undefined,
@@ -600,8 +628,11 @@ function inicioSetor(
   rem: NonNullable<Awaited<ReturnType<typeof carregarRemanejamento>>>,
   tarefas: NonNullable<Awaited<ReturnType<typeof carregarRemanejamento>>>["tarefas"],
   numeroCiclo = 1,
+  referenciaAt?: Date | null,
 ) {
-  if (numeroCiclo > 1) return minDate(tarefas.map((t) => t.dataCriacao)) ?? new Date();
+  if (numeroCiclo > 1) {
+    return minDate(tarefas.map((t) => inicioAtuacaoTarefa(t, referenciaAt))) ?? referenciaAt ?? new Date();
+  }
   return rem.dataAprovado ?? minDate(tarefas.map((t) => t.dataCriacao)) ?? new Date();
 }
 
@@ -712,7 +743,29 @@ async function numeroCicloParaAtendimento(
     return atual + 1;
   }
 
-  if (logisticaAberta) return atual + 1;
+  if (logisticaAberta) {
+    const cicloSetorAtual = setor
+      ? ciclosAtual.find((c) => c.setor === setor)
+      : null;
+    const referenciaAtuacao =
+      cicloSetorAtual?.conclusaoAt ??
+      cicloSetorAtual?.cancelamentoAt ??
+      cicloSetorAtual?.updatedAt ??
+      logisticaAberta.inicioAt;
+    const temAtuacaoNovaNoSetor = setor
+      ? tarefasSetor.some((tarefa) => inicioAtuacaoTarefa(tarefa, referenciaAtuacao))
+      : false;
+
+    if (
+      setor &&
+      !cicloSetorAtual &&
+      tarefasSetor.some((t) => isTarefaPendenteDeAtuacao(t.status))
+    ) {
+      return atual + 1;
+    }
+
+    return temAtuacaoNovaNoSetor ? atual + 1 : atual;
+  }
 
   if (setor && tarefasSetor.some((t) => isTarefaPendenteDeAtuacao(t.status))) {
     const cicloSetorAtual = ciclosAtual.find((c) => c.setor === setor);
@@ -735,13 +788,13 @@ async function numeroCicloParaAtendimento(
   return atual;
 }
 
-async function cicloAnteriorDoSetorFechado(
+async function cicloAnteriorDoSetor(
   db: DbClient,
   remanejamentoFuncionarioId: string,
   numeroCiclo: number,
   setor: SetorCadastro,
 ) {
-  const cicloAnterior = await db.remanejamentoCiclo.findFirst({
+  return db.remanejamentoCiclo.findFirst({
     where: {
       remanejamentoFuncionarioId,
       setor,
@@ -749,7 +802,6 @@ async function cicloAnteriorDoSetorFechado(
     },
     orderBy: { numeroCiclo: "desc" },
   });
-  return Boolean(cicloAnterior && cicloAnterior.status !== "ABERTO");
 }
 
 async function atualizarConclusaoReconstruida(
@@ -822,13 +874,22 @@ async function abrirCiclosSetores(
         numeroCiclo === 1 ||
         tarefasAtivas.some((t) => isTarefaPendenteDeAtuacao(t.status));
       if (!precisaAtuar) continue;
+      const cicloAnteriorSetor = await cicloAnteriorDoSetor(db, rem.id, numeroCiclo, setor);
+      const cicloAnteriorFechado = Boolean(
+        cicloAnteriorSetor && cicloAnteriorSetor.status !== "ABERTO",
+      );
+      const referenciaInicioAt =
+        cicloAnteriorSetor?.conclusaoAt ??
+        cicloAnteriorSetor?.cancelamentoAt ??
+        cicloAnteriorSetor?.updatedAt ??
+        null;
       const classificacao = classificarCiclo({
         setor,
         numeroCiclo,
         origem: options.origem,
         motivo: options.motivo,
         statusPrestserv: rem.statusPrestserv,
-        cicloAnteriorFechado: await cicloAnteriorDoSetorFechado(db, rem.id, numeroCiclo, setor),
+        cicloAnteriorFechado,
       });
       const tarefasReferenciaCiclo =
         numeroCiclo > 1
@@ -841,7 +902,7 @@ async function abrirCiclosSetores(
         remanejamentoFuncionarioId: rem.id,
         numeroCiclo,
         setor,
-        inicioAt: inicioSetor(rem, tarefasParaDatas, numeroCiclo),
+        inicioAt: inicioSetor(rem, tarefasParaDatas, numeroCiclo, referenciaInicioAt),
         prazoPrevistoAt: prazoSetor(tarefasParaDatas),
         ...classificacao,
         origem: options.origem,

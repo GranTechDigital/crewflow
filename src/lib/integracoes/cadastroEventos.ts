@@ -213,6 +213,14 @@ function isoSaoPaulo(date: Date) {
   ].join("");
 }
 
+function inicioDiaSaoPauloUtc(date: Date) {
+  const localMs = date.getTime() - 3 * 60 * 60 * 1000;
+  const local = new Date(localMs);
+  return new Date(
+    Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate(), 3, 0, 0, 0),
+  );
+}
+
 function montarPayloadDrake(ciclo: {
   externalId: string;
   setor: SetorCadastro;
@@ -360,14 +368,15 @@ export async function sincronizarEventosCadastroExterno(
       where: { chaveIdempotencia: chave },
     });
     const payloadMudou = !existente || jsonStable(existente.payload) !== jsonStable(payload);
+    const statusMudou = Boolean(existente && existente.status !== status);
 
     if (options.dryRun) {
       if (existente) {
-        if (payloadMudou) resultado.eventosAtualizados += 1;
+        if (payloadMudou || statusMudou) resultado.eventosAtualizados += 1;
       } else {
         resultado.eventosCriados += 1;
       }
-      if (!existente || payloadMudou || options.reenfileirarMesmoPayload) {
+      if (!existente || payloadMudou || statusMudou || options.reenfileirarMesmoPayload) {
         resultado.outboxCriadas += 1;
       }
       continue;
@@ -410,12 +419,12 @@ export async function sincronizarEventosCadastroExterno(
     });
 
     if (existente) {
-      if (payloadMudou) resultado.eventosAtualizados += 1;
+      if (payloadMudou || statusMudou) resultado.eventosAtualizados += 1;
     } else {
       resultado.eventosCriados += 1;
     }
 
-    if (!existente || payloadMudou || options.reenfileirarMesmoPayload) {
+    if (!existente || payloadMudou || statusMudou || options.reenfileirarMesmoPayload) {
       const statusOutbox = process.env.DRAKE_WEBHOOK_ENABLED === "true" ? "PENDENTE" : "IGNORADO";
       const erroOutbox =
         process.env.DRAKE_WEBHOOK_ENABLED === "true"
@@ -431,6 +440,20 @@ export async function sincronizarEventosCadastroExterno(
         },
         orderBy: { createdAt: "desc" },
       });
+      const outboxEnviadaHoje =
+        status === "ABERTO" && !statusMudou && !options.reenfileirarMesmoPayload
+          ? await db.integracaoOutbox.findFirst({
+              where: {
+                eventoExternoId: evento.id,
+                provedor,
+                ambiente,
+                acao: "SYNC_ADDITIONAL_EVENT",
+                status: "AGENDADO_SESSAO",
+                createdAt: { gte: inicioDiaSaoPauloUtc(now) },
+              },
+              orderBy: { createdAt: "desc" },
+            })
+          : null;
 
       if (outboxPendente && !options.reenfileirarMesmoPayload) {
         await db.integracaoOutbox.update({
@@ -445,6 +468,8 @@ export async function sincronizarEventosCadastroExterno(
           },
         });
         resultado.outboxAtualizadas += 1;
+      } else if (outboxEnviadaHoje) {
+        // Ciclos abertos movem o End para "agora"; limite a atualizacao externa a uma vez por dia.
       } else {
         await db.integracaoOutbox.create({
           data: {
