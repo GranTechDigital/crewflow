@@ -15,7 +15,7 @@ const INTERVAL_MINUTES = Math.max(
 );
 const LIMIT = Math.min(
   Math.max(Number(process.env.DRAKE_OUTBOX_LIMIT || 1000), 1),
-  1000,
+  5000,
 );
 const AMBIENTE = String(process.env.DRAKE_ENVIRONMENT || "hmg")
   .trim()
@@ -64,7 +64,32 @@ async function processOutbox() {
       );
       return;
     }
-    console.log(`[drake-outbox-worker] Resultado: ${text}`);
+
+    const data = JSON.parse(text);
+    console.log(
+      "[drake-outbox-worker] Resultado:",
+      JSON.stringify({
+        totalElegivel: data.totalElegivel,
+        enviados: data.enviados,
+        falhas: data.falhas,
+        ignorados: data.ignorados,
+        desabilitados: data.desabilitados,
+        primeiro: data.resultados?.[0]
+          ? {
+              id: data.resultados[0].id,
+              statusNovo: data.resultados[0].statusNovo,
+              ok: data.resultados[0].ok,
+            }
+          : null,
+        ultimo: data.resultados?.length
+          ? {
+              id: data.resultados[data.resultados.length - 1].id,
+              statusNovo: data.resultados[data.resultados.length - 1].statusNovo,
+              ok: data.resultados[data.resultados.length - 1].ok,
+            }
+          : null,
+      }),
+    );
   } catch (error) {
     console.error("[drake-outbox-worker] Erro ao chamar endpoint:", error);
   } finally {

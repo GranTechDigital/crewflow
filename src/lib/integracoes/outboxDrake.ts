@@ -54,7 +54,8 @@ const ACAO_SYNC_ADDITIONAL_EVENT = "SYNC_ADDITIONAL_EVENT";
 const ACAO_SYNC_WORKER = "SYNC_WORKER";
 const ACOES_SUPORTADAS = [ACAO_SYNC_ADDITIONAL_EVENT];
 const MAX_TENTATIVAS = 5;
-const SESSION_MAX_ITEMS = 1000;
+const BULK_MAX_ITEMS = 1000;
+const SESSION_MAX_ITEMS = 5000;
 const SESSION_TIMEOUT_MS = 60 * 60 * 1000;
 
 function sessionEnabled() {
@@ -102,6 +103,14 @@ function sessionIdFromResponse(data: unknown) {
 
 function sessionRequestPayload(sessionIdExterno?: string | null) {
   return sessionIdExterno ? { SessionId: sessionIdExterno } : {};
+}
+
+function chunkArray<T>(items: T[], chunkSize: number) {
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += chunkSize) {
+    chunks.push(items.slice(index, index + chunkSize));
+  }
+  return chunks;
 }
 
 function atualizarIgnorados(resultado: ResultadoProcessamentoOutboxDrake) {
@@ -250,22 +259,21 @@ export async function processarOutboxDrake(
       tipo: "SYNC_SESSION_ADDITIONAL_EVENT",
       status: "ABERTA",
       totalItens: itensParaSessao.length,
-      totalLotes: 1,
+      totalLotes: Math.ceil(itensParaSessao.length / BULK_MAX_ITEMS),
       timeoutMs: Number(process.env.DRAKE_SYNC_SESSION_TIMEOUT_MS || SESSION_TIMEOUT_MS),
       payload: {
         acao: ACAO_SYNC_ADDITIONAL_EVENT,
         ambiente,
-        loteMaximo: SESSION_MAX_ITEMS,
+        loteMaximo: BULK_MAX_ITEMS,
+        limiteSessao: SESSION_MAX_ITEMS,
         outboxIds: itensParaSessao.map((item) => item.id),
       },
     },
   });
 
   try {
-    const payloads = [];
-    for (const item of itensParaSessao) {
-      payloads.push(item.payload);
-    }
+    const lotes = chunkArray(itensParaSessao, BULK_MAX_ITEMS);
+    const lotesEnviados: Array<{ indice: number; total: number; status: string }> = [];
 
     await db.integracaoSessao.update({
       where: { id: sessao.id },
@@ -285,10 +293,32 @@ export async function processarOutboxDrake(
       },
     });
 
-    await addAdditionalEventBulk({
-      ...sessionRequestPayload(sessionIdExterno),
-      Items: payloads,
-    });
+    for (let index = 0; index < lotes.length; index += 1) {
+      const lote = lotes[index];
+      await addAdditionalEventBulk({
+        ...sessionRequestPayload(sessionIdExterno),
+        Items: lote.map((item) => item.payload),
+      });
+      lotesEnviados.push({
+        indice: index + 1,
+        total: lote.length,
+        status: "OK",
+      });
+
+      await db.integracaoSessao.update({
+        where: { id: sessao.id },
+        data: {
+          payload: {
+            acao: ACAO_SYNC_ADDITIONAL_EVENT,
+            ambiente,
+            loteMaximo: BULK_MAX_ITEMS,
+            limiteSessao: SESSION_MAX_ITEMS,
+            outboxIds: itensParaSessao.map((item) => item.id),
+            lotesEnviados,
+          },
+        },
+      });
+    }
 
     const finalizacao = await finalizeSyncSession(sessionRequestPayload(sessionIdExterno));
 
