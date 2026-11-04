@@ -32,14 +32,39 @@ test('Exportação e importação usam exatamente o mesmo formato, sem fórmulas
   const wb = new ExcelJS.Workbook(); await wb.xlsx.load(bytes);
   assert.equal(wb.worksheets[0].getCell('A3').type, ExcelJS.ValueType.String);
 });
-test('Rejeita duplicidade, fórmula, valor inválido, coluna extra e ZIP inválido', async () => {
-  for (const rows of [[['A','1'],['A','2']], [['A',{ formula: '1+1', result: 2 }]], [['A','abc']], [['','123']], [['A','1','extra']]]) await assert.rejects(parseSispatWorkbook(await xlsx(rows)));
+test('Rejeita duplicidade, fórmula, valor inválido e ZIP inválido', async () => {
+  for (const rows of [[['A','1'],['A','2']], [['A',{ formula: '1+1', result: 2 }]], [['A','abc']], [['','123']]]) await assert.rejects(parseSispatWorkbook(await xlsx(rows)));
   await assert.rejects(parseSispatWorkbook(Buffer.from('não é xlsx')));
 });
 test('Rejeita múltiplas abas candidatas em vez de adivinhar', async () => {
   const wb = new ExcelJS.Workbook(); for (const name of ['Uma','Outra']) wb.addWorksheet(name).addRows([['Matricula','SISPAT'],['A','1']]);
   await assert.rejects(parseSispatWorkbook(Buffer.from(await wb.xlsx.writeBuffer())), /única aba/);
 });
+test('Prioriza o modelo e encontra cabeçalhos fora de ordem com colunas extras e título', async () => {
+  assert.equal((await parseSispatWorkbook(await xlsx([['0001','123']],true))).aba,'Planilha1');
+  const wb=new ExcelJS.Workbook();wb.addWorksheet('Completa').addRows([['Relatório'],[],['Nome',' SISPAT ','CPF',' MATRICULA '],['Pessoa','000123',{formula:'1+1'},'0001'],['Sem identificadores']]);
+  const parsed=await parseSispatWorkbook(Buffer.from(await wb.xlsx.writeBuffer()));
+  assert.equal(parsed.total,1);assert.deepEqual(parsed.linhas,[{linha:4,matricula:'0001',sispat:'000123'}]);
+});
+
+test('Rejeita cabeçalhos repetidos e múltiplas abas completas sem modelo preferencial', async () => {
+  const wb=new ExcelJS.Workbook();wb.addWorksheet('Repetida').addRows([['Nome','Matrícula','SISPAT','SISPAT'],['Pessoa','A','1','2']]);
+  await assert.rejects(parseSispatWorkbook(Buffer.from(await wb.xlsx.writeBuffer())),/repetidos/);
+  wb.removeWorksheet('Repetida');for(const name of ['Uma','Outra'])wb.addWorksheet(name).addRows([['Nome','SISPAT','Matrícula'],['Pessoa','1','A']]);
+  await assert.rejects(parseSispatWorkbook(Buffer.from(await wb.xlsx.writeBuffer())),/ambiguidades/);
+});
+
+test('Download aceita o XLSX real e recusa erros JSON, HTML e conteúdo inválido', async () => {
+  const {readSispatWorkbookDownload}=load('src/lib/sispat/download.ts');
+  const type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  const blob=await readSispatWorkbookDownload(new Response(await exportSispatWorkbook([]),{headers:{'content-type':type}}));
+  const wb=new ExcelJS.Workbook();await wb.xlsx.load(Buffer.from(await blob.arrayBuffer()));assert.deepEqual(wb.worksheets[0].getRow(1).values.slice(1),['Matrícula','SISPAT']);assert.equal(wb.worksheets[0].rowCount,1);
+  await assert.rejects(readSispatWorkbookDownload(Response.json({error:'Sem sessão'},{status:401})),/Sessão expirada/);
+  await assert.rejects(readSispatWorkbookDownload(Response.json({error:'Acesso negado'},{status:403})),/Acesso negado/);
+  await assert.rejects(readSispatWorkbookDownload(new Response('<html>Login</html>',{headers:{'content-type':'text/html'}})),/não retornou/);
+  await assert.rejects(readSispatWorkbookDownload(new Response('erro',{headers:{'content-type':type}})),/não é um XLSX válido/);
+});
+
 test('Atualização em lotes usa parâmetros e recusa conflito em qualquer lote', async () => {
   const changes = Array.from({length:301}, (_,i)=>({...cadastro,id:i+1,atualizadoEm:cadastro.atualizadoEm.toISOString(),novoSispat:'456'}));
   let calls=0;

@@ -52,22 +52,33 @@ export async function parseSispatWorkbook(buffer: Buffer, collectErrors = false)
   const workbook = new ExcelJS.Workbook();
   try { await workbook.xlsx.load(buffer as unknown as ExcelJS.Buffer); }
   catch { throw new SispatError('Não foi possível ler o XLSX. Verifique se o arquivo está íntegro.'); }
-  const candidates = workbook.worksheets.filter(sheet => {
-    const row = sheet.getRow(1);
-    return row.cellCount === 2 && normalize(row.getCell(1).text) === 'matricula' && normalize(row.getCell(2).text) === 'sispat';
-  });
-  if (candidates.length !== 1) throw new SispatError('O arquivo deve ter uma única aba com apenas as colunas Matrícula e SISPAT, nessa ordem, na primeira linha.');
-  const sheet = candidates[0];
-  if (sheet.rowCount > MAX_ROWS + 1) throw new SispatError(`Limite de ${MAX_ROWS} linhas por importação.`);
+  const candidates: { sheet: ExcelJS.Worksheet; headerRow: number; matriculas: number[]; sispats: number[]; preferred: boolean }[] = [];
+  for (const sheet of workbook.worksheets) {
+    for (let number = 1; number <= Math.min(20, sheet.rowCount); number++) {
+      const row = sheet.getRow(number), matriculas: number[] = [], sispats: number[] = [];
+      row.eachCell((cell, column) => {
+        const name = normalize(cell.text);
+        if (name === 'matricula') matriculas.push(column);
+        if (name === 'sispat') sispats.push(column);
+      });
+      if (matriculas.length && sispats.length) candidates.push({ sheet, headerRow: number, matriculas, sispats,
+        preferred: number === 1 && row.actualCellCount === 2 && matriculas[0] === 1 && sispats[0] === 2 });
+    }
+  }
+  const preferred = candidates.filter(candidate => candidate.preferred);
+  const matches = preferred.length ? preferred : candidates;
+  if (matches.length !== 1) throw new SispatError(matches.length ? 'Há mais de uma aba ou linha de cabeçalho com Matrícula e SISPAT. Mantenha uma única aba de importação para evitar ambiguidades.' : 'Não foram encontradas as colunas Matrícula e SISPAT nas primeiras 20 linhas. Confira os nomes dos cabeçalhos.');
+  const { sheet, headerRow, matriculas, sispats } = matches[0];
+  if (matriculas.length !== 1 || sispats.length !== 1) throw new SispatError('Os cabeçalhos Matrícula e SISPAT não podem estar repetidos na mesma aba.');
+  if (sheet.rowCount > MAX_ROWS + headerRow) throw new SispatError(`Limite de ${MAX_ROWS} linhas por importação.`);
   const registros: SispatRegistro[] = [];
   const duplicates = new Map<string, SispatRegistro[]>();
   sheet.eachRow((row, number) => {
-    if (number === 1 || !row.hasValues) return;
+    if (number <= headerRow || !row.hasValues) return;
     const item: SispatRegistro = { linha: number, matricula: '', recebido: null, status: 'PENDENTE', motivo: '' };
     try {
-      if (row.cellCount > 2) throw new SispatError(`Linha ${number}: a aba deve conter somente Matrícula e SISPAT.`);
-      item.matricula = identifier(row.getCell(1), number);
-      item.recebido = identifier(row.getCell(2), number);
+      item.matricula = identifier(row.getCell(matriculas[0]), number);
+      item.recebido = identifier(row.getCell(sispats[0]), number);
       if (!item.matricula && !item.recebido) return;
       if (!item.matricula || item.matricula.length > 100) throw new SispatError(`Linha ${number}: matrícula vazia ou inválida.`);
       const same = duplicates.get(item.matricula) ?? []; same.push(item); duplicates.set(item.matricula, same);

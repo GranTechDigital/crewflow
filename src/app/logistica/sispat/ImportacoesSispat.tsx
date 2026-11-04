@@ -9,6 +9,7 @@ import styles from './sispat.module.css';
 import { ActionButton } from './SispatUI';
 import SispatDuplicate from './DuplicidadeSispat';
 import { readSispatProgress } from '@/lib/sispat/progress';
+import { readSispatWorkbookDownload } from '@/lib/sispat/download';
 
 const endpoint = '/api/logistica/sispat';
 const runLabels: Record<string, string> = { PREVIA: 'Prévia pronta', INVALIDA: 'Arquivo com erros', APLICADA: 'Importação concluída', CONCLUIDA: 'Concluída sem alterações', ERRO: 'Importação não aplicada', DESFEITA: 'Importação desfeita' };
@@ -86,6 +87,15 @@ export default function SispatImports({ actorId, canDownloadBackup, busy, run, o
       } finally { onChanged(); setPage(1); setSituacao(''); setRevision(v => v + 1); }
     });
   }
+  async function downloadTemplate() {
+    await run(async () => {
+      const response = await fetch(`${endpoint}?modelo=1`, { cache: 'no-store', credentials: 'same-origin' });
+      const blob = await readSispatWorkbookDownload(response);
+      const url = URL.createObjectURL(blob), a = document.createElement('a');
+      a.href = url; a.download = 'modelo-sispat.xlsx'; a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    });
+  }
   async function downloadBackup(issues = false) {
     if (!detail) return;
     await run(async () => {
@@ -156,7 +166,7 @@ export default function SispatImports({ actorId, canDownloadBackup, busy, run, o
     <TabPanels>
       <TabPanel unmount={false}>
     <section className={styles.panel} aria-labelledby="import-title">
-      <div className={styles.sectionHeading}><h2 id="import-title">Importar planilha</h2><div className={styles.importTools}><span>XLSX · até 5 MB · 20.000 linhas</span><a href={`${endpoint}?modelo=1`} download="modelo-sispat.xlsx" className={styles.templateLink}><Download size={14} aria-hidden="true" />Baixar modelo (.xlsx)</a></div></div>
+      <div className={styles.sectionHeading}><h2 id="import-title">Importar planilha</h2><div className={styles.importTools}><span>XLSX · até 5 MB · 20.000 linhas</span><button type="button" disabled={busy} onClick={downloadTemplate} className={styles.templateLink}><Download size={14} aria-hidden="true" />Baixar modelo (.xlsx)</button></div></div>
       <div className={styles.uploadRow}>
         <label className={styles.filePicker}>
           <span className={styles.fileIcon}><FileSpreadsheet size={24} aria-hidden="true" /></span>
@@ -166,7 +176,7 @@ export default function SispatImports({ actorId, canDownloadBackup, busy, run, o
         </label>
         <ActionButton variant="primary" disabled={busy || !file} onClick={analyze}><Upload size={16} aria-hidden="true" />{busy ? 'Processando…' : 'Analisar planilha'}</ActionButton>
       </div>
-      <p className={styles.uploadHint}><ShieldCheck size={14} aria-hidden="true" />A análise não altera cadastros. SISPATs iguais ou vazios são preservados.</p>
+      <p className={styles.uploadHint}><ShieldCheck size={14} aria-hidden="true" />Localizamos Matrícula e SISPAT pelos cabeçalhos; outras colunas são ignoradas. A análise não altera cadastros.</p>
     </section>
         {tab === 0 && resultPanel}
       </TabPanel>

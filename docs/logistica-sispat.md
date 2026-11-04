@@ -8,7 +8,7 @@ Administração e Logística (Editor/Gestor) têm acesso. A equipe legada Logís
 
 ## Formato e análise
 
-- XLSX com a primeira linha contendo apenas **Matrícula** e **SISPAT**, nessa ordem. Exportação e importação mantêm o mesmo formato; zeros e hífens são preservados. A exportação contém todos os funcionários.
+- A importação prefere a aba do modelo com **Matrícula** e **SISPAT**, nessa ordem. Se ela não existir, localiza esses cabeçalhos nas primeiras 20 linhas, em qualquer ordem, e ignora colunas extras. Abas ou cabeçalhos ambíguos são recusados. Zeros e hífens são preservados. A exportação mantém apenas as duas colunas e contém todos os funcionários.
 - Em arquivos com várias abas, o importador exige exatamente uma aba nesse formato e usa essa aba. O arquivo original fornecido usa `Planilha1`: 7.114 linhas, 6.214 números e 900 registros “Sem SISPAT”.
 - Até 5 MB, 20.000 linhas e 40 MB declarados de conteúdo ZIP. Arquivo protegido, inválido ou sem cabeçalho reconhecível gera mensagem de erro sem alterar funcionários.
 - A análise salva o resultado e o backup no servidor. Não altera funcionários nem cria funcionários ausentes.
@@ -18,7 +18,7 @@ Administração e Logística (Editor/Gestor) têm acesso. A equipe legada Logís
 
 ## Revisão e pendências
 
-- Na aba Importar, **Baixar modelo (.xlsx)** entrega um arquivo vazio com apenas Matrícula e SISPAT, sem dados de funcionários.
+- Na aba Importar, **Baixar modelo (.xlsx)** entrega um arquivo vazio com apenas Matrícula e SISPAT, sem dados de funcionários. A resposta é validada antes do download; falhas de sessão, JSON e HTML aparecem na página e não são salvos como planilha.
 - A prévia distingue preenchimento de campo vazio e substituição de um número já existente, com contagens e filtros. Análises antigas também recebem essa classificação a partir de seus valores salvos.
 - Duplicidade de SISPAT entre matrículas diferentes gera alerta informativo, sem bloqueio automático. A análise considera a planilha e os cadastros atuais, inclusive funcionários fora do arquivo; trocas previstas que retiram um vínculo antigo não geram falso alerta. Os envolvidos ficam salvos como fotografia da análise e podem ser consultados em páginas de 50.
 - Nomes de quem enviou e desfez ficam preservados no histórico. IDs continuam disponíveis para auditoria; registros antigos recebem os nomes existentes na migração.
