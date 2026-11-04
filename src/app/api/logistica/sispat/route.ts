@@ -137,7 +137,7 @@ export async function POST(request: NextRequest) {
     try { form = await new Request(request.url, { method: 'POST', headers: { 'Content-Type': request.headers.get('content-type') ?? '' }, body: new Uint8Array(body) }).formData(); }
     catch { throw new SispatError('Envie o arquivo como formulário multipart.'); }
     const file = form.get('file');
-    if (!(file instanceof File) || !file.name.toLowerCase().endsWith('.xlsx')) throw new SispatError('Selecione uma planilha .xlsx.');
+    if (!file || typeof file === 'string' || !file.name.toLowerCase().endsWith('.xlsx')) throw new SispatError('Selecione uma planilha .xlsx.');
     if (file.size > MAX_FILE_BYTES) throw new SispatError('O arquivo deve ter no máximo 5 MB.', 413);
     if (form.get('action') !== 'preview') throw new SispatError('Analise a planilha antes de importar.');
     const parsed = await parseSispatWorkbook(Buffer.from(await file.arrayBuffer()), true);

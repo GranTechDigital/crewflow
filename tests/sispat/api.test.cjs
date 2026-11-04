@@ -89,6 +89,17 @@ test('Preview persiste a aba de duas colunas e erros por linha, sem alterar func
  const res=await f.route.POST(f.request('POST',token,f.form(file,'preview')));assert.equal(res.status,201);assert.equal(f.importCalls.length,1);
  const parsed=f.importCalls[0].parsed;assert.equal(parsed.aba,'Planilha1');assert.equal(parsed.total,4);assert.equal(parsed.registros.filter(r=>r.status==='ERRO').length,1);assert.equal(parsed.ignorados,1);assert.equal(f.rows[0].sispat,null);
 });
+test('Upload funciona sem File global no Node 18 e rejeita campo textual ou ausente', async()=>{
+ const f=fixture(),token=await f.user(),file=await f.sheet();
+ const original=Object.getOwnPropertyDescriptor(globalThis,'File');
+ try {
+  Object.defineProperty(globalThis,'File',{value:undefined,configurable:true,writable:true});
+  const res=await f.route.POST(f.request('POST',token,f.form(file,'preview')));
+  assert.equal(res.status,201);assert.equal(f.importCalls.length,1);assert.equal(f.rows[0].sispat,null);
+  for(const value of [null,'teste.xlsx']){const form=new FormData();form.set('action','preview');if(value!==null)form.set('file',value);assert.equal((await f.route.POST(f.request('POST',token,form))).status,400);}
+ } finally { if(original)Object.defineProperty(globalThis,'File',original);else delete globalThis.File; }
+});
+
 test('Confirmar e desfazer exigem autenticação, origem e ID e encaminham autoria ao serviço', async()=>{
  const f=fixture(),token=await f.user('Administração'),id='11111111-1111-4111-8111-111111111111';
  for(const action of ['confirm','revert']){const response=await f.route.POST(f.request('POST',token,JSON.stringify({action,importacaoId:id}),{'content-type':'application/json'}));assert.equal(response.status,200);assert.deepEqual(f.importCalls.at(-1),{action,id,actor:1,...(action==='revert'?{actorNome:'Operador teste'}:{})});}
