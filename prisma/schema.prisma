@@ -883,3 +883,25 @@ model FuncionarioCapacitacao {
   @@index([responsavel])
   @@index([dataVencimento])
 }
+
+// Histórico e backup de campo: mantém os IDs de autoria mesmo se o usuário for removido.
+model SispatImportacao {
+  id                String   @id
+  nomeArquivo       String
+  aba               String
+  status            String
+  total             Int
+  resumo            Json
+  registros         Json
+  criadoPorId       Int
+  criadoPorNome     String?
+  restauradoPorNome String?
+  alertas           Json     @default("[]")
+  restauradoPorId   Int?
+  erro              String?
+  criadoEm          DateTime @default(now())
+  aplicadoEm        DateTime?
+  desfeitoEm        DateTime?
+
+  @@index([criadoEm])
+}

@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useAuth, usePermissions } from "@/app/hooks/useAuth";
 import { PERMISSIONS, hasFullAccess } from "@/lib/permissions";
+import { canManageSispat } from "@/lib/sispat/shared";
 
 export default function Sidebar() {
   const [activeSection, setActiveSection] = useState<string | null>(null);
@@ -31,6 +32,7 @@ export default function Sidebar() {
     label: string;
     href: string;
     permission?: string | string[];
+    sispatOnly?: boolean;
   };
   type NavSection = {
     key: string;
@@ -185,6 +187,7 @@ export default function Sidebar() {
           //   label: "Visualizar Funcionários por Centro de Custo (Folha)",
           //   href: "/prestserv/funcionarios-por-contrato",
           // },
+          { label: "SISPAT dos Funcionários", href: "/logistica/sispat", sispatOnly: true },
           { label: "Tarefas dos Setores", href: "/logistica/tarefas" },
           { label: "Tarefas V2 (Beta)", href: "/tarefas-v2" },
           {
@@ -376,6 +379,7 @@ export default function Sidebar() {
             );
           case "prestserv": // Logística e PrestServ
             return (
+              canManageSispat(usuario.equipe) ||
               permissions.hasPermission(PERMISSIONS.ACCESS_PREST_SERV) ||
               permissions.hasPermission(PERMISSIONS.ACCESS_PREST_SERV_GESTOR) ||
               permissions.hasPermission(
@@ -601,6 +605,7 @@ export default function Sidebar() {
                 <div className="absolute left-0 top-0 w-0.5 h-full bg-gradient-to-b from-blue-400/50 to-transparent"></div>
                 {section.items
                   .filter((item) => {
+                    if (item.sispatOnly) return canManageSispat(usuario?.equipe);
                     if (isAdmin || !item.permission) return true;
                     return Array.isArray(item.permission)
                       ? permissions.hasAnyPermission(item.permission)
