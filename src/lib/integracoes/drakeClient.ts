@@ -1,6 +1,7 @@
 type DrakeClientOptions = {
   baseUrl?: string;
   syncPath?: string;
+  syncDocumentPath?: string;
   syncSessionBasePath?: string;
   tenantId?: string;
   tenantHeaderName?: string;
@@ -72,6 +73,10 @@ export function getDrakeConfig(options: DrakeClientOptions = {}) {
     syncWorkerPath:
       process.env.DRAKE_SYNC_WORKER_PATH ??
       "/api/v2/Integration/Sync/SyncWorker",
+    syncDocumentPath:
+      options.syncDocumentPath ??
+      process.env.DRAKE_SYNC_DOCUMENT_PATH ??
+      "/api/v2/Integration/Sync/SyncDocument",
     syncSessionBasePath:
       options.syncSessionBasePath ??
       process.env.DRAKE_SYNC_SESSION_BASE_PATH ??
@@ -97,6 +102,7 @@ export function assertDrakeConfigReady(options: DrakeClientOptions = {}) {
     ["DRAKE_API_BASE_URL", config.baseUrl],
     ["DRAKE_SYNC_PATH", config.syncPath],
     ["DRAKE_SYNC_WORKER_PATH", config.syncWorkerPath],
+    ["DRAKE_SYNC_DOCUMENT_PATH", config.syncDocumentPath],
     ["DRAKE_SYNC_SESSION_BASE_PATH", config.syncSessionBasePath],
     ["DRAKE_TENANT_ID", config.tenantId],
     ["DRAKE_TENANT_HEADER_NAME", config.tenantHeaderName],
@@ -188,6 +194,15 @@ export async function syncWorker<T = unknown>(
     },
     options,
   );
+}
+
+export async function syncDocument<T = unknown>(
+  payload: unknown,
+  options: DrakeClientOptions = {},
+) {
+  const config = assertDrakeConfigReady(options);
+  // Sem retry automático: uma falha de transporte pode ocorrer depois de o Drake receber o documento.
+  return drakeRequest<T>({ path: config.syncDocumentPath, method: "POST", body: payload }, options);
 }
 
 function sessionPath(action: string, options: DrakeClientOptions = {}) {

@@ -1,0 +1,31 @@
+services:
+  drake-document-worker:
+    image: ${CERTIFICADOS_IMAGE:?Informe a imagem validada da release}
+    container_name: crewflow-drake-document-worker
+    env_file:
+      - .env.certificados-worker
+    environment:
+      DRAKE_DOCUMENT_WORKER_HEARTBEAT_FILE: /tmp/drake-document-worker.heartbeat
+      TZ: America/Sao_Paulo
+      NODE_ENV: production
+    command: ["node", "scripts/process-drake-document-deliveries.cjs", "--execute"]
+    volumes:
+      - /opt/projetogran/certificados-data:/app/private/certificados:rw
+    healthcheck:
+      test: ["CMD", "node", "-e", "const f=require('fs');if(Date.now()-f.statSync('/tmp/drake-document-worker.heartbeat').mtimeMs>60000)process.exit(1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '5'
+    networks:
+      - crewflow
+networks:
+  crewflow:
+    external: true
+    name: projetogran_crewflow-network

@@ -24,7 +24,7 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/scripts ./scripts
 COPY --from=builder /app/create-admin-user.js ./create-admin-user.js
-RUN npm ci --omit=dev && npm i prisma --no-save
+RUN npm ci --omit=dev && npm i prisma@6.16.2 --no-save --package-lock=false
 EXPOSE 3001
 # Startup: se existir um arquivo de vínculos em /app/data, executar o script antes de iniciar a app
 # Não bloqueia o start em caso de falha no script; cria /app/data se não existir

@@ -8,6 +8,144 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Referência local do Drake. Independente dos lotes de envio de certificados.
+model DrakeDocumentoOrigem {
+  id              String @id @db.Uuid
+  ambiente        String
+  tenantId        String @db.Uuid
+  status          String @default("SEM_CARGA")
+  versao          Int @default(0)
+  cargaAtivaId    String? @db.Uuid
+  atualizadoEm    DateTime? @db.Timestamptz(3)
+  cargas          DrakeDocumentoCarga[]
+  documentos      DrakeDocumentoReferencia[]
+  exclusoes       DrakeDocumentoExclusao[]
+
+  @@unique([ambiente, tenantId])
+}
+
+model DrakeDocumentoCarga {
+  id              String @id @db.Uuid
+  origemId        String @db.Uuid
+  nomeArquivo     String
+  hashArquivo     String
+  parserVersao    String
+  fusoFonte       String
+  arquivoPrivado  String
+  status          String @default("VALIDANDO")
+  resumo          Json @default("{}")
+  erro            String?
+  iniciadoEm      DateTime @default(now()) @db.Timestamptz(3)
+  heartbeatEm     DateTime @default(now()) @db.Timestamptz(3)
+  concluidoEm     DateTime? @db.Timestamptz(3)
+  origem          DrakeDocumentoOrigem @relation(fields: [origemId], references: [id])
+  staging         DrakeDocumentoStaging[]
+  documentos      DrakeDocumentoReferencia[]
+  revisoes        DrakeDocumentoRevisao[]
+
+  @@unique([origemId, hashArquivo, parserVersao])
+  @@index([origemId, status])
+}
+
+model DrakeDocumentoStaging {
+  cargaId         String @db.Uuid
+  numeroLinha     Int
+  documentoId     String @db.Uuid
+  hashDados       String
+  dados           Json
+  carga           DrakeDocumentoCarga @relation(fields: [cargaId], references: [id], onDelete: Cascade)
+
+  @@id([cargaId, numeroLinha])
+  @@index([cargaId, documentoId])
+}
+
+model DrakeDocumentoReferencia {
+  origemId                  String @db.Uuid
+  documentoId               String @db.Uuid
+  matricula                 String
+  tipoNormalizado           String
+  qualificacaoNormalizada   String
+  emissao                   DateTime @db.Date
+  alteradoNaFonteEm         DateTime @db.Timestamptz(3)
+  hashDados                 String
+  dados                     Json
+  primeiraCargaId           String @db.Uuid
+  ultimaCargaId             String @db.Uuid
+  observadoEm               DateTime? @db.Timestamptz(3)
+  atualizadoEm              DateTime @default(now()) @db.Timestamptz(3)
+  origem                    DrakeDocumentoOrigem @relation(fields: [origemId], references: [id])
+  ultimaCarga                DrakeDocumentoCarga @relation(fields: [ultimaCargaId], references: [id])
+
+  @@id([origemId, documentoId])
+  @@index([origemId, matricula, tipoNormalizado, qualificacaoNormalizada, emissao], map: "DrakeDocRef_correspondencia_idx")
+}
+
+model DrakeDocumentoRevisao {
+  id              BigInt @id @default(autoincrement())
+  origemId        String @db.Uuid
+  documentoId     String @db.Uuid
+  cargaId         String @db.Uuid
+  dadosAnteriores Json
+  dadosNovos      Json
+  criadoEm        DateTime @default(now()) @db.Timestamptz(3)
+  carga           DrakeDocumentoCarga @relation(fields: [cargaId], references: [id])
+
+  @@index([origemId, documentoId])
+}
+
+model DrakeDocumentoConferencia {
+  itemId          Int @id
+  origemId        String? @db.Uuid
+  versao          Int?
+  status          String
+  motivo          String?
+  totalCandidatos Int @default(0)
+  candidatos      Json @default("[]")
+  conferidoEm     DateTime @db.Timestamptz(3)
+  item            ImportacaoCertificadoDrakeItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+}
+
+model DrakeDocumentoExclusao {
+  id                String @id @db.Uuid
+  origemId          String @db.Uuid
+  documentoId       String @db.Uuid
+  itemId            Int
+  usuarioId         Int
+  usuarioNome       String
+  justificativa     String
+  versaoReferencia  Int
+  referencia        Json
+  payload           Json
+  status            String
+  httpStatus        Int?
+  resposta          Json?
+  erro              String?
+  iniciadoEm        DateTime @default(now()) @db.Timestamptz(3)
+  finalizadoEm      DateTime? @db.Timestamptz(3)
+  origem            DrakeDocumentoOrigem @relation(fields: [origemId], references: [id])
+  restauracoes      DrakeDocumentoRestauracao[]
+
+  @@index([origemId, documentoId, iniciadoEm], map: "DrakeDocExclusao_documento_idx")
+  @@index([itemId])
+}
+
+model DrakeDocumentoRestauracao {
+  id            String @id @db.Uuid
+  exclusaoId    String @db.Uuid
+  usuarioId     Int
+  usuarioNome   String
+  payload       Json
+  status        String
+  httpStatus    Int?
+  resposta      Json?
+  erro          String?
+  iniciadoEm    DateTime @default(now()) @db.Timestamptz(3)
+  finalizadoEm  DateTime? @db.Timestamptz(3)
+  exclusao      DrakeDocumentoExclusao @relation(fields: [exclusaoId], references: [id])
+
+  @@index([exclusaoId, iniciadoEm])
+}
+
 model Contrato {
   id                    Int                          @id @default(autoincrement())
   numero                String                       @unique
@@ -80,6 +218,7 @@ model Funcionario {
   uptimeUploads             UptimeUpload[]
   usuario                   Usuario?
   capacitacoes              FuncionarioCapacitacao[]
+  importacoesCertificadosItens ImportacaoCertificadoDrakeItem[]
 
   @@index([funcaoId])
 }
@@ -364,6 +503,7 @@ model Usuario {
   canceladosRemanejamentos  RemanejamentoFuncionario[] @relation("RemFuncCanceladoPor")
   eventosStatusTarefas      TarefaStatusEvento[]       @relation("TarefaEventoUsuarioResponsavel")
   eventosCicloResponsavel   RemanejamentoCicloEvento[] @relation("CicloEventoUsuarioResponsavel")
+  importacoesCertificados   ImportacaoCertificadoDrake[]
 
   @@index([funcionarioId])
   @@index([equipeId])
@@ -578,6 +718,116 @@ model IntegracaoInbox {
   @@index([remanejamentoFuncionarioId])
   @@index([recebidoAt])
   @@index([processadoAt])
+}
+
+model ImportacaoCertificadoDrake {
+  versaoAnterior DrakeCertificadoVersao? @relation("VersaoNova")
+  versaoSeguinte DrakeCertificadoVersao? @relation("VersaoAnterior")
+  notaCarregamento DrakeCertificadoCarregamentoNota?
+  id                       Int                                @id @default(autoincrement())
+  usuarioId                Int
+  nomeArquivo              String
+  hashArquivo              String
+  tamanhoArquivoBytes      Int?
+  ambiente                 String                             @default("hmg")
+  status                   String                             @default("ANALISANDO")
+  totalLinhas              Int                                @default(0)
+  totalValidas             Int                                @default(0)
+  totalErroValidacao       Int                                @default(0)
+  totalDuplicadas          Int                                @default(0)
+  totalConflitos           Int                                @default(0)
+  totalPendentes           Int                                @default(0)
+  totalEnviadas            Int                                @default(0)
+  totalConfirmadas         Int                                @default(0)
+  totalErroDrake           Int                                @default(0)
+  totalNaoConfirmadas      Int                                @default(0)
+  drakeSessionId           String?
+  ultimoErro               String?
+  envioToken               String?
+  envioHeartbeatEm         DateTime?
+  createdAt                DateTime                           @default(now())
+  updatedAt                DateTime                           @updatedAt
+
+  usuario Usuario                         @relation(fields: [usuarioId], references: [id])
+  itens   ImportacaoCertificadoDrakeItem[]
+  tentativas ImportacaoCertificadoDrakeTentativa[]
+
+  @@index([usuarioId])
+  @@index([ambiente])
+  @@unique([ambiente, hashArquivo])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model ImportacaoCertificadoDrakeItem {
+  edicoes DrakeCertificadoItemEdicao[]
+  conferenciaReferencia DrakeDocumentoConferencia?
+  id                    Int                                 @id @default(autoincrement())
+  importacaoId          Int
+  funcionarioId         Int?
+  numeroLinha           Int
+  matricula             String
+  nome                  String?
+  certificadora         String?
+  qualificacao          String
+  qualificacaoNormalizada String
+  tipoDocumento         String
+  tipoDocumentoNormalizado String
+  emissao               DateTime?
+  validade              DateTime?
+  recebimento           DateTime?
+  chaveIdempotencia     String
+  status                String                              @default("VALIDO")
+  motivoErro            String?
+  payload               Json?
+  respostaDrake         Json?
+  dadosOriginais        Json?
+  tentativas            Int                                 @default(0)
+  enviadoEm             DateTime?
+  confirmadoEm          DateTime?
+  createdAt             DateTime                            @default(now())
+  updatedAt             DateTime                            @updatedAt
+
+  importacao ImportacaoCertificadoDrake            @relation(fields: [importacaoId], references: [id], onDelete: Cascade)
+  funcionario Funcionario?                         @relation(fields: [funcionarioId], references: [id], onDelete: SetNull)
+  tentativasEnvio ImportacaoCertificadoDrakeTentativa[]
+
+  @@unique([importacaoId, numeroLinha])
+  @@index([importacaoId, status])
+  @@index([chaveIdempotencia])
+  @@index([matricula])
+  @@index([funcionarioId])
+  @@index([qualificacaoNormalizada])
+}
+
+model ImportacaoCertificadoDrakeTentativa {
+  drakeTenantId String? @db.Uuid
+  id              Int       @id @default(autoincrement())
+  itemId          Int
+  importacaoId    Int
+  modoEnvio       String    @default("UNITARIO")
+  usuarioId       Int?
+  usuarioNome     String?
+  status          String
+  payload         Json?
+  resposta        Json?
+  erro            String?
+  httpStatus      Int?
+  sessionId       String?
+  numeroLoteBulk  Int?
+  iniciadoEm      DateTime  @default(now())
+  finalizadoEm    DateTime?
+  duracaoMs       Int?
+  createdAt       DateTime  @default(now())
+
+  item       ImportacaoCertificadoDrakeItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  importacao ImportacaoCertificadoDrake     @relation(fields: [importacaoId], references: [id], onDelete: Cascade)
+
+  @@index([itemId])
+  @@index([importacaoId])
+  @@index([status])
+  @@index([modoEnvio])
+  @@index([iniciadoEm])
 }
 
 model TarefaPadrao {
@@ -904,4 +1154,93 @@ model SispatImportacao {
   desfeitoEm        DateTime?
 
   @@index([criadoEm])
+}
+
+
+model DrakeCertificadoVersao {
+  id String @id @default(uuid()) @db.Uuid
+  anteriorId Int @unique
+  novaId Int @unique
+  usuarioId Int
+  usuarioNome String
+  criadoEm DateTime @default(now()) @db.Timestamptz(3)
+  anterior ImportacaoCertificadoDrake @relation("VersaoAnterior", fields: [anteriorId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  nova ImportacaoCertificadoDrake @relation("VersaoNova", fields: [novaId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+}
+
+model DrakeCertificadoCarregamentoNota {
+  raizId Int @id
+  texto String @default("")
+  usuarioId Int
+  usuarioNome String
+  atualizadoEm DateTime @default(now()) @updatedAt @db.Timestamptz(3)
+  raiz ImportacaoCertificadoDrake @relation(fields: [raizId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+}
+
+model DrakeCertificadoItemEdicao {
+  id String @id @default(uuid()) @db.Uuid
+  itemId Int
+  usuarioId Int
+  usuarioNome String
+  anterior Json
+  novo Json
+  criadoEm DateTime @default(now()) @db.Timestamptz(3)
+  item ImportacaoCertificadoDrakeItem @relation(fields: [itemId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  @@index([itemId, criadoEm], map: "DrakeCertificadoItemEdicao_item_criado_idx")
+}
+
+
+model DrakeDocumentoEntrega {
+  id String @id @default(uuid()) @db.Uuid
+  ambiente String
+  tenantId String @db.Uuid
+  hashRecebimento String
+  nomeArquivo String
+  urlCifrada String
+  validoAte DateTime @db.Timestamptz(3)
+  geradoEm DateTime? @db.Timestamptz(3)
+  janelaInicio DateTime? @db.Timestamptz(3)
+  janelaFim DateTime? @db.Timestamptz(3)
+  status String @default("PENDENTE")
+  tentativas Int @default(0)
+  reserva String? @db.Uuid
+  heartbeatEm DateTime? @db.Timestamptz(3)
+  cargaId String? @db.Uuid
+  hashArquivo String?
+  proximaTentativaEm DateTime @default(now()) @db.Timestamptz(3)
+  erroCodigo String?
+  criadoEm DateTime @default(now()) @db.Timestamptz(3)
+  concluidoEm DateTime? @db.Timestamptz(3)
+  @@unique([ambiente,tenantId,hashRecebimento],map:"DrakeDocumentoEntrega_recebimento_key")
+  @@index([status,proximaTentativaEm],map:"DrakeDocumentoEntrega_fila_idx")
+}
+
+// Auditoria de chamadas ao receptor. Não armazena token; corpos de erro ficam cifrados.
+model DrakeDocumentoTentativaRecebimento {
+  id String @id @default(uuid()) @db.Uuid
+  ambiente String
+  rota String
+  httpStatus Int
+  codigo String
+  tamanhoCorpo Int
+  hashCorpo String?
+  corpoCifrado String?
+  criadoEm DateTime @default(now()) @db.Timestamptz(3)
+  @@index([ambiente, criadoEm], map:"DrakeDocumentoTentativaRecebimento_ambiente_criado_idx")
+  @@index([codigo, criadoEm], map:"DrakeDocumentoTentativaRecebimento_codigo_criado_idx")
+}
+
+model DrakeCertificadoConfirmacao {
+  id String @id @db.Uuid
+  itemId Int
+  origemId String @db.Uuid
+  cargaId String @db.Uuid
+  documentoId String? @db.Uuid
+  status String
+  motivo String
+  referenciaEm DateTime @db.Timestamptz(3)
+  evidencia Json
+  criadoEm DateTime @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(3)
+  @@unique([itemId, cargaId, referenciaEm], map: "DrakeCertConfirmacao_evento_key")
+  @@index([itemId, criadoEm(sort: Desc)], map: "DrakeCertConfirmacao_item_idx")
 }

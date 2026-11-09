@@ -34,6 +34,10 @@ const publicApiRoutes = [
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // Somente esta rota autentica a entrega com o token exclusivo do webhook.
+  // Não depende de sessão do usuário e não libera outras APIs de integração.
+  if (pathname === "/api/integracoes/drake/documentos/webhook") return NextResponse.next();
+
   // Permitir acesso a arquivos estáticos
   if (
     pathname.startsWith("/_next/") ||

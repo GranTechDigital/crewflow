@@ -2,6 +2,9 @@
 services:
   app:
     image: crewflow-app:latest
+    env_file:
+      - path: .env.certificados
+        required: false
     ports:
       - "3001:3001"
       - "3002:3001"
@@ -44,6 +47,7 @@ services:
       - /opt/projetogran/data:/app/data:ro
       # Exporta relatórios gerados pelo script para o host
       - /opt/projetogran/relatorios:/app/relatorios:rw
+      - /opt/projetogran/certificados-data:/app/private/certificados:rw
     logging:
       driver: json-file
       options:

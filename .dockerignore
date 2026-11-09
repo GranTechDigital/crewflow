@@ -18,3 +18,12 @@ coverage
 *.swp
 *.swo
 *~
+# Dados e credenciais locais nunca entram na imagem.
+.env*
+**/.env*
+!.env.example
+tmp/
+backups/
+.playwright-mcp/
+**/*.dump
+public/import-reports/
