@@ -181,7 +181,7 @@ def deploy():
             raise RuntimeError('Configuracao existente nao preservada.')
         if inspect('crewflow-drake-outbox-worker')['Id'] != outbox_id:
             raise RuntimeError('Worker existente foi alterado.')
-        shutil.copy2(pathlib.Path(__file__).resolve().parent.parent/'docker-compose.certificados.yml', BASE/'docker-compose.certificados.yml')
+        shutil.copy2(pathlib.Path(__file__).resolve().parent/'docker-compose.certificados.yml', BASE/'docker-compose.certificados.yml')
         run(['docker','compose','-p','crewflow-certificados','--env-file',str(BASE/'.env.certificados-compose'),'-f',str(BASE/'docker-compose.certificados.yml'),'up','-d','--no-deps'])
         tls, original = configure_https()
         # A configuração e a autenticação completa são verificadas internamente; publicamente sem token deve retornar 401.
