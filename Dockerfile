@@ -24,11 +24,9 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/scripts ./scripts
 COPY --from=builder /app/create-admin-user.js ./create-admin-user.js
-RUN npm ci --omit=dev
-# O CLI do Prisma já foi instalado e validado no estágio de build. Reutilizá-lo
-# elimina uma segunda instalação de rede durante a criação da imagem final.
-COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+# As dependências usadas aqui são exatamente as que compilaram a aplicação;
+# evita uma segunda instalação de rede no estágio final.
+COPY --from=builder /app/node_modules ./node_modules
 EXPOSE 3001
 # Startup: se existir um arquivo de vínculos em /app/data, executar o script antes de iniciar a app
 # Não bloqueia o start em caso de falha no script; cria /app/data se não existir
