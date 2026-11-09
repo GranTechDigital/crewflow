@@ -2,6 +2,9 @@
 services:
   app:
     image: crewflow-app:latest
+    env_file:
+      - path: .env.certificados
+        required: false
     ports:
       - "3001:3001"
       - "3002:3001"
@@ -44,6 +47,7 @@ services:
       - /opt/projetogran/data:/app/data:ro
       # Exporta relatórios gerados pelo script para o host
       - /opt/projetogran/relatorios:/app/relatorios:rw
+      - /opt/projetogran/certificados-data:/app/private/certificados:rw
     logging:
       driver: json-file
       options:
@@ -85,6 +89,46 @@ services:
       - projetogran_crewflow-network
     depends_on:
       - app
+
+  drake-document-worker:
+    image: crewflow-app:latest
+    container_name: crewflow-drake-document-worker
+    # Arquivo privado criado no servidor; não é versionado nem sobrescrito pelo workflow.
+    env_file:
+      - path: .env.certificados-worker
+        required: false
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - DRAKE_ENVIRONMENT=${DRAKE_ENVIRONMENT}
+      - DRAKE_TENANT_ID=${DRAKE_TENANT_ID}
+      - DRAKE_DOCUMENT_WORKER_HEARTBEAT_FILE=/tmp/drake-document-worker.heartbeat
+      - TZ=America/Sao_Paulo
+      - NODE_ENV=production
+    command: >
+      sh -lc 'if [ -n "$$DRAKE_DOCUMENT_WEBHOOK_TOKEN" ] && [ -n "$$DRAKE_DOCUMENT_URL_KEY" ]; then
+        node scripts/process-drake-document-deliveries.cjs --execute;
+      else
+        echo "[drake-document-worker] Aguardando configuracao privada de certificados";
+        tail -f /dev/null;
+      fi'
+    volumes:
+      - /opt/projetogran/certificados-data:/app/private/certificados:rw
+    healthcheck:
+      test: ["CMD-SHELL", "if [ -z \"$$DRAKE_DOCUMENT_WEBHOOK_TOKEN\" ] || [ -z \"$$DRAKE_DOCUMENT_URL_KEY\" ]; then exit 0; fi; node -e \"const f=require('fs');if(Date.now()-f.statSync('/tmp/drake-document-worker.heartbeat').mtimeMs>90000)process.exit(1)\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    restart: unless-stopped
+    networks:
+      - projetogran_crewflow-network
+    depends_on:
+      - postgres-prod
 
   postgres-prod:
     image: postgres:15

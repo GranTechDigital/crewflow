@@ -7,7 +7,7 @@ import Image from "next/image";
 import { useAuth } from "@/app/hooks/useAuth";
 import NotificationsDropdown from "./NotificationsDropdown";
 
-export default function Navbar() {
+export default function Navbar({ compactOnMobile = false }: { compactOnMobile?: boolean }) {
   const { usuario, logout } = useAuth();
 
   const handleLogout = async () => {
@@ -30,7 +30,7 @@ export default function Navbar() {
           width={180}
           height={31}
           priority
-          className="mr-3"
+          className={compactOnMobile ? "mr-3 h-auto w-32 sm:w-[180px]" : "mr-3"}
         />
         {/* <h1 className="text-lg font-bold text-white">Gran System</h1> */}
       </div>
@@ -41,7 +41,7 @@ export default function Navbar() {
           <NotificationsDropdown />
 
           {/* Dados do usuário */}
-          <div className="text-right">
+          <div className={compactOnMobile ? "hidden text-right sm:block" : "text-right"}>
             <div className="text-sm font-medium text-white">{usuario.nome}</div>
             <div className="text-xs text-gray-300">
               {usuario.equipe} • {usuario.matricula}

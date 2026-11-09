@@ -19,6 +19,7 @@ import {
 import { useAuth, usePermissions } from "@/app/hooks/useAuth";
 import { PERMISSIONS, hasFullAccess } from "@/lib/permissions";
 import { canManageSispat } from "@/lib/sispat/shared";
+import { canManageDrakeCertificates } from "@/lib/integracoes/certificadosDrakeAccess";
 
 export default function Sidebar() {
   const [activeSection, setActiveSection] = useState<string | null>(null);
@@ -33,6 +34,7 @@ export default function Sidebar() {
     href: string;
     permission?: string | string[];
     sispatOnly?: boolean;
+    certificadosDrakeOnly?: boolean;
   };
   type NavSection = {
     key: string;
@@ -282,6 +284,11 @@ export default function Sidebar() {
           {
             label: "Funções Sem Matriz",
             href: "/treinamento/funcoes-sem-matriz",
+          },
+          {
+            label: "Importar Certificados Drake",
+            href: "/treinamento/importacoes-certificados",
+            certificadosDrakeOnly: true,
           },
           {
             label: "Gerenciar Funções",
@@ -606,6 +613,7 @@ export default function Sidebar() {
                 {section.items
                   .filter((item) => {
                     if (item.sispatOnly) return canManageSispat(usuario?.equipe);
+                    if (item.certificadosDrakeOnly) return canManageDrakeCertificates(usuario?.equipe);
                     if (isAdmin || !item.permission) return true;
                     return Array.isArray(item.permission)
                       ? permissions.hasAnyPermission(item.permission)
