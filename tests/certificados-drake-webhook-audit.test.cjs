@@ -31,10 +31,12 @@ test('Webhook grava auditoria para credencial inválida, JSON inválido e aceite
 
   assert.equal((await route.POST(request('{"a":1}', 'Bearer invalido'))).status, 401);
   assert.equal((await route.POST(request('{', 'Bearer token-de-teste'))).status, 400);
-  assert.equal((await route.POST(request('{"name":"arquivo"}', 'Bearer token-de-teste'))).status, 202);
+  const accepted = await route.POST(request('{"name":"arquivo"}', 'Bearer token-de-teste'));
+  assert.equal(accepted.status, 200);
+  assert.deepEqual(await accepted.json(), { received: true, id: 'recebimento-1', status: 'PENDENTE' });
   assert.deepEqual(attempts.map(item => [item.status, item.code, item.body.toString('utf8')]), [
     [401, 'CREDENCIAL_INVALIDA', '{"a":1}'],
     [400, 'JSON_INVALIDO', '{'],
-    [202, 'ACEITO', '{"name":"arquivo"}'],
+    [200, 'ACEITO', '{"name":"arquivo"}'],
   ]);
 });

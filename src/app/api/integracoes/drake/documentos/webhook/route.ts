@@ -14,8 +14,8 @@ export async function POST(request:NextRequest){
   let body;try{body=JSON.parse(raw.toString('utf8'));}catch{auditCode="JSON_INVALIDO";throw new CertificadoError("JSON inválido.");}
   try{
    const result=await receive(prisma,body,config);
-   await recordReceiptAttempt(prisma,config,{route:request.nextUrl.pathname,status:202,code:"ACEITO",body:raw}).catch(()=>undefined);
-   return NextResponse.json(result,{status:202,headers:{"Cache-Control":"no-store"}});
+   await recordReceiptAttempt(prisma,config,{route:request.nextUrl.pathname,status:200,code:"ACEITO",body:raw}).catch(()=>undefined);
+   return NextResponse.json({received:true,...result},{status:200,headers:{"Cache-Control":"no-store"}});
   }catch(error){if(error instanceof Error&&/^[A-Z_]+$/.test(error.message)){auditCode=error.message;throw new CertificadoError(error.message);}throw error;}
  }catch(error){
   const response=certificadoFailure(error);
