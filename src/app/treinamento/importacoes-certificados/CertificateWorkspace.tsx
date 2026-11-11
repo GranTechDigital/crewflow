@@ -28,6 +28,8 @@ export function CertificateWorkspace() {
   const [cancelTarget, setCancelTarget] = useState<{ item?: ItemImportacao } | null>(null);
   const [cancelReason, setCancelReason] = useState("");
   const [cancelling, setCancelling] = useState(false);
+  const [resolveTarget, setResolveTarget] = useState<ItemImportacao | null>(null);
+  const [resolving, setResolving] = useState(false);
   const [correctionId, setCorrectionId] = useState<number | null>(null);
   const [editingItem, setEditingItem] = useState<ItemImportacao | null>(null);
   const [commentText, setCommentText] = useState("");
@@ -265,7 +267,7 @@ export function CertificateWorkspace() {
     if (selectedId) loadDetalhe(selectedId, 1);
   }
 
-  const busy = uploading || sending || downloading || checking || reviewBusy || commentSaving || cancelling;
+  const busy = uploading || sending || downloading || checking || reviewBusy || commentSaving || cancelling || resolving;
   const isSuperseded = selectedImportacao?.status === "SUBSTITUIDO";
   const batchBusy = busy || !!selectedImportacao?.envioEmAndamento;
   const review = detalhe?.itens.find(item => item.id === reviewId);
@@ -294,6 +296,13 @@ export function CertificateWorkspace() {
     if (selectedId) { const analysis = await loadDetalhe(selectedId, itemPage, true); if (analysis && uploadOpen) setUploadSummary(analysis.importacao); }
   }
   function askCancel(item?: ItemImportacao) { setCancelReason(""); setCancelTarget({ item }); setError(null); }
+  async function resolveDuplicate() {
+    if (!selectedId || !resolveTarget || actionLock.current) return;
+    actionLock.current = true; setResolving(true); setError(null);
+    try { const response=await fetch(`/api/treinamento/importacoes-certificados/${selectedId}/resolver-duplicidade`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({itemId:resolveTarget.id,confirmar:true})}); const body=await response.json(); if(!response.ok)throw Error(body.error||"Não foi possível encerrar a pendência."); setResolveTarget(null); setReviewId(null); await edited(body.mensagem); }
+    catch(error){setError(error instanceof Error?error.message:"Falha ao encerrar pendência.");}
+    finally{actionLock.current=false;setResolving(false);}
+  }
   async function cancelItems() {
     if (!selectedId || !cancelTarget || actionLock.current) return; actionLock.current = true; setCancelling(true); setError(null);
     try { const response = await fetch(`/api/treinamento/importacoes-certificados/${selectedId}/cancelar`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ confirmar: true, motivo: cancelReason, ...(cancelTarget.item ? { itemId: cancelTarget.item.id } : {}) }) }); const body = await response.json(); if (!response.ok) throw Error(body.error || "Não foi possível cancelar."); setCancelTarget(null); await edited(body.mensagem); } catch (error) { setError(error instanceof Error ? error.message : "Falha ao cancelar."); } finally { actionLock.current = false; setCancelling(false); }
@@ -487,6 +496,7 @@ export function CertificateWorkspace() {
           <Ban className="size-4" />Cancelar este envio</Action>}
         {CERTIFICADO_EDITABLE_STATUS.includes(review.status) && !isSuperseded && <Action isDisabled={batchBusy} onPress={() => setEditingItem(review)}>
           <Pencil className="size-4" />Editar dados</Action>}
+        {!isSuperseded && (review.status === "POSSIVEL_DUPLICIDADE" || (review.status === "NAO_CONFIRMADO" && review.confirmacaoDrake?.status === "AMBIGUO")) && <Action isDisabled={batchBusy} onPress={() => {setError(null);setResolveTarget(review);}}><CheckCircle2 className="size-4" />Encerrar pendência de duplicidade</Action>}
         <dl className="grid grid-cols-2 gap-x-5 gap-y-5">
           <div className="col-span-2">
             <FieldValue label="Qualificação">{review.qualificacao}</FieldValue>
@@ -498,14 +508,14 @@ export function CertificateWorkspace() {
           <FieldValue label="Recebimento">{formatDateOnly(review.recebimento)}</FieldValue>
           <FieldValue label="Tentativas de envio">{review.tentativas}</FieldValue>
         </dl>
-        {review.confirmacaoDrake && <section className={`space-y-2 rounded-md border p-4 text-sm ${review.confirmacaoDrake.status === "CONFIRMADO" ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-amber-200 bg-amber-50 text-amber-900"}`} aria-label="Conferência do relatório Drake">
+        {review.confirmacaoDrake && review.status !== "RESOLVIDO_MANUAL" && <section className={`space-y-2 rounded-md border p-4 text-sm ${review.confirmacaoDrake.status === "CONFIRMADO" ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-amber-200 bg-amber-50 text-amber-900"}`} aria-label="Conferência do relatório Drake">
           <p className="flex items-center gap-2 font-semibold">{review.confirmacaoDrake.status === "CONFIRMADO" ? <CheckCircle2 className="size-4" /> : <AlertCircle className="size-4" />}{review.confirmacaoDrake.status === "CONFIRMADO" ? "Confirmado pelo relatório do Drake" : "Relatório requer conferência"}</p>
           <p>{review.confirmacaoDrake.motivo}</p>
           <p className="text-xs">Observado em {formatDate(review.confirmacaoDrake.referenciaEm)}</p>
           {review.confirmacaoDrake.documentoId && <p className="select-all break-all text-xs">ID Drake: {review.confirmacaoDrake.documentoId}</p>}
           <p className="text-xs">Conferência dos campos disponíveis no relatório. Recebimento, anexos e comentários não são verificados por esse arquivo.</p>
         </section>}
-        {review.motivoErro && <div className="flex gap-3 rounded-md border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
+        {review.motivoErro && <div className={`flex gap-3 rounded-md border p-4 text-sm leading-6 ${review.status === "RESOLVIDO_MANUAL" ? "border-slate-200 bg-slate-50 text-slate-700" : "border-amber-200 bg-amber-50 text-amber-900"}`}>
           <AlertCircle className="mt-1 size-4 shrink-0" />
           <p className="break-words">{review.motivoErro}</p>
         </div>}
@@ -531,6 +541,9 @@ export function CertificateWorkspace() {
       </div>}
     </SurfaceDialog>
 
+    <SurfaceDialog open={!!resolveTarget} onOpenChange={open => {if(!open)setResolveTarget(null);}} title="Encerrar pendência de duplicidade" description="Esta decisão será registrada no histórico e contabilizada no progresso." busy={resolving}>
+      <div className="space-y-4 p-6"><p className="rounded-md bg-slate-50 p-3 text-sm">{resolveTarget?.matricula} · {resolveTarget?.qualificacao} · Emissão {formatDateOnly(resolveTarget?.emissao)}</p><p className="text-sm text-slate-700">O Crew deixará de alertar sobre esta pendência mesmo que a duplicidade continue no Drake. A decisão não exclui documentos e não confirma que foram corrigidos.</p>{error && <p role="alert" className="text-sm text-rose-700">{error}</p>}<div className="flex justify-end gap-2"><Action isDisabled={resolving} onPress={()=>setResolveTarget(null)}>Voltar</Action><Action variant="primary" isDisabled={resolving} onPress={()=>void resolveDuplicate()}>{resolving?"Registrando…":"Entendi, encerrar pendência"}</Action></div></div>
+    </SurfaceDialog>
     <SurfaceDialog open={!!cancelTarget} onOpenChange={open => { if (!open) setCancelTarget(null); }} title={cancelTarget?.item ? "Cancelar envio deste certificado" : "Encerrar pendências sem enviar"} description="O cancelamento ocorre somente no Crew e não exclui documentos no Drake." busy={cancelling}>
       <div className="space-y-4 p-6">{cancelTarget?.item ? <p className="rounded-md bg-slate-50 p-3 text-sm">{cancelTarget.item.matricula} · {cancelTarget.item.qualificacao} · Emissão {formatDateOnly(cancelTarget.item.emissao)}</p> : <p className="text-sm leading-6 text-slate-600">Serão encerradas apenas as pendências elegíveis deste arquivo. Enviados, confirmados e resultados incertos serão preservados. Uma pendência já atendida em outro arquivo será conciliada antes do cancelamento.</p>}
         <label className="block text-sm font-medium">Motivo do cancelamento<textarea maxLength={1000} rows={3} value={cancelReason} disabled={cancelling} onChange={event => setCancelReason(event.target.value)} placeholder="Ex.: Certificado não era necessário neste carregamento" className="mt-2 block w-full rounded-md border border-slate-200 p-3 text-sm outline-none focus:border-[#af261d]" />

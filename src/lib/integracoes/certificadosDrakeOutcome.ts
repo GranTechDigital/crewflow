@@ -15,6 +15,24 @@ async function audit(db:CertificadoDb,rows:OutcomeRow[],actor:{usuarioId:number;
 /** Somente evidência de envio posterior: nunca esconde um envio incerto ou uma correção mais recente. */
 export const reconciliarDesfechos = reconcileAcrossFiles;
 
+/** A decisão encerra apenas a pendência no Crew; não confirma nem altera o Drake. */
+export async function resolverDuplicidadeManualmente({importacaoId,itemId,confirmar,usuarioId,usuarioNome,db=prisma}:{importacaoId:number;itemId:number;confirmar:unknown;usuarioId:number;usuarioNome:string;db?:PrismaClient}) {
+  if(confirmar!==true||!Number.isSafeInteger(itemId)||itemId<1)throw new CertificadoError("Confirme a decisão para este certificado.");
+  return db.$transaction(async tx=>{
+    await lockCertificadoEnvironment(tx,certificateEnvironment());
+    await assertCertificadoVersionEditable(tx,importacaoId);
+    const item=await tx.importacaoCertificadoDrakeItem.findFirst({where:{id:itemId,importacaoId}});
+    if(!item)throw new CertificadoError("Certificado não encontrado.",404);
+    const [last]=await tx.$queryRaw<{status:string}[]>`SELECT status FROM "DrakeCertificadoConfirmacao" WHERE "itemId"=${itemId} ORDER BY "criadoEm" DESC,id DESC LIMIT 1`;
+    if(item.status!=="POSSIVEL_DUPLICIDADE" && !(item.status==="NAO_CONFIRMADO" && last?.status==="AMBIGUO"))throw new CertificadoError("A pendência mudou ou não é uma duplicidade. Atualize a página.",409);
+    const motivo="Pendência de duplicidade encerrada por decisão do usuário no Crew. A situação no Drake não foi verificada.";
+    const updated=await tx.importacaoCertificadoDrakeItem.updateMany({where:{id:itemId,importacaoId,status:item.status,updatedAt:item.updatedAt},data:{status:"RESOLVIDO_MANUAL",motivoErro:motivo}});
+    if(updated.count!==1)throw new CertificadoError("O certificado foi alterado. Atualize a página.",409);
+    await audit(tx,[{id:item.id,importacaoId,statusAnterior:item.status,motivoAnterior:item.motivoErro}],{usuarioId,usuarioNome},"RESOLVIDO_MANUAL",motivo);
+    return {importacao:await resumirImportacaoCertificadosDrake(tx,importacaoId)};
+  },{timeout:30000});
+}
+
 export async function cancelarCertificados({importacaoId,itemId,motivo,confirmar,usuarioId,usuarioNome,db=prisma}:{importacaoId:number;itemId?:number;motivo:unknown;confirmar:unknown;usuarioId:number;usuarioNome:string;db?:PrismaClient}) {
   if(confirmar!==true)throw new CertificadoError("Confirme o cancelamento no Crew.");
   if(typeof motivo!=="string"||motivo.trim().length<3||motivo.length>1000)throw new CertificadoError("Informe um motivo de 3 a 1.000 caracteres.");
@@ -34,7 +52,7 @@ export async function cancelarCertificados({importacaoId,itemId,motivo,confirmar
 }
 
 export async function outcomeCounts(db:CertificadoDb,ids:number[]) {
-  const empty=()=>({totalCanceladas:0,totalResolvidasOutroArquivo:0,totalDuplicadasNoArquivo:0,totalJaProcessadas:0,totalLinhas:0,totalPendentes:0,totalEnviadas:0,totalConfirmadas:0,totalErroValidacao:0,totalErroDrake:0,totalConflitos:0,totalNaoConfirmadas:0,totalDuplicadas:0});
+  const empty=()=>({totalCanceladas:0,totalResolvidasManualmente:0,totalResolvidasOutroArquivo:0,totalDuplicadasNoArquivo:0,totalJaProcessadas:0,totalLinhas:0,totalPendentes:0,totalEnviadas:0,totalConfirmadas:0,totalErroValidacao:0,totalErroDrake:0,totalConflitos:0,totalNaoConfirmadas:0,totalDuplicadas:0});
   const result=new Map<number,ReturnType<typeof empty>>();
   if(!ids.length)return result;
   // Todas as contagens vêm do mesmo snapshot SQL, sem misturar resumo anterior e desfechos novos.
@@ -43,6 +61,7 @@ export async function outcomeCounts(db:CertificadoDb,ids:number[]) {
     const entry=result.get(row.importacaoId)??empty(),count=row._count._all;entry.totalLinhas+=count;
     switch(row.status){
       case "CANCELADO":entry.totalCanceladas=count;break;
+      case "RESOLVIDO_MANUAL":entry.totalResolvidasManualmente=count;break;
       case "RESOLVIDO_OUTRO_ARQUIVO":entry.totalResolvidasOutroArquivo=count;break;
       case "DUPLICADO_NO_ARQUIVO":entry.totalDuplicadasNoArquivo=count;entry.totalDuplicadas+=count;break;
       case "DUPLICADO_JA_PROCESSADO":entry.totalJaProcessadas=count;entry.totalDuplicadas+=count;break;

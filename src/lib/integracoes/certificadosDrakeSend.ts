@@ -87,7 +87,7 @@ export async function enviarCertificadosPendentesDrake({ importacaoId, usuarioId
         if (owned.count !== 1) throw new CertificadoError("A execução perdeu a reserva. Consulte o histórico.", 409);
         const item = await tx.importacaoCertificadoDrakeItem.findUniqueOrThrow({ where: { id: candidate.id } });
         if (item.status !== "PENDENTE_ENVIO") return null;
-        const previous = await tx.importacaoCertificadoDrakeItem.findMany({ where: { id: { not: item.id }, chaveIdempotencia: item.chaveIdempotencia, importacao: { ambiente: batch.ambiente }, status: { in: ["ENVIANDO", "ENVIADO", "CONFIRMADO", "NAO_CONFIRMADO"] } }, select: { status: true, validade: true, recebimento: true } });
+        const previous = await tx.importacaoCertificadoDrakeItem.findMany({ where: { id: { not: item.id }, chaveIdempotencia: item.chaveIdempotencia, importacao: { ambiente: batch.ambiente }, status: { in: ["ENVIANDO", "ENVIADO", "CONFIRMADO", "NAO_CONFIRMADO", "RESOLVIDO_MANUAL"] } }, select: { status: true, validade: true, recebimento: true } });
         const history=certificadoHistoryDecision(previous,item);
         if(history){await tx.importacaoCertificadoDrakeItem.update({where:{id:item.id},data:{status:history.status,motivoErro:history.motivo}});return null;}
         if (!item.payload) {

@@ -227,7 +227,7 @@ export async function criarImportacaoCertificadosDrake({
   for (let index = 0; index < chavesValidas.length; index += 1000) itensAnteriores.push(...await db.importacaoCertificadoDrakeItem.findMany({
           where: {
             chaveIdempotencia: { in: chavesValidas.slice(index, index + 1000) }, importacao: { ambiente },
-            status: { in: ["ENVIANDO", "ENVIADO", "CONFIRMADO", "NAO_CONFIRMADO"] },
+            status: { in: ["ENVIANDO", "ENVIADO", "CONFIRMADO", "NAO_CONFIRMADO", "RESOLVIDO_MANUAL"] },
           },
           select: {
             chaveIdempotencia: true,
@@ -343,7 +343,7 @@ export async function reanalisarReferenciaCertificados(importacaoId: number, db:
     const items = await tx.importacaoCertificadoDrakeItem.findMany({ where: { importacaoId, status: { in: ["PENDENTE_ENVIO", "POSSIVEL_DUPLICIDADE", "REFERENCIA_INDISPONIVEL"] } } });
     const checks = await checkReferenceBatch(tx, batch.ambiente, items.map(item => ({ ...item, key: String(item.id) })), true);
     await saveReferenceChecks(tx, importacaoId, checks, "id");
-    const previous = await tx.importacaoCertificadoDrakeItem.findMany({ where: { importacao: { ambiente: batch.ambiente }, importacaoId: { not: importacaoId }, chaveIdempotencia: { in: items.map(item => item.chaveIdempotencia) }, status: { in: ["ENVIANDO", "ENVIADO", "CONFIRMADO", "NAO_CONFIRMADO"] } }, select: { chaveIdempotencia: true, status: true, validade: true, recebimento: true } });
+    const previous = await tx.importacaoCertificadoDrakeItem.findMany({ where: { importacao: { ambiente: batch.ambiente }, importacaoId: { not: importacaoId }, chaveIdempotencia: { in: items.map(item => item.chaveIdempotencia) }, status: { in: ["ENVIANDO", "ENVIADO", "CONFIRMADO", "NAO_CONFIRMADO", "RESOLVIDO_MANUAL"] } }, select: { chaveIdempotencia: true, status: true, validade: true, recebimento: true } });
     const historyByKey = new Map<string, typeof previous>();
     for (const row of previous) { const group = historyByKey.get(row.chaveIdempotencia) ?? []; group.push(row); historyByKey.set(row.chaveIdempotencia, group); }
     const updates = items.map(item => {

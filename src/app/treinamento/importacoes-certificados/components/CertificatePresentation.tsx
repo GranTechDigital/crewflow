@@ -14,7 +14,7 @@ export const statusImportacao = [
 ];
 
 export const statusItens = [
-  "CANCELADO", "RESOLVIDO_OUTRO_ARQUIVO",
+  "CANCELADO", "RESOLVIDO_OUTRO_ARQUIVO", "RESOLVIDO_MANUAL",
   "TODOS",
   "PENDENCIAS",
   "PENDENTE_ENVIO",
@@ -34,6 +34,7 @@ export const statusItens = [
 const statusClass: Record<string, string> = {
   CANCELADO: "border-slate-200 bg-slate-100 text-slate-600",
   RESOLVIDO_OUTRO_ARQUIVO: "border-teal-200 bg-teal-50 text-teal-800",
+  RESOLVIDO_MANUAL: "border-teal-200 bg-teal-50 text-teal-800",
   SUBSTITUIDO: "border-slate-200 bg-slate-100 text-slate-500",
   POSSIVEL_DUPLICIDADE: "bg-amber-50 text-amber-800 border-amber-200",
   REFERENCIA_INDISPONIVEL: "bg-orange-50 text-orange-800 border-orange-200",
@@ -85,6 +86,7 @@ export function statusLabel(value: string) {
   const labels: Record<string, string> = {
     SUBSTITUIDO: "Versão anterior — substituída",
     RESOLVIDO_OUTRO_ARQUIVO: "Resolvido em outro arquivo",
+    RESOLVIDO_MANUAL: "Pendência encerrada manualmente",
     PENDENCIAS: "Pendências",
     AGUARDANDO_CONFIRMACAO: "Pronto para envio",
     ENVIANDO: "Enviando ao Drake",
@@ -117,9 +119,10 @@ export function reviewCount(batch: Importacao) {
 export function FileProgress({ batch, compact = false }: { batch: Importacao; compact?: boolean }) {
   const sent = batch.totalEnviadas + batch.totalConfirmadas;
   const resolved = (batch.totalResolvidasOutroArquivo ?? 0) + (batch.totalJaProcessadas ?? Math.max(0, batch.totalDuplicadas - (batch.totalDuplicadasNoArquivo ?? 0)));
-  const cancelled = batch.totalCanceladas ?? 0, review = reviewCount(batch), closed = sent + resolved + cancelled;
+  const manual = batch.totalResolvidasManualmente ?? 0;
+  const cancelled = batch.totalCanceladas ?? 0, review = reviewCount(batch), closed = sent + resolved + cancelled + manual;
   const total = Math.max(batch.totalLinhas, closed + batch.totalPendentes + review, 1), percent = Math.min(batch.totalLinhas > 0 && closed >= batch.totalLinhas ? 100 : 99, Math.floor(closed / total * 100));
-  const groups = [{ label: "Enviados", value: sent, color: "bg-emerald-500", text: "text-emerald-700" }, { label: "Resolvidos em outro arquivo", value: resolved, color: "bg-teal-400", text: "text-teal-700" }, { label: "Cancelados", value: cancelled, color: "bg-slate-400", text: "text-slate-600" }, { label: "Aptos aguardando", value: batch.totalPendentes, color: "bg-blue-400", text: "text-blue-700" }, { label: "Para revisão", value: review, color: "bg-amber-400", text: "text-amber-800" }];
+  const groups = [{ label: "Enviados", value: sent, color: "bg-emerald-500", text: "text-emerald-700" }, { label: "Resolvidos em outro arquivo", value: resolved, color: "bg-teal-400", text: "text-teal-700" }, { label: "Encerrados manualmente", value: manual, color: "bg-teal-500", text: "text-teal-700" }, { label: "Cancelados", value: cancelled, color: "bg-slate-400", text: "text-slate-600" }, { label: "Aptos aguardando", value: batch.totalPendentes, color: "bg-blue-400", text: "text-blue-700" }, { label: "Para revisão", value: review, color: "bg-amber-400", text: "text-amber-800" }];
   const done = batch.totalLinhas > 0 && closed >= batch.totalLinhas;
   if (compact) return <div className="min-w-0 space-y-1.5" title={groups.map(group => `${group.label}: ${group.value}`).join(" · ")}>
     <div className="flex items-center justify-between gap-2 text-[11px] tabular-nums"><span className="text-slate-500">{closed}/{batch.totalLinhas} tratados</span><span className={`font-semibold ${done ? "text-emerald-700" : "text-slate-700"}`}>{percent}%</span></div>

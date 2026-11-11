@@ -1,6 +1,7 @@
 export type Importacao = {
   descricao?: string;
   totalCanceladas?: number;
+  totalResolvidasManualmente?: number;
   totalResolvidasOutroArquivo?: number;
   totalDuplicadasNoArquivo?: number;
   totalJaProcessadas?: number;
