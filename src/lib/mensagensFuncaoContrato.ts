@@ -1,0 +1,2 @@
+export const MENSAGEM_FUNCAO_CONTRATO = "A função do integrante não está cadastrada no contrato de destino. Favor alinhar a necessidade com o gerente responsável pelo contrato de destino. Após a autorização, entre em contato com o RH, para solicitar a criação da função.";
+export const MENSAGEM_FUNCAO_INDEFINIDA = "A função do integrante precisa estar cadastrada e ativa. Solicite ao RH a regularização da função antes de continuar.";

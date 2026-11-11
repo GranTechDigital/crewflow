@@ -1,3 +1,4 @@
+import { verificarFuncoesContrato, MENSAGEM_FUNCAO_CONTRATO } from "@/lib/validacaoFuncaoContrato";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { NovasolicitacaoRemanejamento } from "@/types/remanejamento-funcionario";
@@ -1463,6 +1464,11 @@ export async function POST(request: NextRequest) {
           },
           {} as Record<number, number[]>,
         );
+    }
+
+    if (["ALOCACAO", "REMANEJAMENTO", "VINCULO_ADICIONAL"].includes(tipoSolicitacao)) {
+      const bloqueados = await verificarFuncoesContrato(Number(contratoDestinoId), funcionarioIdsProcessados);
+      if (bloqueados.length) return NextResponse.json({ error: MENSAGEM_FUNCAO_CONTRATO, codigo: "FUNCAO_CONTRATO", bloqueados }, { status: 400 });
     }
 
     // Criar a solicitação de remanejamento

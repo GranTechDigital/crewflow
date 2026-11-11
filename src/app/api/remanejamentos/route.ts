@@ -1,3 +1,4 @@
+import { verificarFuncoesContrato, MENSAGEM_FUNCAO_CONTRATO } from "@/lib/validacaoFuncaoContrato";
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { logHistorico } from '@/lib/historico';
@@ -105,6 +106,12 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    if (!Number.isInteger(Number(contratoDestinoId)) || Number(contratoDestinoId) <= 0) {
+      return NextResponse.json({ error: "Contrato de destino é obrigatório" }, { status: 400 });
+    }
+    const bloqueados = await verificarFuncoesContrato(Number(contratoDestinoId), funcionarioIds.map(Number));
+    if (bloqueados.length) return NextResponse.json({ error: MENSAGEM_FUNCAO_CONTRATO, codigo: "FUNCAO_CONTRATO", bloqueados }, { status: 400 });
 
     // solicitadoPor agora é sempre o usuário autenticado, sem exigir no body
 

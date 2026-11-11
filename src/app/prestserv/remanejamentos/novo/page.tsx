@@ -23,6 +23,7 @@ import {
   CalendarIcon,
   ClockIcon,
 } from "@heroicons/react/24/outline";
+import { useFuncoesContrato, IconeFuncaoBloqueada, ModalFuncaoBloqueada } from "@/components/avisoFuncaoContrato";
 import { useToast } from "@/components/Toast";
 import { useAuth } from "@/app/hooks/useAuth";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -145,6 +146,11 @@ function NovoRemanejamentoContent() {
   const [filtroFuncao, setFiltroFuncao] = useState("");
   const [filtroCentroCusto, setFiltroCentroCusto] = useState("");
   const [filtroStatus, setFiltroStatus] = useState("");
+  const [somenteFuncoesDoDestino, setSomenteFuncoesDoDestino] = useState(false);
+
+  const verificaDestino = tipoRemanejamento === "funcionarios_novos" || tipoRemanejamento === "entre_contratos" || tipoRemanejamento === "multialocacao";
+  const { bloqueados, estado: estadoFuncoes } = useFuncoesContrato(verificaDestino ? contratoDestino?.id : undefined, [...funcionarios, ...funcionariosNovos].map(f => Number(f.id)));
+  const [motivoModal, setMotivoModal] = useState<string | null>(null);
 
   // Funções para manipular seleção de funcionários
 
@@ -185,6 +191,7 @@ function NovoRemanejamentoContent() {
       setFiltroFuncao("");
       setFiltroCentroCusto("");
       setFiltroStatus("");
+      setSomenteFuncoesDoDestino(false);
 
       // Para alocação, limpar contrato origem pois não é necessário
       if (tipoRemanejamento === "funcionarios_novos") {
@@ -281,6 +288,8 @@ function NovoRemanejamentoContent() {
           !filtroCentroCusto || funcionario.centroCusto === filtroCentroCusto;
         const statusMatch =
           !filtroStatus || funcionario.status === filtroStatus;
+        const funcaoNoDestino = !verificaDestino || !somenteFuncoesDoDestino ||
+          (estadoFuncoes === "pronto" && !bloqueados.some((bloqueado) => bloqueado.id === Number(funcionario.id)));
         const naoSelecionado = !funcionariosSelecionados.some(
           (sel) => sel.id === parseInt(funcionario.id),
         );
@@ -290,6 +299,7 @@ function NovoRemanejamentoContent() {
           funcaoMatch &&
           centroCustoMatch &&
           statusMatch &&
+          funcaoNoDestino &&
           naoSelecionado
         );
       })
@@ -312,6 +322,10 @@ function NovoRemanejamentoContent() {
     filtroFuncao,
     filtroCentroCusto,
     filtroStatus,
+    somenteFuncoesDoDestino,
+    verificaDestino,
+    estadoFuncoes,
+    bloqueados,
     funcionariosSelecionados,
   ]);
 
@@ -463,6 +477,11 @@ function NovoRemanejamentoContent() {
   const [loadingSelecao, setLoadingSelecao] = useState<number | null>(null);
 
   const adicionarFuncionario = async (funcionario: FuncionarioSelecionado) => {
+    if (verificaDestino) {
+      if (estadoFuncoes !== "pronto") { showToast("Não foi possível verificar as funções. Aguarde ou tente novamente.", "error"); return; }
+      const bloqueio = bloqueados.find(f => f.id === funcionario.id);
+      if (bloqueio) { setMotivoModal(bloqueio.motivo); return; }
+    }
     // Ativa o loading para este funcionário específico
     setLoadingSelecao(funcionario.id);
 
@@ -510,6 +529,9 @@ function NovoRemanejamentoContent() {
     const funcionariosDaFuncao = funcionariosDisponiveis.filter(
       (f) => f.funcao === funcao,
     );
+    if (verificaDestino && estadoFuncoes !== "pronto") { showToast("Não foi possível verificar as funções. Aguarde ou tente novamente.", "error"); return; }
+    const bloqueio = verificaDestino && funcionariosDaFuncao.map(f => bloqueados.find(b => b.id === f.id)).find(Boolean);
+    if (bloqueio) { setMotivoModal(bloqueio.motivo); return; }
     setFuncionariosSelecionados((prev) => [...prev, ...funcionariosDaFuncao]);
   };
 
@@ -684,7 +706,8 @@ function NovoRemanejamentoContent() {
         }, 1500);
       } else {
         const error = await response.json();
-        showToast(
+        if (error?.codigo === "FUNCAO_CONTRATO") setMotivoModal(error.bloqueados?.[0]?.motivo || "FUNCAO_NAO_CADASTRADA");
+        else showToast(
           error?.error || error?.message || "Erro ao enviar solicitação",
           "error",
         );
@@ -710,6 +733,7 @@ function NovoRemanejamentoContent() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {motivoModal && <ModalFuncaoBloqueada motivo={motivoModal} onClose={() => setMotivoModal(null)} />}
       <div className="bg-gradient-to-r from-gray-800 to-slate-600 shadow-lg rounded-t-2xl border-slate-500 border-2">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -1265,6 +1289,16 @@ function NovoRemanejamentoContent() {
                   </div>
                 </div>
 
+                {verificaDestino && (
+                  <div className="mb-5">
+                    <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                      <input type="checkbox" checked={somenteFuncoesDoDestino} onChange={(e) => setSomenteFuncoesDoDestino(e.target.checked)} disabled={estadoFuncoes !== "pronto" && !somenteFuncoesDoDestino} className="h-4 w-4 rounded border-gray-300 text-slate-700" />
+                      Somente funcionários com função no contrato de destino
+                    </label>
+                    {estadoFuncoes !== "pronto" && <p className="mt-1 text-xs text-gray-500">{estadoFuncoes === "erro" ? "Não foi possível verificar as funções do contrato." : "Verificando as funções do contrato..."}</p>}
+                  </div>
+                )}
+
                 {tipoRemanejamento === "desvinculo" &&
                   funcionariosSelecionados.length > 0 && (
                     <div className="mt-4 mb-2 border border-amber-200 bg-amber-50 rounded-lg p-4">
@@ -1351,6 +1385,7 @@ function NovoRemanejamentoContent() {
                               <div className="flex-1">
                                 <div className="flex items-center gap-2">
                                   <UserIcon className="h-4 w-4 text-gray-400" />
+                                  {verificaDestino && estadoFuncoes === "pronto" && bloqueados.find(b => b.id === funcionario.id) && <IconeFuncaoBloqueada motivo={bloqueados.find(b => b.id === funcionario.id)?.motivo} />}
                                   <span className="font-medium text-gray-900 text-sm">
                                     {funcionario.nome}
                                   </span>

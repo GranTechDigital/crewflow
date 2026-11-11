@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useFuncoesContrato, IconeFuncaoBloqueada, ModalFuncaoBloqueada } from "@/components/avisoFuncaoContrato";
 import { useAuth } from "@/app/hooks/useAuth";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { ROUTE_PROTECTION, PERMISSIONS } from "@/lib/permissions";
@@ -72,9 +73,13 @@ export default function NovoRemanejamentoPage() {
   // Estados de filtros
   const [filtroFuncao, setFiltroFuncao] = useState("");
   const [buscaNome, setBuscaNome] = useState("");
+  const [somenteFuncoesDoDestino, setSomenteFuncoesDoDestino] = useState(false);
   const [etapaAtual, setEtapaAtual] = useState<"selecao" | "confirmacao">(
     "selecao"
   );
+
+  const { bloqueados, estado: estadoFuncoes } = useFuncoesContrato(contratoDestino?.id, funcionarios.map(f => Number(f.id)));
+  const [motivoModal, setMotivoModal] = useState<string | null>(null);
 
   // Carregar dados iniciais
   useEffect(() => {
@@ -150,6 +155,7 @@ export default function NovoRemanejamentoPage() {
           !f.nome.toLowerCase().includes(buscaNome.toLowerCase())
         )
           return false;
+        if (somenteFuncoesDoDestino && (!contratoDestino || estadoFuncoes !== "pronto" || bloqueados.some((bloqueado) => bloqueado.id === Number(f.id)))) return false;
         // Não mostrar funcionários já selecionados
         if (funcionariosSelecionados.some((fs) => fs.id === parseInt(f.id)))
           return false;
@@ -169,6 +175,10 @@ export default function NovoRemanejamentoPage() {
     centroCustoOrigem,
     filtroFuncao,
     buscaNome,
+    somenteFuncoesDoDestino,
+    contratoDestino,
+    estadoFuncoes,
+    bloqueados,
     funcionariosSelecionados,
   ]);
 
@@ -202,6 +212,10 @@ export default function NovoRemanejamentoPage() {
 
   // Funções de manipulação
   const adicionarFuncionario = (funcionario: FuncionarioSelecionado) => {
+    if (!contratoDestino) { alert("Selecione o contrato de destino antes de escolher os funcionários."); return; }
+    if (estadoFuncoes !== "pronto") { alert("Não foi possível verificar as funções. Aguarde ou tente novamente."); return; }
+    const bloqueio = bloqueados.find(f => f.id === funcionario.id);
+    if (bloqueio) { setMotivoModal(bloqueio.motivo); return; }
     setFuncionariosSelecionados((prev) => {
       return prev.some((f) => f.id === funcionario.id)
         ? prev
@@ -219,6 +233,10 @@ export default function NovoRemanejamentoPage() {
     const funcionariosDaFuncao = funcionariosDisponiveis.filter(
       (f) => f.funcao === funcao
     );
+    if (!contratoDestino) { alert("Selecione o contrato de destino antes de escolher os funcionários."); return; }
+    if (estadoFuncoes !== "pronto") { alert("Não foi possível verificar as funções. Aguarde ou tente novamente."); return; }
+    const bloqueio = funcionariosDaFuncao.map(f => bloqueados.find(b => b.id === f.id)).find(Boolean);
+    if (bloqueio) { setMotivoModal(bloqueio.motivo); return; }
     setFuncionariosSelecionados((prev) => {
       const existingIds = new Set(prev.map((f) => f.id));
       const toAdd = funcionariosDaFuncao
@@ -307,11 +325,13 @@ export default function NovoRemanejamentoPage() {
         }
         router.push(target);
       } else {
-        throw new Error("Erro ao criar solicitação");
+        const data = await response.json();
+        if (data?.codigo === "FUNCAO_CONTRATO") { setMotivoModal(data.bloqueados?.[0]?.motivo || "FUNCAO_NAO_CADASTRADA"); return; }
+        throw new Error(data?.error || "Erro ao criar solicitação");
       }
     } catch (error) {
       console.error("Erro ao criar remanejamento:", error);
-      alert("Erro ao criar solicitação de remanejamento");
+      alert(error instanceof Error ? error.message : "Erro ao criar solicitação de remanejamento");
     } finally {
       setSubmitting(false);
     }
@@ -334,6 +354,7 @@ export default function NovoRemanejamentoPage() {
       requiredPermissions={[PERMISSIONS.ADMIN, PERMISSIONS.ACCESS_PLANEJAMENTO]}
     >
     <div className="min-h-screen bg-gray-50">
+      {motivoModal && <ModalFuncaoBloqueada motivo={motivoModal} onClose={() => setMotivoModal(null)} />}
       {/* Header */}
       <div className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -484,6 +505,7 @@ export default function NovoRemanejamentoPage() {
                         (c) => c.id === parseInt(e.target.value)
                       );
                       setContratoDestino(contrato || null);
+                      setFuncionariosSelecionados([]);
                       setCentroCustoDestino("");
                     }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -563,6 +585,14 @@ export default function NovoRemanejamentoPage() {
                   </select>
                 </div>
 
+                <div className="mb-5">
+                  <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                    <input type="checkbox" checked={somenteFuncoesDoDestino} onChange={(e) => setSomenteFuncoesDoDestino(e.target.checked)} disabled={(!contratoDestino || estadoFuncoes !== "pronto") && !somenteFuncoesDoDestino} className="h-4 w-4 rounded border-gray-300 text-blue-600" />
+                    Somente funcionários com função no contrato de destino
+                  </label>
+                  {contratoDestino && estadoFuncoes !== "pronto" && <p className="mt-1 text-xs text-gray-500">{estadoFuncoes === "erro" ? "Não foi possível verificar as funções do contrato." : "Verificando as funções do contrato..."}</p>}
+                </div>
+
                 {/* Lista de funcionários disponíveis */}
                 <div className="space-y-3 max-h-96 overflow-y-auto">
                   {funcionariosDisponiveis.length === 0 ? (
@@ -583,7 +613,8 @@ export default function NovoRemanejamentoPage() {
                             <UserIcon className="h-5 w-5 text-blue-600" />
                           </div>
                           <div>
-                            <h3 className="font-medium text-gray-900">
+                            <h3 className="font-medium text-gray-900 flex items-center gap-2">
+                              {contratoDestino && estadoFuncoes === "pronto" && bloqueados.find(b => b.id === funcionario.id) && <IconeFuncaoBloqueada motivo={bloqueados.find(b => b.id === funcionario.id)?.motivo} />}
                               {funcionario.nome}
                             </h3>
                             <div className="flex items-center gap-4 text-sm text-gray-500">
